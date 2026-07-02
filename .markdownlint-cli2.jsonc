@@ -1,0 +1,26 @@
+{
+  // Lint repo-authored markdown only. Vendored skill trees are excluded:
+  // lint fixes there would change content hashes and break `skills-sync.mjs verify`,
+  // and would be overwritten by upstream pulls anyway.
+  "globs": ["**/*.md"],
+  "ignores": [
+    "node_modules/**",
+    "laravel/skills/**",
+    "inertia-react/skills/**",
+    "docs/**",
+    ".superpowers/**"
+  ],
+  "config": {
+    "default": true,
+    // Long lines are fine in prose, tables, and command examples
+    "MD013": false,
+    // Docs open with intro prose or frontmatter rather than a strict top-level heading
+    "MD041": false,
+    // Allow duplicate headings when they are not siblings (e.g. repeated "Notes" sections)
+    "MD024": { "siblings_only": true },
+    // Agent/skill prompts use XML-style tags (<types>, <examples>, ...) as structure
+    "MD033": false,
+    // Prompt files mix fenced blocks with indented example transcripts inside XML tags
+    "MD046": false
+  }
+}

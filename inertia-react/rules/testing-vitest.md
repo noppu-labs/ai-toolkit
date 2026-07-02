@@ -7,6 +7,7 @@ paths:
 
 - Use `it(...)` instead of `test(...)`. Import from `vitest`: `import { describe, expect, it } from "vitest";`.
 - Use `describe()` blocks for each method/function tested. All `it()` cases for that unit live inside. Example:
+
     ```ts
     describe("formatDate", () => {
         it("formats date-only by default", () => {
@@ -14,8 +15,10 @@ paths:
         });
     });
     ```
+
 - When a file exports MULTIPLE components, wrap each component's cases in a top-level
   `describe("ComponentName", () => { ... })`. Method-level `describe()`s nest inside. Example:
+
     ```tsx
     describe("DataTable", () => {
         it("renders headers and rows", async () => { /* ... */ });
@@ -29,6 +32,7 @@ paths:
         it("renders the page count", async () => { /* ... */ });
     });
     ```
+
 - In feature tests, you DO NOT need to create a `describe()` for cases that don't belong to a specific method
   (such as page-level render/interaction flows). Flat `it()`s are fine — unless the file covers multiple
   components/features, in which case wrap each in its own `describe()`.

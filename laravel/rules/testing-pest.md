@@ -45,6 +45,7 @@ A unit test exercises a single class in isolation, with no framework boot.
 - **DO NOT** seed `config([...])` in `beforeEach` — pass explicit values to the constructor instead.
 - **DO NOT** use `RefreshDatabase`, model factories, Eloquent, or HTTP helpers (`get`, `post`, `actingAs`).
 - **DO** construct the subject with explicit, plain values and mocked collaborators:
+
     ```php
     // Good — pure unit test of CognitoOtpService
     $client = Mockery::mock(CognitoIdentityProviderClient::class);
@@ -55,6 +56,7 @@ A unit test exercises a single class in isolation, with no framework boot.
         client: $client,
     );
     ```
+
 - **DO** mock external dependencies with plain `Mockery::mock(...)`. The container-aware
   `Pest\Laravel\mock` / `Pest\Laravel\instance` helpers require the framework boot and are forbidden in
   unit tests.
@@ -62,6 +64,7 @@ A unit test exercises a single class in isolation, with no framework boot.
   rather than only via public surface area. See the **Reflection** section below.
 - **DO** keep container-resolution / binding tests in the corresponding **service provider test**, not
   in the service test:
+
     ```php
     // Bad — couples a unit test to the container binding
     it('resolves CognitoIdentityProviderClient from the container', function (): void {
@@ -71,8 +74,10 @@ A unit test exercises a single class in isolation, with no framework boot.
 
     // Good — that case belongs in AwsCognitoProviderTest, not CognitoOtpServiceTest.
     ```
+
 - When the class under test takes `Illuminate\Contracts\Foundation\Application` (e.g. a service
   provider), mock the interface and stub the exact container calls you expect:
+
     ```php
     /** @var Application&MockInterface $app */
     $app = Mockery::mock(Application::class);
@@ -101,6 +106,7 @@ mail).
 
 - Use `it(...)` instead of `test(...)`.
 - Use `describe()` blocks for each method tested. All `it()` cases for that unit live inside.. Example:
+
     ```php
     describe('getBaseQuery', function (): void {
         it('returns a query builder instance', function (): void {
@@ -113,6 +119,7 @@ mail).
         });
     });
     ```
+
 - You DO NOT need to create a `describe()` for the class name under test.
 - In feature tests, you DO NOT need to create a `describe()` for cases that don't belong to a specific feature
  (such as GET / POST / DELETE calls).
@@ -120,6 +127,7 @@ mail).
   `it("is called with the row when a row is clicked")`).
 - DO NOT use `$this` calls in tests. You have Pest tools available such as `Pest\Laravel\mock`
   and `Pest\Laravel\instance` to mock instances and interact with the container. For example:
+
     ```php
     use function Pest\Laravel\mock;
     use function Pest\Laravel\instance;
@@ -134,14 +142,17 @@ mail).
     instance(UserRepository::class, new UserRepository());
     // This will get the concrete object we instantiated from the container.
     $fetchedConcreteObject = resolve(UserRepository::class);
-    ``` 
+    ```
+
 - Add a docblock to mocked variables so the IDE can understand it its type as `ObjectType&MockInterface`. For example:
+
     ```php
     use function Pest\Laravel\mock;
     
     /** @var SomeService&MockInterface $service */
     $service = mock(SomeService::class);
     ```
+
 - Avoid creating helper files for tests. `beforeEach` and `afterEach` are available in Pest for setups.
 - Avoid creating setup functions within tests. Model factories are often the solution for this.
 
@@ -150,6 +161,7 @@ mail).
 - Chain `->throws(ExceptionClass::class)` on the `it()` call when a test's purpose is to
   verify that some code throws. Put the throwing call last in the test body so any preceding
   expectations still run.
+
     ```php
     it('rejects an invalid input', function (): void {
         $service = resolve(SomeService::class);
@@ -157,9 +169,11 @@ mail).
         $service->doThing('bad-input');
     })->throws(InvalidArgumentException::class);
     ```
+
 - Use `expect(fn () => ...)->toThrow(ExceptionClass::class)` only when you need to combine the throw
   assertion with other expectations in the same test (e.g. asserting state after the throw, or chaining
   `->and(...)` with unrelated checks).
+
     ```php
     it('restores state after a failed call', function (): void {
         $originalId = 100;
@@ -175,6 +189,7 @@ mail).
 - Prefer `expect($value)->not->toBeNull()` combined with the nullsafe operator (`?->`) over
   `assert($value !== null)`. The expectation fails the test cleanly if the value is null and PHPStan
   understands the subsequent nullsafe access.
+
     ```php
     $refreshed = $user->fresh();
     
@@ -186,6 +201,7 @@ mail).
 
 - Extract long Eloquent queries or multi-step expressions into a local variable before passing them to
   `expect()`. This keeps the assertion readable and makes failures easier to diagnose.
+
     ```php
     // Bad
     expect(OrganisationUser::query()->where('user_id', $user->id)->where('organisation_id', $org->id)->exists())->toBeTrue();
@@ -202,14 +218,17 @@ mail).
 ## Mocking
 
 - Add a docblock to mocked variables so the IDE can understand its type as `ObjectType&MockInterface`.
+
     ```php
     use function Pest\Laravel\mock;
     
     /** @var FulgentLabService&MockInterface $service */
     $service = mock(FulgentLabService::class);
     ```
+
 - DO NOT use `$this` calls in tests. You have Pest tools available such as `Pest\Laravel\mock` and `Pest\Laravel\instance`
   to mock instances and interact with the container.
+
     ```php
     // Bad
     $this->mock(SomeService::class);
@@ -232,8 +251,10 @@ mail).
     // Get the concrete object we instantiated from the container.
     $fetchedConcreteObject = resolve(SomeRepository::class);
     ```
+
 - Use `Pest\Laravel\mock` for container-aware mocks, such as when you are testing a service that requires dependency
   injection, and you need to perform assertions on its dependencies. Otherwise, use `Mockery::mock()` for simple mocks.
+
     ```php
     // Container-aware mock - useful for testing services that require dependency injection.
     use Pest\Laravel\mock;

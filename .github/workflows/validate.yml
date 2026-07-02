@@ -16,6 +16,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Biome
+        run: npx biome ci .
+      - name: Markdown lint
+        run: npx markdownlint-cli2
       - name: Unit tests
         run: node --test "scripts/**/*.test.mjs"
       - name: Lock consistency

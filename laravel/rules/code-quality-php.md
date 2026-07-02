@@ -6,6 +6,7 @@ description:
 ---
 
 ## Finishing a task
+
 - When done with a task or before committing, run `docker compose exec cli vendor/bin/duster fix --dirty` followed by
   `docker compose exec cli vendor/bin/duster lint` to fix most code style issues and identify code quality/smell issues.
 - Any code quality issues reported must be fixed.
@@ -89,6 +90,7 @@ public function getRecentActivity(): Collection
 ```
 
 ## Separation of concerns
+
 - Ensure that the code is not violating any of the SOLID principles.
 - Avoid mixing concerns by separating business logic, data access, and presentation layers.
 - Use dependency injection to decouple components and promote loose coupling.
@@ -121,7 +123,7 @@ All domain logic, DTOs, enums, and queries live under `app/Services/{Domain}/`. 
 capability (`Auth`, `UserInvite`, `GenieApi`, `Patient`, …). Each service folder owns everything that
 capability needs:
 
-```
+```text
 app/Services/UserInvite/
   UserInviteService.php              # orchestrator — the public surface of the service
   Dtos/InviteUserDto.php             # spatie/laravel-data DTOs scoped to this service
@@ -130,6 +132,7 @@ app/Services/UserInvite/
 ```
 
 Rules:
+
 - Eloquent models stay outside services in `app/Models/` (Laravel convention).
 - Genuinely cross-cutting, domain-agnostic infrastructure (e.g. base classes shared across every domain)
   may live under `app/Support/`; everything domain-specific stays under `app/Services/{Domain}/`.
@@ -172,12 +175,14 @@ public function store(CreateUserDto $dto, UserService $users): RedirectResponse
 ```
 
 Acceptable controller work:
+
 - Accepting a DTO / form request and forwarding it to a service.
 - Choosing between two service calls based on a route parameter or auth state.
 - Pulling a single field off a DTO to pass as an argument (minimal extraction only).
 - Returning the response: `Inertia::render(...)`, `redirect()`, `response()->json(...)`.
 
 Does **not** belong in a controller:
+
 - Eloquent queries (`User::where(...)`, `->with(...)`, joins, aggregates).
 - Business rules or validation beyond what the DTO / form request already handles.
 - Direct calls to mailers, queues, events, external APIs, or the filesystem.
@@ -188,7 +193,9 @@ If a controller method grows past ~10 lines, or calls more than one service, the
 in a new service method — move it.
 
 ## Models
+
 - Prefer PHP attributes for configurations.
+
     ```php
     #[Fillable([
         'name',
@@ -204,8 +211,10 @@ in a new service method — move it.
     #[UseFactory(UserFactory::class)]
     class User extends Authenticatable {}
     ```
+
 - All models should use dedicated query builders. Opt for adding methods to the builder rather than adding scopes where
   possible.
+
     ```php
     // Bad:
     class User extends Authenticatable {

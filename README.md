@@ -9,7 +9,7 @@ A collection of agents and skills for agentic development for modern Laravel and
 
 ## Install (Claude Code marketplace)
 
-```
+```text
 /plugin marketplace add noppu-labs/ai-toolkit
 /plugin install laravel@ai-toolkit
 /plugin install inertia-react@ai-toolkit
@@ -24,7 +24,7 @@ commands (formatter invocation, npm script names) to your setup.
 
 ## Install (Vercel skills CLI)
 
-```
+```text
 npx skills add noppu-labs/ai-toolkit/laravel
 npx skills add noppu-labs/ai-toolkit/inertia-react
 ```

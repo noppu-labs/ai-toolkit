@@ -8,7 +8,7 @@ description:
 ---
 
 ## Finishing a task
+
 - When done with a task or before committing, run `npm run format` followed by `npm run agent-checks` to fix most code
   style issues and identify code quality/smell issues.
 - Any code quality issues reported must be fixed.
-
