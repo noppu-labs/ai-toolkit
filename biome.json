@@ -1,0 +1,98 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "linter": {
+    "domains": { "react": "all", "test": "all" },
+    "rules": {
+      "preset": "recommended",
+      "nursery": {
+        "useSortedClasses": "error",
+        "useExplicitType": "error",
+        "noDuplicateSelectors": "error",
+        "noComponentHookFactories": "error",
+        "useExpect": "off"
+      },
+      "complexity": {
+        "noImportantStyles": "error",
+        "noExcessiveCognitiveComplexity": {
+          "options": {
+            "maxAllowedComplexity": 10
+          },
+          "level": "error"
+        }
+      },
+      "performance": {
+        "noAwaitInLoops": "error",
+        "noReExportAll": "error",
+        "noBarrelFile": "error",
+        "noJsxPropsBind": "error"
+      },
+      "security": {
+        "noSecrets": {
+          "options": {
+            "entropyThreshold": 45
+          },
+          "level": "error"
+        }
+      },
+      "style": {
+        "noEnum": "error",
+        "noExportedImports": "error",
+        "useComponentExportOnlyModules": "error",
+        "noHexColors": "error"
+      },
+      "suspicious": {
+        "noAlert": "error",
+        "noMisplacedAssertion": "error",
+        "noForIn": "error",
+        "noNestedPromises": "error",
+        "noLeakedRender": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noJsxPropsBind": "off"
+          },
+          "style": { "useComponentExportOnlyModules": "off" },
+          "nursery": {
+            "noComponentHookFactories": "off"
+          }
+        }
+      }
+    }
+  ],
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    },
+    "formatter": {
+      "enabled": true
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

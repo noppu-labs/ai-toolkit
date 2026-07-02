@@ -1,20 +1,28 @@
 #!/usr/bin/env node
+import { execFileSync, spawnSync } from "node:child_process";
 /**
  * Zero-dependency sync tool for vendored skills.
  * Tracks each skill's upstream source in <plugin>/skills-lock.json and classifies
  * sync state from two whole-directory hashes (vendored copy vs upstream).
  */
-import { createHash } from 'node:crypto';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const PLUGINS = ['laravel', 'inertia-react'];
+export const PLUGINS = ["laravel", "inertia-react"];
 
 export function sha256(data) {
-  return createHash('sha256').update(data).digest('hex');
+  return createHash("sha256").update(data).digest("hex");
 }
 
 export function listFiles(dir, base = dir) {
@@ -24,15 +32,17 @@ export function listFiles(dir, base = dir) {
     if (entry.isDirectory()) {
       out.push(...listFiles(full, base));
     } else if (entry.isFile()) {
-      out.push(relative(base, full).replaceAll('\\', '/'));
+      out.push(relative(base, full).replaceAll("\\", "/"));
     }
   }
   return out.sort();
 }
 
 export function hashFiles(files) {
-  const lines = [...files.keys()].sort().map((path) => `${path}:${sha256(files.get(path))}`);
-  return sha256(lines.join('\n'));
+  const lines = [...files.keys()]
+    .sort()
+    .map((path) => `${path}:${sha256(files.get(path))}`);
+  return sha256(lines.join("\n"));
 }
 
 export function hashDirectory(dir) {
@@ -44,51 +54,64 @@ export function hashDirectory(dir) {
 }
 
 export function classify(entry, vendoredHashNow, upstreamHashNow) {
-  if (entry.sourceType === 'local') {
-    return 'local';
+  if (entry.sourceType === "local") {
+    return "local";
   }
   const localChanged = vendoredHashNow !== entry.vendoredHash;
   const upstreamChanged = upstreamHashNow !== entry.upstreamHash;
   if (localChanged && upstreamChanged) {
-    return 'diverged';
+    return "diverged";
   }
   if (upstreamChanged) {
-    return 'upstream-updated';
+    return "upstream-updated";
   }
   if (localChanged) {
-    return 'locally-modified';
+    return "locally-modified";
   }
-  return 'up-to-date';
+  return "up-to-date";
 }
 
 export function readLock(root, plugin) {
-  return JSON.parse(readFileSync(join(root, plugin, 'skills-lock.json'), 'utf8'));
+  return JSON.parse(
+    readFileSync(join(root, plugin, "skills-lock.json"), "utf8"),
+  );
 }
 
 export function writeLock(root, plugin, lock) {
-  writeFileSync(join(root, plugin, 'skills-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
+  writeFileSync(
+    join(root, plugin, "skills-lock.json"),
+    `${JSON.stringify(lock, null, 2)}\n`,
+  );
 }
 
 export function verifyAll(root) {
   const problems = [];
   for (const plugin of PLUGINS) {
     const lock = readLock(root, plugin);
-    const skillsDir = join(root, plugin, 'skills');
+    const skillsDir = join(root, plugin, "skills");
     for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
       if (entry.isDirectory() && !lock.skills[entry.name]) {
-        problems.push(`${plugin}/${entry.name}: on disk but missing from skills-lock.json`);
+        problems.push(
+          `${plugin}/${entry.name}: on disk but missing from skills-lock.json`,
+        );
       }
     }
     for (const [name, entry] of Object.entries(lock.skills)) {
       const dir = join(skillsDir, name);
       if (!existsSync(dir)) {
-        problems.push(`${plugin}/${name}: in skills-lock.json but missing on disk`);
+        problems.push(
+          `${plugin}/${name}: in skills-lock.json but missing on disk`,
+        );
         continue;
       }
       if (entry.vendoredHash && hashDirectory(dir) !== entry.vendoredHash) {
-        problems.push(`${plugin}/${name}: content changed since last baseline (run accept or seed)`);
-      } else if (!entry.vendoredHash && entry.sourceType === 'github') {
-        problems.push(`${plugin}/${name}: missing vendoredHash baseline (run seed)`);
+        problems.push(
+          `${plugin}/${name}: content changed since last baseline (run accept or seed)`,
+        );
+      } else if (!entry.vendoredHash && entry.sourceType === "github") {
+        problems.push(
+          `${plugin}/${name}: missing vendoredHash baseline (run seed)`,
+        );
       }
     }
   }
@@ -96,7 +119,10 @@ export function verifyAll(root) {
 }
 
 export function ghJson(path) {
-  const stdout = execFileSync('gh', ['api', path], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const stdout = execFileSync("gh", ["api", path], {
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
   return JSON.parse(stdout);
 }
 
@@ -104,18 +130,25 @@ export function fetchUpstream(entry, gh = ghJson) {
   const commit = gh(`repos/${entry.source}/commits/${entry.ref}`).sha;
   const files = new Map();
   const walk = (path) => {
-    for (const item of gh(`repos/${entry.source}/contents/${path}?ref=${commit}`)) {
-      if (item.type === 'dir') {
+    for (const item of gh(
+      `repos/${entry.source}/contents/${path}?ref=${commit}`,
+    )) {
+      if (item.type === "dir") {
         walk(item.path);
-      } else if (item.type === 'file') {
+      } else if (item.type === "file") {
         const blob = gh(`repos/${entry.source}/git/blobs/${item.sha}`);
-        files.set(item.path.slice(entry.skillPath.length + 1), Buffer.from(blob.content, 'base64'));
+        files.set(
+          item.path.slice(entry.skillPath.length + 1),
+          Buffer.from(blob.content, "base64"),
+        );
       }
     }
   };
   walk(entry.skillPath);
   if (files.size === 0) {
-    throw new Error(`no files under ${entry.skillPath} in ${entry.source}@${entry.ref}`);
+    throw new Error(
+      `no files under ${entry.skillPath} in ${entry.source}@${entry.ref}`,
+    );
   }
   return { commit, files, hash: hashFiles(files) };
 }
@@ -135,15 +168,21 @@ export function statusAll(root, fetcher = fetchUpstream) {
     const lock = readLock(root, plugin);
     for (const [name, entry] of Object.entries(lock.skills)) {
       const id = `${plugin}/${name}`;
-      if (entry.sourceType === 'local') {
-        rows.push({ id, state: 'local' });
+      if (entry.sourceType === "local") {
+        rows.push({ id, state: "local" });
         continue;
       }
       try {
-        const vendored = hashDirectory(join(root, plugin, 'skills', name));
-        rows.push({ id, state: classify(entry, vendored, fetcher(entry).hash) });
+        const vendored = hashDirectory(join(root, plugin, "skills", name));
+        rows.push({
+          id,
+          state: classify(entry, vendored, fetcher(entry).hash),
+        });
       } catch (error) {
-        rows.push({ id, state: `fetch-error (${String(error.message).trim()})` });
+        rows.push({
+          id,
+          state: `fetch-error (${String(error.message).trim()})`,
+        });
       }
     }
   }
@@ -152,21 +191,30 @@ export function statusAll(root, fetcher = fetchUpstream) {
 
 function writeUpstreamTo(dir, files) {
   for (const [rel, buf] of files) {
-    mkdirSync(join(dir, rel, '..'), { recursive: true });
+    mkdirSync(join(dir, rel, ".."), { recursive: true });
     writeFileSync(join(dir, rel), buf);
   }
 }
 
-export function pullSkill(root, plugin, name, { force = false, fetcher = fetchUpstream } = {}) {
+export function pullSkill(
+  root,
+  plugin,
+  name,
+  { force = false, fetcher = fetchUpstream } = {},
+) {
   const { lock, entry } = requireEntry(root, plugin, name);
-  if (entry.sourceType !== 'github') {
-    throw new Error(`${plugin}/${name} has no github upstream; nothing to pull`);
+  if (entry.sourceType !== "github") {
+    throw new Error(
+      `${plugin}/${name} has no github upstream; nothing to pull`,
+    );
   }
-  const dir = join(root, plugin, 'skills', name);
+  const dir = join(root, plugin, "skills", name);
   const upstream = fetcher(entry);
   const state = classify(entry, hashDirectory(dir), upstream.hash);
-  if ((state === 'locally-modified' || state === 'diverged') && !force) {
-    throw new Error(`${plugin}/${name} is ${state}; run diff and merge manually, or pass --force to overwrite local changes`);
+  if ((state === "locally-modified" || state === "diverged") && !force) {
+    throw new Error(
+      `${plugin}/${name} is ${state}; run diff and merge manually, or pass --force to overwrite local changes`,
+    );
   }
   rmSync(dir, { recursive: true });
   writeUpstreamTo(dir, upstream.files);
@@ -179,14 +227,14 @@ export function pullSkill(root, plugin, name, { force = false, fetcher = fetchUp
 
 export function acceptSkill(root, plugin, name) {
   const { lock, entry } = requireEntry(root, plugin, name);
-  entry.vendoredHash = hashDirectory(join(root, plugin, 'skills', name));
+  entry.vendoredHash = hashDirectory(join(root, plugin, "skills", name));
   writeLock(root, plugin, lock);
 }
 
 export function seedSkill(root, plugin, name, fetcher = fetchUpstream) {
   const { lock, entry } = requireEntry(root, plugin, name);
-  entry.vendoredHash = hashDirectory(join(root, plugin, 'skills', name));
-  if (entry.sourceType === 'github') {
+  entry.vendoredHash = hashDirectory(join(root, plugin, "skills", name));
+  if (entry.sourceType === "github") {
     const upstream = fetcher(entry);
     entry.upstreamCommit = upstream.commit;
     entry.upstreamHash = upstream.hash;
@@ -196,16 +244,18 @@ export function seedSkill(root, plugin, name, fetcher = fetchUpstream) {
 
 export function diffSkill(root, plugin, name, fetcher = fetchUpstream) {
   const { entry } = requireEntry(root, plugin, name);
-  if (entry.sourceType !== 'github') {
-    throw new Error(`${plugin}/${name} has no github upstream; nothing to diff`);
+  if (entry.sourceType !== "github") {
+    throw new Error(
+      `${plugin}/${name} has no github upstream; nothing to diff`,
+    );
   }
-  const tmp = mkdtempSync(join(tmpdir(), 'skills-sync-'));
+  const tmp = mkdtempSync(join(tmpdir(), "skills-sync-"));
   try {
     writeUpstreamTo(tmp, fetcher(entry).files);
     const result = spawnSync(
-      'git',
-      ['diff', '--no-index', join(root, plugin, 'skills', name), tmp],
-      { stdio: 'inherit' },
+      "git",
+      ["diff", "--no-index", join(root, plugin, "skills", name), tmp],
+      { stdio: "inherit" },
     );
     if (result.error) {
       throw result.error;
@@ -217,26 +267,28 @@ export function diffSkill(root, plugin, name, fetcher = fetchUpstream) {
 }
 
 function parseSkillArg(arg) {
-  const [plugin, ...rest] = (arg ?? '').split('/');
-  const name = rest.join('/');
+  const [plugin, ...rest] = (arg ?? "").split("/");
+  const name = rest.join("/");
   if (!PLUGINS.includes(plugin) || !name) {
-    throw new Error(`expected <plugin>/<skill> with plugin one of: ${PLUGINS.join(', ')}`);
+    throw new Error(
+      `expected <plugin>/<skill> with plugin one of: ${PLUGINS.join(", ")}`,
+    );
   }
   return { plugin, name };
 }
 
 function main() {
-  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const [command, target, flag] = process.argv.slice(2);
   try {
     switch (command) {
-      case 'status': {
+      case "status": {
         for (const row of statusAll(root)) {
           console.log(`${row.state.padEnd(20)} ${row.id}`);
         }
         break;
       }
-      case 'verify': {
+      case "verify": {
         const problems = verifyAll(root);
         for (const problem of problems) {
           console.error(problem);
@@ -244,27 +296,29 @@ function main() {
         if (problems.length > 0) {
           process.exit(1);
         }
-        console.log('skills-lock.json and skills/ are consistent');
+        console.log("skills-lock.json and skills/ are consistent");
         break;
       }
-      case 'diff': {
+      case "diff": {
         const { plugin, name } = parseSkillArg(target);
         process.exit(diffSkill(root, plugin, name));
         break;
       }
-      case 'pull': {
+      case "pull": {
         const { plugin, name } = parseSkillArg(target);
-        const state = pullSkill(root, plugin, name, { force: flag === '--force' });
+        const state = pullSkill(root, plugin, name, {
+          force: flag === "--force",
+        });
         console.log(`pulled ${target} (was ${state})`);
         break;
       }
-      case 'accept': {
+      case "accept": {
         const { plugin, name } = parseSkillArg(target);
         acceptSkill(root, plugin, name);
         console.log(`re-baselined vendoredHash for ${target}`);
         break;
       }
-      case 'seed': {
+      case "seed": {
         if (target) {
           const { plugin, name } = parseSkillArg(target);
           seedSkill(root, plugin, name);
@@ -280,7 +334,9 @@ function main() {
         break;
       }
       default:
-        console.error('usage: skills-sync.mjs <status|verify|diff|pull|accept|seed> [<plugin>/<skill>] [--force]');
+        console.error(
+          "usage: skills-sync.mjs <status|verify|diff|pull|accept|seed> [<plugin>/<skill>] [--force]",
+        );
         process.exit(2);
     }
   } catch (error) {
@@ -289,6 +345,9 @@ function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
   main();
 }

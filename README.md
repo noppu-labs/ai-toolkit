@@ -1,13 +1,13 @@
-# ai-toolkit
+# AI Toolkit
 
-Claude Code plugin marketplace for the Noppu stack (Laravel 13 + Inertia v3 + React 19 + TypeScript).
+A collection of agents and skills for agentic development for modern Laravel and React applications.
 
 | Plugin | Contents |
 | --- | --- |
 | `laravel` | 16 backend skills, `laravel-backend-specialist` agent, 4 path-scoped rules |
 | `inertia-react` | 6 frontend skills, `frontend-developer` agent, 2 path-scoped rules |
 
-## Install (Claude Code)
+## Install (Claude Code marketplace)
 
 ```
 /plugin marketplace add noppu-labs/ai-toolkit
@@ -31,7 +31,5 @@ npx skills add noppu-labs/ai-toolkit/inertia-react
 
 ## Forking this repo
 
-The plugins are meant to be forked and adapted to your own stack. If you fork this repo —
-especially as a private one — follow the [maintenance guide](MAINTENANCE.md): it covers syncing
-vendored skills with their upstreams, adding new skills, and the credential requirements for
-private hosting.
+These plugins can be forked and adapted to your own stack. If you fork this repo,
+follow the [maintenance guide](MAINTENANCE.md).
