@@ -7,6 +7,7 @@ import {
   acceptSkill,
   PLUGINS,
   classify,
+  diffSkill,
   fetchUpstream,
   hashDirectory,
   hashFiles,
@@ -158,6 +159,39 @@ test('statusAll classifies via the injected fetcher and reports fetch errors', (
 
   const failing = statusAll(root, () => { throw new Error('boom'); });
   assert.ok(failing.find((r) => r.id === 'laravel/demo').state.startsWith('fetch-error'));
+});
+
+test('statusAll reports fetch-error for a missing skill directory without aborting the run', (t) => {
+  const root = makeRoot(t);
+  const dir = addSkill(root, 'laravel', 'demo', { 'SKILL.md': '# demo' }, githubEntry());
+  const lock = readLock(root, 'laravel');
+  const upstream = fakeFetcher({ 'SKILL.md': '# demo' })();
+  lock.skills.demo.vendoredHash = hashDirectory(dir);
+  lock.skills.demo.upstreamHash = upstream.hash;
+  lock.skills.ghost = githubEntry(); // in lock, but no skill directory on disk
+  writeLock(root, 'laravel', lock);
+
+  const rows = statusAll(root, () => upstream);
+  assert.deepEqual(rows.find((r) => r.id === 'laravel/demo'), { id: 'laravel/demo', state: 'up-to-date' });
+  const ghostRow = rows.find((r) => r.id === 'laravel/ghost');
+  assert.ok(ghostRow.state.startsWith('fetch-error'));
+});
+
+test('diffSkill throws when the underlying spawnSync call fails (e.g. git missing from PATH)', (t) => {
+  const root = makeRoot(t);
+  addSkill(root, 'laravel', 'demo', { 'SKILL.md': '# demo' }, githubEntry());
+  const emptyPathDir = mkdtempSync(join(tmpdir(), 'empty-path-'));
+  const originalPath = process.env.PATH;
+  t.after(() => {
+    process.env.PATH = originalPath;
+    rmSync(emptyPathDir, { recursive: true, force: true });
+  });
+  process.env.PATH = emptyPathDir;
+
+  assert.throws(
+    () => diffSkill(root, 'laravel', 'demo', fakeFetcher({ 'SKILL.md': '# demo' })),
+    /ENOENT/,
+  );
 });
 
 test('pullSkill refuses to overwrite local changes without force, then overwrites with force', (t) => {

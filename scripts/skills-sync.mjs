@@ -139,8 +139,8 @@ export function statusAll(root, fetcher = fetchUpstream) {
         rows.push({ id, state: 'local' });
         continue;
       }
-      const vendored = hashDirectory(join(root, plugin, 'skills', name));
       try {
+        const vendored = hashDirectory(join(root, plugin, 'skills', name));
         rows.push({ id, state: classify(entry, vendored, fetcher(entry).hash) });
       } catch (error) {
         rows.push({ id, state: `fetch-error (${String(error.message).trim()})` });
@@ -207,6 +207,9 @@ export function diffSkill(root, plugin, name, fetcher = fetchUpstream) {
       ['diff', '--no-index', join(root, plugin, 'skills', name), tmp],
       { stdio: 'inherit' },
     );
+    if (result.error) {
+      throw result.error;
+    }
     return result.status ?? 0;
   } finally {
     rmSync(tmp, { recursive: true, force: true });

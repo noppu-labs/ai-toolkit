@@ -3,6 +3,7 @@
   "owner": {
     "name": "Noppu Labs"
   },
+  "description": "Claude Code plugins for the Noppu stack (Laravel 13 + Inertia v3 + React 19 + TypeScript)",
   "plugins": [
     {
       "name": "laravel",
