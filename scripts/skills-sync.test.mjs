@@ -11,6 +11,7 @@ import {
   listFiles,
   readLock,
   sha256,
+  verifyAll,
   writeLock,
 } from './skills-sync.mjs';
 
@@ -84,4 +85,41 @@ test('lock round-trips through readLock/writeLock with trailing newline', (t) =>
   const lock = { version: 1, skills: { demo: { sourceType: 'local' } } };
   writeLock(root, 'laravel', lock);
   assert.deepEqual(readLock(root, 'laravel'), lock);
+});
+
+test('verifyAll returns no problems for a consistent tree', (t) => {
+  const root = makeRoot(t);
+  const dir = addSkill(root, 'laravel', 'demo', { 'SKILL.md': '# demo' });
+  const lock = readLock(root, 'laravel');
+  lock.skills.demo.vendoredHash = hashDirectory(dir);
+  writeLock(root, 'laravel', lock);
+  assert.deepEqual(verifyAll(root), []);
+});
+
+test('verifyAll flags tampered content, unlocked dirs, and missing dirs', (t) => {
+  const root = makeRoot(t);
+  const dir = addSkill(root, 'laravel', 'demo', { 'SKILL.md': '# demo' });
+  const lock = readLock(root, 'laravel');
+  lock.skills.demo.vendoredHash = hashDirectory(dir);
+  lock.skills.ghost = { sourceType: 'local' }; // in lock, not on disk
+  writeLock(root, 'laravel', lock);
+  writeFileSync(join(dir, 'SKILL.md'), '# tampered');
+  mkdirSync(join(root, 'laravel', 'skills', 'unlocked'));
+  writeFileSync(join(root, 'laravel', 'skills', 'unlocked', 'SKILL.md'), 'x');
+
+  const problems = verifyAll(root);
+  assert.equal(problems.length, 3);
+  assert.ok(problems.some((p) => p.includes('laravel/demo') && p.includes('changed')));
+  assert.ok(problems.some((p) => p.includes('laravel/ghost') && p.includes('missing on disk')));
+  assert.ok(problems.some((p) => p.includes('laravel/unlocked') && p.includes('missing from skills-lock.json')));
+});
+
+test('verifyAll flags github entries without a vendoredHash baseline', (t) => {
+  const root = makeRoot(t);
+  addSkill(root, 'laravel', 'demo', { 'SKILL.md': '# demo' }, {
+    source: 'owner/repo', sourceType: 'github', ref: 'main', skillPath: 'skills/demo',
+  });
+  const problems = verifyAll(root);
+  assert.equal(problems.length, 1);
+  assert.ok(problems[0].includes('missing vendoredHash'));
 });

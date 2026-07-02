@@ -5,8 +5,9 @@
  * sync state from two whole-directory hashes (vendored copy vs upstream).
  */
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const PLUGINS = ['laravel', 'inertia-react'];
 
@@ -64,4 +65,55 @@ export function readLock(root, plugin) {
 
 export function writeLock(root, plugin, lock) {
   writeFileSync(join(root, plugin, 'skills-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
+}
+
+export function verifyAll(root) {
+  const problems = [];
+  for (const plugin of PLUGINS) {
+    const lock = readLock(root, plugin);
+    const skillsDir = join(root, plugin, 'skills');
+    for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
+      if (entry.isDirectory() && !lock.skills[entry.name]) {
+        problems.push(`${plugin}/${entry.name}: on disk but missing from skills-lock.json`);
+      }
+    }
+    for (const [name, entry] of Object.entries(lock.skills)) {
+      const dir = join(skillsDir, name);
+      if (!existsSync(dir)) {
+        problems.push(`${plugin}/${name}: in skills-lock.json but missing on disk`);
+        continue;
+      }
+      if (entry.vendoredHash && hashDirectory(dir) !== entry.vendoredHash) {
+        problems.push(`${plugin}/${name}: content changed since last baseline (run accept or seed)`);
+      } else if (!entry.vendoredHash && entry.sourceType === 'github') {
+        problems.push(`${plugin}/${name}: missing vendoredHash baseline (run seed)`);
+      }
+    }
+  }
+  return problems;
+}
+
+function main() {
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  const [command] = process.argv.slice(2);
+  switch (command) {
+    case 'verify': {
+      const problems = verifyAll(root);
+      for (const problem of problems) {
+        console.error(problem);
+      }
+      if (problems.length > 0) {
+        process.exit(1);
+      }
+      console.log('skills-lock.json and skills/ are consistent');
+      break;
+    }
+    default:
+      console.error('usage: skills-sync.mjs <status|verify|diff|pull|accept|seed> [<plugin>/<skill>] [--force]');
+      process.exit(2);
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main();
 }
