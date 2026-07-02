@@ -50,3 +50,6 @@ Thumbs.db
 # Vitest browser test artifacts
 .vitest-attachments/
 __screenshots__/
+
+# Local planning docs (kept out of the public repo)
+/docs/superpowers/
