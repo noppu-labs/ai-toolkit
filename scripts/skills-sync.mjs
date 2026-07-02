@@ -84,38 +84,40 @@ export function writeLock(root, plugin, lock) {
   );
 }
 
-export function verifyAll(root) {
-  const problems = [];
-  for (const plugin of PLUGINS) {
-    const lock = readLock(root, plugin);
-    const skillsDir = join(root, plugin, "skills");
-    for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
-      if (entry.isDirectory() && !lock.skills[entry.name]) {
-        problems.push(
-          `${plugin}/${entry.name}: on disk but missing from skills-lock.json`,
-        );
-      }
-    }
-    for (const [name, entry] of Object.entries(lock.skills)) {
-      const dir = join(skillsDir, name);
-      if (!existsSync(dir)) {
-        problems.push(
-          `${plugin}/${name}: in skills-lock.json but missing on disk`,
-        );
-        continue;
-      }
-      if (entry.vendoredHash && hashDirectory(dir) !== entry.vendoredHash) {
-        problems.push(
-          `${plugin}/${name}: content changed since last baseline (run accept or seed)`,
-        );
-      } else if (!entry.vendoredHash && entry.sourceType === "github") {
-        problems.push(
-          `${plugin}/${name}: missing vendoredHash baseline (run seed)`,
-        );
-      }
-    }
+function unlockedDirProblems(root, plugin, lock) {
+  return readdirSync(join(root, plugin, "skills"), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !lock.skills[entry.name])
+    .map(
+      (entry) =>
+        `${plugin}/${entry.name}: on disk but missing from skills-lock.json`,
+    );
+}
+
+function lockEntryProblem(root, plugin, name, entry) {
+  const dir = join(root, plugin, "skills", name);
+  if (!existsSync(dir)) {
+    return `${plugin}/${name}: in skills-lock.json but missing on disk`;
   }
-  return problems;
+  if (entry.vendoredHash && hashDirectory(dir) !== entry.vendoredHash) {
+    return `${plugin}/${name}: content changed since last baseline (run accept or seed)`;
+  }
+  if (!entry.vendoredHash && entry.sourceType === "github") {
+    return `${plugin}/${name}: missing vendoredHash baseline (run seed)`;
+  }
+  return null;
+}
+
+export function verifyAll(root) {
+  return PLUGINS.flatMap((plugin) => {
+    const lock = readLock(root, plugin);
+    const entryProblems = Object.entries(lock.skills).map(([name, entry]) =>
+      lockEntryProblem(root, plugin, name, entry),
+    );
+    return [
+      ...unlockedDirProblems(root, plugin, lock),
+      ...entryProblems,
+    ].filter(Boolean);
+  });
 }
 
 export function ghJson(path) {
@@ -277,68 +279,75 @@ function parseSkillArg(arg) {
   return { plugin, name };
 }
 
+function runStatus(root) {
+  for (const row of statusAll(root)) {
+    console.log(`${row.state.padEnd(20)} ${row.id}`);
+  }
+}
+
+function runVerify(root) {
+  const problems = verifyAll(root);
+  for (const problem of problems) {
+    console.error(problem);
+  }
+  if (problems.length > 0) {
+    process.exit(1);
+  }
+  console.log("skills-lock.json and skills/ are consistent");
+}
+
+function runDiff(root, target) {
+  const { plugin, name } = parseSkillArg(target);
+  process.exit(diffSkill(root, plugin, name));
+}
+
+function runPull(root, target, flag) {
+  const { plugin, name } = parseSkillArg(target);
+  const state = pullSkill(root, plugin, name, { force: flag === "--force" });
+  console.log(`pulled ${target} (was ${state})`);
+}
+
+function runAccept(root, target) {
+  const { plugin, name } = parseSkillArg(target);
+  acceptSkill(root, plugin, name);
+  console.log(`re-baselined vendoredHash for ${target}`);
+}
+
+function runSeed(root, target) {
+  if (!target) {
+    for (const plugin of PLUGINS) {
+      for (const name of Object.keys(readLock(root, plugin).skills)) {
+        seedSkill(root, plugin, name);
+        console.log(`seeded ${plugin}/${name}`);
+      }
+    }
+    return;
+  }
+  const { plugin, name } = parseSkillArg(target);
+  seedSkill(root, plugin, name);
+  console.log(`seeded ${target}`);
+}
+
+const COMMANDS = {
+  status: runStatus,
+  verify: runVerify,
+  diff: runDiff,
+  pull: runPull,
+  accept: runAccept,
+  seed: runSeed,
+};
+
 function main() {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const [command, target, flag] = process.argv.slice(2);
+  if (!Object.hasOwn(COMMANDS, command ?? "")) {
+    console.error(
+      "usage: skills-sync.mjs <status|verify|diff|pull|accept|seed> [<plugin>/<skill>] [--force]",
+    );
+    process.exit(2);
+  }
   try {
-    switch (command) {
-      case "status": {
-        for (const row of statusAll(root)) {
-          console.log(`${row.state.padEnd(20)} ${row.id}`);
-        }
-        break;
-      }
-      case "verify": {
-        const problems = verifyAll(root);
-        for (const problem of problems) {
-          console.error(problem);
-        }
-        if (problems.length > 0) {
-          process.exit(1);
-        }
-        console.log("skills-lock.json and skills/ are consistent");
-        break;
-      }
-      case "diff": {
-        const { plugin, name } = parseSkillArg(target);
-        process.exit(diffSkill(root, plugin, name));
-        break;
-      }
-      case "pull": {
-        const { plugin, name } = parseSkillArg(target);
-        const state = pullSkill(root, plugin, name, {
-          force: flag === "--force",
-        });
-        console.log(`pulled ${target} (was ${state})`);
-        break;
-      }
-      case "accept": {
-        const { plugin, name } = parseSkillArg(target);
-        acceptSkill(root, plugin, name);
-        console.log(`re-baselined vendoredHash for ${target}`);
-        break;
-      }
-      case "seed": {
-        if (target) {
-          const { plugin, name } = parseSkillArg(target);
-          seedSkill(root, plugin, name);
-          console.log(`seeded ${target}`);
-        } else {
-          for (const plugin of PLUGINS) {
-            for (const name of Object.keys(readLock(root, plugin).skills)) {
-              seedSkill(root, plugin, name);
-              console.log(`seeded ${plugin}/${name}`);
-            }
-          }
-        }
-        break;
-      }
-      default:
-        console.error(
-          "usage: skills-sync.mjs <status|verify|diff|pull|accept|seed> [<plugin>/<skill>] [--force]",
-        );
-        process.exit(2);
-    }
+    COMMANDS[command](root, target, flag);
   } catch (error) {
     console.error(error.message);
     process.exit(1);
