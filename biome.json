@@ -58,22 +58,6 @@
       }
     }
   },
-  "overrides": [
-    {
-      "includes": ["**/*.test.tsx"],
-      "linter": {
-        "rules": {
-          "performance": {
-            "noJsxPropsBind": "off"
-          },
-          "style": { "useComponentExportOnlyModules": "off" },
-          "nursery": {
-            "noComponentHookFactories": "off"
-          }
-        }
-      }
-    }
-  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double",
