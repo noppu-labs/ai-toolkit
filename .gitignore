@@ -1,0 +1,52 @@
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.husky/_/
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+_ide_helper.php
+Homestead.json
+Homestead.yaml
+Thumbs.db
+
+# Serverless
+.serverless/
+
+# Wayfinder (auto-generated)
+/resources/js/actions
+/resources/js/routes
+/resources/js/wayfinder
+
+# Agents & AI
+.ai/
+.superpowers/
+/.worktrees/
+/.claude/agent-memory/
+/.serena/
+
+# Coverage
+/coverage/
+/coverage.cobertura.xml
+
+# Storybook
+/storybook-static
+
+# Vitest browser test artifacts
+.vitest-attachments/
+__screenshots__/
