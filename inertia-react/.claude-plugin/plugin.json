@@ -1,6 +1,6 @@
 {
   "name": "inertia-react",
-  "displayName": "Inertia React (Noppu stack)",
+  "displayName": "Inertia React toolkit",
   "description": "Inertia v3 + React 19 + TypeScript frontend skills, agent, and path-scoped rules",
   "version": "0.1.0",
   "author": {

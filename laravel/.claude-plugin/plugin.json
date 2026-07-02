@@ -1,7 +1,7 @@
 {
   "name": "laravel",
-  "displayName": "Laravel (Noppu stack)",
-  "description": "Laravel backend skills, agent, and path-scoped rules for the Noppu Laravel 13 stack",
+  "displayName": "Laravel toolkit",
+  "description": "Laravel 13 backend skills, agent, and path-scoped rules",
   "version": "0.1.0",
   "author": {
     "name": "Noppu Labs"
