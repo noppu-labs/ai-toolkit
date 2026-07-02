@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "skills": {
+    "laravel-inertia-react": {
+      "source": "AsyrafHussin/agent-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/laravel-inertia-react",
+      "vendoredHash": "2f4bbe215c0e64b09f466883858dd2db4deb3782a2ed3f43a5e56865d3b0f942",
+      "upstreamCommit": "2631530e9d47c45f6d153ed9f245f073ccbbba30",
+      "upstreamHash": "f63e6c3f05ac384b5168ecc07f7df313a98d4fc3cc4b4ee78f7c64c81edada27"
+    },
+    "react-vite-best-practices": {
+      "source": "AsyrafHussin/agent-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/react-vite-best-practices",
+      "vendoredHash": "2dbedbf95d4b51d8ac11162e74a17cb9e2841f83465214f71b715a4257b258d5",
+      "upstreamCommit": "2631530e9d47c45f6d153ed9f245f073ccbbba30",
+      "upstreamHash": "77b3fcb3dd4ece842dc6705da422b94b606a032ec567c1f1be7458db7daebde0"
+    },
+    "shadcn": {
+      "source": "shadcn/ui",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/shadcn",
+      "vendoredHash": "3e8ca56eb3af0f18b9cca3ae002f2b52f5dd23bceb286dd7403e18ae2fb38d08",
+      "upstreamCommit": "dbf9c5ebc430888ffae9baea9502c44c29b97304",
+      "upstreamHash": "10f2415a299a9de15da57000359e7a194f195d7107bd255b192921485e574c00"
+    },
+    "state-management": {
+      "source": "AsyrafHussin/agent-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/state-management",
+      "vendoredHash": "94f53075c7e6e3609f5ff07283fe14d8d6db0a7477a6dc6eab70f336c3a55d6b",
+      "upstreamCommit": "2631530e9d47c45f6d153ed9f245f073ccbbba30",
+      "upstreamHash": "b724889709a5a22e9cb6e36e1c82f220f7bc434d26ce54104858366baa711393"
+    },
+    "tailwind-best-practices": {
+      "source": "AsyrafHussin/agent-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/tailwind-best-practices",
+      "vendoredHash": "409808848d20f4db00dfd9555773ff22ad7ccb2e87453fb6efb7ba792204155f",
+      "upstreamCommit": "2631530e9d47c45f6d153ed9f245f073ccbbba30",
+      "upstreamHash": "284fd0ada1e3ccdeab01773c765d7570555a9b9f889b173fad031c875b3eb3cf"
+    },
+    "typescript-react-patterns": {
+      "source": "AsyrafHussin/agent-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/typescript-react-patterns",
+      "vendoredHash": "6d896ae90e8c054371597c7e3d6418261b167963e93acf785cd00f3798ea1cc4",
+      "upstreamCommit": "2631530e9d47c45f6d153ed9f245f073ccbbba30",
+      "upstreamHash": "d6b04b191bb04d10cd5efc3a72b07dd5faffb91550564914378819df391ca9ff"
+    }
+  }
+}

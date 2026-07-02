@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "skills": {
+    "laravel-activity-logging": {
+      "sourceType": "local",
+      "vendoredHash": "6668651cb8bb3e31ff410ea2b4f0139be8cd1c4286753d9d4c8b814621252c29"
+    },
+    "laravel-controllers": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-controllers",
+      "vendoredHash": "e7d2d31206474b65c3eb0140ee00a099f9c5ce2336c190bd2891fcca4337eb0a",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "73b708773d8556a62824432241f9d0d7b24409e9bd7a966fcc5bc23233a150a4"
+    },
+    "laravel-database-optimization": {
+      "source": "AsyrafHussin/agent-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/laravel-database-optimization",
+      "vendoredHash": "ce80558264249d304d5f8bc33b55556d319c82e7619f4451de5d0d30451231c2",
+      "upstreamCommit": "2631530e9d47c45f6d153ed9f245f073ccbbba30",
+      "upstreamHash": "b1c3fa47096fa9bb94b93348a29842da97e9813ffa1e958fe9cc0b948b209dde"
+    },
+    "laravel-dtos": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-dtos",
+      "vendoredHash": "c888a3b6b92a9085ad5f05fc6d9284aadf71af0deaff082f72a9b573a00afc71",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "c888a3b6b92a9085ad5f05fc6d9284aadf71af0deaff082f72a9b573a00afc71"
+    },
+    "laravel-enums": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-enums",
+      "vendoredHash": "fc83353305f8bb8713f629441b0da1107f958431801b9cf37e5af3eabbc7d14d",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "3265272d72bc61b79621d101717001291ee58aad5eb2fc1b96d37d2ca2f637d9"
+    },
+    "laravel-models": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-models",
+      "vendoredHash": "c9384338f8e1f8bc36d5a12de3574f89a6d49be8d2dd02b241fd2de2a037772f",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "caed1ac5aa10b0844fc0f8d6621c95c218290802cee19be967f23533748b54b2"
+    },
+    "laravel-owasp-security": {
+      "source": "AsyrafHussin/agent-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/laravel-owasp-security",
+      "vendoredHash": "baec515fe279db8572a7512a736080f11121c650a1976feb56b2eaae38e5a26d",
+      "upstreamCommit": "2631530e9d47c45f6d153ed9f245f073ccbbba30",
+      "upstreamHash": "898ff8fecc078f47ebbe54f0f44bd3289b14a8206cc2095601f5826373deecbc"
+    },
+    "laravel-policies": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-policies",
+      "vendoredHash": "8b2d502db4043913d5e59dee133be5e41afa44222a6e0ef5f9199a498d6f8cac",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "8b2d502db4043913d5e59dee133be5e41afa44222a6e0ef5f9199a498d6f8cac"
+    },
+    "laravel-quality": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-quality",
+      "vendoredHash": "a23bb7c1c4b18778a18e8af69e4ee7f064c5e974ef4f669a69a7c31558f38afa",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "2659bd5bcb9e4fc264fda5c94d2733685ce31e8d7055270d126984d6497c5243"
+    },
+    "laravel-query-builders": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-query-builders",
+      "vendoredHash": "71c153899205f07cb7d74d53096213410577303053e7dc4aae4f27b1cc6378d1",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "71c153899205f07cb7d74d53096213410577303053e7dc4aae4f27b1cc6378d1"
+    },
+    "laravel-routing": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-routing",
+      "vendoredHash": "164f0a78700d8d9ed4d79a51f6269595a8791e778087246915892fee7f77a91d",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "9cd656eafa54c8f406f6fa7ba87d712b5408b3f9618bc87b09401c1f1cbfa3e8"
+    },
+    "laravel-services": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-services",
+      "vendoredHash": "d38c8c9ab56cf4a381f2e3d8ee38fc2f001545bab3722dad713689e2505cf6f1",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "0b3bb4f0a34f3e3ad93e994619010124ea6e923bc4d69c96fcbc64eb615fd39f"
+    },
+    "laravel-testing": {
+      "source": "AsyrafHussin/agent-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/laravel-testing",
+      "vendoredHash": "176a7b0fe3b4a37780a5d3f46bb5d98b0cd8553f36f56792fdfb0426be00dc02",
+      "upstreamCommit": "2631530e9d47c45f6d153ed9f245f073ccbbba30",
+      "upstreamHash": "9a1467bfc5b76f2ac70312a773ba7ab8dacbee3288b4d7ce35e9259bb0d26132"
+    },
+    "laravel-validation": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-validation",
+      "vendoredHash": "a7522a7c7a6b2828a10de31ace3b5371b0fdbf8b61a6a5a498328d5c0cd4f272",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "210fa2f44fdee41cd24534f28fcd2654b21afeae04ee14063316fde3b7c9decd"
+    },
+    "laravel-value-objects": {
+      "source": "leeovery/agentic-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "laravel/skills/laravel-value-objects",
+      "vendoredHash": "cd0d22330dae6890e25e9c6b1db9938c5d5a2115f513976e083a75a83f7e5d08",
+      "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
+      "upstreamHash": "cd0d22330dae6890e25e9c6b1db9938c5d5a2115f513976e083a75a83f7e5d08"
+    },
+    "php-best-practices": {
+      "source": "AsyrafHussin/agent-skills",
+      "sourceType": "github",
+      "ref": "main",
+      "skillPath": "skills/php-best-practices",
+      "vendoredHash": "093f70c81a3141cbc530caef7f530097978a09b5ee37c43b4dfc9e7537fcb7c1",
+      "upstreamCommit": "2631530e9d47c45f6d153ed9f245f073ccbbba30",
+      "upstreamHash": "4f67b411cc32805b77e0eb583ec538b40202906a23f925b4e6d31cc4b9f6ee9b"
+    }
+  }
+}
