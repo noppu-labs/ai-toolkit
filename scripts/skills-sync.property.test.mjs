@@ -1,7 +1,7 @@
 // Property-based tests (fast-check) for the functions that process
 // third-party content: lock entries, upstream file listings, and upstream
-// blobs fetched from external repos.
-import { strict as assert } from "node:assert";
+// blobs fetched from external repos. Properties return booleans (rather than
+// asserting) so fast-check reports the shrunken counterexample on failure.
 import { test } from "@fast-check/vitest";
 import fc from "fast-check";
 import { classify, fetchUpstream, hashFiles } from "./skills-sync.mjs";
@@ -13,6 +13,8 @@ const STATUSES = [
   "locally-modified",
   "up-to-date",
 ];
+
+const SHA256_HEX = /^[0-9a-f]{64}$/;
 
 const maybeString = fc.option(fc.string(), { nil: undefined });
 
@@ -27,9 +29,8 @@ const lockEntry = fc.record(
 
 test.prop([lockEntry, maybeString, maybeString])(
   "classify returns a known status for arbitrary lock entries",
-  (entry, vendoredNow, upstreamNow) => {
-    assert.ok(STATUSES.includes(classify(entry, vendoredNow, upstreamNow)));
-  },
+  (entry, vendoredNow, upstreamNow) =>
+    STATUSES.includes(classify(entry, vendoredNow, upstreamNow)),
 );
 
 test.prop([
@@ -46,8 +47,7 @@ test.prop([
       .map(([path, content]) => [path, Buffer.from(content)]),
   );
   const hash = hashFiles(forward);
-  assert.equal(hash, hashFiles(reversed));
-  assert.match(hash, /^[0-9a-f]{64}$/);
+  return hash === hashFiles(reversed) && SHA256_HEX.test(hash);
 });
 
 test.prop([fc.string({ minLength: 1 }), fc.string()])(
@@ -66,7 +66,6 @@ test.prop([fc.string({ minLength: 1 }), fc.string()])(
       { ref: "main", skillPath: "s", source: "o/r" },
       hostileGh,
     );
-    assert.equal(result.files.size, 1);
-    assert.match(result.hash, /^[0-9a-f]{64}$/);
+    return result.files.size === 1 && SHA256_HEX.test(result.hash);
   },
 );
