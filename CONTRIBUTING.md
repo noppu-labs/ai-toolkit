@@ -6,7 +6,7 @@ skills in sync with their upstreams.
 
 ## Prerequisites
 
-- Node.js >= 20 (CI runs on 22)
+- Node.js >= 20 (CI runs on 24)
 - An authenticated [`gh` CLI](https://cli.github.com/), needed only for the skill sync
   commands, which fetch upstream skill repos through the GitHub API
 
@@ -19,9 +19,10 @@ npm ci
 Run the same checks CI runs (`.github/workflows/validate.yml`):
 
 ```sh
-npm run lint                        # biome + markdownlint
-npm test                            # vitest (includes fast-check property tests)
-node scripts/skills-sync.mjs verify # lock ↔ disk consistency
+npm run lint          # biome + markdownlint
+npm run typecheck     # tsc --noEmit
+npm test              # vitest (includes fast-check property tests)
+npm run sync -- verify # lock ↔ disk consistency
 ```
 
 `npm run lint:fix` auto-fixes most lint findings.
@@ -33,7 +34,7 @@ content hashes of both the upstream and the vendored copy. If you edit a vendore
 files, re-baseline the lock entry afterwards or `verify` (and CI) will fail:
 
 ```sh
-node scripts/skills-sync.mjs accept <plugin>/<skill>
+npm run sync -- accept <plugin>/<skill>
 ```
 
 The [maintenance guide](docs/MAINTENANCE.md) covers the full sync workflow: checking

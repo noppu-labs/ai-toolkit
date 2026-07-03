@@ -9,16 +9,16 @@ Most skills are vendored from upstream repos and carry local customizations; the
 copies here are canonical. Each plugin's `skills-lock.json` records the upstream source and
 two whole-directory hashes (upstream + vendored) taken at the last sync baseline.
 
-Requires Node >= 20 and an authenticated `gh` CLI:
+Requires `npm ci` (the sync CLI runs via tsx) and an authenticated `gh` CLI:
 
 | Command | Purpose |
 | --- | --- |
-| `node scripts/skills-sync.mjs status` | Classify every skill: `up-to-date`, `upstream-updated`, `locally-modified`, `diverged`, `local`, or `fetch-error` |
-| `node scripts/skills-sync.mjs diff <plugin>/<skill>` | Diff vendored copy against upstream |
-| `node scripts/skills-sync.mjs pull <plugin>/<skill> [--force]` | Overwrite vendored copy from upstream (refuses if locally modified unless `--force`) |
-| `node scripts/skills-sync.mjs accept <plugin>/<skill>` | Re-baseline the vendored hash after intentional local edits |
-| `node scripts/skills-sync.mjs seed [<plugin>/<skill>]` | Re-baseline both hashes (all skills when no argument) |
-| `node scripts/skills-sync.mjs verify` | Offline lock ↔ disk consistency check (CI gate) |
+| `npm run sync -- status` | Classify every skill: `up-to-date`, `upstream-updated`, `locally-modified`, `diverged`, `local`, or `fetch-error` |
+| `npm run sync -- diff <plugin>/<skill>` | Diff vendored copy against upstream |
+| `npm run sync -- pull <plugin>/<skill> [--force]` | Overwrite vendored copy from upstream (refuses if locally modified unless `--force`) |
+| `npm run sync -- accept <plugin>/<skill>` | Re-baseline the vendored hash after intentional local edits |
+| `npm run sync -- seed [<plugin>/<skill>]` | Re-baseline both hashes (all skills when no argument) |
+| `npm run sync -- verify` | Offline lock ↔ disk consistency check (CI gate) |
 
 Notes:
 
@@ -34,7 +34,7 @@ Notes:
 
 **Custom (no upstream):** create `<plugin>/skills/<name>/SKILL.md`, add a lock entry
 `"<name>": { "sourceType": "local" }` to that plugin's `skills-lock.json`, then run
-`node scripts/skills-sync.mjs seed <plugin>/<name>` and `verify`.
+`npm run sync -- seed <plugin>/<name>` and `verify`.
 
 **Vendored from an upstream repo:** add a lock entry with the upstream coordinates:
 
@@ -48,7 +48,7 @@ Notes:
 ```
 
 then create the directory and fetch the content with
-`node scripts/skills-sync.mjs pull <plugin>/<name> --force` (or copy the files in manually and
+`npm run sync -- pull <plugin>/<name> --force` (or copy the files in manually and
 run `seed <plugin>/<name>`), and finish with `verify`.
 
 ## Versioning and releasing plugin changes
