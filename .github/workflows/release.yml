@@ -1,0 +1,89 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/.claude-plugin/plugin.json"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect unreleased plugin versions
+        id: detect
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          : > dist/pending.txt
+          for manifest in */.claude-plugin/plugin.json; do
+            plugin="${manifest%%/*}"
+            version=$(node -p "JSON.parse(require('fs').readFileSync('$manifest','utf8')).version ?? ''")
+            if [[ -z "$version" ]]; then
+              echo "::notice::$plugin has no version in plugin.json; skipping."
+              continue
+            fi
+            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::$plugin version '$version' is not x.y.z semver."
+              exit 1
+            fi
+            tag="$plugin@$version"
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "$tag already released; skipping."
+              continue
+            fi
+            tar -czf "dist/$plugin-$version.tgz" "$plugin"
+            echo "$tag" >> dist/pending.txt
+          done
+          echo "count=$(wc -l < dist/pending.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.detect.outputs.count != '0'
+        with:
+          node-version: 22
+          cache: npm
+      - name: Pre-publish validation
+        if: steps.detect.outputs.count != '0'
+        run: |
+          npm ci
+          node scripts/skills-sync.mjs verify
+          npm install -g @anthropic-ai/claude-code
+          claude plugin validate .
+      - name: Attest build provenance
+        if: steps.detect.outputs.count != '0'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/*.tgz
+      - name: Tag and publish releases
+        if: steps.detect.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          while IFS= read -r tag; do
+            plugin="${tag%@*}"
+            version="${tag#*@}"
+            prev=$(git tag -l "$plugin@*" --sort=-v:refname | head -1)
+            if [[ -n "$prev" ]]; then
+              git log "$prev..HEAD" --pretty='- %s (%h)' -- "$plugin/" > notes.md
+            else
+              git log --pretty='- %s (%h)' -- "$plugin/" > notes.md
+            fi
+            [[ -s notes.md ]] || echo "- Maintenance release" > notes.md
+            git tag -a "$tag" -m "$plugin plugin $version" "$GITHUB_SHA"
+            git push origin "refs/tags/$tag"
+            gh release create "$tag" --verify-tag --notes-file notes.md "dist/$plugin-$version.tgz"
+          done < dist/pending.txt

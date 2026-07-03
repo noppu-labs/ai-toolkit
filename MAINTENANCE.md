@@ -58,22 +58,36 @@ against — Claude Code resolves a plugin's version from `plugin.json` first, fa
 marketplace entry, then the commit SHA. With an explicit version set, **installed copies only
 update when that version changes**: a content change without a bump never reaches consumers.
 
-The release process for any consumer-facing change (skills, rules, agents, commands):
+Releases are automated by `.github/workflows/release.yml`. For any consumer-facing change
+(skills, rules, agents, commands):
 
 1. Bump the plugin's `version` in `<plugin>/.claude-plugin/plugin.json` **in the same commit**
    as the change. Use semver: patch for fixes/wording, minor for new skills or rules, major for
    removals or breaking restructures.
-2. Tag the bump commit per plugin: `git tag -a <plugin>@<version> -m "<plugin> plugin <version>"`
-   (e.g. `laravel@0.1.1`). Plugins version independently, so one repo carries a tag series per
-   plugin.
-3. Push commit and tags together: `git push --follow-tags`.
-4. Create a GitHub Release on the tag with skill-level notes on what changed:
-   `gh release create <plugin>@<version> --notes "..."` (no `--title` — the tag name is the title).
-   The releases page doubles as the per-plugin changelog. The "Latest" badge simply marks the
-   most recently published release across all plugins — cosmetic in a multi-plugin repo.
+2. Push (or merge) to `main`. CI detects that the bumped version has no matching tag and, after
+   re-running validation, does the rest:
+   - creates and pushes the annotated tag `<plugin>@<version>` (e.g. `laravel@0.1.1` — plugins
+     version independently, so one repo carries a tag series per plugin);
+   - builds `<plugin>-<version>.tgz` from the plugin directory and signs its [build
+     provenance](https://github.com/actions/attest-build-provenance) as a GitHub artifact
+     attestation;
+   - creates a GitHub Release on the tag (no title — the tag name is the title) with notes
+     generated from the commits touching that plugin since its previous tag, and the tarball
+     attached. The releases page doubles as the per-plugin changelog; the "Latest" badge simply
+     marks the most recently published release across all plugins — cosmetic in a multi-plugin
+     repo.
+3. Optionally polish the generated notes: `gh release edit <plugin>@<version> --notes "..."`.
+
+Anyone can verify that a downloaded tarball was built by this repo's CI from the tagged commit:
+
+```sh
+gh attestation verify <plugin>-<version>.tgz --repo noppu-labs/ai-toolkit
+```
 
 Notes:
 
+- **Don't create `<plugin>@<version>` tags by hand.** An existing tag makes CI treat that
+  version as already released and skip it. Bumping both plugins in one push releases both.
 - **Individual skills are not versioned.** The plugin is the unit consumers install and update.
   Describe skill-level changes in the tag message or a GitHub Release on the tag; upstream
   provenance per skill already lives in `skills-lock.json`.
