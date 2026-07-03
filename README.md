@@ -6,6 +6,8 @@
 [![Known Vulnerabilities](https://snyk.io/test/github/noppu-labs/ai-toolkit/badge.svg)](https://snyk.io/test/github/noppu-labs/ai-toolkit)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/noppu-labs/ai-toolkit/badge)](https://scorecard.dev/viewer/?uri=github.com/noppu-labs/ai-toolkit)
 
+**Website:** <https://noppu-labs.github.io/ai-toolkit/>
+
 Agents and skills for agentic development in modern Laravel and React applications.
 
 | Plugin | Contents |
