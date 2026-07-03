@@ -1,10 +1,14 @@
 {
   "scripts": {
     "lint": "biome check . && markdownlint-cli2",
-    "lint:fix": "biome check --write . && markdownlint-cli2 --fix"
+    "lint:fix": "biome check --write . && markdownlint-cli2 --fix",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.2",
-    "markdownlint-cli2": "^0.23.0"
+    "@fast-check/vitest": "^0.4.1",
+    "fast-check": "^4.8.0",
+    "markdownlint-cli2": "^0.23.0",
+    "vitest": "^4.1.9"
   }
 }
