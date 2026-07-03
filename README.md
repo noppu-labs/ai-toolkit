@@ -1,5 +1,10 @@
 # AI Toolkit
 
+[![validate](https://github.com/noppu-labs/ai-toolkit/actions/workflows/validate.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/validate.yml)
+[![release](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml)
+[![attestations](https://img.shields.io/badge/releases-attested-blue?logo=github)](https://github.com/noppu-labs/ai-toolkit/attestations)
+[![Known Vulnerabilities](https://snyk.io/test/github/noppu-labs/ai-toolkit/badge.svg)](https://snyk.io/test/github/noppu-labs/ai-toolkit)
+
 A collection of agents and skills for agentic development for modern Laravel and React applications.
 
 | Plugin | Contents |
@@ -27,6 +32,16 @@ commands (formatter invocation, npm script names) to your setup.
 ```text
 npx skills add noppu-labs/ai-toolkit/laravel
 npx skills add noppu-labs/ai-toolkit/inertia-react
+```
+
+## Verifying releases
+
+Every [release](https://github.com/noppu-labs/ai-toolkit/releases) ships a plugin tarball with
+GitHub [build provenance attestation](https://github.com/noppu-labs/ai-toolkit/attestations),
+proving it was built by this repo's CI from the tagged commit:
+
+```sh
+gh attestation verify <plugin>-<version>.tgz --repo noppu-labs/ai-toolkit
 ```
 
 ## Forking this repo
