@@ -35,7 +35,7 @@ test.prop([lockEntry, maybeString, maybeString])(
 
 test.prop([
   fc.uniqueArray(fc.tuple(fc.string(), fc.uint8Array()), {
-    selector: (entry) => entry[0],
+    selector: (entry: [string, Uint8Array]): string => entry[0],
   }),
 ])("hashFiles is deterministic and insertion-order independent", (entries) => {
   const forward = new Map<string, Buffer>(
