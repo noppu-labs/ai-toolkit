@@ -19,7 +19,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
       - name: Detect unreleased plugin versions
@@ -48,7 +48,7 @@ jobs:
             echo "$tag" >> dist/pending.txt
           done
           echo "count=$(wc -l < dist/pending.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.detect.outputs.count != '0'
         with:
           node-version: 22
@@ -62,7 +62,7 @@ jobs:
           claude plugin validate .
       - name: Attest build provenance
         if: steps.detect.outputs.count != '0'
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: dist/*.tgz
       - name: Tag and publish releases
