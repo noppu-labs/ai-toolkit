@@ -51,6 +51,36 @@ then create the directory and fetch the content with
 `node scripts/skills-sync.mjs pull <plugin>/<name> --force` (or copy the files in manually and
 run `seed <plugin>/<name>`), and finish with `verify`.
 
+## Versioning and releasing plugin changes
+
+Each plugin's `.claude-plugin/plugin.json` `version` is what consumers' update checks compare
+against — Claude Code resolves a plugin's version from `plugin.json` first, falling back to the
+marketplace entry, then the commit SHA. With an explicit version set, **installed copies only
+update when that version changes**: a content change without a bump never reaches consumers.
+
+The release process for any consumer-facing change (skills, rules, agents, commands):
+
+1. Bump the plugin's `version` in `<plugin>/.claude-plugin/plugin.json` **in the same commit**
+   as the change. Use semver: patch for fixes/wording, minor for new skills or rules, major for
+   removals or breaking restructures.
+2. Tag the bump commit per plugin: `git tag -a <plugin>@<version> -m "<plugin> plugin <version>"`
+   (e.g. `laravel@0.1.1`). Plugins version independently, so one repo carries a tag series per
+   plugin.
+3. Push commit and tags together: `git push --follow-tags`.
+
+Notes:
+
+- **Individual skills are not versioned.** The plugin is the unit consumers install and update.
+  Describe skill-level changes in the tag message or a GitHub Release on the tag; upstream
+  provenance per skill already lives in `skills-lock.json`.
+- **No marketplace-level version**, and don't set `version` on entries in
+  `.claude-plugin/marketplace.json` — `plugin.json` silently takes precedence, so a marketplace
+  entry version would only drift.
+- To see what changed in a plugin between releases:
+  `git log laravel@0.1.0..laravel@0.1.1 -- laravel/`.
+- Docs-only changes to this repo (README, this file) don't touch plugin content and need no
+  bump or tag.
+
 ## Hosting privately (forks)
 
 Nothing below applies while the repo is public — public marketplaces install and update
