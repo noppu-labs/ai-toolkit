@@ -39,9 +39,11 @@ export function listFiles(dir, base = dir) {
 }
 
 export function hashFiles(files) {
+  // Hash the path too: raw paths could contain ":" or "\n", letting two
+  // different file sets serialize to the same digest input.
   const lines = [...files.keys()]
     .sort()
-    .map((path) => `${path}:${sha256(files.get(path))}`);
+    .map((path) => `${sha256(path)}:${sha256(files.get(path))}`);
   return sha256(lines.join("\n"));
 }
 
