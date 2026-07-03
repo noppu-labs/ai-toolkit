@@ -23,7 +23,7 @@ Requires `npm ci` (the sync CLI runs via tsx) and an authenticated `gh` CLI:
 Notes:
 
 - `status` fetches every upstream file through the GitHub API, so a full run takes a few
-  minutes. Keep it out of CI — `verify` is the fast, offline gate.
+  minutes. Keep it out of CI; `verify` is the fast, offline gate.
 - After hand-merging upstream changes into a **diverged** skill, re-baseline BOTH hashes with
   `seed <plugin>/<skill>`. `accept` alone leaves the upstream hash stale, and a later `pull`
   would overwrite your merge.
@@ -54,7 +54,7 @@ run `seed <plugin>/<name>`), and finish with `verify`.
 ## Versioning and releasing plugin changes
 
 Each plugin's `.claude-plugin/plugin.json` `version` is what consumers' update checks compare
-against — Claude Code resolves a plugin's version from `plugin.json` first, falling back to the
+against. Claude Code resolves a plugin's version from `plugin.json` first, falling back to the
 marketplace entry, then the commit SHA. With an explicit version set, **installed copies only
 update when that version changes**: a content change without a bump never reaches consumers.
 
@@ -66,16 +66,16 @@ Releases are automated by `.github/workflows/release.yml`. For any consumer-faci
    removals or breaking restructures.
 2. Push (or merge) to `main`. CI detects that the bumped version has no matching tag and, after
    re-running validation, does the rest:
-   - creates and pushes the annotated tag `<plugin>@<version>` (e.g. `laravel@0.1.1` — plugins
+   - creates and pushes the annotated tag `<plugin>@<version>` (e.g. `laravel@0.1.1`; plugins
      version independently, so one repo carries a tag series per plugin);
    - builds `<plugin>-<version>.tgz` from the plugin directory and signs its [build
      provenance](https://github.com/actions/attest-build-provenance) as a GitHub artifact
      attestation;
-   - creates a GitHub Release on the tag (no title — the tag name is the title) with notes
+   - creates a GitHub Release on the tag (no title, so the tag name is the title) with notes
      generated from the commits touching that plugin since its previous tag, and the tarball
      attached. The releases page doubles as the per-plugin changelog; the "Latest" badge simply
-     marks the most recently published release across all plugins — cosmetic in a multi-plugin
-     repo.
+     marks the most recently published release across all plugins, which is cosmetic in a
+     multi-plugin repo.
 3. Optionally polish the generated notes: `gh release edit <plugin>@<version> --notes "..."`.
 
 Anyone can verify that a downloaded tarball was built by this repo's CI from the tagged commit:
@@ -92,7 +92,7 @@ Notes:
   Describe skill-level changes in the tag message or a GitHub Release on the tag; upstream
   provenance per skill already lives in `skills-lock.json`.
 - **No marketplace-level version**, and don't set `version` on entries in
-  `.claude-plugin/marketplace.json` — `plugin.json` silently takes precedence, so a marketplace
+  `.claude-plugin/marketplace.json`: `plugin.json` silently takes precedence, so a marketplace
   entry version would only drift.
 - To see what changed in a plugin between releases:
   `git log laravel@0.1.0..laravel@0.1.1 -- laravel/`.
@@ -101,14 +101,15 @@ Notes:
 
 ## Hosting privately (forks)
 
-Nothing below applies while the repo is public — public marketplaces install and update
+Nothing below applies while the repo is public: public marketplaces install and update
 anonymously.
 
 If you host this marketplace (or a fork) as a **private** repo, the requirements fall on every
 *consuming* machine, not just the maintainer:
 
 - **Installing** (`/plugin marketplace add`, `/plugin install`) uses the machine's existing git
-  credentials (ssh-agent, `gh auth`, or a credential helper) — usually invisible for your team.
+  credentials (ssh-agent, `gh auth`, or a credential helper), which is usually invisible for
+  your team.
 - **Background auto-updates** run non-interactively and need `GITHUB_TOKEN` (or `GH_TOKEN`) set
   in the environment. Without it, installs still work but plugins silently stay stale until a
   manual reinstall.

@@ -6,7 +6,7 @@
 [![Known Vulnerabilities](https://snyk.io/test/github/noppu-labs/ai-toolkit/badge.svg)](https://snyk.io/test/github/noppu-labs/ai-toolkit)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/noppu-labs/ai-toolkit/badge)](https://scorecard.dev/viewer/?uri=github.com/noppu-labs/ai-toolkit)
 
-A collection of agents and skills for agentic development for modern Laravel and React applications.
+Agents and skills for agentic development in modern Laravel and React applications.
 
 | Plugin | Contents |
 | --- | --- |
@@ -25,7 +25,7 @@ A collection of agents and skills for agentic development for modern Laravel and
 
 Skills are namespaced after install, e.g. `laravel:laravel-dtos`, `inertia-react:shadcn`.
 The `install-rules` commands copy each plugin's path-scoped rules into your project's
-`.claude/rules/` — review the copied rules afterwards and adjust any project-specific
+`.claude/rules/`. Review the copied rules afterwards and adjust any project-specific
 commands (formatter invocation, npm script names) to your setup.
 
 ## Install (Vercel skills CLI)
@@ -38,8 +38,8 @@ npx skills add noppu-labs/ai-toolkit/inertia-react
 ## Verifying releases
 
 Every [release](https://github.com/noppu-labs/ai-toolkit/releases) ships a plugin tarball with
-GitHub [build provenance attestation](https://github.com/noppu-labs/ai-toolkit/attestations),
-proving it was built by this repo's CI from the tagged commit:
+a GitHub [build provenance attestation](https://github.com/noppu-labs/ai-toolkit/attestations)
+that proves CI built it from the tagged commit:
 
 ```sh
 gh attestation verify <plugin>-<version>.tgz --repo noppu-labs/ai-toolkit
@@ -47,5 +47,5 @@ gh attestation verify <plugin>-<version>.tgz --repo noppu-labs/ai-toolkit
 
 ## Forking this repo
 
-These plugins can be forked and adapted to your own stack. If you fork this repo,
-follow the [maintenance guide](docs/MAINTENANCE.md).
+You can fork this repo and adapt the plugins to your own stack. If you do, follow
+the [maintenance guide](docs/MAINTENANCE.md).
