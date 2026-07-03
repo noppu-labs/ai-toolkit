@@ -5,6 +5,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.2",
+    "fast-check": "^4.8.0",
     "markdownlint-cli2": "^0.23.0"
   }
 }
