@@ -61,6 +61,7 @@ jobs:
           npm install -g @anthropic-ai/claude-code
           claude plugin validate .
       - name: Attest build provenance
+        id: attest
         if: steps.detect.outputs.count != '0'
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
@@ -69,6 +70,7 @@ jobs:
         if: steps.detect.outputs.count != '0'
         env:
           GH_TOKEN: ${{ github.token }}
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -76,6 +78,20 @@ jobs:
           while IFS= read -r tag; do
             plugin="${tag%@*}"
             version="${tag#*@}"
+            # Extract this tarball's Sigstore bundle from the combined JSONL, matched by subject digest.
+            digest=$(sha256sum "dist/$plugin-$version.tgz" | cut -d' ' -f1)
+            bundle="dist/$plugin-$version.tgz.intoto.jsonl"
+            : > "$bundle"
+            while IFS= read -r line; do
+              if echo "$line" | jq -r '.dsseEnvelope.payload' | base64 -d \
+                | jq -e --arg d "$digest" 'any(.subject[]; .digest.sha256 == $d)' >/dev/null; then
+                echo "$line" >> "$bundle"
+              fi
+            done < "$BUNDLE_PATH"
+            if [[ ! -s "$bundle" ]]; then
+              echo "::error::no attestation bundle matches $plugin-$version.tgz"
+              exit 1
+            fi
             prev=$(git tag -l "$plugin@*" --sort=-v:refname | head -1)
             if [[ -n "$prev" ]]; then
               git log "$prev..HEAD" --pretty='- %s (%h)' -- "$plugin/" > notes.md
@@ -85,5 +101,6 @@ jobs:
             [[ -s notes.md ]] || echo "- Maintenance release" > notes.md
             git tag -a "$tag" -m "$plugin plugin $version" "$GITHUB_SHA"
             git push origin "refs/tags/$tag"
-            gh release create "$tag" --verify-tag --notes-file notes.md "dist/$plugin-$version.tgz"
+            gh release create "$tag" --verify-tag --notes-file notes.md \
+              "dist/$plugin-$version.tgz" "$bundle"
           done < dist/pending.txt
