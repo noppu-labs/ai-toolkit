@@ -68,7 +68,7 @@ The release process for any consumer-facing change (skills, rules, agents, comma
    plugin.
 3. Push commit and tags together: `git push --follow-tags`.
 4. Create a GitHub Release on the tag with skill-level notes on what changed:
-   `gh release create <plugin>@<version> --title "<plugin> <version>" --notes "..."`.
+   `gh release create <plugin>@<version> --notes "..."` (no `--title` — the tag name is the title).
    The releases page doubles as the per-plugin changelog. The "Latest" badge simply marks the
    most recently published release across all plugins — cosmetic in a multi-plugin repo.
 
