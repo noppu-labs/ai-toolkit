@@ -67,6 +67,10 @@ The release process for any consumer-facing change (skills, rules, agents, comma
    (e.g. `laravel@0.1.1`). Plugins version independently, so one repo carries a tag series per
    plugin.
 3. Push commit and tags together: `git push --follow-tags`.
+4. Create a GitHub Release on the tag with skill-level notes on what changed:
+   `gh release create <plugin>@<version> --title "<plugin> <version>" --notes "..."`.
+   The releases page doubles as the per-plugin changelog. The "Latest" badge simply marks the
+   most recently published release across all plugins — cosmetic in a multi-plugin repo.
 
 Notes:
 
