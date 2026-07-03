@@ -51,5 +51,9 @@ Thumbs.db
 .vitest-attachments/
 __screenshots__/
 
+# Site (generated at build time)
+/site/dist/
+/site/src/generated/
+
 # Local planning docs (kept out of the public repo)
 /docs/superpowers/

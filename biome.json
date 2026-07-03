@@ -78,5 +78,35 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "site/src/components/ui/**",
+        "site/src/components/animate-ui/**",
+        "site/src/hooks/**",
+        "site/src/lib/utils.ts"
+      ],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "useExplicitType": "off",
+            "noComponentHookFactories": "off"
+          },
+          "style": { "useComponentExportOnlyModules": "off" },
+          "complexity": { "noExcessiveCognitiveComplexity": "off" },
+          "performance": { "noJsxPropsBind": "off" }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "performance": { "noJsxPropsBind": "off" },
+          "style": { "useComponentExportOnlyModules": "off" }
+        }
+      }
+    }
+  ]
 }

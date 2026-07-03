@@ -1,0 +1,30 @@
+{
+  "name": "site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prebuild": "tsx scripts/build-catalog.ts",
+    "build": "vite build",
+    "predev": "tsx scripts/build-catalog.ts",
+    "dev": "vite dev",
+    "pretest": "tsx scripts/build-catalog.ts",
+    "test": "vitest run --browser.headless",
+    "pretypecheck": "tsx scripts/build-catalog.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/browser-playwright": "^4.1.9",
+    "tailwindcss": "^4.3.2",
+    "vite": "^8.1.3",
+    "vitest": "^4.1.9",
+    "vitest-browser-react": "^2.2.0"
+  }
+}
