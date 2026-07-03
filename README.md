@@ -48,4 +48,4 @@ gh attestation verify <plugin>-<version>.tgz --repo noppu-labs/ai-toolkit
 ## Forking this repo
 
 These plugins can be forked and adapted to your own stack. If you fork this repo,
-follow the [maintenance guide](MAINTENANCE.md).
+follow the [maintenance guide](docs/MAINTENANCE.md).
