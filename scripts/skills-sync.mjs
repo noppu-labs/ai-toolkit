@@ -242,6 +242,11 @@ export function seedSkill(root, plugin, name, fetcher = fetchUpstream) {
     entry.upstreamHash = upstream.hash;
   }
   writeLock(root, plugin, lock);
+  return {
+    customized:
+      entry.sourceType === "github" &&
+      entry.vendoredHash !== entry.upstreamHash,
+  };
 }
 
 export function diffSkill(root, plugin, name, fetcher = fetchUpstream) {
@@ -313,19 +318,27 @@ function runAccept(root, target) {
   console.log(`re-baselined vendoredHash for ${target}`);
 }
 
+function reportSeed(target, { customized }) {
+  console.log(`seeded ${target}`);
+  if (customized) {
+    console.warn(
+      `  warning: ${target} vendored content differs from upstream at this baseline.\n` +
+        `  If that is not a deliberate customization, run: pull ${target}`,
+    );
+  }
+}
+
 function runSeed(root, target) {
   if (!target) {
     for (const plugin of PLUGINS) {
       for (const name of Object.keys(readLock(root, plugin).skills)) {
-        seedSkill(root, plugin, name);
-        console.log(`seeded ${plugin}/${name}`);
+        reportSeed(`${plugin}/${name}`, seedSkill(root, plugin, name));
       }
     }
     return;
   }
   const { plugin, name } = parseSkillArg(target);
-  seedSkill(root, plugin, name);
-  console.log(`seeded ${target}`);
+  reportSeed(target, seedSkill(root, plugin, name));
 }
 
 const COMMANDS = {
