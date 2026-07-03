@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { it } from "vitest";
+import { it, type TestContext } from "vitest";
 import {
   acceptSkill,
   classify,
@@ -16,6 +16,7 @@ import {
   fetchUpstream,
   hashDirectory,
   hashFiles,
+  type LockEntry,
   listFiles,
   PLUGINS,
   pullSkill,
@@ -23,11 +24,13 @@ import {
   seedSkill,
   sha256,
   statusAll,
+  type UpstreamSnapshot,
+  type UpstreamSource,
   verifyAll,
   writeLock,
-} from "./skills-sync.mjs";
+} from "./skills-sync.ts";
 
-function makeRoot(t) {
+function makeRoot(t: TestContext): string {
   const root = mkdtempSync(join(tmpdir(), "ai-toolkit-test-"));
   t.onTestFinished(() => rmSync(root, { recursive: true, force: true }));
   for (const plugin of PLUGINS) {
@@ -37,7 +40,13 @@ function makeRoot(t) {
   return root;
 }
 
-function addSkill(root, plugin, name, files, entry = { sourceType: "local" }) {
+function addSkill(
+  root: string,
+  plugin: string,
+  name: string,
+  files: Record<string, string>,
+  entry: LockEntry = { sourceType: "local" },
+): string {
   const dir = join(root, plugin, "skills", name);
   for (const [rel, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true });
@@ -187,14 +196,19 @@ it("verifyAll flags github entries without a vendoredHash baseline", (t) => {
   assert.ok(problems[0].includes("missing vendoredHash"));
 });
 
-function fakeFetcher(files, commit = "cafe1234") {
-  const map = new Map(
+function fakeFetcher(
+  files: Record<string, string>,
+  commit = "cafe1234",
+): () => UpstreamSnapshot {
+  const map = new Map<string, Buffer>(
     Object.entries(files).map(([k, v]) => [k, Buffer.from(v)]),
   );
   return () => ({ commit, files: map, hash: hashFiles(map) });
 }
 
-function githubEntry(overrides = {}) {
+function githubEntry(
+  overrides: Partial<LockEntry> = {},
+): LockEntry & UpstreamSource {
   return {
     source: "owner/repo",
     sourceType: "github",
@@ -237,7 +251,7 @@ it("statusAll classifies via the injected fetcher and reports fetch errors", (t)
   assert.ok(
     failing
       .find((r) => r.id === "laravel/demo")
-      .state.startsWith("fetch-error"),
+      ?.state.startsWith("fetch-error"),
   );
 });
 
@@ -263,7 +277,7 @@ it("statusAll reports fetch-error for a missing skill directory without aborting
     { id: "laravel/demo", state: "up-to-date" },
   );
   const ghostRow = rows.find((r) => r.id === "laravel/ghost");
-  assert.ok(ghostRow.state.startsWith("fetch-error"));
+  assert.ok(ghostRow?.state.startsWith("fetch-error"));
 });
 
 it("diffSkill throws when the underlying spawnSync call fails (e.g. git missing from PATH)", (t) => {
@@ -384,8 +398,8 @@ it("seedSkill baselines local skills offline and github skills via fetcher", (t)
 });
 
 it("fetchUpstream walks directories via the gh contents API", () => {
-  const b64 = (s) => Buffer.from(s).toString("base64");
-  const responses = {
+  const b64 = (s: string): string => Buffer.from(s).toString("base64");
+  const responses: Record<string, unknown> = {
     "repos/owner/repo/commits/main": { sha: "abc999" },
     "repos/owner/repo/contents/skills/demo?ref=abc999": [
       { type: "file", path: "skills/demo/SKILL.md", sha: "blob1" },
@@ -397,7 +411,7 @@ it("fetchUpstream walks directories via the gh contents API", () => {
     "repos/owner/repo/git/blobs/blob1": { content: b64("# demo") },
     "repos/owner/repo/git/blobs/blob2": { content: b64("ref a") },
   };
-  const gh = (path) => {
+  const gh = (path: string): unknown => {
     if (!(path in responses)) throw new Error(`unexpected gh call: ${path}`);
     return responses[path];
   };
@@ -407,6 +421,6 @@ it("fetchUpstream walks directories via the gh contents API", () => {
     "SKILL.md",
     "references/a.md",
   ]);
-  assert.equal(result.files.get("SKILL.md").toString(), "# demo");
+  assert.equal(result.files.get("SKILL.md")?.toString(), "# demo");
   assert.equal(result.hash, hashFiles(result.files));
 });

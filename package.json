@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "scripts": {
     "lint": "biome check . && markdownlint-cli2",
     "lint:fix": "biome check --write . && markdownlint-cli2 --fix",

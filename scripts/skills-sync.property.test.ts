@@ -4,9 +4,9 @@
 // asserting) so fast-check reports the shrunken counterexample on failure.
 import { test } from "@fast-check/vitest";
 import fc from "fast-check";
-import { classify, fetchUpstream, hashFiles } from "./skills-sync.mjs";
+import { classify, fetchUpstream, hashFiles } from "./skills-sync.ts";
 
-const STATUSES = [
+const STATUSES: string[] = [
   "local",
   "diverged",
   "upstream-updated",
@@ -38,10 +38,10 @@ test.prop([
     selector: (entry) => entry[0],
   }),
 ])("hashFiles is deterministic and insertion-order independent", (entries) => {
-  const forward = new Map(
+  const forward = new Map<string, Buffer>(
     entries.map(([path, content]) => [path, Buffer.from(content)]),
   );
-  const reversed = new Map(
+  const reversed = new Map<string, Buffer>(
     [...entries]
       .reverse()
       .map(([path, content]) => [path, Buffer.from(content)]),
@@ -53,7 +53,7 @@ test.prop([
 test.prop([fc.string({ minLength: 1 }), fc.string()])(
   "fetchUpstream tolerates arbitrary upstream listings and blobs",
   (name, content) => {
-    const hostileGh = (path) => {
+    const hostileGh = (path: string): unknown => {
       if (path.includes("/commits/")) {
         return { sha: "0000000000000000000000000000000000000000" };
       }
