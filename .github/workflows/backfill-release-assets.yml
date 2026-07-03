@@ -1,0 +1,80 @@
+name: backfill-release-assets
+
+# One-off, manually dispatched: gives pre-pipeline releases the same attested
+# tarball assets that release.yml now produces. Safe to re-run — releases that
+# already carry a provenance asset are skipped.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: Build tarballs for releases missing assets
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          : > dist/pending.txt
+          for tag in $(gh release list --limit 100 --json tagName --jq '.[].tagName'); do
+            [[ "$tag" =~ ^([a-z0-9-]+)@([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
+            plugin="${BASH_REMATCH[1]}"
+            version="${BASH_REMATCH[2]}"
+            assets=$(gh release view "$tag" --json assets --jq '[.assets[].name] | join(" ")')
+            if [[ "$assets" == *.intoto.jsonl* ]]; then
+              echo "$tag already has a provenance asset; skipping."
+              continue
+            fi
+            if [[ "$assets" == *.tgz* ]]; then
+              echo "::warning::$tag has a tarball but no bundle; attach its store attestation via 'gh attestation download' instead."
+              continue
+            fi
+            git archive --format=tar.gz -o "dist/$plugin-$version.tgz" "$tag" "$plugin"
+            echo "$tag" >> dist/pending.txt
+          done
+          echo "count=$(wc -l < dist/pending.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+      - name: Attest build provenance
+        id: attest
+        if: steps.build.outputs.count != '0'
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: dist/*.tgz
+      - name: Upload assets
+        if: steps.build.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            plugin="${tag%@*}"
+            version="${tag#*@}"
+            digest=$(sha256sum "dist/$plugin-$version.tgz" | cut -d' ' -f1)
+            bundle="dist/$plugin-$version.tgz.intoto.jsonl"
+            : > "$bundle"
+            while IFS= read -r line; do
+              if echo "$line" | jq -r '.dsseEnvelope.payload' | base64 -d \
+                | jq -e --arg d "$digest" 'any(.subject[]; .digest.sha256 == $d)' >/dev/null; then
+                echo "$line" >> "$bundle"
+              fi
+            done < "$BUNDLE_PATH"
+            if [[ ! -s "$bundle" ]]; then
+              echo "::error::no attestation bundle matches $plugin-$version.tgz"
+              exit 1
+            fi
+            gh release upload "$tag" "dist/$plugin-$version.tgz" "$bundle" --clobber
+            echo "backfilled $tag"
+          done < dist/pending.txt
