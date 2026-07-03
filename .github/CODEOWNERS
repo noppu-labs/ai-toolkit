@@ -1,0 +1,6 @@
+# Default owners: requested for review on every pull request.
+* @cris005
+
+# Own the CI/CD workflows and this file explicitly so changes to the
+# release/security automation always route to the repository owner.
+/.github/ @cris005

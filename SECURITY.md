@@ -3,8 +3,8 @@
 ## Reporting a vulnerability
 
 Report suspected vulnerabilities privately via
-[GitHub private vulnerability reporting](https://github.com/noppu-labs/ai-toolkit/security/advisories/new)
-— please don't open a public issue. Include enough detail to reproduce: the affected plugin,
+[GitHub private vulnerability reporting](https://github.com/noppu-labs/ai-toolkit/security/advisories/new);
+please don't open a public issue. Include enough detail to reproduce: the affected plugin,
 skill, or workflow, and the impact. You can expect an initial response within a week.
 
 ## Scope
@@ -22,5 +22,5 @@ Skills vendored from upstream repos carry their provenance in each plugin's
 
 ## Verifying releases
 
-Release tarballs carry GitHub build provenance attestations — see
+Release tarballs carry GitHub build provenance attestations; see
 [Verifying releases](README.md#verifying-releases).
