@@ -84,7 +84,8 @@
       "includes": [
         "site/src/components/ui/**",
         "site/src/components/animate-ui/**",
-        "site/src/hooks/**",
+        "site/src/hooks/use-controlled-state.tsx",
+        "site/src/hooks/use-is-in-view.tsx",
         "site/src/lib/utils.ts",
         "site/src/lib/get-strict-context.tsx"
       ],

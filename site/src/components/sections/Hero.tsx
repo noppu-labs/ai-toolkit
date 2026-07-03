@@ -80,7 +80,7 @@ interface HeroProps {
 export function Hero({ description }: HeroProps): ReactElement {
   return (
     <StarsBackground
-      className="relative overflow-hidden"
+      className="relative overflow-hidden bg-none"
       starColor="var(--color-muted-foreground)"
     >
       <header className="relative mx-auto max-w-5xl px-6 pt-10 pb-16">
@@ -98,7 +98,12 @@ export function Hero({ description }: HeroProps): ReactElement {
         </p>
         <div className="mt-6 flex flex-wrap gap-2">
           {BADGES.map((badge) => (
-            <img alt={badge.alt} key={badge.src} src={badge.src} />
+            <img
+              alt={badge.alt}
+              className="h-5"
+              key={badge.src}
+              src={badge.src}
+            />
           ))}
         </div>
         <div className="mt-10 grid gap-4 md:grid-cols-2">
