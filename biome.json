@@ -85,7 +85,8 @@
         "site/src/components/ui/**",
         "site/src/components/animate-ui/**",
         "site/src/hooks/**",
-        "site/src/lib/**"
+        "site/src/lib/utils.ts",
+        "site/src/lib/get-strict-context.tsx"
       ],
       "linter": {
         "rules": {

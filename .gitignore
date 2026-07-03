@@ -53,6 +53,7 @@ __screenshots__/
 
 # Site (generated at build time)
 /site/dist/
+/site/node_modules/
 /site/src/generated/
 
 # Local planning docs (kept out of the public repo)
