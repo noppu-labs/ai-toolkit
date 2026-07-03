@@ -27,6 +27,14 @@ jobs:
         run: npm test
       - name: Typecheck
         run: npm run typecheck
+      - name: Site typecheck
+        run: npm run typecheck -w site
+      - name: Install Playwright chromium
+        run: npx playwright install chromium --with-deps
+      - name: Site tests
+        run: npm run test -w site
+      - name: Site build
+        run: npm run build -w site
       - name: Lock consistency
         run: npm run sync -- verify
       - name: Manifest sanity
