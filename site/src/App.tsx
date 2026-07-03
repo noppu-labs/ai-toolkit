@@ -1,9 +1,24 @@
 import type { ReactElement } from "react";
+import type { Catalog } from "./catalog-types.ts";
+import { Footer } from "./components/sections/Footer.tsx";
+import { Hero } from "./components/sections/Hero.tsx";
+import { PluginCards } from "./components/sections/PluginCards.tsx";
+import { SecuritySection } from "./components/sections/SecuritySection.tsx";
+import { SkillsCatalog } from "./components/sections/SkillsCatalog.tsx";
+import catalogJson from "./generated/catalog.json";
+
+const catalog: Catalog = catalogJson;
 
 export default function App(): ReactElement {
   return (
-    <main className="mx-auto max-w-5xl px-6 py-16">
-      <h1 className="font-semibold text-4xl tracking-tight">AI Toolkit</h1>
-    </main>
+    <>
+      <Hero description={catalog.marketplaceDescription} />
+      <main>
+        <PluginCards plugins={catalog.plugins} />
+        <SkillsCatalog plugins={catalog.plugins} />
+        <SecuritySection />
+      </main>
+      <Footer />
+    </>
   );
 }
