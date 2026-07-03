@@ -24,8 +24,8 @@
       "sourceType": "github",
       "ref": "main",
       "skillPath": "skills/shadcn",
-      "vendoredHash": "3e8ca56eb3af0f18b9cca3ae002f2b52f5dd23bceb286dd7403e18ae2fb38d08",
-      "upstreamCommit": "dbf9c5ebc430888ffae9baea9502c44c29b97304",
+      "vendoredHash": "10f2415a299a9de15da57000359e7a194f195d7107bd255b192921485e574c00",
+      "upstreamCommit": "a409271270ad3a5d121e21f037c28bfaff912fc7",
       "upstreamHash": "10f2415a299a9de15da57000359e7a194f195d7107bd255b192921485e574c00"
     },
     "state-management": {
