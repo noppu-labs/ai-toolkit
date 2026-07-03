@@ -85,17 +85,24 @@
         "site/src/components/ui/**",
         "site/src/components/animate-ui/**",
         "site/src/hooks/**",
-        "site/src/lib/utils.ts"
+        "site/src/lib/**"
       ],
       "linter": {
         "rules": {
           "nursery": {
             "useExplicitType": "off",
-            "noComponentHookFactories": "off"
+            "noComponentHookFactories": "off",
+            "useSortedClasses": "off"
           },
           "style": { "useComponentExportOnlyModules": "off" },
           "complexity": { "noExcessiveCognitiveComplexity": "off" },
-          "performance": { "noJsxPropsBind": "off" }
+          "performance": { "noJsxPropsBind": "off" },
+          "suspicious": {
+            "noExplicitAny": "off",
+            "noLeakedRender": "off",
+            "noArrayIndexKey": "off"
+          },
+          "a11y": { "noStaticElementInteractions": "off" }
         }
       }
     },

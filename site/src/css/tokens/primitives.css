@@ -1,0 +1,39 @@
+/* ============================================================
+   Layer 1 — Primitive tokens (palette + scales)
+   Raw values; the single source of truth for the design system.
+   Components NEVER consume these directly — they consume the
+   semantic tokens mapped in themes/light.css and themes/dark.css.
+   ============================================================ */
+
+@theme {
+  /* Ink — cool neutral scale (surfaces, text, borders) */
+  --color-ink-50: oklch(0.984 0.003 260);
+  --color-ink-100: oklch(0.962 0.004 260);
+  --color-ink-200: oklch(0.907 0.006 260);
+  --color-ink-300: oklch(0.83 0.009 260);
+  --color-ink-400: oklch(0.702 0.012 260);
+  --color-ink-500: oklch(0.552 0.014 260);
+  --color-ink-600: oklch(0.442 0.014 260);
+  --color-ink-700: oklch(0.37 0.012 260);
+  --color-ink-800: oklch(0.276 0.01 260);
+  --color-ink-900: oklch(0.208 0.008 260);
+  --color-ink-950: oklch(0.145 0.006 260);
+
+  /* Iris — indigo/violet accent (primary actions, links, focus) */
+  --color-iris-50: oklch(0.969 0.016 285);
+  --color-iris-100: oklch(0.936 0.032 285);
+  --color-iris-200: oklch(0.87 0.06 286);
+  --color-iris-300: oklch(0.785 0.1 287);
+  --color-iris-400: oklch(0.69 0.15 288);
+  --color-iris-500: oklch(0.6 0.19 289);
+  --color-iris-600: oklch(0.53 0.2 290);
+  --color-iris-700: oklch(0.457 0.18 291);
+  --color-iris-800: oklch(0.385 0.14 291);
+  --color-iris-900: oklch(0.32 0.11 292);
+  --color-iris-950: oklch(0.23 0.08 293);
+
+  /* Crimson — destructive intent (required by shadcn variants) */
+  --color-crimson-400: oklch(0.704 0.191 22);
+  --color-crimson-500: oklch(0.637 0.237 25);
+  --color-crimson-600: oklch(0.577 0.245 27);
+}

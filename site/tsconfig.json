@@ -8,7 +8,6 @@
     "types": ["vite/client", "node"],
     "jsx": "react-jsx",
     "resolveJsonModule": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }

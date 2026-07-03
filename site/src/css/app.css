@@ -1,0 +1,46 @@
+/* ============================================================
+   ai-toolkit site — entry stylesheet
+   Intentionally thin. To change the design system, edit the
+   files this imports — not this file.
+
+     tokens/primitives.css   Layer 1 — raw palette + scales
+     tokens/typography.css   Type primitives
+     tokens/semantic.css     Layer 2 — Tailwind utility mapping
+     themes/light.css        :root semantic values (light)
+     themes/dark.css         .dark semantic values (dark)
+
+   Components only ever consume Layer 2 tokens via utilities
+   like `bg-background`, `text-foreground`, `bg-primary`.
+   ============================================================ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@import "./tokens/primitives.css";
+@import "./tokens/typography.css";
+@import "./tokens/semantic.css";
+
+@import "./themes/light.css";
+@import "./themes/dark.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    @apply border-border;
+  }
+
+  *:focus-visible {
+    @apply outline-ring/50;
+  }
+
+  html {
+    @apply font-sans antialiased;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
