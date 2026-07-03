@@ -85,6 +85,19 @@ it("hashFiles is insertion-order independent and content sensitive", () => {
   assert.notEqual(hashFiles(a), hashFiles(c));
 });
 
+it("hashFiles is not fooled by newline/colon injection in paths", () => {
+  const one = Buffer.from("one");
+  const two = Buffer.from("two");
+  const honest = new Map([
+    ["a", one],
+    ["b", two],
+  ]);
+  // Under the old `path:sha256(content)` serialization, this single file
+  // produced the same digest input as the two honest files above.
+  const forged = new Map([[`a:${sha256(one)}\nb`, two]]);
+  assert.notEqual(hashFiles(honest), hashFiles(forged));
+});
+
 it("hashDirectory changes when a file changes or is added", (t) => {
   const root = makeRoot(t);
   const dir = addSkill(root, "laravel", "demo", { "SKILL.md": "# demo" });
