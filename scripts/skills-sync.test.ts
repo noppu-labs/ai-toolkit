@@ -17,6 +17,7 @@ import {
   hashDirectory,
   hashFiles,
   type LockEntry,
+  type LockFile,
   listFiles,
   PLUGINS,
   pullSkill,
@@ -142,7 +143,7 @@ it("verifyAll returns no problems for a consistent tree", (t) => {
   const root = makeRoot(t);
   const dir = addSkill(root, "laravel", "demo", { "SKILL.md": "# demo" });
   const lock = readLock(root, "laravel");
-  lock.skills.demo.vendoredHash = hashDirectory(dir);
+  mustEntry(lock, "demo").vendoredHash = hashDirectory(dir);
   writeLock(root, "laravel", lock);
   assert.deepEqual(verifyAll(root), []);
 });
@@ -151,7 +152,7 @@ it("verifyAll flags tampered content, unlocked dirs, and missing dirs", (t) => {
   const root = makeRoot(t);
   const dir = addSkill(root, "laravel", "demo", { "SKILL.md": "# demo" });
   const lock = readLock(root, "laravel");
-  lock.skills.demo.vendoredHash = hashDirectory(dir);
+  mustEntry(lock, "demo").vendoredHash = hashDirectory(dir);
   lock.skills.ghost = { sourceType: "local" }; // in lock, not on disk
   writeLock(root, "laravel", lock);
   writeFileSync(join(dir, "SKILL.md"), "# tampered");
@@ -193,8 +194,16 @@ it("verifyAll flags github entries without a vendoredHash baseline", (t) => {
   );
   const problems = verifyAll(root);
   assert.equal(problems.length, 1);
-  assert.ok(problems[0].includes("missing vendoredHash"));
+  assert.ok(problems[0]?.includes("missing vendoredHash"));
 });
+
+function mustEntry(lock: LockFile, name: string): LockEntry {
+  const entry = lock.skills[name];
+  if (!entry) {
+    throw new Error(`${name} missing from lock`);
+  }
+  return entry;
+}
 
 function fakeFetcher(
   files: Record<string, string>,
@@ -207,7 +216,10 @@ function fakeFetcher(
 }
 
 function githubEntry(
-  overrides: Partial<LockEntry> = {},
+  overrides: Pick<
+    LockEntry,
+    "vendoredHash" | "upstreamHash" | "upstreamCommit"
+  > = {},
 ): LockEntry & UpstreamSource {
   return {
     source: "owner/repo",
@@ -229,8 +241,9 @@ it("statusAll classifies via the injected fetcher and reports fetch errors", (t)
   );
   const lock = readLock(root, "laravel");
   const upstream = fakeFetcher({ "SKILL.md": "# demo" })();
-  lock.skills.demo.vendoredHash = hashDirectory(dir);
-  lock.skills.demo.upstreamHash = upstream.hash;
+  const demo = mustEntry(lock, "demo");
+  demo.vendoredHash = hashDirectory(dir);
+  demo.upstreamHash = upstream.hash;
   lock.skills.other = { sourceType: "local" };
   writeLock(root, "laravel", lock);
   addSkill(root, "laravel", "other", { "SKILL.md": "x" });
@@ -266,8 +279,9 @@ it("statusAll reports fetch-error for a missing skill directory without aborting
   );
   const lock = readLock(root, "laravel");
   const upstream = fakeFetcher({ "SKILL.md": "# demo" })();
-  lock.skills.demo.vendoredHash = hashDirectory(dir);
-  lock.skills.demo.upstreamHash = upstream.hash;
+  const demo = mustEntry(lock, "demo");
+  demo.vendoredHash = hashDirectory(dir);
+  demo.upstreamHash = upstream.hash;
   lock.skills.ghost = githubEntry(); // in lock, but no skill directory on disk
   writeLock(root, "laravel", lock);
 
@@ -324,7 +338,7 @@ it("pullSkill refuses to overwrite local changes without force, then overwrites 
   assert.equal(state, "diverged");
   assert.equal(readFileSync(join(dir, "SKILL.md"), "utf8"), "# upstream v2");
   assert.equal(readFileSync(join(dir, "references/new.md"), "utf8"), "ref");
-  const entry = readLock(root, "laravel").skills.demo;
+  const entry = mustEntry(readLock(root, "laravel"), "demo");
   assert.equal(entry.upstreamCommit, "cafe1234");
   assert.equal(entry.upstreamHash, fetcher().hash);
   assert.equal(entry.vendoredHash, hashDirectory(dir));
@@ -340,8 +354,9 @@ it("pullSkill fast-forwards an upstream-updated skill", (t) => {
     githubEntry(),
   );
   const lock = readLock(root, "laravel");
-  lock.skills.demo.vendoredHash = hashDirectory(dir);
-  lock.skills.demo.upstreamHash = fakeFetcher({ "SKILL.md": "# v1" })().hash;
+  const demo = mustEntry(lock, "demo");
+  demo.vendoredHash = hashDirectory(dir);
+  demo.upstreamHash = fakeFetcher({ "SKILL.md": "# v1" })().hash;
   writeLock(root, "laravel", lock);
 
   const state = pullSkill(root, "laravel", "demo", {
@@ -365,7 +380,7 @@ it("acceptSkill re-baselines only vendoredHash", (t) => {
     }),
   );
   acceptSkill(root, "laravel", "demo");
-  const entry = readLock(root, "laravel").skills.demo;
+  const entry = mustEntry(readLock(root, "laravel"), "demo");
   assert.equal(entry.vendoredHash, hashDirectory(dir));
   assert.equal(entry.upstreamHash, "u1");
   assert.equal(entry.upstreamCommit, "c1");
@@ -378,7 +393,7 @@ it("seedSkill baselines local skills offline and github skills via fetcher", (t)
   });
   seedSkill(root, "laravel", "custom");
   assert.equal(
-    readLock(root, "laravel").skills.custom.vendoredHash,
+    mustEntry(readLock(root, "laravel"), "custom").vendoredHash,
     hashDirectory(localDir),
   );
 
@@ -391,7 +406,7 @@ it("seedSkill baselines local skills offline and github skills via fetcher", (t)
   );
   const fetcher = fakeFetcher({ "SKILL.md": "# upstream" }, "feed5678");
   seedSkill(root, "laravel", "demo", fetcher);
-  const entry = readLock(root, "laravel").skills.demo;
+  const entry = mustEntry(readLock(root, "laravel"), "demo");
   assert.equal(entry.vendoredHash, hashDirectory(ghDir));
   assert.equal(entry.upstreamCommit, "feed5678");
   assert.equal(entry.upstreamHash, fetcher().hash);

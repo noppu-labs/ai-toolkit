@@ -34,11 +34,14 @@ export interface UpstreamSource {
   skillPath: string;
 }
 
-export interface LockEntry extends Partial<UpstreamSource> {
-  sourceType?: string;
-  vendoredHash?: string;
-  upstreamHash?: string;
-  upstreamCommit?: string;
+export interface LockEntry {
+  sourceType?: string | undefined;
+  source?: string | undefined;
+  ref?: string | undefined;
+  skillPath?: string | undefined;
+  vendoredHash?: string | undefined;
+  upstreamHash?: string | undefined;
+  upstreamCommit?: string | undefined;
 }
 
 export interface LockFile {
@@ -395,7 +398,7 @@ function parseSkillArg(arg: string | undefined): {
   plugin: string;
   name: string;
 } {
-  const [plugin, ...rest] = (arg ?? "").split("/");
+  const [plugin = "", ...rest] = (arg ?? "").split("/");
   const name = rest.join("/");
   if (!PLUGINS.includes(plugin) || !name) {
     throw new Error(
@@ -467,26 +470,27 @@ function runSeed(root: string, target?: string): void {
 
 type Command = (root: string, target?: string, flag?: string) => void;
 
-const COMMANDS: Record<string, Command> = {
-  status: runStatus,
-  verify: runVerify,
-  diff: runDiff,
-  pull: runPull,
-  accept: runAccept,
-  seed: runSeed,
-};
+const COMMANDS = new Map<string, Command>([
+  ["status", runStatus],
+  ["verify", runVerify],
+  ["diff", runDiff],
+  ["pull", runPull],
+  ["accept", runAccept],
+  ["seed", runSeed],
+]);
 
 function main(): void {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const [command = "", target, flag] = process.argv.slice(2);
-  if (!Object.hasOwn(COMMANDS, command)) {
+  const handler = COMMANDS.get(command);
+  if (!handler) {
     console.error(
       "usage: skills-sync.ts <status|verify|diff|pull|accept|seed> [<plugin>/<skill>] [--force]",
     );
     process.exit(2);
   }
   try {
-    COMMANDS[command](root, target, flag);
+    handler(root, target, flag);
   } catch (error) {
     console.error(errorMessage(error));
     process.exit(1);
