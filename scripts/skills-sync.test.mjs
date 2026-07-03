@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { it } from "node:test";
+import { it } from "vitest";
 import {
   acceptSkill,
   classify,
@@ -29,7 +29,7 @@ import {
 
 function makeRoot(t) {
   const root = mkdtempSync(join(tmpdir(), "ai-toolkit-test-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.onTestFinished(() => rmSync(root, { recursive: true, force: true }));
   for (const plugin of PLUGINS) {
     mkdirSync(join(root, plugin, "skills"), { recursive: true });
     writeLock(root, plugin, { version: 1, skills: {} });
@@ -258,7 +258,7 @@ it("diffSkill throws when the underlying spawnSync call fails (e.g. git missing 
   addSkill(root, "laravel", "demo", { "SKILL.md": "# demo" }, githubEntry());
   const emptyPathDir = mkdtempSync(join(tmpdir(), "empty-path-"));
   const originalPath = process.env.PATH;
-  t.after(() => {
+  t.onTestFinished(() => {
     process.env.PATH = originalPath;
     rmSync(emptyPathDir, { recursive: true, force: true });
   });

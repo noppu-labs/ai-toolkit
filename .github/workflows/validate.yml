@@ -24,7 +24,7 @@ jobs:
       - name: Markdown lint
         run: npx markdownlint-cli2
       - name: Unit tests
-        run: node --test "scripts/**/*.test.mjs"
+        run: npm test
       - name: Lock consistency
         run: node scripts/skills-sync.mjs verify
       - name: Manifest sanity
