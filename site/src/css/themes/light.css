@@ -1,0 +1,39 @@
+/* Theme — Light. The only place light-mode "what looks like what"
+   is decided. To re-skin light mode, edit only this file. */
+
+:root {
+  color-scheme: light;
+  --radius: 0.625rem;
+
+  --background: var(--color-ink-50);
+  --foreground: var(--color-ink-900);
+
+  --card: var(--color-white);
+  --card-foreground: var(--color-ink-900);
+
+  --popover: var(--color-white);
+  --popover-foreground: var(--color-ink-900);
+
+  --primary: var(--color-iris-600);
+  --primary-foreground: var(--color-ink-50);
+
+  --secondary: var(--color-ink-100);
+  --secondary-foreground: var(--color-ink-900);
+
+  --muted: var(--color-ink-100);
+  --muted-foreground: var(--color-ink-600);
+
+  --accent: var(--color-ink-100);
+  --accent-foreground: var(--color-ink-900);
+
+  --destructive: var(--color-crimson-600);
+  --destructive-foreground: var(--color-ink-50);
+
+  --border: var(--color-ink-200);
+  --input: var(--color-ink-200);
+  --ring: var(--color-iris-500);
+
+  /* Hero brand gradient (consumed by GradientText) */
+  --hero-gradient-from: var(--color-iris-500);
+  --hero-gradient-to: var(--color-iris-700);
+}

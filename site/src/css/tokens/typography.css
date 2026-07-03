@@ -1,0 +1,8 @@
+/* Type primitives. System stacks only — no webfonts, no external requests. */
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --tracking-tight: -0.02em;
+}

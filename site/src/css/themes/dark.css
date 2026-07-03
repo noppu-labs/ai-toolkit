@@ -1,0 +1,36 @@
+/* Theme — Dark. Applied when <html> carries the `dark` class. */
+
+.dark {
+  color-scheme: dark;
+
+  --background: var(--color-ink-950);
+  --foreground: var(--color-ink-100);
+
+  --card: var(--color-ink-900);
+  --card-foreground: var(--color-ink-100);
+
+  --popover: var(--color-ink-900);
+  --popover-foreground: var(--color-ink-100);
+
+  --primary: var(--color-iris-400);
+  --primary-foreground: var(--color-ink-950);
+
+  --secondary: var(--color-ink-800);
+  --secondary-foreground: var(--color-ink-100);
+
+  --muted: var(--color-ink-800);
+  --muted-foreground: var(--color-ink-400);
+
+  --accent: var(--color-ink-800);
+  --accent-foreground: var(--color-ink-100);
+
+  --destructive: var(--color-crimson-500);
+  --destructive-foreground: var(--color-ink-50);
+
+  --border: var(--color-ink-800);
+  --input: var(--color-ink-800);
+  --ring: var(--color-iris-400);
+
+  --hero-gradient-from: var(--color-iris-300);
+  --hero-gradient-to: var(--color-iris-500);
+}
