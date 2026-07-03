@@ -1,13 +1,13 @@
 # Contributing
 
-Thanks for your interest in improving AI Toolkit. This repo is a Claude Code plugin
-marketplace: the deliverables are the skills, agents, and rules under `laravel/` and
-`inertia-react/`, plus the tooling that keeps vendored skills in sync with their upstreams.
+AI Toolkit is a Claude Code plugin marketplace. The product is the skills, agents, and rules
+under `laravel/` and `inertia-react/`; the rest of the repo is tooling that keeps vendored
+skills in sync with their upstreams.
 
 ## Prerequisites
 
 - Node.js >= 20 (CI runs on 22)
-- An authenticated [`gh` CLI](https://cli.github.com/) — only needed for the skill sync
+- An authenticated [`gh` CLI](https://cli.github.com/), needed only for the skill sync
   commands, which fetch upstream skill repos through the GitHub API
 
 ```sh
@@ -36,18 +36,18 @@ files, re-baseline the lock entry afterwards or `verify` (and CI) will fail:
 node scripts/skills-sync.mjs accept <plugin>/<skill>
 ```
 
-The full sync workflow — checking upstreams for updates, pulling changes, merging diverged
-skills, and adding new skills — is documented in the
-[maintenance guide](docs/MAINTENANCE.md).
+The [maintenance guide](docs/MAINTENANCE.md) covers the full sync workflow: checking
+upstreams for updates, pulling changes, merging diverged skills, and adding new ones.
 
 ## Versioning
 
 Consumer-facing changes (skills, rules, agents, commands) must bump the affected plugin's
-`version` in `<plugin>/.claude-plugin/plugin.json` **in the same commit** — installed copies
-only update when that version changes. Use semver: patch for fixes and wording, minor for new
-skills or rules, major for removals or breaking restructures. Releases are tagged and
-published automatically on merge to `main`; see the
-[maintenance guide](docs/MAINTENANCE.md#versioning-and-releasing-plugin-changes) for details.
+`version` in `<plugin>/.claude-plugin/plugin.json` **in the same commit**, because installed
+copies only update when that version changes. Use semver: patch for fixes and wording, minor
+for new skills or rules, major for removals or breaking restructures. CI tags and publishes
+releases automatically on merge to `main`; the
+[maintenance guide](docs/MAINTENANCE.md#versioning-and-releasing-plugin-changes) has the
+details.
 
 Docs-only changes (README, files under `docs/`) need no version bump.
 
@@ -57,4 +57,4 @@ Docs-only changes (README, files under `docs/`) need no version bump.
   (`fix:`, `ci:`, `docs:`, `test:`, `chore(deps):`, …).
 - Repo documentation beyond the standard root files (README, LICENSE, SECURITY,
   CONTRIBUTING) lives in `docs/` to keep the root uncluttered.
-- Security issues should be reported per [SECURITY.md](SECURITY.md), not via public issues.
+- Report security issues per [SECURITY.md](SECURITY.md), not in public issues.
