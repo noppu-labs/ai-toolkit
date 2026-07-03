@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { it } from "vitest";
+import { it, type TestContext } from "vitest";
 import {
   acceptSkill,
   classify,
@@ -16,6 +16,8 @@ import {
   fetchUpstream,
   hashDirectory,
   hashFiles,
+  type LockEntry,
+  type LockFile,
   listFiles,
   PLUGINS,
   pullSkill,
@@ -23,11 +25,13 @@ import {
   seedSkill,
   sha256,
   statusAll,
+  type UpstreamSnapshot,
+  type UpstreamSource,
   verifyAll,
   writeLock,
-} from "./skills-sync.mjs";
+} from "./skills-sync.ts";
 
-function makeRoot(t) {
+function makeRoot(t: TestContext): string {
   const root = mkdtempSync(join(tmpdir(), "ai-toolkit-test-"));
   t.onTestFinished(() => rmSync(root, { recursive: true, force: true }));
   for (const plugin of PLUGINS) {
@@ -37,7 +41,13 @@ function makeRoot(t) {
   return root;
 }
 
-function addSkill(root, plugin, name, files, entry = { sourceType: "local" }) {
+function addSkill(
+  root: string,
+  plugin: string,
+  name: string,
+  files: Record<string, string>,
+  entry: LockEntry = { sourceType: "local" },
+): string {
   const dir = join(root, plugin, "skills", name);
   for (const [rel, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true });
@@ -133,7 +143,7 @@ it("verifyAll returns no problems for a consistent tree", (t) => {
   const root = makeRoot(t);
   const dir = addSkill(root, "laravel", "demo", { "SKILL.md": "# demo" });
   const lock = readLock(root, "laravel");
-  lock.skills.demo.vendoredHash = hashDirectory(dir);
+  mustEntry(lock, "demo").vendoredHash = hashDirectory(dir);
   writeLock(root, "laravel", lock);
   assert.deepEqual(verifyAll(root), []);
 });
@@ -142,7 +152,7 @@ it("verifyAll flags tampered content, unlocked dirs, and missing dirs", (t) => {
   const root = makeRoot(t);
   const dir = addSkill(root, "laravel", "demo", { "SKILL.md": "# demo" });
   const lock = readLock(root, "laravel");
-  lock.skills.demo.vendoredHash = hashDirectory(dir);
+  mustEntry(lock, "demo").vendoredHash = hashDirectory(dir);
   lock.skills.ghost = { sourceType: "local" }; // in lock, not on disk
   writeLock(root, "laravel", lock);
   writeFileSync(join(dir, "SKILL.md"), "# tampered");
@@ -184,17 +194,33 @@ it("verifyAll flags github entries without a vendoredHash baseline", (t) => {
   );
   const problems = verifyAll(root);
   assert.equal(problems.length, 1);
-  assert.ok(problems[0].includes("missing vendoredHash"));
+  assert.ok(problems[0]?.includes("missing vendoredHash"));
 });
 
-function fakeFetcher(files, commit = "cafe1234") {
-  const map = new Map(
+function mustEntry(lock: LockFile, name: string): LockEntry {
+  const entry = lock.skills[name];
+  if (!entry) {
+    throw new Error(`${name} missing from lock`);
+  }
+  return entry;
+}
+
+function fakeFetcher(
+  files: Record<string, string>,
+  commit = "cafe1234",
+): () => UpstreamSnapshot {
+  const map = new Map<string, Buffer>(
     Object.entries(files).map(([k, v]) => [k, Buffer.from(v)]),
   );
   return () => ({ commit, files: map, hash: hashFiles(map) });
 }
 
-function githubEntry(overrides = {}) {
+function githubEntry(
+  overrides: Pick<
+    LockEntry,
+    "vendoredHash" | "upstreamHash" | "upstreamCommit"
+  > = {},
+): LockEntry & UpstreamSource {
   return {
     source: "owner/repo",
     sourceType: "github",
@@ -215,8 +241,9 @@ it("statusAll classifies via the injected fetcher and reports fetch errors", (t)
   );
   const lock = readLock(root, "laravel");
   const upstream = fakeFetcher({ "SKILL.md": "# demo" })();
-  lock.skills.demo.vendoredHash = hashDirectory(dir);
-  lock.skills.demo.upstreamHash = upstream.hash;
+  const demo = mustEntry(lock, "demo");
+  demo.vendoredHash = hashDirectory(dir);
+  demo.upstreamHash = upstream.hash;
   lock.skills.other = { sourceType: "local" };
   writeLock(root, "laravel", lock);
   addSkill(root, "laravel", "other", { "SKILL.md": "x" });
@@ -237,7 +264,7 @@ it("statusAll classifies via the injected fetcher and reports fetch errors", (t)
   assert.ok(
     failing
       .find((r) => r.id === "laravel/demo")
-      .state.startsWith("fetch-error"),
+      ?.state.startsWith("fetch-error"),
   );
 });
 
@@ -252,8 +279,9 @@ it("statusAll reports fetch-error for a missing skill directory without aborting
   );
   const lock = readLock(root, "laravel");
   const upstream = fakeFetcher({ "SKILL.md": "# demo" })();
-  lock.skills.demo.vendoredHash = hashDirectory(dir);
-  lock.skills.demo.upstreamHash = upstream.hash;
+  const demo = mustEntry(lock, "demo");
+  demo.vendoredHash = hashDirectory(dir);
+  demo.upstreamHash = upstream.hash;
   lock.skills.ghost = githubEntry(); // in lock, but no skill directory on disk
   writeLock(root, "laravel", lock);
 
@@ -263,7 +291,7 @@ it("statusAll reports fetch-error for a missing skill directory without aborting
     { id: "laravel/demo", state: "up-to-date" },
   );
   const ghostRow = rows.find((r) => r.id === "laravel/ghost");
-  assert.ok(ghostRow.state.startsWith("fetch-error"));
+  assert.ok(ghostRow?.state.startsWith("fetch-error"));
 });
 
 it("diffSkill throws when the underlying spawnSync call fails (e.g. git missing from PATH)", (t) => {
@@ -310,7 +338,7 @@ it("pullSkill refuses to overwrite local changes without force, then overwrites 
   assert.equal(state, "diverged");
   assert.equal(readFileSync(join(dir, "SKILL.md"), "utf8"), "# upstream v2");
   assert.equal(readFileSync(join(dir, "references/new.md"), "utf8"), "ref");
-  const entry = readLock(root, "laravel").skills.demo;
+  const entry = mustEntry(readLock(root, "laravel"), "demo");
   assert.equal(entry.upstreamCommit, "cafe1234");
   assert.equal(entry.upstreamHash, fetcher().hash);
   assert.equal(entry.vendoredHash, hashDirectory(dir));
@@ -326,8 +354,9 @@ it("pullSkill fast-forwards an upstream-updated skill", (t) => {
     githubEntry(),
   );
   const lock = readLock(root, "laravel");
-  lock.skills.demo.vendoredHash = hashDirectory(dir);
-  lock.skills.demo.upstreamHash = fakeFetcher({ "SKILL.md": "# v1" })().hash;
+  const demo = mustEntry(lock, "demo");
+  demo.vendoredHash = hashDirectory(dir);
+  demo.upstreamHash = fakeFetcher({ "SKILL.md": "# v1" })().hash;
   writeLock(root, "laravel", lock);
 
   const state = pullSkill(root, "laravel", "demo", {
@@ -351,7 +380,7 @@ it("acceptSkill re-baselines only vendoredHash", (t) => {
     }),
   );
   acceptSkill(root, "laravel", "demo");
-  const entry = readLock(root, "laravel").skills.demo;
+  const entry = mustEntry(readLock(root, "laravel"), "demo");
   assert.equal(entry.vendoredHash, hashDirectory(dir));
   assert.equal(entry.upstreamHash, "u1");
   assert.equal(entry.upstreamCommit, "c1");
@@ -364,7 +393,7 @@ it("seedSkill baselines local skills offline and github skills via fetcher", (t)
   });
   seedSkill(root, "laravel", "custom");
   assert.equal(
-    readLock(root, "laravel").skills.custom.vendoredHash,
+    mustEntry(readLock(root, "laravel"), "custom").vendoredHash,
     hashDirectory(localDir),
   );
 
@@ -377,15 +406,15 @@ it("seedSkill baselines local skills offline and github skills via fetcher", (t)
   );
   const fetcher = fakeFetcher({ "SKILL.md": "# upstream" }, "feed5678");
   seedSkill(root, "laravel", "demo", fetcher);
-  const entry = readLock(root, "laravel").skills.demo;
+  const entry = mustEntry(readLock(root, "laravel"), "demo");
   assert.equal(entry.vendoredHash, hashDirectory(ghDir));
   assert.equal(entry.upstreamCommit, "feed5678");
   assert.equal(entry.upstreamHash, fetcher().hash);
 });
 
 it("fetchUpstream walks directories via the gh contents API", () => {
-  const b64 = (s) => Buffer.from(s).toString("base64");
-  const responses = {
+  const b64 = (s: string): string => Buffer.from(s).toString("base64");
+  const responses: Record<string, unknown> = {
     "repos/owner/repo/commits/main": { sha: "abc999" },
     "repos/owner/repo/contents/skills/demo?ref=abc999": [
       { type: "file", path: "skills/demo/SKILL.md", sha: "blob1" },
@@ -397,7 +426,7 @@ it("fetchUpstream walks directories via the gh contents API", () => {
     "repos/owner/repo/git/blobs/blob1": { content: b64("# demo") },
     "repos/owner/repo/git/blobs/blob2": { content: b64("ref a") },
   };
-  const gh = (path) => {
+  const gh = (path: string): unknown => {
     if (!(path in responses)) throw new Error(`unexpected gh call: ${path}`);
     return responses[path];
   };
@@ -407,6 +436,6 @@ it("fetchUpstream walks directories via the gh contents API", () => {
     "SKILL.md",
     "references/a.md",
   ]);
-  assert.equal(result.files.get("SKILL.md").toString(), "# demo");
+  assert.equal(result.files.get("SKILL.md")?.toString(), "# demo");
   assert.equal(result.hash, hashFiles(result.files));
 });

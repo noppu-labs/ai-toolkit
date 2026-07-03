@@ -1,7 +1,7 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S npx tsx
 import { execFileSync, spawnSync } from "node:child_process";
 /**
- * Zero-dependency sync tool for vendored skills.
+ * Sync tool for vendored skills (Node builtins only; run via `npm run sync`).
  * Tracks each skill's upstream source in <plugin>/skills-lock.json and classifies
  * sync state from two whole-directory hashes (vendored copy vs upstream).
  */
@@ -19,14 +19,57 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const PLUGINS = ["laravel", "inertia-react"];
+export const PLUGINS: string[] = ["laravel", "inertia-react"];
 
-export function sha256(data) {
+export type SyncState =
+  | "up-to-date"
+  | "upstream-updated"
+  | "locally-modified"
+  | "diverged"
+  | "local";
+
+export interface UpstreamSource {
+  source: string;
+  ref: string;
+  skillPath: string;
+}
+
+export interface LockEntry {
+  sourceType?: string | undefined;
+  source?: string | undefined;
+  ref?: string | undefined;
+  skillPath?: string | undefined;
+  vendoredHash?: string | undefined;
+  upstreamHash?: string | undefined;
+  upstreamCommit?: string | undefined;
+}
+
+export interface LockFile {
+  version: number;
+  skills: Record<string, LockEntry>;
+}
+
+export interface UpstreamSnapshot {
+  commit: string;
+  files: Map<string, Buffer>;
+  hash: string;
+}
+
+export type Fetcher = (entry: UpstreamSource) => UpstreamSnapshot;
+
+export type GhApi = (path: string) => unknown;
+
+export interface StatusRow {
+  id: string;
+  state: SyncState | `fetch-error (${string})`;
+}
+
+export function sha256(data: string | Buffer): string {
   return createHash("sha256").update(data).digest("hex");
 }
 
-export function listFiles(dir, base = dir) {
-  const out = [];
+export function listFiles(dir: string, base: string = dir): string[] {
+  const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
@@ -38,24 +81,35 @@ export function listFiles(dir, base = dir) {
   return out.sort();
 }
 
-export function hashFiles(files) {
+function compareStrings(a: string, b: string): number {
+  if (a < b) {
+    return -1;
+  }
+  return a > b ? 1 : 0;
+}
+
+export function hashFiles(files: Map<string, Buffer>): string {
   // Hash the path too: raw paths could contain ":" or "\n", letting two
   // different file sets serialize to the same digest input.
-  const lines = [...files.keys()]
-    .sort()
-    .map((path) => `${sha256(path)}:${sha256(files.get(path))}`);
+  const lines = [...files.entries()]
+    .sort(([a], [b]) => compareStrings(a, b))
+    .map(([path, content]) => `${sha256(path)}:${sha256(content)}`);
   return sha256(lines.join("\n"));
 }
 
-export function hashDirectory(dir) {
-  const files = new Map();
+export function hashDirectory(dir: string): string {
+  const files = new Map<string, Buffer>();
   for (const rel of listFiles(dir)) {
     files.set(rel, readFileSync(join(dir, rel)));
   }
   return hashFiles(files);
 }
 
-export function classify(entry, vendoredHashNow, upstreamHashNow) {
+export function classify(
+  entry: LockEntry,
+  vendoredHashNow: string | undefined,
+  upstreamHashNow: string | undefined,
+): SyncState {
   if (entry.sourceType === "local") {
     return "local";
   }
@@ -73,20 +127,24 @@ export function classify(entry, vendoredHashNow, upstreamHashNow) {
   return "up-to-date";
 }
 
-export function readLock(root, plugin) {
+export function readLock(root: string, plugin: string): LockFile {
   return JSON.parse(
     readFileSync(join(root, plugin, "skills-lock.json"), "utf8"),
-  );
+  ) as LockFile;
 }
 
-export function writeLock(root, plugin, lock) {
+export function writeLock(root: string, plugin: string, lock: LockFile): void {
   writeFileSync(
     join(root, plugin, "skills-lock.json"),
     `${JSON.stringify(lock, null, 2)}\n`,
   );
 }
 
-function unlockedDirProblems(root, plugin, lock) {
+function unlockedDirProblems(
+  root: string,
+  plugin: string,
+  lock: LockFile,
+): string[] {
   return readdirSync(join(root, plugin, "skills"), { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && !lock.skills[entry.name])
     .map(
@@ -95,7 +153,12 @@ function unlockedDirProblems(root, plugin, lock) {
     );
 }
 
-function lockEntryProblem(root, plugin, name, entry) {
+function lockEntryProblem(
+  root: string,
+  plugin: string,
+  name: string,
+  entry: LockEntry,
+): string | null {
   const dir = join(root, plugin, "skills", name);
   if (!existsSync(dir)) {
     return `${plugin}/${name}: in skills-lock.json but missing on disk`;
@@ -109,7 +172,7 @@ function lockEntryProblem(root, plugin, name, entry) {
   return null;
 }
 
-export function verifyAll(root) {
+export function verifyAll(root: string): string[] {
   return PLUGINS.flatMap((plugin) => {
     const lock = readLock(root, plugin);
     const entryProblems = Object.entries(lock.skills).map(([name, entry]) =>
@@ -118,11 +181,11 @@ export function verifyAll(root) {
     return [
       ...unlockedDirProblems(root, plugin, lock),
       ...entryProblems,
-    ].filter(Boolean);
+    ].filter((problem): problem is string => problem !== null);
   });
 }
 
-export function ghJson(path) {
+export function ghJson(path: string): unknown {
   const stdout = execFileSync("gh", ["api", path], {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
@@ -130,17 +193,37 @@ export function ghJson(path) {
   return JSON.parse(stdout);
 }
 
-export function fetchUpstream(entry, gh = ghJson) {
-  const commit = gh(`repos/${entry.source}/commits/${entry.ref}`).sha;
-  const files = new Map();
-  const walk = (path) => {
+interface GhCommit {
+  sha: string;
+}
+
+interface GhContentItem {
+  type: string;
+  path: string;
+  sha: string;
+}
+
+interface GhBlob {
+  content: string;
+}
+
+export function fetchUpstream(
+  entry: UpstreamSource,
+  gh: GhApi = ghJson,
+): UpstreamSnapshot {
+  const commit = (gh(`repos/${entry.source}/commits/${entry.ref}`) as GhCommit)
+    .sha;
+  const files = new Map<string, Buffer>();
+  const walk = (path: string): void => {
     for (const item of gh(
       `repos/${entry.source}/contents/${path}?ref=${commit}`,
-    )) {
+    ) as GhContentItem[]) {
       if (item.type === "dir") {
         walk(item.path);
       } else if (item.type === "file") {
-        const blob = gh(`repos/${entry.source}/git/blobs/${item.sha}`);
+        const blob = gh(
+          `repos/${entry.source}/git/blobs/${item.sha}`,
+        ) as GhBlob;
         files.set(
           item.path.slice(entry.skillPath.length + 1),
           Buffer.from(blob.content, "base64"),
@@ -157,7 +240,25 @@ export function fetchUpstream(entry, gh = ghJson) {
   return { commit, files, hash: hashFiles(files) };
 }
 
-function requireEntry(root, plugin, name) {
+function assertUpstream(
+  plugin: string,
+  name: string,
+  entry: LockEntry,
+): UpstreamSource {
+  const { source, ref, skillPath } = entry;
+  if (!source || !ref || !skillPath) {
+    throw new Error(
+      `${plugin}/${name} lock entry is missing upstream coordinates`,
+    );
+  }
+  return { source, ref, skillPath };
+}
+
+function requireEntry(
+  root: string,
+  plugin: string,
+  name: string,
+): { lock: LockFile; entry: LockEntry } {
   const lock = readLock(root, plugin);
   const entry = lock.skills[name];
   if (!entry) {
@@ -166,8 +267,15 @@ function requireEntry(root, plugin, name) {
   return { lock, entry };
 }
 
-export function statusAll(root, fetcher = fetchUpstream) {
-  const rows = [];
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function statusAll(
+  root: string,
+  fetcher: Fetcher = fetchUpstream,
+): StatusRow[] {
+  const rows: StatusRow[] = [];
   for (const plugin of PLUGINS) {
     const lock = readLock(root, plugin);
     for (const [name, entry] of Object.entries(lock.skills)) {
@@ -177,15 +285,13 @@ export function statusAll(root, fetcher = fetchUpstream) {
         continue;
       }
       try {
+        const upstream = fetcher(assertUpstream(plugin, name, entry));
         const vendored = hashDirectory(join(root, plugin, "skills", name));
-        rows.push({
-          id,
-          state: classify(entry, vendored, fetcher(entry).hash),
-        });
+        rows.push({ id, state: classify(entry, vendored, upstream.hash) });
       } catch (error) {
         rows.push({
           id,
-          state: `fetch-error (${String(error.message).trim()})`,
+          state: `fetch-error (${errorMessage(error).trim()})`,
         });
       }
     }
@@ -193,7 +299,7 @@ export function statusAll(root, fetcher = fetchUpstream) {
   return rows;
 }
 
-function writeUpstreamTo(dir, files) {
+function writeUpstreamTo(dir: string, files: Map<string, Buffer>): void {
   for (const [rel, buf] of files) {
     mkdirSync(join(dir, rel, ".."), { recursive: true });
     writeFileSync(join(dir, rel), buf);
@@ -201,11 +307,14 @@ function writeUpstreamTo(dir, files) {
 }
 
 export function pullSkill(
-  root,
-  plugin,
-  name,
-  { force = false, fetcher = fetchUpstream } = {},
-) {
+  root: string,
+  plugin: string,
+  name: string,
+  {
+    force = false,
+    fetcher = fetchUpstream,
+  }: { force?: boolean; fetcher?: Fetcher } = {},
+): SyncState {
   const { lock, entry } = requireEntry(root, plugin, name);
   if (entry.sourceType !== "github") {
     throw new Error(
@@ -213,7 +322,7 @@ export function pullSkill(
     );
   }
   const dir = join(root, plugin, "skills", name);
-  const upstream = fetcher(entry);
+  const upstream = fetcher(assertUpstream(plugin, name, entry));
   const state = classify(entry, hashDirectory(dir), upstream.hash);
   if ((state === "locally-modified" || state === "diverged") && !force) {
     throw new Error(
@@ -229,17 +338,22 @@ export function pullSkill(
   return state;
 }
 
-export function acceptSkill(root, plugin, name) {
+export function acceptSkill(root: string, plugin: string, name: string): void {
   const { lock, entry } = requireEntry(root, plugin, name);
   entry.vendoredHash = hashDirectory(join(root, plugin, "skills", name));
   writeLock(root, plugin, lock);
 }
 
-export function seedSkill(root, plugin, name, fetcher = fetchUpstream) {
+export function seedSkill(
+  root: string,
+  plugin: string,
+  name: string,
+  fetcher: Fetcher = fetchUpstream,
+): { customized: boolean } {
   const { lock, entry } = requireEntry(root, plugin, name);
   entry.vendoredHash = hashDirectory(join(root, plugin, "skills", name));
   if (entry.sourceType === "github") {
-    const upstream = fetcher(entry);
+    const upstream = fetcher(assertUpstream(plugin, name, entry));
     entry.upstreamCommit = upstream.commit;
     entry.upstreamHash = upstream.hash;
   }
@@ -251,7 +365,12 @@ export function seedSkill(root, plugin, name, fetcher = fetchUpstream) {
   };
 }
 
-export function diffSkill(root, plugin, name, fetcher = fetchUpstream) {
+export function diffSkill(
+  root: string,
+  plugin: string,
+  name: string,
+  fetcher: Fetcher = fetchUpstream,
+): number {
   const { entry } = requireEntry(root, plugin, name);
   if (entry.sourceType !== "github") {
     throw new Error(
@@ -260,7 +379,7 @@ export function diffSkill(root, plugin, name, fetcher = fetchUpstream) {
   }
   const tmp = mkdtempSync(join(tmpdir(), "skills-sync-"));
   try {
-    writeUpstreamTo(tmp, fetcher(entry).files);
+    writeUpstreamTo(tmp, fetcher(assertUpstream(plugin, name, entry)).files);
     const result = spawnSync(
       "git",
       ["diff", "--no-index", join(root, plugin, "skills", name), tmp],
@@ -275,8 +394,11 @@ export function diffSkill(root, plugin, name, fetcher = fetchUpstream) {
   }
 }
 
-function parseSkillArg(arg) {
-  const [plugin, ...rest] = (arg ?? "").split("/");
+function parseSkillArg(arg: string | undefined): {
+  plugin: string;
+  name: string;
+} {
+  const [plugin = "", ...rest] = (arg ?? "").split("/");
   const name = rest.join("/");
   if (!PLUGINS.includes(plugin) || !name) {
     throw new Error(
@@ -286,13 +408,13 @@ function parseSkillArg(arg) {
   return { plugin, name };
 }
 
-function runStatus(root) {
+function runStatus(root: string): void {
   for (const row of statusAll(root)) {
     console.log(`${row.state.padEnd(20)} ${row.id}`);
   }
 }
 
-function runVerify(root) {
+function runVerify(root: string): void {
   const problems = verifyAll(root);
   for (const problem of problems) {
     console.error(problem);
@@ -303,24 +425,27 @@ function runVerify(root) {
   console.log("skills-lock.json and skills/ are consistent");
 }
 
-function runDiff(root, target) {
+function runDiff(root: string, target?: string): void {
   const { plugin, name } = parseSkillArg(target);
   process.exit(diffSkill(root, plugin, name));
 }
 
-function runPull(root, target, flag) {
+function runPull(root: string, target?: string, flag?: string): void {
   const { plugin, name } = parseSkillArg(target);
   const state = pullSkill(root, plugin, name, { force: flag === "--force" });
   console.log(`pulled ${target} (was ${state})`);
 }
 
-function runAccept(root, target) {
+function runAccept(root: string, target?: string): void {
   const { plugin, name } = parseSkillArg(target);
   acceptSkill(root, plugin, name);
   console.log(`re-baselined vendoredHash for ${target}`);
 }
 
-function reportSeed(target, { customized }) {
+function reportSeed(
+  target: string,
+  { customized }: { customized: boolean },
+): void {
   console.log(`seeded ${target}`);
   if (customized) {
     console.warn(
@@ -330,7 +455,7 @@ function reportSeed(target, { customized }) {
   }
 }
 
-function runSeed(root, target) {
+function runSeed(root: string, target?: string): void {
   if (!target) {
     for (const plugin of PLUGINS) {
       for (const name of Object.keys(readLock(root, plugin).skills)) {
@@ -343,28 +468,31 @@ function runSeed(root, target) {
   reportSeed(target, seedSkill(root, plugin, name));
 }
 
-const COMMANDS = {
-  status: runStatus,
-  verify: runVerify,
-  diff: runDiff,
-  pull: runPull,
-  accept: runAccept,
-  seed: runSeed,
-};
+type Command = (root: string, target?: string, flag?: string) => void;
 
-function main() {
+const COMMANDS = new Map<string, Command>([
+  ["status", runStatus],
+  ["verify", runVerify],
+  ["diff", runDiff],
+  ["pull", runPull],
+  ["accept", runAccept],
+  ["seed", runSeed],
+]);
+
+function main(): void {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  const [command, target, flag] = process.argv.slice(2);
-  if (!Object.hasOwn(COMMANDS, command ?? "")) {
+  const [command = "", target, flag] = process.argv.slice(2);
+  const handler = COMMANDS.get(command);
+  if (!handler) {
     console.error(
-      "usage: skills-sync.mjs <status|verify|diff|pull|accept|seed> [<plugin>/<skill>] [--force]",
+      "usage: skills-sync.ts <status|verify|diff|pull|accept|seed> [<plugin>/<skill>] [--force]",
     );
     process.exit(2);
   }
   try {
-    COMMANDS[command](root, target, flag);
+    handler(root, target, flag);
   } catch (error) {
-    console.error(error.message);
+    console.error(errorMessage(error));
     process.exit(1);
   }
 }
