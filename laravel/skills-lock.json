@@ -46,7 +46,7 @@
       "sourceType": "github",
       "ref": "main",
       "skillPath": "laravel/skills/laravel-models",
-      "vendoredHash": "c9384338f8e1f8bc36d5a12de3574f89a6d49be8d2dd02b241fd2de2a037772f",
+      "vendoredHash": "63f69883e7d5da8d9037ada1608dbb6896f6be85b16dcd0bd7452b89af6e165d",
       "upstreamCommit": "7a11090cdfb88771f0959e7f0f9e43a3419dd1f5",
       "upstreamHash": "caed1ac5aa10b0844fc0f8d6621c95c218290802cee19be967f23533748b54b2"
     },

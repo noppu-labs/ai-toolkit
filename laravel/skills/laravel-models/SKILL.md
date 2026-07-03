@@ -241,37 +241,19 @@ public function resolveRouteBinding($value, $field = null)
 
 ## Mass Assignment Protection
 
-**All models should be unguarded by default.**
-
-### AppServiceProvider Setup
-
-In your `AppServiceProvider::boot()` method, call `Model::unguard()`:
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Providers;
-
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\ServiceProvider;
-
-class AppServiceProvider extends ServiceProvider
-{
-    public function boot(): void
-    {
-        Model::unguard();
-    }
-}
-```
+**Every model defines an explicit `$fillable` allowlist.** Never call `Model::unguard()` and never use `$guarded = []` — both allow attackers to set fields like `is_admin`, `role`, or `user_id` by adding extra request parameters. See [sec-injection-prevention](../laravel-owasp-security/rules/sec-injection-prevention.md).
 
 ### Model Configuration
 
-**Do NOT use `$fillable` or `$guarded` properties** on your models:
+Prefer the `#[Fillable]` attribute; the `$fillable` property works the same way:
 
 ```php
-// ✅ Good - no fillable/guarded
+// ✅ Good - explicit allowlist via attribute
+#[Fillable([
+    'status',
+    'total',
+    'notes',
+])]
 class Order extends Model
 {
     protected function casts(): array
@@ -282,27 +264,43 @@ class Order extends Model
     }
 }
 
-// ❌ Bad - don't use fillable
+// ✅ Also good - explicit allowlist via property
 class Order extends Model
 {
-    protected $fillable = ['name', 'email'];
+    protected $fillable = [
+        'status',
+        'total',
+        'notes',
+    ];
 }
 
-// ❌ Bad - don't use guarded
+// ❌ Bad - everything becomes mass assignable
 class Order extends Model
 {
     protected $guarded = [];
 }
+
+// ❌ Bad - Model::unguard() in a service provider disables protection globally
 ```
 
-### Why Unguard?
+### What Belongs in $fillable
 
-- **Simplicity**: No need to maintain fillable/guarded arrays
-- **Flexibility**: All attributes can be mass-assigned
-- **Trust**: With proper validation in Form Requests and Actions, mass assignment protection is redundant
-- **Cleaner Models**: Less boilerplate code
+Only fields the user may submit. Ownership and system-controlled fields (`user_id`, `is_admin`, `published_at`) stay **out** of `$fillable` and are set explicitly:
 
-**Important:** Always validate input in Form Requests before passing to Actions/Models.
+```php
+Order::create([
+    ...$request->validated(),
+    'user_id' => auth()->id(), // set explicitly, never mass-assigned
+]);
+```
+
+### Why Explicit $fillable?
+
+- **Security**: The allowlist is the last line of defense when validation misses a field
+- **Auditability**: The model documents exactly which fields accept user input
+- **Defense in depth**: Pair with `$request->validated()` — never pass `$request->all()` to `create()`/`fill()`/`update()`
+
+Factories and seeders are unaffected — Laravel factories bypass mass assignment protection internally.
 
 ## Model Organization
 
@@ -321,16 +319,16 @@ app/Models/
 ## Testing Models
 
 ```php
-it('can mass assign attributes', function () {
-    $order = Order::create([
-        'user_id' => 1,
-        'status' => 'pending',
+it('only mass assigns fillable attributes', function () {
+    $order = Order::factory()->create();
+
+    $order->fill([
         'total' => 1000,
-        'notes' => 'Test order',
+        'user_id' => 999, // not in $fillable — must be ignored
     ]);
 
-    expect($order->user_id)->toBe(1)
-        ->and($order->total)->toBe(1000);
+    expect($order->total)->toBe(1000)
+        ->and($order->user_id)->not->toBe(999);
 });
 
 it('casts status to enum', function () {
