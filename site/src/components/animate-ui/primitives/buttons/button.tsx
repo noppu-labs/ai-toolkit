@@ -1,14 +1,14 @@
 "use client";
 
 import { type HTMLMotionProps, motion } from "motion/react";
-import type { ElementType } from "react";
+import type * as React from "react";
 
 import {
   Slot,
   type WithAsChild,
 } from "@/components/animate-ui/primitives/animate/slot";
 
-type ButtonProps = WithAsChild<
+export type ButtonProps = WithAsChild<
   HTMLMotionProps<"button"> & {
     hoverScale?: number;
     tapScale?: number;
@@ -20,8 +20,8 @@ function Button({
   tapScale = 0.95,
   asChild = false,
   ...props
-}: ButtonProps) {
-  const Component = (asChild ? Slot : motion.button) as ElementType;
+}: ButtonProps): React.JSX.Element {
+  const Component = (asChild ? Slot : motion.button) as React.ElementType;
 
   return (
     <Component
@@ -32,4 +32,4 @@ function Button({
   );
 }
 
-export { Button, type ButtonProps };
+export { Button };

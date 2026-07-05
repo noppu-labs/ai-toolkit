@@ -1,14 +1,13 @@
 "use client";
 
 import { AnimatePresence, type HTMLMotionProps, motion } from "motion/react";
-import type * as React from "react";
+import * as React from "react";
 
 import {
   Slot,
   type WithAsChild,
 } from "@/components/animate-ui/primitives/animate/slot";
 import { type UseIsInViewOptions, useIsInView } from "@/hooks/use-is-in-view";
-import { getStrictContext } from "@/lib/get-strict-context";
 
 type Side = "top" | "bottom" | "left" | "right";
 type Align = "start" | "center" | "end";
@@ -18,10 +17,19 @@ type ParticlesContextType = {
   isInView: boolean;
 };
 
-const [ParticlesProvider, useParticles] =
-  getStrictContext<ParticlesContextType>("ParticlesContext");
+const ParticlesContext = React.createContext<ParticlesContextType | undefined>(
+  undefined,
+);
 
-type ParticlesProps = WithAsChild<
+function useParticles(): ParticlesContextType {
+  const ctx = React.useContext(ParticlesContext);
+  if (ctx === undefined) {
+    throw new Error("useParticles must be used within ParticlesContext");
+  }
+  return ctx;
+}
+
+export type ParticlesProps = WithAsChild<
   Omit<HTMLMotionProps<"div">, "children"> & {
     animate?: boolean;
     children: React.ReactNode;
@@ -38,7 +46,7 @@ function Particles({
   children,
   style,
   ...props
-}: ParticlesProps) {
+}: ParticlesProps): React.JSX.Element {
   const { ref: localRef, isInView } = useIsInView(
     ref as React.Ref<HTMLDivElement>,
     { inView, inViewOnce, inViewMargin },
@@ -46,8 +54,13 @@ function Particles({
 
   const Component = asChild ? Slot : motion.div;
 
+  const contextValue = React.useMemo(
+    () => ({ animate, isInView }),
+    [animate, isInView],
+  );
+
   return (
-    <ParticlesProvider value={{ animate, isInView }}>
+    <ParticlesContext.Provider value={contextValue}>
       <Component
         ref={localRef}
         style={{ position: "relative", ...style }}
@@ -55,11 +68,11 @@ function Particles({
       >
         {children}
       </Component>
-    </ParticlesProvider>
+    </ParticlesContext.Provider>
   );
 }
 
-type ParticlesEffectProps = Omit<HTMLMotionProps<"div">, "children"> & {
+export type ParticlesEffectProps = Omit<HTMLMotionProps<"div">, "children"> & {
   side?: Side;
   align?: Align;
   count?: number;
@@ -71,6 +84,49 @@ type ParticlesEffectProps = Omit<HTMLMotionProps<"div">, "children"> & {
   alignOffset?: number;
   delay?: number;
 };
+
+function getEffectPosition(
+  side: Side,
+  align: Align,
+  sideOffset: number,
+  alignOffset: number,
+): { top: string; left: string } {
+  const alignPct = align === "start" ? "0%" : align === "end" ? "100%" : "50%";
+  const alignCoord = `calc(${alignPct} + ${alignOffset}px)`;
+  const sideStart = `calc(0% - ${sideOffset}px)`;
+  const sideEnd = `calc(100% + ${sideOffset}px)`;
+
+  if (side === "top" || side === "bottom") {
+    return { top: side === "top" ? sideStart : sideEnd, left: alignCoord };
+  }
+  return { top: alignCoord, left: side === "left" ? sideStart : sideEnd };
+}
+
+type ParticleDescriptor = {
+  id: string;
+  x: number;
+  y: number;
+  delay: number;
+};
+
+function getParticleDescriptors(
+  count: number,
+  radius: number,
+  spread: number,
+  holdDelay: number,
+  delay: number,
+): ParticleDescriptor[] {
+  const angleStep = (spread * (Math.PI / 180)) / Math.max(1, count - 1);
+  return Array.from({ length: count }, (_, index) => {
+    const angle = index * angleStep;
+    return {
+      id: `particle-${index}`,
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+      delay: delay + index * holdDelay,
+    };
+  });
+}
 
 function ParticlesEffect({
   side = "top",
@@ -86,45 +142,29 @@ function ParticlesEffect({
   transition,
   style,
   ...props
-}: ParticlesEffectProps) {
+}: ParticlesEffectProps): React.JSX.Element {
   const { animate, isInView } = useParticles();
-
-  const isVertical = side === "top" || side === "bottom";
-  const alignPct = align === "start" ? "0%" : align === "end" ? "100%" : "50%";
-
-  const top = isVertical
-    ? side === "top"
-      ? `calc(0% - ${sideOffset}px)`
-      : `calc(100% + ${sideOffset}px)`
-    : `calc(${alignPct} + ${alignOffset}px)`;
-
-  const left = isVertical
-    ? `calc(${alignPct} + ${alignOffset}px)`
-    : side === "left"
-      ? `calc(0% - ${sideOffset}px)`
-      : `calc(100% + ${sideOffset}px)`;
 
   const containerStyle: React.CSSProperties = {
     position: "absolute",
-    top,
-    left,
+    ...getEffectPosition(side, align, sideOffset, alignOffset),
     transform: "translate(-50%, -50%)",
   };
 
-  const angleStep = (spread * (Math.PI / 180)) / Math.max(1, count - 1);
+  const particles = getParticleDescriptors(
+    count,
+    radius,
+    spread,
+    holdDelay,
+    delay,
+  );
 
   return (
     <AnimatePresence>
-      {animate &&
-        isInView &&
-        [...Array(count)].map((_, i) => {
-          const angle = i * angleStep;
-          const x = Math.cos(angle) * radius;
-          const y = Math.sin(angle) * radius;
-
-          return (
+      {animate && isInView
+        ? particles.map((particle) => (
             <motion.div
-              key={i}
+              key={particle.id}
               style={
                 { ...containerStyle, ...style } as NonNullable<
                   React.ComponentProps<typeof motion.div>["style"]
@@ -132,28 +172,23 @@ function ParticlesEffect({
               }
               initial={{ scale: 0, opacity: 0 }}
               animate={{
-                x: `${x}px`,
-                y: `${y}px`,
+                x: `${particle.x}px`,
+                y: `${particle.y}px`,
                 scale: [0, 1, 0],
                 opacity: [0, 1, 0],
               }}
               transition={{
                 duration,
-                delay: delay + i * holdDelay,
+                delay: particle.delay,
                 ease: "easeOut",
                 ...transition,
               }}
               {...props}
             />
-          );
-        })}
+          ))
+        : null}
     </AnimatePresence>
   );
 }
 
-export {
-  Particles,
-  ParticlesEffect,
-  type ParticlesEffectProps,
-  type ParticlesProps,
-};
+export { Particles, ParticlesEffect };

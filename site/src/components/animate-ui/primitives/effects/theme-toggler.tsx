@@ -3,9 +3,9 @@
 import * as React from "react";
 import { flushSync } from "react-dom";
 
-type ThemeSelection = "light" | "dark" | "system";
-type Resolved = "light" | "dark";
-type Direction = "btt" | "ttb" | "ltr" | "rtl";
+export type ThemeSelection = "light" | "dark" | "system";
+export type Resolved = "light" | "dark";
+export type Direction = "btt" | "ttb" | "ltr" | "rtl";
 
 type ChildrenRender =
   | React.ReactNode
@@ -37,7 +37,7 @@ function getClipKeyframes(direction: Direction): [string, string] {
   }
 }
 
-type ThemeTogglerProps = {
+export type ThemeTogglerProps = {
   theme: ThemeSelection;
   resolvedTheme: Resolved;
   setTheme: (theme: ThemeSelection) => void;
@@ -54,7 +54,7 @@ function ThemeToggler({
   direction = "ltr",
   children,
   ...props
-}: ThemeTogglerProps) {
+}: ThemeTogglerProps): React.JSX.Element {
   const [preview, setPreview] = React.useState<null | {
     effective: ThemeSelection;
     resolved: Resolved;
@@ -125,24 +125,21 @@ function ThemeToggler({
     [onImmediateChange, resolvedTheme, fromClip, toClip, setTheme],
   );
 
+  const resolvedChildren =
+    typeof children === "function"
+      ? children({
+          effective: current.effective,
+          resolved: current.resolved,
+          toggleTheme,
+        })
+      : children;
+
   return (
     <React.Fragment {...props}>
-      {typeof children === "function"
-        ? children({
-            effective: current.effective,
-            resolved: current.resolved,
-            toggleTheme,
-          })
-        : children}
+      {resolvedChildren}
       <style>{`::view-transition-old(root), ::view-transition-new(root){animation:none;mix-blend-mode:normal;}`}</style>
     </React.Fragment>
   );
 }
 
-export {
-  type Direction,
-  type Resolved,
-  type ThemeSelection,
-  ThemeToggler,
-  type ThemeTogglerProps,
-};
+export { ThemeToggler };

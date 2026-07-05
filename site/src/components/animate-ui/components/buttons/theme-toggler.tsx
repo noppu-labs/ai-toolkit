@@ -3,8 +3,8 @@
 import type { VariantProps } from "class-variance-authority";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import type * as React from "react";
-import { buttonVariants } from "@/components/animate-ui/components/buttons/icon";
+import * as React from "react";
+import { buttonVariants } from "@/components/animate-ui/components/buttons/button-variants";
 import {
   type Resolved,
   type ThemeSelection,
@@ -17,7 +17,7 @@ const getIcon = (
   effective: ThemeSelection,
   resolved: Resolved,
   modes: ThemeSelection[],
-) => {
+): React.JSX.Element => {
   const theme = modes.includes("system") ? effective : resolved;
   return theme === "system" ? (
     <Monitor />
@@ -37,12 +37,53 @@ const getNextTheme = (
   return modes[(i + 1) % modes.length] ?? "system";
 };
 
-type ThemeTogglerButtonProps = React.ComponentProps<"button"> &
+export type ThemeTogglerButtonProps = React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     modes?: ThemeSelection[];
     onImmediateChange?: ThemeTogglerPrimitiveProps["onImmediateChange"];
     direction?: ThemeTogglerPrimitiveProps["direction"];
   };
+
+type ThemeTogglerButtonContentProps = Omit<
+  ThemeTogglerButtonProps,
+  "modes" | "onImmediateChange" | "direction"
+> & {
+  effective: ThemeSelection;
+  resolved: Resolved;
+  toggleTheme: (theme: ThemeSelection) => void;
+  modes: ThemeSelection[];
+};
+
+function ThemeTogglerButtonContent({
+  effective,
+  resolved,
+  toggleTheme,
+  modes,
+  variant,
+  size,
+  onClick,
+  className,
+  ...props
+}: ThemeTogglerButtonContentProps): React.JSX.Element {
+  const handleClick = React.useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>): void => {
+      onClick?.(e);
+      toggleTheme(getNextTheme(effective, modes));
+    },
+    [onClick, toggleTheme, effective, modes],
+  );
+
+  return (
+    <button
+      data-slot="theme-toggler-button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      onClick={handleClick}
+      {...props}
+    >
+      {getIcon(effective, resolved, modes)}
+    </button>
+  );
+}
 
 function ThemeTogglerButton({
   variant = "default",
@@ -53,7 +94,7 @@ function ThemeTogglerButton({
   onClick,
   className,
   ...props
-}: ThemeTogglerButtonProps) {
+}: ThemeTogglerButtonProps): React.JSX.Element {
   const { theme, resolvedTheme, setTheme } = useTheme();
 
   return (
@@ -64,21 +105,29 @@ function ThemeTogglerButton({
       direction={direction}
       onImmediateChange={onImmediateChange}
     >
-      {({ effective, resolved, toggleTheme }) => (
-        <button
-          data-slot="theme-toggler-button"
-          className={cn(buttonVariants({ variant, size, className }))}
-          onClick={(e) => {
-            onClick?.(e);
-            toggleTheme(getNextTheme(effective, modes));
-          }}
+      {({
+        effective,
+        resolved,
+        toggleTheme,
+      }: {
+        effective: ThemeSelection;
+        resolved: Resolved;
+        toggleTheme: (theme: ThemeSelection) => void;
+      }): React.JSX.Element => (
+        <ThemeTogglerButtonContent
+          effective={effective}
+          resolved={resolved}
+          toggleTheme={toggleTheme}
+          modes={modes}
+          variant={variant}
+          size={size}
+          onClick={onClick}
+          className={className}
           {...props}
-        >
-          {getIcon(effective, resolved, modes)}
-        </button>
+        />
       )}
     </ThemeTogglerPrimitive>
   );
 }
 
-export { ThemeTogglerButton, type ThemeTogglerButtonProps };
+export { ThemeTogglerButton };
