@@ -1,10 +1,10 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "target": "es2022",
-    "module": "esnext",
+    "target": "es2025",
+    "module": "preserve",
     "moduleResolution": "bundler",
-    "lib": ["es2022", "dom", "dom.iterable"],
+    "lib": ["es2025", "dom", "dom.iterable"],
     "types": ["vite/client", "node"],
     "jsx": "react-jsx",
     "resolveJsonModule": true,
