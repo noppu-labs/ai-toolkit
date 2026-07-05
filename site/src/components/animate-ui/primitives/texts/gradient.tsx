@@ -3,7 +3,10 @@
 import { motion, type Transition } from "motion/react";
 import type * as React from "react";
 
-type GradientTextProps = Omit<React.ComponentProps<"span">, "children"> & {
+export type GradientTextProps = Omit<
+  React.ComponentProps<"span">,
+  "children"
+> & {
   text: string;
   gradient?: string;
   neon?: boolean;
@@ -17,7 +20,7 @@ function GradientText({
   neon = false,
   transition = { duration: 50, repeat: Infinity, ease: "linear" },
   ...props
-}: GradientTextProps) {
+}: GradientTextProps): React.JSX.Element {
   const baseStyle: React.CSSProperties = {
     backgroundImage: gradient,
     margin: 0,
@@ -46,7 +49,7 @@ function GradientText({
         {text}
       </motion.span>
 
-      {neon && (
+      {neon ? (
         <motion.span
           style={
             {
@@ -64,9 +67,9 @@ function GradientText({
         >
           {text}
         </motion.span>
-      )}
+      ) : null}
     </span>
   );
 }
 
-export { GradientText, type GradientTextProps };
+export { GradientText };

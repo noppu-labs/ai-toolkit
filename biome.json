@@ -78,44 +78,5 @@
         "organizeImports": "on"
       }
     }
-  },
-  "overrides": [
-    {
-      "includes": [
-        "site/src/components/ui/**",
-        "site/src/components/animate-ui/**",
-        "site/src/hooks/use-controlled-state.tsx",
-        "site/src/hooks/use-is-in-view.tsx",
-        "site/src/lib/utils.ts",
-        "site/src/lib/get-strict-context.tsx"
-      ],
-      "linter": {
-        "rules": {
-          "nursery": {
-            "useExplicitType": "off",
-            "noComponentHookFactories": "off",
-            "useSortedClasses": "off"
-          },
-          "style": { "useComponentExportOnlyModules": "off" },
-          "complexity": { "noExcessiveCognitiveComplexity": "off" },
-          "performance": { "noJsxPropsBind": "off" },
-          "suspicious": {
-            "noExplicitAny": "off",
-            "noLeakedRender": "off",
-            "noArrayIndexKey": "off"
-          },
-          "a11y": { "noStaticElementInteractions": "off" }
-        }
-      }
-    },
-    {
-      "includes": ["**/*.test.tsx"],
-      "linter": {
-        "rules": {
-          "performance": { "noJsxPropsBind": "off" },
-          "style": { "useComponentExportOnlyModules": "off" }
-        }
-      }
-    }
-  ]
+  }
 }
