@@ -7,7 +7,7 @@
     "**/node_modules/**",
     "laravel/skills/**",
     "inertia-react/skills/**",
-    "docs/**",
+    "docs/superpowers/**",
     ".superpowers/**"
   ],
   "config": {
