@@ -1,16 +1,25 @@
 # Noppu Labs: AI Toolkit
 
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/noppu-labs/ai-toolkit/badge)](https://scorecard.dev/viewer/?uri=github.com/noppu-labs/ai-toolkit)
-[![attestations](https://img.shields.io/badge/releases-attested-blue?logo=github)](https://github.com/noppu-labs/ai-toolkit/attestations)
-[![Known Vulnerabilities](https://snyk.io/test/github/noppu-labs/ai-toolkit/badge.svg)](https://snyk.io/test/github/noppu-labs/ai-toolkit)
-
 [![tests](https://github.com/noppu-labs/ai-toolkit/actions/workflows/tests.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/tests.yml)
 [![fuzz](https://github.com/noppu-labs/ai-toolkit/actions/workflows/fuzz.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/fuzz.yml)
 [![build](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml)
+[![attestations](https://img.shields.io/badge/releases-attested-blue?logo=github)](https://github.com/noppu-labs/ai-toolkit/attestations)
+
+Agents and skills for agentic development in modern Laravel and React applications.
 
 **Website:** <https://noppu-labs.github.io/ai-toolkit/>
 
-Agents and skills for agentic development in modern Laravel and React applications.
+## Secure code following best practices
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/noppu-labs/ai-toolkit/badge)](https://scorecard.dev/viewer/?uri=github.com/noppu-labs/ai-toolkit)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13473/badge)](https://www.bestpractices.dev/projects/13473)
+[![OpenSSF Baseline](https://www.bestpractices.dev/projects/13473/baseline)](https://www.bestpractices.dev/projects/13473)
+[![Known Vulnerabilities](https://snyk.io/test/github/noppu-labs/ai-toolkit/badge.svg)](https://snyk.io/test/github/noppu-labs/ai-toolkit)
+
+> We try to bring you quality tooling but also **transparency** on what we offer and how secure it is.
+> Feel free to visit the links on the badges above to check for reported vulnerabilities,
+> our scores as an open source project and other security & compliance stats.
+
+## What's inside
 
 | Plugin | Contents |
 | --- | --- |
