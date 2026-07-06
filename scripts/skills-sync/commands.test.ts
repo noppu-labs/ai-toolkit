@@ -89,6 +89,29 @@ describe("getStatusRows", () => {
     );
   });
 
+  it("reports fetch-error when a github entry is missing upstream coordinates", (t) => {
+    const root = makeRoot(t);
+
+    // sourceType github but no source/ref/skillPath to fetch from.
+    addSkill(
+      root,
+      "laravel",
+      "demo",
+      { "SKILL.md": "# demo" },
+      {
+        sourceType: "github",
+      },
+    );
+
+    const rows = getStatusRows(root, () => {
+      throw new Error("fetcher must not be reached");
+    });
+
+    expect(rows.find((r) => r.id === "laravel/demo")?.state).toContain(
+      "missing upstream coordinates",
+    );
+  });
+
   it("reports fetch-error for a missing skill directory without aborting the run", (t) => {
     const root = makeRoot(t);
     const dir = addSkill(
@@ -120,6 +143,19 @@ describe("getStatusRows", () => {
 });
 
 describe("pullSkill", () => {
+  it("rejects skills that are missing from the lock or have no github upstream", (t) => {
+    const root = makeRoot(t);
+
+    addSkill(root, "laravel", "demo", { "SKILL.md": "# demo" }); // local
+
+    expect(() => pullSkill(root, "laravel", "ghost")).toThrow(
+      /not in skills-lock.json/,
+    );
+    expect(() => pullSkill(root, "laravel", "demo")).toThrow(
+      /no github upstream/,
+    );
+  });
+
   it("refuses to overwrite local changes without force, then overwrites with force", (t) => {
     const root = makeRoot(t);
     const dir = addSkill(
@@ -237,6 +273,45 @@ describe("seedSkill", () => {
 });
 
 describe("diffSkill", () => {
+  it("rejects skills without a github upstream", (t) => {
+    const root = makeRoot(t);
+
+    addSkill(root, "laravel", "demo", { "SKILL.md": "# demo" }); // local
+
+    expect(() => diffSkill(root, "laravel", "demo")).toThrow(
+      /no github upstream/,
+    );
+  });
+
+  it("returns git's exit status: 0 for identical content, 1 for differences", (t) => {
+    const root = makeRoot(t);
+
+    addSkill(
+      root,
+      "laravel",
+      "demo",
+      { "SKILL.md": "# same" },
+      makeGithubEntry(),
+    );
+
+    expect(
+      diffSkill(
+        root,
+        "laravel",
+        "demo",
+        makeFakeFetcher({ "SKILL.md": "# same" }),
+      ),
+    ).toBe(0);
+    expect(
+      diffSkill(
+        root,
+        "laravel",
+        "demo",
+        makeFakeFetcher({ "SKILL.md": "# different" }),
+      ),
+    ).toBe(1);
+  });
+
   it("throws when the underlying spawnSync call fails (e.g. git missing from PATH)", (t) => {
     const root = makeRoot(t);
 

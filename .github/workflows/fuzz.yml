@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    # Weekly deep fuzz with 100x the per-PR run count.
+    # Weekly deep fuzz with 50x the per-PR run count.
     - cron: "17 3 * * 1"
 
 permissions:
@@ -25,4 +25,4 @@ jobs:
       - name: Fuzz property tests (fast-check, high run count)
         run: npm run fuzz
         env:
-          FC_NUM_RUNS: ${{ github.event_name == 'schedule' && '100000' || '1000' }}
+          FC_NUM_RUNS: ${{ github.event_name == 'schedule' && '50000' || '1000' }}

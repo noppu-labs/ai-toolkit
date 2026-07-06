@@ -1,13 +1,50 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { it } from "@fast-check/vitest";
 import fc from "fast-check";
 import { describe, expect } from "vitest";
 import { hashFiles } from "./hashing.ts";
 import { makeGithubEntry } from "./test-helpers.ts";
-import { fetchUpstream } from "./upstream.ts";
+import { fetchGhJson, fetchUpstream } from "./upstream.ts";
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
+describe("fetchGhJson", () => {
+  it("shells out to gh api and parses the JSON response", (t) => {
+    const binDir = mkdtempSync(join(tmpdir(), "fake-gh-"));
+    const originalPath = process.env.PATH;
+
+    t.onTestFinished(() => {
+      process.env.PATH = originalPath;
+      rmSync(binDir, { recursive: true, force: true });
+    });
+
+    // A fake `gh` executable that echoes its arguments back as JSON, so the
+    // test exercises the real execFileSync + JSON.parse path offline.
+    writeFileSync(
+      join(binDir, "gh"),
+      `#!/bin/sh\nprintf '{"argv":"%s"}' "$*"\n`,
+      { mode: 0o755 },
+    );
+    process.env.PATH = `${binDir}:${originalPath}`;
+
+    expect(fetchGhJson("repos/o/r/commits/main")).toEqual({
+      argv: "api repos/o/r/commits/main",
+    });
+  });
+});
+
 describe("fetchUpstream", () => {
+  it("throws when the upstream skill path contains no files", () => {
+    const gh = (path: string): unknown =>
+      path.includes("/commits/") ? { sha: "abc999" } : [];
+
+    expect(() => fetchUpstream(makeGithubEntry(), gh)).toThrow(
+      /no files under skills\/demo/,
+    );
+  });
+
   it("walks directories via the gh contents API", () => {
     const toBase64 = (s: string): string => Buffer.from(s).toString("base64");
     const responses: Record<string, unknown> = {
