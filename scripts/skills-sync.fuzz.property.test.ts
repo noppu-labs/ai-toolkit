@@ -54,10 +54,16 @@ test.prop([
   const base = new Map<string, Buffer>(
     entries.map(([path, content]) => [path, Buffer.from(content)]),
   );
-  const [firstPath, firstContent] = entries[0];
+  const first = entries[0];
+  if (first === undefined) {
+    return true; // unreachable: minLength:1 guarantees at least one entry
+  }
+  const [firstPath, firstContent] = first;
   const mutated = new Map(base);
   const flipped = Uint8Array.from(firstContent);
-  flipped[0] ^= 0xff;
+  if (flipped[0] !== undefined) {
+    flipped[0] ^= 0xff;
+  }
   mutated.set(firstPath, Buffer.from(flipped));
   return hashFiles(base) !== hashFiles(mutated);
 });
