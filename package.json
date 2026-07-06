@@ -4,9 +4,11 @@
     "site"
   ],
   "scripts": {
+    "coverage-ci": "vitest run --coverage",
+    "fuzz": "FC_NUM_RUNS=${FC_NUM_RUNS:-1000} vitest run --testTimeout=600000 scripts",
     "lint": "biome check . && markdownlint-cli2",
     "lint:fix": "biome check --write . && markdownlint-cli2 --fix",
-    "sync": "tsx scripts/skills-sync.ts",
+    "sync": "tsx scripts/sync.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -14,6 +16,7 @@
     "@biomejs/biome": "2.5.2",
     "@fast-check/vitest": "^0.4.1",
     "@types/node": "^26.1.0",
+    "@vitest/coverage-v8": "^4.1.9",
     "fast-check": "^4.8.0",
     "markdownlint-cli2": "^0.23.0",
     "tsx": "^4.22.5",

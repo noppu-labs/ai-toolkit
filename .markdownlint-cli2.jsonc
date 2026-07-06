@@ -4,7 +4,7 @@
   // and would be overwritten by upstream pulls anyway.
   "globs": ["**/*.md"],
   "ignores": [
-    "node_modules/**",
+    "**/node_modules/**",
     "laravel/skills/**",
     "inertia-react/skills/**",
     "docs/**",
