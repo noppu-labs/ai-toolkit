@@ -62,3 +62,7 @@ __screenshots__/
 # Jazzer.js fuzzing
 /scripts/fuzz/.build/
 crash-*
+# libFuzzer writes discovered inputs into the corpus dirs; keep only seed* files
+/scripts/fuzz/corpus/**
+!/scripts/fuzz/corpus/**/
+!/scripts/fuzz/corpus/**/seed*

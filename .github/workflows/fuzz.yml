@@ -21,3 +21,12 @@ jobs:
         run: npm ci
       - name: Coverage-guided fuzzing (Jazzer.js)
         run: npm run fuzz:ci
+      - name: Upload crash reproducers
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fuzz-crashes
+          path: |
+            crash-*
+            scripts/fuzz/.build/
+          if-no-files-found: ignore

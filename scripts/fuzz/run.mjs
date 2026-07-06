@@ -31,8 +31,9 @@ mkdirSync(buildDir, { recursive: true });
 for (const target of targets) {
   const outfile = join(buildDir, `${target}.cjs`);
   execFileSync(
-    "esbuild",
+    "npx",
     [
+      "esbuild",
       join(here, `${target}.ts`),
       "--bundle",
       "--platform=node",
