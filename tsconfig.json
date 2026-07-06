@@ -19,5 +19,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["scripts"]
+  "include": ["scripts"],
+  "exclude": ["scripts/fuzz"]
 }

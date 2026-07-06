@@ -16,8 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { join, relative } from "node:path";
 
 export const PLUGINS: string[] = ["laravel", "inertia-react"];
 
@@ -483,13 +482,15 @@ const COMMANDS = new Map<string, Command>([
   ["seed", runSeed],
 ]);
 
-function main(): void {
-  const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  const [command = "", target, flag] = process.argv.slice(2);
+// CLI dispatch. The entrypoint (scripts/sync.ts) resolves `root` and passes
+// argv so this module stays free of import.meta and imports cleanly under any
+// module system (tsx, vitest, jest/ts-jest).
+export function runMain(root: string, argv: string[]): void {
+  const [command = "", target, flag] = argv;
   const handler = COMMANDS.get(command);
   if (!handler) {
     console.error(
-      "usage: skills-sync.ts <status|verify|diff|pull|accept|seed> [<plugin>/<skill>] [--force]",
+      "usage: skills-sync <status|verify|diff|pull|accept|seed> [<plugin>/<skill>] [--force]",
     );
     process.exit(2);
   }
@@ -499,11 +500,4 @@ function main(): void {
     console.error(errorMessage(error));
     process.exit(1);
   }
-}
-
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
-) {
-  main();
 }

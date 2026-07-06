@@ -19,8 +19,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Coverage-guided fuzzing (Jazzer.js)
-        run: npm run fuzz:ci
+      - name: Coverage-guided fuzzing (Jazzer.js via jest-runner)
+        run: npm run fuzz
       - name: Upload crash reproducers
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -28,5 +28,6 @@ jobs:
           name: fuzz-crashes
           path: |
             crash-*
-            scripts/fuzz/.build/
+            scripts/fuzz/**/*.fuzz/**
+            .cifuzz-corpus/**
           if-no-files-found: ignore
