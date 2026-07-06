@@ -2,14 +2,14 @@
 // CLI arg parsing, lock-file JSON parsing, and the path-injection-resistant
 // file hasher. Properties return booleans so fast-check reports the shrunken
 // counterexample on failure.
-import { test } from "@fast-check/vitest";
+import { it } from "@fast-check/vitest";
 import fc from "fast-check";
 import { hashFiles, PLUGINS, parseLock, parseSkillArg } from "./skills-sync.ts";
 
 // parseSkillArg is total: every input either yields a valid {plugin, name}
 // (plugin in PLUGINS, non-empty name) or throws an Error — never any other
 // failure mode.
-test.prop([fc.option(fc.string(), { nil: undefined })])(
+it.prop([fc.option(fc.string(), { nil: undefined })])(
   "parseSkillArg yields a valid pair or throws an Error",
   (arg) => {
     try {
@@ -23,7 +23,7 @@ test.prop([fc.option(fc.string(), { nil: undefined })])(
 
 // parseLock never crashes with anything other than a SyntaxError on arbitrary
 // bytes (JSON.parse's own failure mode); it must not throw TypeError/etc.
-test.prop([fc.string()])(
+it.prop([fc.string()])(
   "parseLock only ever throws SyntaxError on arbitrary input",
   (text) => {
     try {
@@ -36,7 +36,7 @@ test.prop([fc.string()])(
 );
 
 // Round-trip: any object serialized as JSON parses back to a deep-equal value.
-test.prop([fc.jsonValue()])(
+it.prop([fc.jsonValue()])(
   "parseLock round-trips JSON-serialized values",
   (value) =>
     JSON.stringify(parseLock(JSON.stringify(value))) === JSON.stringify(value),
@@ -45,7 +45,7 @@ test.prop([fc.jsonValue()])(
 // Security invariant behind skills-sync.ts:92 — hashing sha256(path) and
 // sha256(content) separately means any change to a file set changes the digest.
 // Mutating a single content byte (or adding an entry) must change the hash.
-test.prop([
+it.prop([
   fc.uniqueArray(fc.tuple(fc.string(), fc.uint8Array({ minLength: 1 })), {
     minLength: 1,
     selector: (entry: [string, Uint8Array]): string => entry[0],

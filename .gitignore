@@ -58,10 +58,3 @@ __screenshots__/
 
 # Local planning docs (kept out of the public repo)
 /docs/superpowers/
-
-# Jazzer.js fuzzing (via @jazzer.js/jest-runner)
-# Machine-generated corpus of interesting inputs, regenerated each fuzz run.
-/.cifuzz-corpus/
-# Stray libFuzzer crash dumps. Crash reproducers the jest-runner writes under
-# scripts/fuzz/*.fuzz/ are committed deliberately for regression replay.
-crash-*

@@ -20,7 +20,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Unit + property + fuzz tests (with coverage)
+      - name: Unit + property tests (with coverage)
         run: npm run coverage-ci
       - name: Report coverage
         if: always()

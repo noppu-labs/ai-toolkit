@@ -484,7 +484,7 @@ const COMMANDS = new Map<string, Command>([
 
 // CLI dispatch. The entrypoint (scripts/sync.ts) resolves `root` and passes
 // argv so this module stays free of import.meta and imports cleanly under any
-// module system (tsx, vitest, jest/ts-jest).
+// module system (tsx, vitest).
 export function runMain(root: string, argv: string[]): void {
   const [command = "", target, flag] = argv;
   const handler = COMMANDS.get(command);
