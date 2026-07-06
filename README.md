@@ -1,10 +1,12 @@
-# AI Toolkit
+# Noppu Labs: AI Toolkit
 
-[![tests](https://github.com/noppu-labs/ai-toolkit/actions/workflows/validate.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/validate.yml)
-[![build](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/noppu-labs/ai-toolkit/badge)](https://scorecard.dev/viewer/?uri=github.com/noppu-labs/ai-toolkit)
 [![attestations](https://img.shields.io/badge/releases-attested-blue?logo=github)](https://github.com/noppu-labs/ai-toolkit/attestations)
 [![Known Vulnerabilities](https://snyk.io/test/github/noppu-labs/ai-toolkit/badge.svg)](https://snyk.io/test/github/noppu-labs/ai-toolkit)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/noppu-labs/ai-toolkit/badge)](https://scorecard.dev/viewer/?uri=github.com/noppu-labs/ai-toolkit)
+
+[![tests](https://github.com/noppu-labs/ai-toolkit/actions/workflows/tests.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/tests.yml)
+[![fuzz](https://github.com/noppu-labs/ai-toolkit/actions/workflows/fuzz.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/fuzz.yml)
+[![build](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml)
 
 **Website:** <https://noppu-labs.github.io/ai-toolkit/>
 
