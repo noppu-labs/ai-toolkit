@@ -10,6 +10,7 @@ Agents and skills for agentic development in modern Laravel and React applicatio
 **Website:** <https://noppu-labs.github.io/ai-toolkit/>
 
 ## Secure code following best practices
+
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/noppu-labs/ai-toolkit/badge)](https://scorecard.dev/viewer/?uri=github.com/noppu-labs/ai-toolkit)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13473/badge)](https://www.bestpractices.dev/projects/13473)
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/13473/baseline)](https://www.bestpractices.dev/projects/13473)
