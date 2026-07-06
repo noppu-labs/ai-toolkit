@@ -5,6 +5,7 @@
   ],
   "scripts": {
     "coverage-ci": "vitest run --coverage",
+    "fuzz": "FC_NUM_RUNS=${FC_NUM_RUNS:-10000} vitest run --testTimeout=600000 scripts",
     "lint": "biome check . && markdownlint-cli2",
     "lint:fix": "biome check --write . && markdownlint-cli2 --fix",
     "sync": "tsx scripts/sync.ts",

@@ -1,10 +1,12 @@
 #!/usr/bin/env -S npx tsx
-// CLI entrypoint for the skills sync tool. Kept thin and separate from
-// skills-sync.ts so the library module stays free of import.meta and imports
-// cleanly everywhere (tsx, vitest). Run via `npm run sync`.
+// CLI entrypoint for the skills sync tool, run via `npm run sync`. The only
+// file that reads process state (import.meta.url, argv); the skills-sync/
+// modules take `root` and argv as parameters so tests can drive them against
+// temp dirs.
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runMain } from "./skills-sync.ts";
+import { runMain } from "./skills-sync/cli.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
 runMain(root, process.argv.slice(2));
