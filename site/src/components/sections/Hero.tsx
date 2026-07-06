@@ -22,7 +22,7 @@ const HERO_GRADIENT =
 const BADGES = [
   {
     alt: "tests status",
-    src: "https://github.com/noppu-labs/ai-toolkit/actions/workflows/validate.yml/badge.svg",
+    src: "https://github.com/noppu-labs/ai-toolkit/actions/workflows/tests.yml/badge.svg",
   },
   {
     alt: "build status",
