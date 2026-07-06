@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { it } from "@fast-check/vitest";
 import fc from "fast-check";
@@ -29,6 +29,15 @@ describe("listFiles", () => {
       "references/a.md",
       "references/b.md",
     ]);
+  });
+
+  it("skips entries that are neither files nor directories", (t) => {
+    const root = makeRoot(t);
+    const dir = addSkill(root, "laravel", "demo", { "SKILL.md": "# demo" });
+
+    symlinkSync(join(dir, "SKILL.md"), join(dir, "link.md"));
+
+    expect(listFiles(dir)).toEqual(["SKILL.md"]);
   });
 });
 

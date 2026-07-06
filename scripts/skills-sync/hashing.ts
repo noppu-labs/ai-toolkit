@@ -25,12 +25,11 @@ export function listFiles(dir: string, base: string = dir): string[] {
   return out.sort();
 }
 
+// Codepoint order, unlike localeCompare, is locale-independent — the digest
+// must be stable across machines. Only ever called with distinct Map keys, so
+// there is no equality case.
 function compareStrings(a: string, b: string): number {
-  if (a < b) {
-    return -1;
-  }
-
-  return a > b ? 1 : 0;
+  return a < b ? -1 : 1;
 }
 
 export function hashFiles(files: Map<string, Buffer>): string {

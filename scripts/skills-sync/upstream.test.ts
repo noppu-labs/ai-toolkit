@@ -36,6 +36,27 @@ describe("fetchGhJson", () => {
 });
 
 describe("fetchUpstream", () => {
+  it("ignores listing entries that are neither files nor directories", () => {
+    const gh = (path: string): unknown => {
+      if (path.includes("/commits/")) {
+        return { sha: "abc999" };
+      }
+
+      if (path.includes("/contents/")) {
+        return [
+          { type: "symlink", path: "skills/demo/link", sha: "s1" },
+          { type: "file", path: "skills/demo/SKILL.md", sha: "b1" },
+        ];
+      }
+
+      return { content: Buffer.from("# demo").toString("base64") };
+    };
+
+    const result = fetchUpstream(makeGithubEntry(), gh);
+
+    expect([...result.files.keys()]).toEqual(["SKILL.md"]);
+  });
+
   it("throws when the upstream skill path contains no files", () => {
     const gh = (path: string): unknown =>
       path.includes("/commits/") ? { sha: "abc999" } : [];
