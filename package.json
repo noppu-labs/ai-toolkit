@@ -5,6 +5,8 @@
   ],
   "scripts": {
     "coverage-ci": "vitest run --coverage",
+    "fuzz": "node scripts/fuzz/run.mjs 30",
+    "fuzz:ci": "node scripts/fuzz/run.mjs 30",
     "lint": "biome check . && markdownlint-cli2",
     "lint:fix": "biome check --write . && markdownlint-cli2 --fix",
     "sync": "tsx scripts/skills-sync.ts",
@@ -14,8 +16,10 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.2",
     "@fast-check/vitest": "^0.4.1",
+    "@jazzer.js/core": "^4.0.0",
     "@types/node": "^26.1.0",
     "@vitest/coverage-v8": "^4.1.9",
+    "esbuild": "^0.28.1",
     "fast-check": "^4.8.0",
     "markdownlint-cli2": "^0.23.0",
     "tsx": "^4.22.5",

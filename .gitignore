@@ -58,3 +58,7 @@ __screenshots__/
 
 # Local planning docs (kept out of the public repo)
 /docs/superpowers/
+
+# Jazzer.js fuzzing
+/scripts/fuzz/.build/
+crash-*
