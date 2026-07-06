@@ -127,10 +127,14 @@ export function classify(
   return "up-to-date";
 }
 
+export function parseLock(text: string): LockFile {
+  return JSON.parse(text) as LockFile;
+}
+
 export function readLock(root: string, plugin: string): LockFile {
-  return JSON.parse(
+  return parseLock(
     readFileSync(join(root, plugin, "skills-lock.json"), "utf8"),
-  ) as LockFile;
+  );
 }
 
 export function writeLock(root: string, plugin: string, lock: LockFile): void {
@@ -394,7 +398,7 @@ export function diffSkill(
   }
 }
 
-function parseSkillArg(arg: string | undefined): {
+export function parseSkillArg(arg: string | undefined): {
   plugin: string;
   name: string;
 } {
