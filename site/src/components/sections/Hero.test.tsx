@@ -34,11 +34,21 @@ describe("Hero", () => {
   it("shows both install paths", async () => {
     renderHero("x");
 
+    // Each command block renders every command in one <code> element, so these
+    // are substring matches: Vitest 5 locators are exact by default.
     await expect
-      .element(page.getByText("/plugin marketplace add noppu-labs/ai-toolkit"))
+      .element(
+        page.getByText("/plugin marketplace add noppu-labs/ai-toolkit", {
+          exact: false,
+        }),
+      )
       .toBeVisible();
     await expect
-      .element(page.getByText("npx skills add noppu-labs/ai-toolkit/laravel"))
+      .element(
+        page.getByText("npx skills add noppu-labs/ai-toolkit/laravel", {
+          exact: false,
+        }),
+      )
       .toBeVisible();
   });
 
