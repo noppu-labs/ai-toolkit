@@ -53,7 +53,7 @@ describe("Hero", () => {
       .click();
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
-      "/plugin marketplace add noppu-labs/ai-toolkit\n/plugin install laravel@ai-toolkit\n/plugin install inertia-react@ai-toolkit",
+      "/plugin marketplace add noppu-labs/ai-toolkit\n/plugin install laravel@ai-toolkit\n/plugin install inertia-react@ai-toolkit\n/plugin install review@ai-toolkit",
     );
   });
 
@@ -68,7 +68,7 @@ describe("Hero", () => {
       .click();
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
-      "npx skills add noppu-labs/ai-toolkit/laravel\nnpx skills add noppu-labs/ai-toolkit/inertia-react",
+      "npx skills add noppu-labs/ai-toolkit/laravel\nnpx skills add noppu-labs/ai-toolkit/inertia-react\nnpx skills add noppu-labs/ai-toolkit/review",
     );
   });
 });
