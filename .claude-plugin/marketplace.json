@@ -14,6 +14,11 @@
       "name": "inertia-react",
       "source": "./inertia-react",
       "description": "Inertia v3 + React 19 + TypeScript frontend skills, agent, and path-scoped rules"
+    },
+    {
+      "name": "review",
+      "source": "./review",
+      "description": "Language-agnostic code review skills: comment audit, type-safety review, and a three-stage PR review orchestrator"
     }
   ]
 }
