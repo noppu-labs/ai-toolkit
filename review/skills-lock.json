@@ -1,6 +1,10 @@
 {
   "version": 1,
   "skills": {
+    "comment-audit": {
+      "sourceType": "local",
+      "vendoredHash": "72f9b055e7c4d79e53d323148299dedd922068407bfe6df37cbf15f7422b2dfd"
+    },
     "writing-comments": {
       "sourceType": "local",
       "vendoredHash": "1b151db6c8224f911a15ad665a3a548e76d4849965d598198801b8c80e49a2f2"
