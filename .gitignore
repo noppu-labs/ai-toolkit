@@ -48,7 +48,7 @@ Thumbs.db
 /storybook-static
 
 # Vitest browser test artifacts
-.vitest-attachments/
+.vitest/
 __screenshots__/
 
 # Site (generated at build time)
