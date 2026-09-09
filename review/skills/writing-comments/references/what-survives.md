@@ -205,7 +205,7 @@ Single-line `//` carrying the policy behind an assertion is the dominant form:
 
 ```php
     // A mistyped date of birth is expected user behaviour, not an upstream fault.
-    // A rejected signature on a clinical record must not be invisible in the error tracker.
+    // A rejected signature on a legal record must not be invisible in the error tracker.
     // The real service, not the partial mock the beforeEach installs.
 ```
 

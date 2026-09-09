@@ -16,7 +16,7 @@ Two calibration examples:
 
 `/review:comment-audit [--apply] [key=value ...]`
 
-| Key | Meaning |
+| Argument | Meaning |
 | --- | --- |
 | `--apply` | Edit and commit instead of reporting only. |
 | `base=` | The ref the branch merges into. |
@@ -120,7 +120,7 @@ Write the report to `out` in the shape of [references/report-template.md](refere
 
 Line numbers are from the HEAD side of the diff so they can be pasted as PR review comments. Quote every comment verbatim; the reviewer should not need the diff open to follow the report.
 
-The template's two summary requirements are easy to drop and both are mandatory: state the added comment line count **and** an estimate of what remains once every DELETE, TRIM, and MOVE lands, and open the Summary with the three or four findings that matter most, not just a verdict tally.
+The template's two summary requirements are easy to drop and both are mandatory: state the added comment line count **and** an estimate of what remains once every DELETE, TRIM, and MOVE lands, and open the Summary with the three or four findings that matter most, not just a verdict tally. Derive the after-count `M` as `N` minus the lines of every DELETE, minus the lines removed by every TRIM and MOVE, where a MOVE leaves one pointer line per site.
 
 ## Apply mode
 
@@ -128,20 +128,20 @@ The template's two summary requirements are easy to drop and both are mandatory:
 - A comment that is WRONG is corrected to match the code, never the code changed to match the comment. List every correction.
 - A comment that exists because the code is confusing is left in place and listed.
 - Never touch generated files, files outside `dirs`, `vendor/`, `node_modules/`, or lockfiles.
-- Commit the trim first, so the verify script has a commit to compare against:
+- Commit the trim first, subject `<TICKET>: trim comments and docblocks` (or `docs: trim comments and docblocks` when no ticket resolved), so the verify script has a commit to compare against:
 
   ```sh
   bash ${CLAUDE_PLUGIN_ROOT}/skills/comment-audit/scripts/verify-comments-only.sh FROM TO DIRS
   ```
 
-  `FROM` is the commit before the trim and `TO` is the commit carrying it, so `HEAD~1 HEAD` after the commit. The script prints every changed line that is not a comment or blank and exits `1`. Every hit gets a one-line explanation in the report. Two kinds of hit are expected and still get their line:
+  `FROM` is the commit before the trim and `TO` is the commit carrying it, so `HEAD~1 HEAD` after the commit. The script prints every changed line that is not a comment or blank and exits `1`. It excludes `*.md` files, so README edits never appear as hits. Every hit gets a one-line explanation in the report. Two kinds of hit are expected and still get their line:
   - A blank line left where a docblock shrank to nothing.
   - Interior lines of a block comment that carry no per-line marker: the body of a multi-line `<!-- -->`, or a `/* */` block without a leading `*` on each line.
 
 - Run the project's format, lint, and test commands, in that order, using the commands resolved in step 0. If one of them could not be resolved, skip it and say so in the final message.
 - If the formatter changes a file the audit did not touch, revert that file. Amend the trim commit with formatter changes to files the audit did touch, so the branch still carries one commit.
 - Quote, do not summarise, the output of any step that did not pass.
-- One commit: `<TICKET>: trim comments and docblocks`, or `docs: trim comments and docblocks` when no ticket resolved. No push.
+- One commit. No push.
 - The final message carries: comment line counts before and after, README sections added or extended, comments corrected under WRONG, verify hits with an explanation for each, comments kept but unsure, and quoted tool output for any step that failed.
 
 ## Style

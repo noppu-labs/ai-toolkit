@@ -116,6 +116,11 @@ report as its response and writes no file. Relay its findings in the shape below
 keeping each finding's rule id (`PHP-1` to `PHP-5`, `TS-1` to `TS-4`), its verbatim
 quote, and its proposed shape.
 
+That skill inherits comment-audit's `base=`/`head=` detection and its ask. Both are
+already given above, so if it asks for anything else, you have no one to ask: record
+the miss under `## Skipped` and carry on with the rest of the review rather than
+stopping.
+
 Return exactly these three sections and nothing else:
 
 ## Findings
@@ -152,9 +157,12 @@ audit rather than stopping.
 Return exactly these three sections and nothing else:
 
 ## Findings
-One entry per finding, each starting with `path:line` on the HEAD side, then the
-verdict (DELETE, TRIM, MOVE, KEEP, UNSURE, WRONG), the verbatim comment, and the
-rewrite or pointer where the verdict has one. KEEP verdicts may be one line each.
+The audit report lists findings as `**L123, VERDICT**` under a `### path` heading;
+prefix each one you relay with the path from its file heading, so it reads
+`path:line`. One entry per finding, each starting with `path:line` on the HEAD side,
+then the verdict (DELETE, TRIM, MOVE, KEEP, UNSURE, WRONG), the verbatim comment,
+and the rewrite or pointer where the verdict has one. KEEP verdicts may be one line
+each.
 
 ## Validated
 Every check you ran, with the command and its result. Include the report file path

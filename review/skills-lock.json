@@ -3,11 +3,11 @@
   "skills": {
     "comment-audit": {
       "sourceType": "local",
-      "vendoredHash": "0755978393bc63475b0c5dd329fe2c8ac8d8fd57e25215652b8b7ae62ee14bcf"
+      "vendoredHash": "e57bcfe6aa083bebf3cbcb23d04ac8a84e4a21bb0390411b876ba71d1ffa1aca"
     },
     "pr-review": {
       "sourceType": "local",
-      "vendoredHash": "29b14956873b645943f59f592c50cb4e2a6b947178e049558e963565d7f9539b"
+      "vendoredHash": "7eede348a0b6fd50a2049c921c5277b8bfbbef69355ca70afdc84d3d54cdf446"
     },
     "type-safety-review": {
       "sourceType": "local",
@@ -15,7 +15,7 @@
     },
     "writing-comments": {
       "sourceType": "local",
-      "vendoredHash": "1b151db6c8224f911a15ad665a3a548e76d4849965d598198801b8c80e49a2f2"
+      "vendoredHash": "c4906b3122093e11f1c4f9705d450aed3d18eea55f7bfb9c382a44c317885d2e"
     }
   }
 }

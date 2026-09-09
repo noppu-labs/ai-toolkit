@@ -104,6 +104,30 @@ describe("count-comment-lines.sh", () => {
     expect(result.stdout).toBe("0");
   });
 
+  it("does not count a PHP 8 attribute as a comment, but still counts a real hash comment", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    writeFileSync(
+      join(cwd, "app", "Feature.php"),
+      [
+        "<?php",
+        "#[Deprecated]",
+        "# real comment",
+        "class Feature",
+        "{",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-q", "-m", "feature");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("1");
+  });
+
   it("limits the count to the given directories", () => {
     const cwd = makeRepo();
     git(cwd, "checkout", "-q", "-b", "feature");
@@ -154,6 +178,74 @@ describe("verify-comments-only.sh", () => {
     expect(result.stdout).toContain("+    public function go(): int");
     expect(result.stdout).toContain("+        return 1;");
     expect(result.stdout).not.toContain("// added");
+  });
+
+  it("fails when only a PHP 8 attribute line changed", () => {
+    const cwd = makeRepo();
+    writeFileSync(
+      join(cwd, "app", "Thing.php"),
+      [
+        "<?php",
+        "#[Test]",
+        "class Thing",
+        "{",
+        "    public function go(): void",
+        "    {",
+        "    }",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    git(cwd, "commit", "-q", "-am", "base attribute");
+    writeFileSync(
+      join(cwd, "app", "Thing.php"),
+      [
+        "<?php",
+        "#[Test, Group('x')]",
+        "class Thing",
+        "{",
+        "    public function go(): void",
+        "    {",
+        "    }",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    git(cwd, "commit", "-q", "-am", "widen attribute");
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("-#[Test]");
+    expect(result.stdout).toContain("+#[Test, Group('x')]");
+  });
+
+  it("passes when every changed line is a comment marker of a different style", () => {
+    const cwd = makeRepo();
+    writeFileSync(join(cwd, "app", "Notes.txt"), "base content line\n");
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-q", "-m", "notes base");
+    writeFileSync(
+      join(cwd, "app", "Notes.txt"),
+      [
+        "base content line",
+        "# a hash comment",
+        "* a star comment",
+        "/* an open block comment",
+        "*/ a close block comment",
+        '""" a triple quote',
+        "{/* a jsx comment",
+        "<!-- an html open",
+        "--> an html close",
+        "",
+      ].join("\n"),
+    );
+    git(cwd, "commit", "-q", "-am", "notes markers");
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
   });
 
   it("ignores markdown files, where README sections are expected", () => {
