@@ -19,7 +19,7 @@
     "@vitest/coverage-v8": "^5.0.0",
     "fast-check": "^4.9.0",
     "markdownlint-cli2": "^0.23.2",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "vitest": "^5.0.0"
   },
