@@ -26,6 +26,7 @@ Agents and skills for agentic development in modern Laravel and React applicatio
 | --- | --- |
 | `laravel` | 16 backend skills, `laravel-backend-specialist` agent, 4 path-scoped rules |
 | `inertia-react` | 6 frontend skills, `frontend-developer` agent, 2 path-scoped rules |
+| `review` | 4 language-agnostic review skills: comment audit, writing comments, type-safety review, PR review orchestrator |
 
 ## Install (Claude Code marketplace)
 
@@ -33,11 +34,13 @@ Agents and skills for agentic development in modern Laravel and React applicatio
 /plugin marketplace add noppu-labs/ai-toolkit
 /plugin install laravel@ai-toolkit
 /plugin install inertia-react@ai-toolkit
+/plugin install review@ai-toolkit
 /laravel:install-rules
 /inertia-react:install-rules
 ```
 
-Skills are namespaced after install, e.g. `laravel:laravel-dtos`, `inertia-react:shadcn`.
+Skills are namespaced after install, e.g. `laravel:laravel-dtos`, `inertia-react:shadcn`,
+`review:comment-audit`.
 The `install-rules` commands copy each plugin's path-scoped rules into your project's
 `.claude/rules/`. Review the copied rules afterwards and adjust any project-specific
 commands (formatter invocation, npm script names) to your setup.
@@ -47,6 +50,7 @@ commands (formatter invocation, npm script names) to your setup.
 ```text
 npx skills add noppu-labs/ai-toolkit/laravel
 npx skills add noppu-labs/ai-toolkit/inertia-react
+npx skills add noppu-labs/ai-toolkit/review
 ```
 
 ## Verifying releases

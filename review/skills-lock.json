@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": {
+    "comment-audit": {
+      "sourceType": "local",
+      "vendoredHash": "e57bcfe6aa083bebf3cbcb23d04ac8a84e4a21bb0390411b876ba71d1ffa1aca"
+    },
+    "pr-review": {
+      "sourceType": "local",
+      "vendoredHash": "7eede348a0b6fd50a2049c921c5277b8bfbbef69355ca70afdc84d3d54cdf446"
+    },
+    "type-safety-review": {
+      "sourceType": "local",
+      "vendoredHash": "2f9f7e9f15658c2607e0c7e797c8626ba3ff1ae55aca64c76d7087a36686fe3f"
+    },
+    "writing-comments": {
+      "sourceType": "local",
+      "vendoredHash": "c4906b3122093e11f1c4f9705d450aed3d18eea55f7bfb9c382a44c317885d2e"
+    }
+  }
+}
