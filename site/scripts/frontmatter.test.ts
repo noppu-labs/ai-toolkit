@@ -63,7 +63,6 @@ describe("parseFrontmatter", () => {
         ([key, value]) => `${key}: ${value}`,
       );
       const doc = `---\n${lines.join("\n")}\n---\nbody text\n`;
-      // biome-ignore lint/suspicious/noMisplacedAssertion: expect runs inside @fast-check/vitest's test.prop
       expect(parseFrontmatter(doc, "prop/SKILL.md")).toEqual(fields);
     },
   );
