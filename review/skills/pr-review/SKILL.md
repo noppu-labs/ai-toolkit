@@ -46,15 +46,17 @@ If a skill named `investigate` is available, invoke it for that PR's changed pat
 If it is not, build a lighter one from these commands:
 
 ```sh
-git diff --stat BASE...HEAD
-git diff -U0 BASE...HEAD | grep -E '^@@'
-git diff BASE...HEAD | grep -nE '^(export )?(async )?(function|class|const|interface|type) |^\s*(public|protected|private) function'
-git grep -nw <symbol> HEAD
+git diff --stat <BASE>...<HEAD>
+git diff -U0 <BASE>...<HEAD> | grep -E '^@@'
+git diff <BASE>...<HEAD> | grep -E '^\+(export )?(async )?(function|class|const|interface|type) |^\+[[:space:]]*(public|protected|private) function'
+git grep -nw <symbol> <HEAD>
 ```
 
-`BASE` and `HEAD` there are the two refs resolved in step 1, not the literal ref name `HEAD`. In a stack the working tree is rarely sitting on the PR's head branch, so the callers come from `origin/<headRefName>`.
+`<BASE>` and `<HEAD>` are the two refs resolved in step 1, the same slots step 3 fills.
 
 The first gives the shape of the change. The next two give the added or changed functions, classes, and methods, from the hunk headers and from the added lines. The last runs once per changed symbol and gives its callers on the head ref, which is what tells a stage whether a signature change has call sites the PR missed.
+
+Both anchors in the third command carry a `+`, so it matches added lines and not the context lines around them. Dropping the `+` inverts the result: every unchanged declaration in the hunk matches and every added one does not, and the per-symbol `git grep` then has nothing to run on.
 
 Three dots, so only what the branch adds is in scope.
 
@@ -140,6 +142,12 @@ Structural brief:
 Invoke `review:comment-audit base=<BASE> head=<HEAD>` in report mode. Never pass
 `--apply`: this run reports and changes nothing. That skill writes its report to a
 file. Read that file and return its summary and findings in the shape below.
+
+That skill's step 0 asks for `readme=` when a MOVE verdict needs one, and for a
+`base=` it cannot resolve. You have no one to ask. Both are already given above
+except `readme=`, so if it asks for that, record the miss under `## Skipped`, take
+the proposed section it writes without a path, and carry on with the rest of the
+audit rather than stopping.
 
 Return exactly these three sections and nothing else:
 
