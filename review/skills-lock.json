@@ -5,6 +5,10 @@
       "sourceType": "local",
       "vendoredHash": "72f9b055e7c4d79e53d323148299dedd922068407bfe6df37cbf15f7422b2dfd"
     },
+    "type-safety-review": {
+      "sourceType": "local",
+      "vendoredHash": "2f9f7e9f15658c2607e0c7e797c8626ba3ff1ae55aca64c76d7087a36686fe3f"
+    },
     "writing-comments": {
       "sourceType": "local",
       "vendoredHash": "1b151db6c8224f911a15ad665a3a548e76d4849965d598198801b8c80e49a2f2"
