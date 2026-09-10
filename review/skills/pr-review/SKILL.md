@@ -5,7 +5,7 @@ description: Orchestrate a three-stage review (correctness, type safety, comment
 
 # PR review orchestrator
 
-Three reviews of the same diff, one subagent each, merged into one report. The orchestrator resolves the refs, builds a structural brief, dispatches the stages, and consolidates what comes back.
+Three reviews of the same diff merged into one report: correctness, type safety, comments. Correctness runs as two independent passes, the harness's `code-review` skill invoked by the orchestrator and a stage subagent reviewing by hand. The orchestrator resolves the refs, builds a structural brief, dispatches everything, and consolidates what comes back.
 
 The orchestrator keeps its context lean. It reads briefs and subagent reports and nothing else. It never opens a diff, a changed file, or a `git show`, however small the PR looks. Everything that needs the diff happens inside a subagent.
 
@@ -62,9 +62,25 @@ Three dots, so only what the branch adds is in scope.
 
 The commands run here produce the brief. Their output goes into the brief, not into a reading pass by the orchestrator. Keep each brief to roughly a page: the stat block, the symbol list, and the caller list.
 
-## Step 3: run three stages
+## Step 3: run the passes
 
-Three subagents per PR, so nine for a three PR stack, dispatched in parallel where the harness allows.
+Per PR: one `code-review` invocation and three stage subagents, all dispatched in the same turn so they run in parallel where the harness allows. A three PR stack is three invocations and nine subagents.
+
+### Correctness, first pass: `code-review`
+
+If a skill named `code-review` is listed, the orchestrator invokes it once per PR, from its own context, with the PR number as the target:
+
+```text
+code-review <number>
+```
+
+The skill runs its review in a background subagent and returns only that subagent's name. Its report arrives later as a task completion notification addressed to the session that invoked it. Invoked from the orchestrator, that is the orchestrator. Invoked from inside a stage subagent, the harness parents the background subagent to the top-level session anyway, so the notification bypasses the stage, and the stage waits for a result that never reaches it. That is why the stage template below reviews by hand and does not mention `code-review`.
+
+The notification carries the report as text. Hold it for step 4. Consolidation waits until it has arrived; the correctness section is never written from what the skill was expected to find. If the skill is not listed, or its subagent stops without a report, the hand review is the only correctness pass, and `## Not available in this run` says so.
+
+The same parenting applies one level down. At effort levels where `code-review` spawns its own finder subagents, those finders are registered under the orchestrator's session as well, so their results arrive at the orchestrator while the fork idles with nothing left to wait on. The sign is a completion notification from the fork saying its finders are still running, followed by idle notices from agents named `finder-*`. Collect every finder result that arrives, then send them verbatim in one message to the fork by its name, `code-review`. It resumes, runs its verification pass, and returns the consolidated report as a second completion notification. Finder results are candidates, not findings; only the fork's consolidated report enters step 4.
+
+### Stage subagents
 
 Each prompt is one of the templates below with these slots filled:
 
@@ -76,7 +92,7 @@ Each prompt is one of the templates below with these slots filled:
 | `<PR_TITLE>` | the PR title |
 | `<PR_URL>` | the PR url |
 
-Correctness stage:
+Correctness stage, the second pass:
 
 ```text
 Review PR "<PR_TITLE>" (<PR_URL>) for correctness. Base ref <BASE>, head ref <HEAD>.
@@ -85,10 +101,14 @@ Only what the branch adds is in scope: git diff <BASE>...<HEAD>, three dots.
 Structural brief:
 <BRIEF>
 
-If a `code-review` skill is available, invoke it on `<BASE>...<HEAD>`. Otherwise
-review for behaviour changes, error handling, boundary conditions, and missing
-tests. Validate any claim you can by running the project's tests or linters;
-record what you ran.
+Review by hand: read the diff and the changed files, and look for behaviour changes,
+error handling, boundary conditions, and missing tests. Validate any claim you can by
+running the project's tests or linters; record what you ran.
+
+Skills that run in a background subagent, `code-review` among them, deliver their
+result to the session that spawned you, not to you. The orchestrator runs
+`code-review` itself as a separate pass, so your findings are your own reading of
+the diff.
 
 Return exactly these three sections and nothing else:
 
@@ -198,8 +218,9 @@ Rules for the body:
 - One section per PR, in the merge order given as input, holding the three stage sections.
 - Every finding keeps its `path:line` from the HEAD side, so it can be pasted as a PR review comment.
 - A finding two stages both reported appears once, under the stage that ruled on it most precisely, labelled with both stage names.
+- `### Correctness` merges the two passes. A finding both passes reported appears once, labelled `both passes`. A finding one pass reported keeps its label, `code-review only` or `hand review only`, so the reader knows how much weight it carries. Where the passes disagree, both claims are listed under the finding; the orchestrator does not pick a side, since it has not read the diff.
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
-- `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it. When every stage had everything, the section says so in one line rather than being dropped.
+- `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it. If `code-review` was not listed or returned no report, it is named here with the reason, and the correctness findings carry the `hand review only` label. When every stage had everything, the section says so in one line rather than being dropped.
 
 ## Style
 
