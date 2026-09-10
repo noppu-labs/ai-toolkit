@@ -2,7 +2,7 @@
   "name": "review",
   "displayName": "Review toolkit",
   "description": "Language-agnostic code review skills: comment audit, type-safety review, and a three-stage PR review orchestrator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Noppu Labs"
   }
