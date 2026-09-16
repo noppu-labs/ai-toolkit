@@ -5,9 +5,13 @@
       "sourceType": "local",
       "vendoredHash": "e57bcfe6aa083bebf3cbcb23d04ac8a84e4a21bb0390411b876ba71d1ffa1aca"
     },
+    "pr-comments": {
+      "sourceType": "local",
+      "vendoredHash": "d8916b9dbcfa4ebeed14f5a285ceafd506855a6276896b5a2005b22a5b332029"
+    },
     "pr-review": {
       "sourceType": "local",
-      "vendoredHash": "2c5e2689a89a35d13c0f2cacb3342058e28449a5e61a34de37c9d2a10ff2b4c9"
+      "vendoredHash": "d6189b9956630973e7d8c9b427d61bd2e58189e427b2cdb4a5f2cc41fe1f38be"
     },
     "type-safety-review": {
       "sourceType": "local",

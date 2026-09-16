@@ -222,6 +222,10 @@ Rules for the body:
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
 - `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it. If `code-review` was not listed or returned no report, it is named here with the reason, and the correctness findings carry the `hand review only` label. When every stage had everything, the section says so in one line rather than being dropped.
 
+## Step 5: comments for the author
+
+The consolidated report is written for the reviewer and is not what a PR author reads. When the findings are going onto the PR, invoke `review:pr-comments` with the report: it drops the pass labels and rule ids, grades each finding from a fixed label, and gives it a code the author can refer to.
+
 ## Style
 
 The consolidated report follows [../writing-comments/references/style.md](../writing-comments/references/style.md).
