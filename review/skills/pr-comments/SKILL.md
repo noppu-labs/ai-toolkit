@@ -47,11 +47,31 @@ Every body is written for an engineer who has never heard of this review and rea
 2. The fix, concrete enough to act on: the call to make, the check to add, the type to declare.
 3. When the report proposed code, that code in a fenced block.
 
-Nothing else. The header, emoji, and code are added by the script in step 4; a body starts with the problem. The body names only the author's code: what the review could or could not run, and which stage or pass found the finding, go to diagnostics in step 5. Follow `style.md`; when a `humanizer` skill is available, apply it to each body and to the summary.
+Nothing else. The header, emoji, and code are added by the script in step 6; a body starts with the problem. The body names only the author's code: what the review could or could not run, and which stage or pass found the finding, go to diagnostics in step 4. Follow `style.md`. The humanizer pass over the bodies is step 5, so write each body in full here and leave the pass to that step.
 
 One body from the report's entry, not the report's entry quoted and then paraphrased.
 
-## Step 4: render
+## Step 4: verdict, summary, diagnostics
+
+Verdict:
+
+- `request_changes` when any correctness finding survives.
+- `comment` when only type safety or comment findings survive.
+- `approve` when nothing survives and every stage reported. A stage missing from the report is never treated as clean.
+
+Summary: two to four sentences on what the review found in the author's code, in the same voice as the bodies. No greeting, no praise, no sign-off.
+
+Diagnostics: everything the summary may not say, for whoever runs the review rather than the author. A stage that did not report, a tool that was unavailable, a cap that cut findings, a conclusion that could not be verified. Empty when the review ran clean and complete and step 5 had nothing to add.
+
+## Step 5: humanize
+
+Look for a skill named `humanizer` in the list of available skills. The list decides what happens next; there is no third outcome.
+
+If it is listed, invoke it with the Skill tool and apply it to every body and to the summary, before the script in step 6 runs. The pass changes wording only. Every technical claim, path, line, symbol, version string, command, and fenced code block comes out of the pass exactly as it went in, and each body keeps its order: problem, then fix, then code. When the pass has changed one of those, restore it from the text written in step 3 and keep the rest of the rewrite.
+
+If it is not listed, continue without it and add one plain sentence to diagnostics saying the bodies and summary were not humanized because the `humanizer` skill was not available. Do not stop and do not fail. The sentence goes in diagnostics only, never in the summary or a body; the author never sees diagnostics.
+
+## Step 6: render
 
 Write the classified entries to a JSON file in the scratchpad:
 
@@ -73,18 +93,6 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/pr-comments/scripts/render-comments.mjs --form
 ```
 
 The script rejects a label that is not in its category, a missing anchor, or an empty body, naming the comment by index. Fix the entry and run it again. It assigns the codes, grades the severity from the label, strips any reviewer vocabulary a body still starts with, and puts the header on its own line above the body. Its output is the result; do not write codes, emoji, or headers by hand, and do not reorder or edit what it prints.
-
-## Step 5: verdict, summary, diagnostics
-
-Verdict:
-
-- `request_changes` when any correctness finding survives.
-- `comment` when only type safety or comment findings survive.
-- `approve` when nothing survives and every stage reported. A stage missing from the report is never treated as clean.
-
-Summary: two to four sentences on what the review found in the author's code, in the same voice as the bodies. No greeting, no praise, no sign-off.
-
-Diagnostics: everything the summary may not say, for whoever runs the review rather than the author. A stage that did not report, a tool that was unavailable, a cap that cut findings, a conclusion that could not be verified. Empty when the review ran clean and complete.
 
 ## Output
 
@@ -119,3 +127,4 @@ With `format=json`, the script's JSON instead. With `out=`, the same content wri
 | `PHP-2`, `DELETE`, `both passes`, "the type-safety stage" in a body or the summary | Translated to the label; the pass and stage go nowhere. |
 | A blank line between the header and the body | The script writes the header. Do not edit its output. |
 | A stage absent from the report treated as clean | Named in diagnostics; the verdict is never `approve`. |
+| `humanizer` listed among the skills but the bodies rendered without it, or not listed and diagnostics silent about it | Listed: run it on every body and the summary before the script. Not listed: one sentence in diagnostics says so. |

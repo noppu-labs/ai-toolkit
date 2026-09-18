@@ -26,4 +26,4 @@ Plain, direct, concise. Write for an engineer reading the file cold. Fewest sent
 
 ## If humanizer is installed
 
-A `humanizer` skill catches AI writing patterns this list does not name. When it is available, load it as well and apply both.
+A `humanizer` skill catches AI writing patterns this list does not name. When it is listed among the available skills, load it with the Skill tool and apply both, this list and the skill. When it is not listed, continue with this list alone.
