@@ -7,7 +7,7 @@
     },
     "pr-comments": {
       "sourceType": "local",
-      "vendoredHash": "d8916b9dbcfa4ebeed14f5a285ceafd506855a6276896b5a2005b22a5b332029"
+      "vendoredHash": "234bf39c1c0c34f79740f722ce4960192ce0b5fc9197b44fae57fbf73a95daa6"
     },
     "pr-review": {
       "sourceType": "local",
@@ -19,7 +19,7 @@
     },
     "writing-comments": {
       "sourceType": "local",
-      "vendoredHash": "c4906b3122093e11f1c4f9705d450aed3d18eea55f7bfb9c382a44c317885d2e"
+      "vendoredHash": "9be70c04d536f1063356b0fe59627971c0a666a584848d6feb48f445fa40112c"
     }
   }
 }
