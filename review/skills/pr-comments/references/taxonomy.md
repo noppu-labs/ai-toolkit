@@ -87,7 +87,7 @@ Correctness findings carry no identifier, only a pass label (`both passes`, `cod
 | Exception escapes, swallowed error, wrong catch scope, missing rollback | Error handling |
 | A path with no test, an assertion that cannot fail | Missing test |
 | N+1, unbounded query, work inside a loop that belongs outside it | Performance |
-| Business logic in a controller or view, data access leaking across layers, a class doing two jobs, a dependency pointing the wrong way | Separation of concerns |
+| Business logic in a controller or view, data access leaking across layers, a class doing two jobs, a dependency pointing the wrong way, in code something calls | Separation of concerns |
 | Input reaches logic unchecked, a request field with no rule | Validation |
 | A project rule or house style broken with no behaviour effect: naming, file layout, test structure, complexity budget | Convention |
 | Code with no production caller, a branch that cannot execute, a loop or guard with no effect | Dead code |
@@ -95,4 +95,4 @@ Correctness findings carry no identifier, only a pass label (`both passes`, `cod
 | Behaviour differs on unusual input (empty, malformed, hand-edited, out of order) and the outcome is harmless: no crash, no wrong data shown or persisted, clears on retry or reload | Edge case |
 | The reviewer asks the author something the diff could not settle, and claims no defect | Question |
 
-A finding two labels fit takes the more severe one. The outcome clause is what keeps the pairs apart: a crash on empty input is a Bug, not an Edge case; a public method with no caller that is still reachable from a route is Separation of concerns, not Dead code; a rule broken in a way that changes behaviour is whatever that behaviour is, not Convention. A finding with no outcome clause, which is every finding from the `code-review` pass, takes the more severe label.
+A finding two labels fit takes the more severe one. The outcome clause is what keeps the pairs apart: a crash on empty input is a Bug, not an Edge case; a public method with no caller that is still reachable from a route is Separation of concerns, not Dead code, while code nothing calls is Dead code even when it also sits in the wrong layer; a rule broken in a way that changes behaviour is whatever that behaviour is, not Convention. A finding with no outcome clause, which is every finding from the `code-review` pass, takes the more severe label. Pick from what the finding says is wrong, not from what its suggested fix would also improve: a broken complexity budget or a copied rule whose fix would also split two jobs or move logic out of a controller stays Convention or Duplication.
