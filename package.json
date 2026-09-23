@@ -14,7 +14,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
-    "@fast-check/vitest": "^0.4.1",
     "@types/node": "^26.5.1",
     "@vitest/coverage-v8": "^5.0.0",
     "fast-check": "^4.10.0",
@@ -22,10 +21,5 @@
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
-  },
-  "overrides": {
-    "@fast-check/vitest": {
-      "vitest": "$vitest"
-    }
   }
 }

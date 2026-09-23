@@ -1,8 +1,7 @@
 import { symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { it } from "@fast-check/vitest";
 import fc from "fast-check";
-import { describe, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { hashDirectory, hashFiles, listFiles, sha256 } from "./hashing.ts";
 import { addSkill, makeRoot } from "./test-helpers.ts";
 
@@ -75,53 +74,63 @@ describe("hashFiles", () => {
   });
 
   // Property: deterministic sha256-hex digest regardless of insertion order.
-  it.prop([
-    fc.uniqueArray(fc.tuple(fc.string(), fc.uint8Array()), {
-      selector: (entry: [string, Uint8Array]): string => entry[0],
-    }),
-  ])("is deterministic and insertion-order independent", (entries) => {
-    const forward = new Map<string, Buffer>(
-      entries.map(([path, content]) => [path, Buffer.from(content)]),
-    );
-    const reversed = new Map<string, Buffer>(
-      [...entries]
-        .reverse()
-        .map(([path, content]) => [path, Buffer.from(content)]),
-    );
-    const hash = hashFiles(forward);
+  it("is deterministic and insertion-order independent", () => {
+    fc.assert(
+      fc.property(
+        fc.uniqueArray(fc.tuple(fc.string(), fc.uint8Array()), {
+          selector: (entry: [string, Uint8Array]): string => entry[0],
+        }),
+        (entries) => {
+          const forward = new Map<string, Buffer>(
+            entries.map(([path, content]) => [path, Buffer.from(content)]),
+          );
+          const reversed = new Map<string, Buffer>(
+            [...entries]
+              .reverse()
+              .map(([path, content]) => [path, Buffer.from(content)]),
+          );
+          const hash = hashFiles(forward);
 
-    return hash === hashFiles(reversed) && SHA256_HEX.test(hash);
+          return hash === hashFiles(reversed) && SHA256_HEX.test(hash);
+        },
+      ),
+    );
   });
 
   // Property behind the sync-state security invariant: hashing sha256(path)
   // and sha256(content) separately means any change to a file set changes the
   // digest. Mutating a single content byte must change the hash.
-  it.prop([
-    fc.uniqueArray(fc.tuple(fc.string(), fc.uint8Array({ minLength: 1 })), {
-      minLength: 1,
-      selector: (entry: [string, Uint8Array]): string => entry[0],
-    }),
-  ])("is sensitive to content changes", (entries) => {
-    const base = new Map<string, Buffer>(
-      entries.map(([path, content]) => [path, Buffer.from(content)]),
+  it("is sensitive to content changes", () => {
+    fc.assert(
+      fc.property(
+        fc.uniqueArray(fc.tuple(fc.string(), fc.uint8Array({ minLength: 1 })), {
+          minLength: 1,
+          selector: (entry: [string, Uint8Array]): string => entry[0],
+        }),
+        (entries) => {
+          const base = new Map<string, Buffer>(
+            entries.map(([path, content]) => [path, Buffer.from(content)]),
+          );
+          const first = entries[0];
+
+          if (first === undefined) {
+            return true; // unreachable: minLength:1 guarantees at least one entry
+          }
+
+          const [firstPath, firstContent] = first;
+          const mutated = new Map(base);
+          const flipped = Uint8Array.from(firstContent);
+
+          if (flipped[0] !== undefined) {
+            flipped[0] ^= 0xff;
+          }
+
+          mutated.set(firstPath, Buffer.from(flipped));
+
+          return hashFiles(base) !== hashFiles(mutated);
+        },
+      ),
     );
-    const first = entries[0];
-
-    if (first === undefined) {
-      return true; // unreachable: minLength:1 guarantees at least one entry
-    }
-
-    const [firstPath, firstContent] = first;
-    const mutated = new Map(base);
-    const flipped = Uint8Array.from(firstContent);
-
-    if (flipped[0] !== undefined) {
-      flipped[0] ^= 0xff;
-    }
-
-    mutated.set(firstPath, Buffer.from(flipped));
-
-    return hashFiles(base) !== hashFiles(mutated);
   });
 });
 

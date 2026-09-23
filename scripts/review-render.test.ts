@@ -1,9 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { it } from "@fast-check/vitest";
 import fc from "fast-check";
-import { describe, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 type Category = "correctness" | "typeSafety" | "comments";
 
@@ -253,14 +252,22 @@ describe("scrubBody", () => {
       .map(([prefixes, rest]) => `${prefixes.join("")}${rest}`),
   );
 
-  it.prop([bodyArb])("is idempotent", (body) => {
-    const once = scrubBody(body);
+  it("is idempotent", () => {
+    fc.assert(
+      fc.property(bodyArb, (body) => {
+        const once = scrubBody(body);
 
-    return scrubBody(once) === once;
+        return scrubBody(once) === once;
+      }),
+    );
   });
 
-  it.prop([bodyArb])("never adds characters", (body) => {
-    return scrubBody(body).length <= body.length;
+  it("never adds characters", () => {
+    fc.assert(
+      fc.property(bodyArb, (body) => {
+        return scrubBody(body).length <= body.length;
+      }),
+    );
   });
 });
 
@@ -428,48 +435,52 @@ describe("renderComments", () => {
     expect(renderComments({ comments: [] }).comments).toEqual([]);
   });
 
-  it.prop([makeCommentListArb()])(
-    "numbers the codes 01..n per prefix in input order",
-    (comments) => {
-      const codes = renderComments({ comments }).comments.map(
-        (comment) => comment.code,
-      );
+  it("numbers the codes 01..n per prefix in input order", () => {
+    fc.assert(
+      fc.property(makeCommentListArb(), (comments) => {
+        const codes = renderComments({ comments }).comments.map(
+          (comment) => comment.code,
+        );
 
-      return (
-        codes.join(",") === makeExpectedCodes(comments).join(",") &&
-        new Set(codes).size === codes.length
-      );
-    },
-  );
+        return (
+          codes.join(",") === makeExpectedCodes(comments).join(",") &&
+          new Set(codes).size === codes.length
+        );
+      }),
+    );
+  });
 
-  it.prop([makeCommentListArb()])(
-    "renders a header followed by exactly one newline",
-    (comments) =>
-      renderComments({ comments }).comments.every((comment) =>
-        HEADER.test(comment.body),
+  it("renders a header followed by exactly one newline", () => {
+    fc.assert(
+      fc.property(makeCommentListArb(), (comments) =>
+        renderComments({ comments }).comments.every((comment) =>
+          HEADER.test(comment.body),
+        ),
       ),
-  );
+    );
+  });
 
   const extrasArb: fc.Arbitrary<Record<string, unknown>> = fc.dictionary(
     fc.string({ minLength: 1 }).filter((key) => key !== "comments"),
     fc.jsonValue(),
   );
 
-  it.prop([makeCommentListArb(), extrasArb])(
-    "passes other top-level keys through and leaves its argument alone",
-    (comments, extras) => {
-      const input = { ...extras, comments };
-      const before = JSON.stringify(input);
+  it("passes other top-level keys through and leaves its argument alone", () => {
+    fc.assert(
+      fc.property(makeCommentListArb(), extrasArb, (comments, extras) => {
+        const input = { ...extras, comments };
+        const before = JSON.stringify(input);
 
-      const rendered = renderComments(input);
-      const passedThrough = Object.entries(extras).every(
-        ([key, value]) =>
-          JSON.stringify(rendered[key]) === JSON.stringify(value),
-      );
+        const rendered = renderComments(input);
+        const passedThrough = Object.entries(extras).every(
+          ([key, value]) =>
+            JSON.stringify(rendered[key]) === JSON.stringify(value),
+        );
 
-      return passedThrough && JSON.stringify(input) === before;
-    },
-  );
+        return passedThrough && JSON.stringify(input) === before;
+      }),
+    );
+  });
 
   const mismatchArb: fc.Arbitrary<InputComment> = fc
     .tuple(
@@ -481,22 +492,28 @@ describe("renderComments", () => {
       fc.constantFrom(...LABELS[other]).map((label) => ({ ...comment, label })),
     );
 
-  it.prop([makeCommentListArb(4), mismatchArb, fc.nat({ max: 4 })])(
-    "rejects a label that belongs to another category, naming its index",
-    (valid, mismatched, offset) => {
-      const index = Math.min(offset, valid.length);
-      const comments = [...valid];
+  it("rejects a label that belongs to another category, naming its index", () => {
+    fc.assert(
+      fc.property(
+        makeCommentListArb(4),
+        mismatchArb,
+        fc.nat({ max: 4 }),
+        (valid, mismatched, offset) => {
+          const index = Math.min(offset, valid.length);
+          const comments = [...valid];
 
-      comments.splice(index, 0, mismatched);
+          comments.splice(index, 0, mismatched);
 
-      const message = getError({ comments });
+          const message = getError({ comments });
 
-      return (
-        message.includes(`comments[${index}]: label `) &&
-        message.includes(mismatched.category)
-      );
-    },
-  );
+          return (
+            message.includes(`comments[${index}]: label `) &&
+            message.includes(mismatched.category)
+          );
+        },
+      ),
+    );
+  });
 });
 
 describe("formatMarkdown", () => {

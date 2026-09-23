@@ -1,9 +1,8 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { it } from "@fast-check/vitest";
 import fc from "fast-check";
-import { describe, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   acceptSkill,
   diffSkill,
@@ -35,18 +34,19 @@ describe("parseSkillArg", () => {
 
   // Property: total over arbitrary input — every string (or undefined) either
   // yields a valid {plugin, name} or throws an Error, never anything else.
-  it.prop([fc.option(fc.string(), { nil: undefined })])(
-    "yields a valid pair or throws an Error",
-    (arg) => {
-      try {
-        const { plugin, name } = parseSkillArg(arg);
+  it("yields a valid pair or throws an Error", () => {
+    fc.assert(
+      fc.property(fc.option(fc.string(), { nil: undefined }), (arg) => {
+        try {
+          const { plugin, name } = parseSkillArg(arg);
 
-        return PLUGINS.includes(plugin) && name.length > 0;
-      } catch (error) {
-        return error instanceof Error;
-      }
-    },
-  );
+          return PLUGINS.includes(plugin) && name.length > 0;
+        } catch (error) {
+          return error instanceof Error;
+        }
+      }),
+    );
+  });
 });
 
 describe("getStatusRows", () => {

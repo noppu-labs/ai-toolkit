@@ -1,9 +1,8 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { it } from "@fast-check/vitest";
 import fc from "fast-check";
-import { describe, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { hashFiles } from "./hashing.ts";
 import { makeGithubEntry } from "./test-helpers.ts";
 import { fetchGhJson, fetchUpstream } from "./upstream.ts";
@@ -99,27 +98,28 @@ describe("fetchUpstream", () => {
 
   // Property: arbitrary (hostile) upstream listings and blob payloads still
   // produce a well-formed snapshot — no crash, valid sha256 digest.
-  it.prop([fc.string({ minLength: 1 }), fc.string()])(
-    "tolerates arbitrary upstream listings and blobs",
-    (name, content) => {
-      const hostileGh = (path: string): unknown => {
-        if (path.includes("/commits/")) {
-          return { sha: "0000000000000000000000000000000000000000" };
-        }
+  it("tolerates arbitrary upstream listings and blobs", () => {
+    fc.assert(
+      fc.property(fc.string({ minLength: 1 }), fc.string(), (name, content) => {
+        const hostileGh = (path: string): unknown => {
+          if (path.includes("/commits/")) {
+            return { sha: "0000000000000000000000000000000000000000" };
+          }
 
-        if (path.includes("/contents/")) {
-          return [{ path: `s/${name}`, sha: "b1", type: "file" }];
-        }
+          if (path.includes("/contents/")) {
+            return [{ path: `s/${name}`, sha: "b1", type: "file" }];
+          }
 
-        return { content };
-      };
+          return { content };
+        };
 
-      const result = fetchUpstream(
-        { ref: "main", skillPath: "s", source: "o/r" },
-        hostileGh,
-      );
+        const result = fetchUpstream(
+          { ref: "main", skillPath: "s", source: "o/r" },
+          hostileGh,
+        );
 
-      return result.files.size === 1 && SHA256_HEX.test(result.hash);
-    },
-  );
+        return result.files.size === 1 && SHA256_HEX.test(result.hash);
+      }),
+    );
+  });
 });

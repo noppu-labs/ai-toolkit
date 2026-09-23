@@ -26,16 +26,23 @@ in a DOM emulation.
 
 Vitest is the only test runner, for both the tooling and the site.
 
-**Property-based tests** via `@fast-check/vitest` sit alongside conventional unit and
-integration tests in `scripts/`. Hashing, lockfile parsing, upstream-coordinate
-validation, and state classification all have properties (round-trips, invariants,
-order-insensitivity) exercised with generated inputs. The run count comes from the
-`FC_NUM_RUNS` environment variable through `scripts/fc-setup.ts`.
+**Property-based tests** sit alongside conventional unit and integration tests in
+`scripts/`, written as `fc.assert(fc.property(...))` inside Vitest's own `it`. Hashing,
+lockfile parsing, upstream-coordinate validation, and state classification all have
+properties (round-trips, invariants, order-insensitivity) exercised with generated inputs.
+The run count comes from the `FC_NUM_RUNS` environment variable through
+`scripts/fc-setup.ts`.
+
+We do not use the `@fast-check/vitest` connector. Its `it` is not Vitest's: every body is a
+property over its `g` generator, so it runs `numRuns` times whether or not it draws a
+value. Under the global fuzz run count, every example test in a file importing it,
+including ones that spawn git or a CLI, ran 50,000 times. The weekly run took over three
+hours and failed on timeouts. With Vitest's `it`, only `fc.assert` repeats anything.
 
 **Tiered fuzzing** keeps PR feedback fast while still going deep. A dedicated `fuzz`
 workflow runs the property suite at 1,000 runs per property on every push and PR, and a
-weekly scheduled job runs the same suite at 50,000 runs. The deep run costs nothing on the
-PR critical path and has the whole night to find something.
+weekly scheduled job runs the same suite at 10,000 runs. The deep run costs nothing on the
+PR critical path.
 
 **Coverage** is collected with the v8 provider and gated at 95% for statements, branches,
 functions, and lines across `scripts/`. The threshold is enforced in the tests workflow,
@@ -62,8 +69,9 @@ organized as one `describe` per exported function.
 ### Negative
 
 - Property tests are slower than example tests, and the fuzz suite needs a raised timeout
-  even at PR run counts. The 50,000-run tier would be unbearable on the PR path, which is
-  why it only runs on a schedule.
+  at high run counts. The deep tier runs on a schedule so it never sits on the PR path.
+- Properties read as `it("…", () => fc.assert(fc.property(...)))` rather than the terser
+  `it.prop([...])`, the price of dropping the connector.
 - A weekly deep-fuzz failure lands on `main` asynchronously, detached from whichever PR
   introduced it. Someone has to notice the red workflow and bisect.
 - The 95% threshold occasionally forces tests for trivial branches, and property tests are
