@@ -4,10 +4,16 @@ import { pathToFileURL } from "node:url";
 
 export const LABELS = {
   correctness: [
+    "Accessibility",
     "Bug",
+    "Convention",
+    "Dead code",
+    "Duplication",
+    "Edge case",
     "Error handling",
     "Missing test",
     "Performance",
+    "Question",
     "Security",
     "Separation of concerns",
     "Validation",
@@ -39,6 +45,12 @@ const EMOJI = {
   Security: "🔴",
   "Separation of concerns": "🟠",
   Validation: "🟠",
+  Accessibility: "🟠",
+  Convention: "🟡",
+  "Dead code": "🟡",
+  Duplication: "🟡",
+  "Edge case": "🟡",
+  Question: "⚪",
   "Duplicate type": "🟡",
   "Missing sanity check": "🟡",
   "Mixed on a boundary": "🟠",
@@ -51,6 +63,11 @@ const EMOJI = {
   Unsure: "⚪",
   Wrong: "🔴",
 };
+
+export const VERDICTS = ["approve", "comment", "request_changes"];
+
+// 🔴 and 🟠 block in every category; the label decides, the category does not.
+const BLOCKING = new Set(["🔴", "🟠"]);
 
 // Vocabulary a model leaks from the stage reports into the head of a body:
 // its own header, a rule id, an audit verdict, or the pass that found it.
@@ -151,6 +168,45 @@ function findProblems(comment, index) {
   return problems.map((problem) => `${name}: ${problem}`);
 }
 
+/**
+ * Checks the verdict against the severities present. Runs only once every
+ * label is known to be valid, so `EMOJI[comment.label]` always resolves. An
+ * absent or null verdict is allowed: the skill is also run over pasted findings.
+ */
+function findVerdictProblems(verdict, comments) {
+  if (verdict === undefined || verdict === null) {
+    return [];
+  }
+
+  if (!VERDICTS.includes(verdict)) {
+    return [`verdict must be one of ${VERDICTS.join(", ")}`];
+  }
+
+  const blockingIndex = comments.findIndex((comment) =>
+    BLOCKING.has(EMOJI[comment.label]),
+  );
+
+  if (verdict === "approve" && comments.length > 0) {
+    return ["verdict approve requires an empty comment list"];
+  }
+
+  if (verdict === "comment" && blockingIndex !== -1) {
+    const { label } = comments[blockingIndex];
+
+    return [
+      `verdict comment does not fit comments[${blockingIndex}] (${label}, ${EMOJI[label]}); use request_changes`,
+    ];
+  }
+
+  if (verdict === "request_changes" && blockingIndex === -1) {
+    return [
+      "verdict request_changes needs at least one 🔴 or 🟠 comment; use comment",
+    ];
+  }
+
+  return [];
+}
+
 function getComments(input) {
   if (
     input === null ||
@@ -194,6 +250,12 @@ export function renderComments(input) {
 
   if (problems.length > 0) {
     throw new Error(problems.join("\n"));
+  }
+
+  const verdictProblems = findVerdictProblems(input.verdict, comments);
+
+  if (verdictProblems.length > 0) {
+    throw new Error(verdictProblems.join("\n"));
   }
 
   const counters = new Map();

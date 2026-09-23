@@ -37,7 +37,7 @@ Order: correctness, then type safety, then comments, each in the order the repor
 
 ## Step 2: classify
 
-Each entry gets a `category`, the stage it came from (`correctness`, `typeSafety`, `comments`), and a `label` copied verbatim from that category's list in the taxonomy. Translate the stage's own identifiers with the taxonomy's tables: `PHP-2` becomes `Unstructured array`, a `DELETE` verdict becomes `Delete`. Pick the closest label; never invent one. When two fit, take the more severe.
+Each entry gets a `category`, the stage it came from (`correctness`, `typeSafety`, `comments`), and a `label` copied verbatim from that category's list in the taxonomy. Translate the stage's own identifiers with the taxonomy's tables: `PHP-2` becomes `Unstructured array`, a `DELETE` verdict becomes `Delete`. Pick the closest label; never invent one. When two fit, take the more severe. For correctness findings the outcome clause at the end of the finding (crash, wrong data shown, wrong data persisted, harmless, question) separates Bug from Edge case and Question, and a finding without one that could be either takes Bug. Dead code, Duplication, and Convention turn on a fact the claim states instead (no caller, a second copy, no behaviour effect), so they apply to a finding with no outcome clause too; the taxonomy's correctness section settles those pairs.
 
 ## Step 3: write the body
 
@@ -55,8 +55,8 @@ One body from the report's entry, not the report's entry quoted and then paraphr
 
 Verdict:
 
-- `request_changes` when any correctness finding survives.
-- `comment` when only type safety or comment findings survive.
+- `request_changes` when any 🔴 or 🟠 comment survives, in any category.
+- `comment` when comments survive and every one is 🟡 or ⚪, or when nothing survives but a stage did not report.
 - `approve` when nothing survives and every stage reported. A stage missing from the report is never treated as clean.
 
 Summary: two to four sentences on what the review found in the author's code, in the same voice as the bodies. No greeting, no praise, no sign-off.
@@ -92,7 +92,7 @@ Then run:
 node ${CLAUDE_PLUGIN_ROOT}/skills/pr-comments/scripts/render-comments.mjs --format markdown < findings.json
 ```
 
-The script rejects a label that is not in its category, a missing anchor, or an empty body, naming the comment by index. Fix the entry and run it again. It assigns the codes, grades the severity from the label, strips any reviewer vocabulary a body still starts with, and puts the header on its own line above the body. Its output is the result; do not write codes, emoji, or headers by hand, and do not reorder or edit what it prints.
+The script rejects a label that is not in its category, a missing anchor, or an empty body, naming the comment by index. It also rejects a verdict that disagrees with the severities present: `comment` beside a 🔴 or 🟠, `request_changes` with none, or `approve` with any comment at all. Fix the entry and run it again. It assigns the codes, grades the severity from the label, strips any reviewer vocabulary a body still starts with, and puts the header on its own line above the body. Its output is the result; do not write codes, emoji, or headers by hand, and do not reorder or edit what it prints.
 
 ## Output
 
@@ -121,6 +121,7 @@ With `format=json`, the script's JSON instead. With `out=`, the same content wri
 | Mistake | Fix |
 | --- | --- |
 | Severity chosen by how bad the finding feels | Pick the label. The severity is the label's. |
+| `request_changes` written because the category is correctness, or `comment` because it is not | The verdict follows the severities: 🔴 and 🟠 block in every category, 🟡 and ⚪ never do. |
 | Comments grouped under severity or stage headings | One block per finding, in stage order, each standing alone. |
 | The report entry quoted, then explained underneath | One body: problem, fix, code. |
 | A `KEEP` with no proposed change listed as "no action needed" | Dropped. |

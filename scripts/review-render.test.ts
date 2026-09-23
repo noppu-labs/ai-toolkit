@@ -20,6 +20,7 @@ type RenderedInput = Record<string, unknown> & { comments: RenderedComment[] };
 
 type RenderModule = {
   LABELS: Record<Category, string[]>;
+  VERDICTS: string[];
   formatMarkdown: (rendered: RenderedInput) => string;
   renderComments: (input: unknown) => RenderedInput;
   scrubBody: (body: string) => string;
@@ -138,10 +139,16 @@ describe("LABELS", () => {
   it("exposes the label vocabulary of each category", () => {
     expect(LABELS).toEqual({
       correctness: [
+        "Accessibility",
         "Bug",
+        "Convention",
+        "Dead code",
+        "Duplication",
+        "Edge case",
         "Error handling",
         "Missing test",
         "Performance",
+        "Question",
         "Security",
         "Separation of concerns",
         "Validation",
@@ -312,6 +319,12 @@ describe("renderComments", () => {
     { category: "correctness", label: "Bug", emoji: "🔴" },
     { category: "correctness", label: "Security", emoji: "🔴" },
     { category: "correctness", label: "Error handling", emoji: "🟠" },
+    { category: "correctness", label: "Accessibility", emoji: "🟠" },
+    { category: "correctness", label: "Edge case", emoji: "🟡" },
+    { category: "correctness", label: "Dead code", emoji: "🟡" },
+    { category: "correctness", label: "Duplication", emoji: "🟡" },
+    { category: "correctness", label: "Convention", emoji: "🟡" },
+    { category: "correctness", label: "Question", emoji: "⚪" },
     { category: "typeSafety", label: "Mixed on a boundary", emoji: "🟠" },
     { category: "typeSafety", label: "Duplicate type", emoji: "🟡" },
     { category: "comments", label: "Wrong", emoji: "🔴" },
@@ -420,6 +433,16 @@ describe("renderComments", () => {
     );
   });
 
+  it("rejects a new correctness label used under another category", () => {
+    const message = getError({
+      comments: [{ ...makeComment(), category: "comments", label: "Question" }],
+    });
+
+    expect(message).toBe(
+      'comments[0]: label "Question" is not one of comments: Delete, Move, Trim, Unsure, Wrong',
+    );
+  });
+
   it("rejects a comment that is not an object", () => {
     expect(getError({ comments: ["nope"] })).toBe(
       "comments[0]: must be an object",
@@ -516,6 +539,119 @@ describe("renderComments", () => {
   });
 });
 
+describe("verdict validation", () => {
+  const blocking: InputComment = makeComment({ label: "Bug" });
+  const deferrable: InputComment = makeComment({
+    category: "correctness",
+    label: "Edge case",
+  });
+
+  function acceptedVerdicts(comments: InputComment[]): string[] {
+    if (comments.length === 0) {
+      return ["approve", "comment"];
+    }
+
+    const rendered = renderComments({ comments });
+    const hasBlocking = rendered.comments.some(
+      (comment) =>
+        comment.body.startsWith("🔴") || comment.body.startsWith("🟠"),
+    );
+
+    return hasBlocking ? ["request_changes"] : ["comment"];
+  }
+
+  it("exposes the three verdicts", () => {
+    expect(mod.VERDICTS).toEqual(["approve", "comment", "request_changes"]);
+  });
+
+  it("accepts an absent verdict", () => {
+    expect(renderComments({ comments: [blocking] }).verdict).toBeUndefined();
+  });
+
+  it("treats a null verdict as absent", () => {
+    const rendered = renderComments({ verdict: null, comments: [blocking] });
+
+    expect(rendered.verdict).toBeNull();
+    expect(formatMarkdown(rendered)).not.toContain("Verdict:");
+  });
+
+  it("rejects a verdict outside the vocabulary, including other spellings", () => {
+    for (const verdict of [
+      "REQUEST_CHANGES",
+      "request-changes",
+      "approved",
+      "",
+    ]) {
+      expect(getError({ verdict, comments: [blocking] })).toBe(
+        "verdict must be one of approve, comment, request_changes",
+      );
+    }
+  });
+
+  it("rejects approve when any comment survives", () => {
+    expect(getError({ verdict: "approve", comments: [deferrable] })).toBe(
+      "verdict approve requires an empty comment list",
+    );
+  });
+
+  it("accepts approve and comment over an empty list", () => {
+    expect(renderComments({ verdict: "approve", comments: [] }).verdict).toBe(
+      "approve",
+    );
+    expect(renderComments({ verdict: "comment", comments: [] }).verdict).toBe(
+      "comment",
+    );
+  });
+
+  it("rejects comment when a 🔴 or 🟠 label is present, naming the first one", () => {
+    expect(
+      getError({ verdict: "comment", comments: [deferrable, blocking] }),
+    ).toBe(
+      "verdict comment does not fit comments[1] (Bug, 🔴); use request_changes",
+    );
+  });
+
+  it("rejects request_changes when no 🔴 or 🟠 label is present", () => {
+    expect(
+      getError({ verdict: "request_changes", comments: [deferrable] }),
+    ).toBe(
+      "verdict request_changes needs at least one 🔴 or 🟠 comment; use comment",
+    );
+    expect(getError({ verdict: "request_changes", comments: [] })).toBe(
+      "verdict request_changes needs at least one 🔴 or 🟠 comment; use comment",
+    );
+  });
+
+  it("reports label problems before verdict problems", () => {
+    const message = getError({
+      verdict: "approve",
+      comments: [{ ...makeComment(), label: "Nit" }],
+    });
+
+    expect(message.startsWith("comments[0]: label ")).toBe(true);
+    expect(message).not.toContain("verdict");
+  });
+
+  it("accepts exactly the verdicts the severities allow", () => {
+    fc.assert(
+      fc.property(makeCommentListArb(), (comments) => {
+        const accepted = acceptedVerdicts(comments);
+
+        for (const verdict of [...mod.VERDICTS, undefined, null]) {
+          const run = (): RenderedInput =>
+            renderComments({ verdict, comments });
+
+          if (verdict == null || accepted.includes(verdict)) {
+            expect(run).not.toThrow();
+          } else {
+            expect(run).toThrow();
+          }
+        }
+      }),
+    );
+  });
+});
+
 describe("formatMarkdown", () => {
   const rendered: RenderedInput = renderComments({
     verdict: "request_changes",
@@ -581,7 +717,7 @@ describe("formatMarkdown", () => {
 
 describe("render-comments.mjs", () => {
   const payload = JSON.stringify({
-    verdict: "comment",
+    verdict: "request_changes",
     summary: "One finding.",
     comments: [makeComment({ body: "PHP-2: The array has a fixed key set." })],
   });
@@ -591,7 +727,7 @@ describe("render-comments.mjs", () => {
 
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
-      verdict: "comment",
+      verdict: "request_changes",
       summary: "One finding.",
       comments: [
         {
@@ -620,7 +756,7 @@ describe("render-comments.mjs", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toBe(
       [
-        "Verdict: comment",
+        "Verdict: request_changes",
         "",
         "One finding.",
         "",
