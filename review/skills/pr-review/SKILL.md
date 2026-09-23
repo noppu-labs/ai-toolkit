@@ -108,8 +108,10 @@ running the project's tests or linters; record what you ran.
 End every finding with its outcome, one of: crash, wrong data shown, wrong data
 persisted, harmless, question. Harmless means no crash, no wrong data shown or
 persisted, and an effect that clears on retry or reload. Question means the diff
-could not settle the claim and you are asking the author. The outcome decides the
-label the author sees, and a finding without one is graded as the worst case.
+could not settle the claim and you are asking the author. The outcome separates a
+bug from a harmless edge case or a question, and a finding without one is graded as
+a bug. A finding about structure rather than behaviour (dead code, duplication,
+layering, a convention) ends with harmless.
 
 Skills that run in a background subagent, `code-review` among them, deliver their
 result to the session that spawned you, not to you. The orchestrator runs

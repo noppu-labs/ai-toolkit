@@ -37,7 +37,7 @@ Order: correctness, then type safety, then comments, each in the order the repor
 
 ## Step 2: classify
 
-Each entry gets a `category`, the stage it came from (`correctness`, `typeSafety`, `comments`), and a `label` copied verbatim from that category's list in the taxonomy. Translate the stage's own identifiers with the taxonomy's tables: `PHP-2` becomes `Unstructured array`, a `DELETE` verdict becomes `Delete`. Pick the closest label; never invent one. When two fit, take the more severe. For correctness findings the outcome clause at the end of the finding (crash, wrong data shown, wrong data persisted, harmless, question) is what separates Bug from Edge case and Separation of concerns from Dead code or Duplication; a finding without one takes the more severe label.
+Each entry gets a `category`, the stage it came from (`correctness`, `typeSafety`, `comments`), and a `label` copied verbatim from that category's list in the taxonomy. Translate the stage's own identifiers with the taxonomy's tables: `PHP-2` becomes `Unstructured array`, a `DELETE` verdict becomes `Delete`. Pick the closest label; never invent one. When two fit, take the more severe. For correctness findings the outcome clause at the end of the finding (crash, wrong data shown, wrong data persisted, harmless, question) separates Bug from Edge case and Question, and a finding without one that could be either takes Bug. Dead code, Duplication, and Convention turn on a fact the claim states instead (no caller, a second copy, no behaviour effect), so they apply to a finding with no outcome clause too; the taxonomy's correctness section settles those pairs.
 
 ## Step 3: write the body
 
