@@ -105,6 +105,12 @@ Review by hand: read the diff and the changed files, and look for behaviour chan
 error handling, boundary conditions, and missing tests. Validate any claim you can by
 running the project's tests or linters; record what you ran.
 
+End every finding with its outcome, one of: crash, wrong data shown, wrong data
+persisted, harmless, question. Harmless means no crash, no wrong data shown or
+persisted, and an effect that clears on retry or reload. Question means the diff
+could not settle the claim and you are asking the author. The outcome decides the
+label the author sees, and a finding without one is graded as the worst case.
+
 Skills that run in a background subagent, `code-review` among them, deliver their
 result to the session that spawned you, not to you. The orchestrator runs
 `code-review` itself as a separate pass, so your findings are your own reading of
@@ -114,7 +120,7 @@ Return exactly these three sections and nothing else:
 
 ## Findings
 One entry per finding, each starting with `path:line` on the HEAD side, then the
-claim in one or two sentences. No finding without a `path:line`.
+claim in one or two sentences, then the outcome. No finding without a `path:line`.
 
 ## Validated
 Every check you ran, with the command and its result.
@@ -216,7 +222,7 @@ One report, written by the orchestrator from the subagent responses. It is the w
 Rules for the body:
 
 - One section per PR, in the merge order given as input, holding the three stage sections.
-- Every finding keeps its `path:line` from the HEAD side, so it can be pasted as a PR review comment.
+- Every finding keeps its `path:line` from the HEAD side, so it can be pasted as a PR review comment, and keeps its outcome clause, which decides its label downstream.
 - A finding two stages both reported appears once, under the stage that ruled on it most precisely, labelled with both stage names.
 - `### Correctness` merges the two passes. A finding both passes reported appears once, labelled `both passes`. A finding one pass reported keeps its label, `code-review only` or `hand review only`, so the reader knows how much weight it carries. Where the passes disagree, both claims are listed under the finding; the orchestrator does not pick a side, since it has not read the diff.
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
