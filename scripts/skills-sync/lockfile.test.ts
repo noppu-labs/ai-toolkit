@@ -1,6 +1,6 @@
-import { it } from "@fast-check/vitest";
 import fc from "fast-check";
 import { describe, expect } from "vitest";
+import { it } from "../fc-it.ts";
 import { classify, parseLock, readLock, writeLock } from "./lockfile.ts";
 import { makeRoot } from "./test-helpers.ts";
 import type { SyncState } from "./types.ts";

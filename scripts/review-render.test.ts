@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { it } from "@fast-check/vitest";
 import fc from "fast-check";
 import { describe, expect } from "vitest";
+import { it } from "./fc-it.ts";
 
 type Category = "correctness" | "typeSafety" | "comments";
 

@@ -1,8 +1,8 @@
 import { symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { it } from "@fast-check/vitest";
 import fc from "fast-check";
 import { describe, expect } from "vitest";
+import { it } from "../fc-it.ts";
 import { hashDirectory, hashFiles, listFiles, sha256 } from "./hashing.ts";
 import { addSkill, makeRoot } from "./test-helpers.ts";
 

@@ -1,9 +1,9 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { it } from "@fast-check/vitest";
 import fc from "fast-check";
 import { describe, expect } from "vitest";
+import { it } from "../fc-it.ts";
 import { hashFiles } from "./hashing.ts";
 import { makeGithubEntry } from "./test-helpers.ts";
 import { fetchGhJson, fetchUpstream } from "./upstream.ts";
