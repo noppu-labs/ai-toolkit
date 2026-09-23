@@ -1,4 +1,4 @@
-import { fc, test } from "@fast-check/vitest";
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { parseFrontmatter } from "./frontmatter.ts";
 
@@ -56,14 +56,18 @@ describe("parseFrontmatter", () => {
     ).toThrow(/c\/SKILL\.md/);
   });
 
-  test.prop([fc.dictionary(KEY_ARB, VALUE_ARB, { minKeys: 1, maxKeys: 5 })])(
-    "round-trips serialized fields",
-    (fields) => {
-      const lines = Object.entries(fields).map(
-        ([key, value]) => `${key}: ${value}`,
-      );
-      const doc = `---\n${lines.join("\n")}\n---\nbody text\n`;
-      expect(parseFrontmatter(doc, "prop/SKILL.md")).toEqual(fields);
-    },
-  );
+  it("round-trips serialized fields", () => {
+    fc.assert(
+      fc.property(
+        fc.dictionary(KEY_ARB, VALUE_ARB, { minKeys: 1, maxKeys: 5 }),
+        (fields) => {
+          const lines = Object.entries(fields).map(
+            ([key, value]) => `${key}: ${value}`,
+          );
+          const doc = `---\n${lines.join("\n")}\n---\nbody text\n`;
+          expect(parseFrontmatter(doc, "prop/SKILL.md")).toEqual(fields);
+        },
+      ),
+    );
+  });
 });

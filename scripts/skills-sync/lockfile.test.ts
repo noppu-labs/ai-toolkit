@@ -1,6 +1,5 @@
 import fc from "fast-check";
-import { describe, expect } from "vitest";
-import { it } from "../fc-it.ts";
+import { describe, expect, it } from "vitest";
 import { classify, parseLock, readLock, writeLock } from "./lockfile.ts";
 import { makeRoot } from "./test-helpers.ts";
 import type { SyncState } from "./types.ts";
@@ -18,26 +17,31 @@ const maybeString = fc.option(fc.string(), { nil: undefined });
 describe("parseLock", () => {
   // Property: parseLock never crashes with anything other than a SyntaxError
   // on arbitrary bytes (JSON.parse's own failure mode) — never TypeError/etc.
-  it.prop([fc.string()])(
-    "only ever throws SyntaxError on arbitrary input",
-    (text) => {
-      try {
-        parseLock(text);
+  it("only ever throws SyntaxError on arbitrary input", () => {
+    fc.assert(
+      fc.property(fc.string(), (text) => {
+        try {
+          parseLock(text);
 
-        return true;
-      } catch (error) {
-        return error instanceof SyntaxError;
-      }
-    },
-  );
+          return true;
+        } catch (error) {
+          return error instanceof SyntaxError;
+        }
+      }),
+    );
+  });
 
   // Property: any object serialized as JSON parses back to a deep-equal value.
-  it.prop([fc.jsonValue()])(
-    "round-trips JSON-serialized values",
-    (value) =>
-      JSON.stringify(parseLock(JSON.stringify(value))) ===
-      JSON.stringify(value),
-  );
+  it("round-trips JSON-serialized values", () => {
+    fc.assert(
+      fc.property(
+        fc.jsonValue(),
+        (value) =>
+          JSON.stringify(parseLock(JSON.stringify(value))) ===
+          JSON.stringify(value),
+      ),
+    );
+  });
 });
 
 describe("writeLock", () => {
@@ -69,20 +73,22 @@ describe("classify", () => {
 
   // Property: total over arbitrary lock entries — always one of the five
   // known states, never a crash or an out-of-domain value.
-  it.prop([
-    fc.record(
-      {
-        sourceType: fc.string(),
-        upstreamHash: maybeString,
-        vendoredHash: maybeString,
-      },
-      { requiredKeys: [] },
-    ),
-    maybeString,
-    maybeString,
-  ])(
-    "returns a known status for arbitrary lock entries",
-    (entry, vendoredNow, upstreamNow) =>
-      STATUSES.includes(classify(entry, vendoredNow, upstreamNow)),
-  );
+  it("returns a known status for arbitrary lock entries", () => {
+    fc.assert(
+      fc.property(
+        fc.record(
+          {
+            sourceType: fc.string(),
+            upstreamHash: maybeString,
+            vendoredHash: maybeString,
+          },
+          { requiredKeys: [] },
+        ),
+        maybeString,
+        maybeString,
+        (entry, vendoredNow, upstreamNow) =>
+          STATUSES.includes(classify(entry, vendoredNow, upstreamNow)),
+      ),
+    );
+  });
 });
