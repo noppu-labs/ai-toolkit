@@ -8,11 +8,17 @@ Every comment carries one `category` (the stage that found it) and one `label` f
 | --- | --- | --- | --- |
 | `correctness` | `COR` | Bug | 🔴 |
 | `correctness` | `COR` | Security | 🔴 |
+| `correctness` | `COR` | Accessibility | 🟠 |
 | `correctness` | `COR` | Error handling | 🟠 |
 | `correctness` | `COR` | Missing test | 🟠 |
 | `correctness` | `COR` | Performance | 🟠 |
 | `correctness` | `COR` | Separation of concerns | 🟠 |
 | `correctness` | `COR` | Validation | 🟠 |
+| `correctness` | `COR` | Convention | 🟡 |
+| `correctness` | `COR` | Dead code | 🟡 |
+| `correctness` | `COR` | Duplication | 🟡 |
+| `correctness` | `COR` | Edge case | 🟡 |
+| `correctness` | `COR` | Question | ⚪ |
 | `typeSafety` | `TPS` | Mixed on a boundary | 🟠 |
 | `typeSafety` | `TPS` | Unchecked cast | 🟠 |
 | `typeSafety` | `TPS` | Unstructured array | 🟠 |
@@ -27,14 +33,14 @@ Every comment carries one `category` (the stage that found it) and one `label` f
 
 Severity meaning:
 
-| Emoji | Meaning |
-| --- | --- |
-| 🔴 | Must fix before merge: a defect, a hole, or a comment that lies. |
-| 🟠 | Should fix in this PR: a real weakness with a concrete fix. |
-| 🟡 | Worth fixing; the author may defer with a reason. |
-| ⚪ | A question, not a claim. Needs the author's answer. |
+| Emoji | Meaning | Verdict |
+| --- | --- | --- |
+| 🔴 | Must fix before merge: a defect, a hole, or a comment that lies. | Blocks |
+| 🟠 | Should fix in this PR: a real weakness with a concrete fix. | Blocks |
+| 🟡 | Worth fixing; the author may defer with a reason. | Does not block |
+| ⚪ | A question, not a claim. Needs the author's answer. | Does not block |
 
-The emoji comes from the label alone. Do not grade severity by judgement; pick the label, and the severity follows.
+The emoji comes from the label alone. Do not grade severity by judgement; pick the label, and the severity follows. The verdict follows the severities present, in every category: `request_changes` while any 🔴 or 🟠 survives, `comment` when only 🟡 and ⚪ survive, `approve` when nothing survives and every stage reported.
 
 ## Translating stage vocabulary
 
@@ -71,16 +77,22 @@ When the rule id and the finding's text disagree, the text wins: read what the r
 
 ### Correctness findings
 
-Correctness findings carry no identifier, only a pass label (`both passes`, `code-review only`, `hand review only`) that must not reach the author. Pick the label from the claim:
+Correctness findings carry no identifier, only a pass label (`both passes`, `code-review only`, `hand review only`) that must not reach the author. Each finding from the hand-review pass ends with an outcome clause: crash, wrong data shown, wrong data persisted, harmless, or question. Pick the label from the claim and the outcome:
 
 | The finding says | Label |
 | --- | --- |
-| Wrong result, crash, unhandled edge case, wrong condition | Bug |
+| Wrong result, crash, wrong data shown or persisted, wrong condition, on input the code is meant to handle | Bug |
 | Missing authorization, injection, secret exposure, timing attack, unsafe deserialization | Security |
+| A named WCAG criterion or the project's accessibility rule broken: accessible name, role, live region, contrast, focus order | Accessibility |
 | Exception escapes, swallowed error, wrong catch scope, missing rollback | Error handling |
 | A path with no test, an assertion that cannot fail | Missing test |
 | N+1, unbounded query, work inside a loop that belongs outside it | Performance |
-| Business logic in a controller or view, data access leaking across layers, a class doing two jobs | Separation of concerns |
+| Business logic in a controller or view, data access leaking across layers, a class doing two jobs, a dependency pointing the wrong way | Separation of concerns |
 | Input reaches logic unchecked, a request field with no rule | Validation |
+| A project rule or house style broken with no behaviour effect: naming, file layout, test structure, complexity budget | Convention |
+| Code with no production caller, a branch that cannot execute, a loop or guard with no effect | Dead code |
+| The same rule, predicate, or constant written in more than one place with nothing keeping them equal. Duplicate types go to type safety as Duplicate type | Duplication |
+| Behaviour differs on unusual input (empty, malformed, hand-edited, out of order) and the outcome is harmless: no crash, no wrong data shown or persisted, clears on retry or reload | Edge case |
+| The reviewer asks the author something the diff could not settle, and claims no defect | Question |
 
-A finding two labels fit takes the more severe one.
+A finding two labels fit takes the more severe one. The outcome clause is what keeps the pairs apart: a crash on empty input is a Bug, not an Edge case; a public method with no caller that is still reachable from a route is Separation of concerns, not Dead code; a rule broken in a way that changes behaviour is whatever that behaviour is, not Convention. A finding with no outcome clause, which is every finding from the `code-review` pass, takes the more severe label.

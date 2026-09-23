@@ -138,10 +138,16 @@ describe("LABELS", () => {
   it("exposes the label vocabulary of each category", () => {
     expect(LABELS).toEqual({
       correctness: [
+        "Accessibility",
         "Bug",
+        "Convention",
+        "Dead code",
+        "Duplication",
+        "Edge case",
         "Error handling",
         "Missing test",
         "Performance",
+        "Question",
         "Security",
         "Separation of concerns",
         "Validation",
@@ -312,6 +318,12 @@ describe("renderComments", () => {
     { category: "correctness", label: "Bug", emoji: "🔴" },
     { category: "correctness", label: "Security", emoji: "🔴" },
     { category: "correctness", label: "Error handling", emoji: "🟠" },
+    { category: "correctness", label: "Accessibility", emoji: "🟠" },
+    { category: "correctness", label: "Edge case", emoji: "🟡" },
+    { category: "correctness", label: "Dead code", emoji: "🟡" },
+    { category: "correctness", label: "Duplication", emoji: "🟡" },
+    { category: "correctness", label: "Convention", emoji: "🟡" },
+    { category: "correctness", label: "Question", emoji: "⚪" },
     { category: "typeSafety", label: "Mixed on a boundary", emoji: "🟠" },
     { category: "typeSafety", label: "Duplicate type", emoji: "🟡" },
     { category: "comments", label: "Wrong", emoji: "🔴" },
@@ -417,6 +429,16 @@ describe("renderComments", () => {
 
     expect(message).toBe(
       "comments[0]: category must be one of correctness, typeSafety, comments",
+    );
+  });
+
+  it("rejects a new correctness label used under another category", () => {
+    const message = getError({
+      comments: [{ ...makeComment(), category: "comments", label: "Question" }],
+    });
+
+    expect(message).toBe(
+      'comments[0]: label "Question" is not one of comments: Delete, Move, Trim, Unsure, Wrong',
     );
   });
 
