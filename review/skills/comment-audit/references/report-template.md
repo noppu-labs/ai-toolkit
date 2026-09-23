@@ -10,9 +10,11 @@ Added comment lines: N. Estimated after applying this audit: M.
 - DELETE n, TRIM n, MOVE n, KEEP n, UNSURE n, WRONG n
 - The three or four findings that matter most, one line each.
 
-## Proposed README sections
+## Proposed docs
 
-For each: title, new or addition to an existing section, the sites it replaces (`path:line`), and the full proposed text. A mermaid diagram where it replaces paragraphs (flows, hierarchies, pipelines).
+For each: the target (README section or topic file beside it, new or addition to existing), one sentence on why it goes there, the sites it replaces (`path:line`), and the full proposed text. A mermaid diagram where it replaces paragraphs (flows, hierarchies, pipelines). For a topic file, the README index line, `- [Title](topic.md): read when <situation>.`, or "already indexed".
+
+Any README section that should move out to a topic file.
 
 ## Findings by file
 
@@ -21,7 +23,7 @@ For each: title, new or addition to an existing section, the sites it replaces (
 - **L123, DELETE**: "<comment, one line>". Reason.
 - **L140, TRIM**: "<comment>". Reason. Proposed:
   > proposed text
-- **L160, MOVE** to README "<section>". Pointer: `See README.md, "<section>".`
+- **L160, MOVE** to `<topic>.md` or README "<section>". Pointer: `See <topic>.md.` or `See README.md, "<section>".`
 - **L170, KEEP**: "<comment>".
 - **L180, UNSURE**: "<comment>". What needs checking, and where.
 - **L190, WRONG**: "<comment>". What the code actually does.

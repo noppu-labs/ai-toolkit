@@ -171,7 +171,7 @@ file. Read that file and return its summary and findings in the shape below.
 That skill's step 0 asks for `readme=` when a MOVE verdict needs one, and for a
 `base=` it cannot resolve. You have no one to ask. Both are already given above
 except `readme=`, so if it asks for that, record the miss under `## Skipped`, take
-the proposed section it writes without a path, and carry on with the rest of the
+the proposed text it writes without a path, and carry on with the rest of the
 audit rather than stopping.
 
 Return exactly these three sections and nothing else:

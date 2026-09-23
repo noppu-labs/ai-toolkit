@@ -21,7 +21,7 @@ Comment syntax (`//` versus `/* */`, docblock markers) is the consuming project'
 - GraphQL schema descriptions, inside `"""`
 - Storybook story names
 - Pest and Vitest test names
-- Markdown READMEs
+- Markdown READMEs and the topic files they index. The README holds what every reader of the directory needs; narrower or longer rationale goes in a topic file beside it, with one README line saying when to read it.
 
 ## Style
 
