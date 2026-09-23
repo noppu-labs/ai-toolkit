@@ -96,3 +96,23 @@ Correctness findings carry no identifier, only a pass label (`both passes`, `cod
 | The reviewer asks the author something the diff could not settle, and claims no defect | Question |
 
 A finding two labels fit takes the more severe one, unless a sentence below settles the pair. The outcome clause separates Bug from Edge case and Question: a crash on empty input is a Bug, not an Edge case, and a finding with no outcome clause, which is every finding from the `code-review` pass, takes Bug over either. The other softer labels turn on a fact the claim states, not on the outcome, so they apply with or without an outcome clause: a method nothing calls directly but a route dispatches to is Separation of concerns, not Dead code, while code nothing calls is Dead code even when it also sits in the wrong layer; a rule broken in a way that changes behaviour is whatever that behaviour is, not Convention. Pick from what the finding says is wrong, not from what its suggested fix would also improve: a broken complexity budget or a copied rule whose fix would also split two jobs or move logic out of a controller stays Convention or Duplication.
+
+#### Examples
+
+Paraphrased from real findings, one per pair the rows above keep apart. The right-hand column names the fact that decided the label.
+
+| The finding says | Label | Because |
+| --- | --- | --- |
+| The page sorts the list newest first, but the server reads the same list unsorted for the dashboard's "latest report", so on a journey with two reports the two can disagree. Outcome: wrong data shown. | Bug | Wrong data on input the code is meant to handle. |
+| A URL carrying `?category=` reaches the effect, which returns early, so the bare parameter stays in the address bar. A reload reads it as "no category" again. Outcome: harmless. | Edge case | Hand-edited input, and the effect clears on reload. |
+| `readCategory()` returns `null` for an empty string and the caller dereferences the result. Outcome: crash. | Bug | Unusual input, but the outcome is a crash, so the harmless condition fails. |
+| The link's visible text is "View results", but `aria-label` replaces the accessible name with a string that does not contain those words, failing WCAG 2.5.3. | Accessibility | A named WCAG criterion. Not a Bug: the data and the flow are right. |
+| `/results` renders a page component that does not exist on this branch. Harmless if the stack merges atomically. Worth confirming that is the plan. Outcome: question. | Question | The reviewer asks and claims no defect. The same text with no outcome clause is a Bug. |
+| `Cache::forget($key)` in this loop can never evict anything: the key is never written, because every reader passes `ttl: 0`. | Dead code | A loop with no effect. Not a Bug: nothing anyone sees changes. |
+| `fromReport()` has no production caller. Its only references are its own test and the generated types. It also sits in a different service from the DTO it is built from. | Dead code | Nothing calls it. The wrong layer would make it Separation of concerns only if something did. |
+| The same `report_if(...)` predicate appears verbatim at three call sites, so a fourth exception type gets reported by all of them without anyone deciding. | Duplication | One rule written three times. The fix, a method on the exception, would also move logic, but the label follows what is wrong, not the fix. |
+| The controller builds `productName` with a display-name helper, when the thin-controller rule allows one service call and the DTO should carry the name. | Separation of concerns | Business logic in a controller that a route calls. |
+| The shell's navigation hook imports a predicate from a page module. The sibling hook takes its equivalent from `lib/`. | Separation of concerns | A dependency pointing the wrong way, in code something calls. |
+| The test file covers two exports and only one gets a `describe`; the project's testing rule asks for one per function under test. | Convention | Test structure, no behaviour effect. |
+| The component scores 51.6 against the complexity cap of 52, so the next few lines added here trip the gate. | Convention | A complexity budget. The fix would split the component, but the finding names the budget, not two jobs. |
+| The export was renamed to `findLatestFile` but the file is still `newestFile.ts`, so every importer reads the new name from the old path. | Convention | Naming, no behaviour effect. |
