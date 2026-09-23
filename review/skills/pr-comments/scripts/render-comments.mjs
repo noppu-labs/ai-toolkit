@@ -171,10 +171,10 @@ function findProblems(comment, index) {
 /**
  * Checks the verdict against the severities present. Runs only once every
  * label is known to be valid, so `EMOJI[comment.label]` always resolves. An
- * absent verdict is allowed: the skill is also run over pasted findings.
+ * absent or null verdict is allowed: the skill is also run over pasted findings.
  */
 function findVerdictProblems(verdict, comments) {
-  if (verdict === undefined) {
+  if (verdict === undefined || verdict === null) {
     return [];
   }
 

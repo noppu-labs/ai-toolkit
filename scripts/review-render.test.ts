@@ -568,6 +568,13 @@ describe("verdict validation", () => {
     expect(renderComments({ comments: [blocking] }).verdict).toBeUndefined();
   });
 
+  it("treats a null verdict as absent", () => {
+    const rendered = renderComments({ verdict: null, comments: [blocking] });
+
+    expect(rendered.verdict).toBeNull();
+    expect(formatMarkdown(rendered)).not.toContain("Verdict:");
+  });
+
   it("rejects a verdict outside the vocabulary, including other spellings", () => {
     for (const verdict of [
       "REQUEST_CHANGES",
@@ -630,11 +637,11 @@ describe("verdict validation", () => {
       fc.property(makeCommentListArb(), (comments) => {
         const accepted = acceptedVerdicts(comments);
 
-        for (const verdict of mod.VERDICTS) {
+        for (const verdict of [...mod.VERDICTS, undefined, null]) {
           const run = (): RenderedInput =>
             renderComments({ verdict, comments });
 
-          if (accepted.includes(verdict)) {
+          if (verdict == null || accepted.includes(verdict)) {
             expect(run).not.toThrow();
           } else {
             expect(run).toThrow();
