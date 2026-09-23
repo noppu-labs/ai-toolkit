@@ -22,7 +22,7 @@ Two calibration examples:
 | `base=` | The ref the branch merges into. |
 | `head=` | The branch tip under audit. |
 | `dirs=` | Space separated paths whose diff is in scope. |
-| `readme=` | The README that holds rationale shared by two or more sites. |
+| `readme=` | The README that holds, or indexes, rationale shared by two or more sites. |
 | `ticket=` | Ticket id for the commit subject in apply mode. |
 | `out=` | Path the report is written to. |
 | `sibling=<name>:<path>` | A checkout of another system whose behaviour the comments claim. Repeatable. |
@@ -71,14 +71,39 @@ Steps 2 through 4 read `git diff BASE...HEAD -- DIRS`. Three dots, so only what 
 
 ## Step 2: duplicate pass
 
-Inventory every rationale stated at two or more sites in the diff before ruling on any single comment. For each one, check the resolved README for a section that already covers it.
+Inventory every rationale stated at two or more sites in the diff before ruling on any single comment.
 
-- Section already exists: the verdict is MOVE with a pointer, no new text.
-- No section: propose one. Give the title, the sites it replaces, the full proposed text, and a mermaid diagram where it replaces paragraphs (flows, hierarchies, pipelines).
+For each one, first check whether the README or a markdown file beside it already covers it. If one does, the verdict is MOVE with a pointer and no new text. Otherwise decide where the text belongs.
 
-The pointer left at each site is one line: `See README.md, "<section>".`
+### README or topic file
 
-If no README resolves and a MOVE needs one, ask for `readme=`. With no answer available, propose the section anyway and name the missing path in the report.
+The README is read by everyone who opens the directory. A topic file beside it (`cache-keys.md`, `consent-flow.md`) is read only by someone who has a reason to. Ask one question: **would every reader of this directory need this before changing anything in it?**
+
+- **Yes, and it is a few sentences: the README.** Facts about the whole service or module: what it owns, a contract every file in it honours, a hazard any edit can trip.
+- **No: a topic file**, plus one index line in the README. Any one of these is enough:
+  - It concerns one subsystem, flow, or file group rather than the whole directory.
+  - It needs more than a short paragraph, a diagram, or a worked example.
+  - A reader needs it only in a specific situation, such as changing a key shape or adding a provider.
+  - The README section it would join is already long enough that a reader skims it.
+
+Calibration:
+
+- README: "Every job in this module is idempotent, because the queue redelivers on worker timeout." Every file depends on it, and it is one sentence.
+- Topic file: why cache keys carry a version segment and how old entries expire across a deploy. Only someone changing a key needs it, and it wants a sequence diagram.
+
+When the call is close, prefer the topic file. Splitting a file out later costs more than indexing one now. When an existing README section itself fails the question, say so in the report and suggest moving it out to a topic file with the new text.
+
+A topic file gets an index line in the README naming the situation that sends a reader there, not a summary of the file:
+
+```md
+- [Cache keys](cache-keys.md): read before changing a cache key's shape or TTL.
+```
+
+Extend an existing topic file on the same subject before creating a new one. For every proposal give the target (README section or topic file, new or existing), the sites it replaces, the full proposed text, a mermaid diagram where it replaces paragraphs (flows, hierarchies, pipelines), the index line when the target is a topic file, and one sentence on why it goes there.
+
+The pointer left at each site is one line: `See README.md, "<section>".`, `See <topic>.md.`, or `See <topic>.md, "<section>".` when the file has more than one section. Write the path relative to the repo root when the site is in another directory.
+
+If no README resolves and a MOVE needs one, ask for `readme=`. With no answer available, propose the text anyway and name the missing path in the report.
 
 ## Step 3: verdicts
 
@@ -86,7 +111,7 @@ Every added comment, docblock, JSDoc, GraphQL description, Storybook description
 
 - **DELETE**: restates what the code visibly does, or restates the name, signature, return type, or the guard on the next line.
 - **TRIM**: a non-obvious WHY buried in prose. Give the rewrite. Fewest sentences, keeping the concrete reference (path, symbol, SQL, snippet, ticket).
-- **MOVE**: stated at two or more sites, so it goes once into the README with a one-line pointer at each site. Also MOVE a class docblock that explains one property onto that property, and a rationale about behaviour onto the test that guards it.
+- **MOVE**: stated at two or more sites, so it goes once into the README or a topic file beside it (step 2 decides which), with a one-line pointer at each site. Also MOVE a class docblock that explains one property onto that property, and a rationale about behaviour onto the test that guards it.
 - **KEEP**: already the right size and altitude. Listed briefly so the reviewer knows it was read.
 - **UNSURE**: the claim could not be verified. Say what would need to be read.
 - **WRONG**: the comment claims something the code does not do. Say what the code actually does.
@@ -124,7 +149,7 @@ The template's two summary requirements are easy to drop and both are mandatory:
 
 ## Apply mode
 
-- Edit comments, docblocks, JSDoc, README, and schema descriptions only. Never change code.
+- Edit comments, docblocks, JSDoc, the README and topic files beside it, and schema descriptions only. Never change code.
 - A comment that is WRONG is corrected to match the code, never the code changed to match the comment. List every correction.
 - A comment that exists because the code is confusing is left in place and listed.
 - Never touch generated files, files outside `dirs`, `vendor/`, `node_modules/`, or lockfiles.
@@ -134,7 +159,7 @@ The template's two summary requirements are easy to drop and both are mandatory:
   bash ${CLAUDE_PLUGIN_ROOT}/skills/comment-audit/scripts/verify-comments-only.sh FROM TO DIRS
   ```
 
-  `FROM` is the commit before the trim and `TO` is the commit carrying it, so `HEAD~1 HEAD` after the commit. The script prints every changed line that is not a comment or blank and exits `1`. It excludes `*.md` files, so README edits never appear as hits. Every hit gets a one-line explanation in the report. Two kinds of hit are expected and still get their line:
+  `FROM` is the commit before the trim and `TO` is the commit carrying it, so `HEAD~1 HEAD` after the commit. The script prints every changed line that is not a comment or blank and exits `1`. It excludes `*.md` files, so doc edits never appear as hits. Every hit gets a one-line explanation in the report. Two kinds of hit are expected and still get their line:
   - A blank line left where a docblock shrank to nothing.
   - Interior lines of a block comment that carry no per-line marker: the body of a multi-line `<!-- -->`, or a `/* */` block without a leading `*` on each line.
 
@@ -142,7 +167,7 @@ The template's two summary requirements are easy to drop and both are mandatory:
 - If the formatter changes a file the audit did not touch, revert that file. Amend the trim commit with formatter changes to files the audit did touch, so the branch still carries one commit.
 - Quote, do not summarise, the output of any step that did not pass.
 - One commit. No push.
-- The final message carries: comment line counts before and after, README sections added or extended, comments corrected under WRONG, verify hits with an explanation for each, comments kept but unsure, and quoted tool output for any step that failed.
+- The final message carries: comment line counts before and after, README sections and topic files added or extended, with the index lines added, comments corrected under WRONG, verify hits with an explanation for each, comments kept but unsure, and quoted tool output for any step that failed.
 
 ## Style
 
