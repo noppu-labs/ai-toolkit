@@ -610,7 +610,15 @@ describe("brief.mjs", () => {
       join(cwd, "tools", "render-comments.mjs"),
       "export function renderComments() {}\n",
     );
-    const r = runBrief(cwd, "tools", "--no-lsp");
+    const r = runBriefWith(
+      {
+        INVESTIGATE_BRIEF_CACHE_DIR: join(cwd, ".cache"),
+        INVESTIGATE_BRIEF_C7_URL: "http://127.0.0.1:9/search",
+      },
+      cwd,
+      "tools",
+      "--no-lsp",
+    );
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("## renderComments (tools/render-comments.mjs)");
     expect(r.stdout).toContain("## Doc sources (context7 version gate)");

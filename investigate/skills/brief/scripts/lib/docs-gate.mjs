@@ -7,7 +7,7 @@ const DAY_MS = 86_400_000;
 const RELEASE_BRANCH_RE = /^(main|master|develop|dev|next|trunk)$/i;
 // Adapters/ports that share a project's name but document a different stack.
 const FOREIGN_STACK_RE =
-  /(rails|django|flask|phoenix|laravel|vue|svelte|angular|solid|preact|dotnet|golang|rust)/i;
+  /\b(rails|django|flask|phoenix|laravel|vue|svelte|angular|solid|preact|dotnet|golang|rust)\b/gi;
 const API_KEY_RE = /ctx7sk-[A-Za-z0-9._-]+/g;
 
 export function majorOf(v) {
@@ -102,7 +102,9 @@ function ageDaysOf(updated) {
 function foreignStack(cand, pkgName) {
   const shortName = norm(pkgName.split("/").pop());
   const lowerPkg = pkgName.toLowerCase();
-  const hits = FOREIGN_STACK_RE.exec(`${cand.id} ${cand.title || ""}`) ?? [];
+  const hits = [
+    ...`${cand.id} ${cand.title || ""}`.matchAll(FOREIGN_STACK_RE),
+  ].map((m) => m[1]);
 
   return hits.find(
     (t) =>
@@ -123,7 +125,6 @@ function verdictFromId(idMajor, installedMajor) {
       };
 }
 
-// A version-shaped branch says outright which major the unpinned docs describe.
 function verdictFromBranch(cand, branchMajor, installedMajor, pin) {
   if (branchMajor === installedMajor) {
     return {
@@ -135,6 +136,7 @@ function verdictFromBranch(cand, branchMajor, installedMajor, pin) {
     return pin
       ? {
           rank: 2,
+          pin,
           label: `PIN to ${cand.id}/${pin} — branch ${cand.branch} is behind installed v${installedMajor}`,
         }
       : {
@@ -166,6 +168,7 @@ function verdictFromRelease(cand, installedMajor, pin, pinnedMajors, ageDays) {
   if (pin) {
     return {
       rank: 2,
+      pin,
       label: `PIN to ${cand.id}/${pin} — matches installed v${installedMajor}`,
     };
   }
@@ -233,12 +236,12 @@ function slimResult(r) {
   };
 }
 
+const isCand = (r) =>
+  r !== null && typeof r === "object" && typeof r.id === "string";
+
 // A cache file from an older or foreign writer must not crash scoring; refetch instead.
 function isResultList(results) {
-  return (
-    Array.isArray(results) &&
-    results.every((r) => r !== null && typeof r === "object")
-  );
+  return Array.isArray(results) && results.every(isCand);
 }
 
 export async function c7Search(
@@ -255,15 +258,22 @@ export async function c7Search(
     const res = await fetchImpl(
       `${searchUrl}?query=${encodeURIComponent(c7Query(pkgName, ecosystem))}`,
       {
-        headers: apiKey ? { Authorization: apiKey } : {},
+        headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
         signal: ac.signal,
       },
     );
     if (!res.ok) return { error: `HTTP ${res.status}` };
 
     const json = await res.json();
+    // A changed reply shape must not be cached as "no match" for 6 hours.
+    if (!Array.isArray(json?.results)) {
+      return { error: "unexpected context7 reply (no results array)" };
+    }
     const slim = {
-      results: (json.results ?? []).slice(0, C7_MAX_RESULTS).map(slimResult),
+      results: json.results
+        .filter(isCand)
+        .slice(0, C7_MAX_RESULTS)
+        .map(slimResult),
     };
     cache?.put(pkgName, slim);
 
@@ -297,10 +307,15 @@ export function scoreCandidates(results, row) {
     .sort((a, b) => a.v.rank - b.v.rank);
 }
 
+// Ranks 0-2 cleared the gate (unpinned or pinned); everything else needs installed source.
 function markOf(rank) {
-  if (rank <= 1) return "✅";
+  return rank <= 2 ? "✅" : "⚠";
+}
 
-  return rank === 2 ? "•" : "⚠";
+function fetchId(best) {
+  if (best.v.rank <= 1) return best.c.id;
+
+  return best.v.rank === 2 && best.v.pin ? `${best.c.id}/${best.v.pin}` : null;
 }
 
 function toVerdict({ c, v }) {
@@ -341,8 +356,8 @@ export async function docSources(depRows, deps) {
   for (const { row, res } of searched) {
     const { entry, best } = packageOutcome(row, res);
     perPackage.push(entry);
-    if (best && best.v.rank <= 1)
-      fetchable.push({ id: best.c.id, name: row.name, version: row.version });
+    const id = best ? fetchId(best) : null;
+    if (id) fetchable.push({ id, name: row.name, version: row.version });
   }
 
   return { perPackage, fetchable, anonymous: !deps.apiKey };

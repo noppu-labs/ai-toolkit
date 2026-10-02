@@ -27,9 +27,9 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-// Standalone tools shipped as dev deps (pint, phpstan) declare their own `App\`
-// psr-4. Without excluding the root namespaces every first-party `use App\…` would
-// be attributed to whichever tool sorted first.
+// Standalone tools shipped as dev deps (e.g. pint) declare their own `App\` psr-4;
+// without excluding the root namespaces every first-party `use App\…` would be
+// attributed to them.
 function rootNamespaces(repoRoot) {
   const composer = readJson(repoRoot, "composer.json");
 

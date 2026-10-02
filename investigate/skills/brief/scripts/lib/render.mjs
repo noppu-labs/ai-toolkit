@@ -148,7 +148,8 @@ function docPreamble(anonymous) {
   }
   lines.push(
     "> Computed, not recalled: `branch` decides which version the docs describe, and the",
-    "> context7 MCP tool does NOT display it. Use the id marked USE UNPINNED / pin-to.",
+    "> context7 MCP tool does NOT display it. Use the id marked USE UNPINNED, or the pinned",
+    "> id a PIN to verdict names.",
     "> Where every candidate is STALE, read installed source instead — stale docs produce",
     "> confident wrong claims that arrive wearing a citation.",
     ">",
