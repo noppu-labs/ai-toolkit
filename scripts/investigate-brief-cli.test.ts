@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -483,6 +483,26 @@ describe("brief.mjs", () => {
     expect(r.status).toBe(0);
     expect(r.stdout.length).toBeGreaterThan(65_536);
     expect(r.stdout).toContain("## Unresolved by construction");
+  });
+
+  it("exits 1 with a one-line reason, not a stack trace, when the reader closes the pipe", async () => {
+    const cwd = makeRepo();
+    const child = spawn(
+      process.execPath,
+      [script, "app/Services", "--no-docs", "--no-lsp"],
+      { cwd, env: { PATH: NO_TOOLS_PATH, HOME: cwd } },
+    );
+    let stderr = "";
+    child.stderr.on("data", (d: Buffer) => {
+      stderr += d.toString();
+    });
+    // Closed before the brief is written, as `brief.mjs … | true` does.
+    child.stdout.destroy();
+    const code = await new Promise<number | null>((resolve) => {
+      child.on("close", resolve);
+    });
+    expect(code).toBe(1);
+    expect(stderr).toBe("brief.mjs: write EPIPE\n");
   });
 
   it.each([

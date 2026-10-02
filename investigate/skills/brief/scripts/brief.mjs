@@ -333,9 +333,14 @@ export async function main(argv, io) {
 
 if (
   process.argv[1] &&
-  // Node runs the main module from its realpath, so compare against the realpath too.
+  // import.meta.url of the main module is its realpath, so resolve argv[1] the same way.
   import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
 ) {
+  // A closed pipe also emits 'error'; without a listener that throws a stack
+  // trace. writeAll's callback already carries the error to main's one-line report.
+  process.stdout.on("error", () => {
+    /* reported through writeAll */
+  });
   // exitCode, not exit(): exit() drops stdout still queued for a pipe.
   process.exitCode = await main(process.argv.slice(2), {
     env: process.env,
