@@ -5,11 +5,15 @@ Usage: python-comment-lines.py REF PATH
 
 Prints, one per line and in ascending order, the 1-based number of every line
 that holds a `#` comment with nothing before it, or that belongs to a module,
-class, or function docstring in any quote style. Tool directives (a shebang, an
-encoding declaration, `# noqa`, `# type:`, `# fmt:` and the like) are not
-comment lines: changing one changes what a tool does. Exits 1 with one line on
-stderr when the file cannot be read, tokenized, or parsed.
+class, or function docstring in any quote style. A docstring line that it
+shares with code is not a comment line. Tool directives (a shebang, an encoding
+declaration, `# noqa`, `# type:`, `# fmt:` and the like) are not comment lines:
+changing one changes what a tool does. Exits 1 with one line on stderr when the
+file cannot be read, tokenized, or parsed. Needs Python 3.8 or later for the
+`end_lineno` attribute.
 """
+
+from __future__ import annotations
 
 import ast
 import io
@@ -30,6 +34,14 @@ DIRECTIVES = (
     "nosec",
     "complexipy:",
     "pylint:",
+    "ty:",
+    "pyrefly:",
+    "flake8:",
+    "pyre-ignore",
+    "pyre-fixme",
+    "pytype:",
+    "yapf:",
+    "nosemgrep",
 )
 
 # PEP 263: the interpreter reads an encoding declaration on line 1 or 2.
@@ -55,7 +67,7 @@ def is_directive(token: tokenize.TokenInfo) -> bool:
     if row <= 2 and CODING.match(token.string):
         return True
 
-    return token.string[1:].strip().lower().startswith(DIRECTIVES)
+    return token.string[1:].strip().startswith(DIRECTIVES)
 
 
 def get_comment_lines(source: bytes) -> set[int]:
@@ -73,7 +85,15 @@ def get_comment_lines(source: bytes) -> set[int]:
     return lines
 
 
-def get_docstring_lines(tree: ast.Module) -> set[int]:
+def get_source_lines(source: bytes) -> list[bytes]:
+    encoding, _ = tokenize.detect_encoding(io.BytesIO(source).readline)
+    text = source.decode(encoding).replace("\r\n", "\n").replace("\r", "\n")
+
+    # `ast` column offsets count UTF-8 bytes whatever the file's encoding.
+    return [line.encode("utf-8") for line in text.split("\n")]
+
+
+def get_docstring_lines(tree: ast.Module, source: list[bytes]) -> set[int]:
     lines: set[int] = set()
 
     for node in ast.walk(tree):
@@ -82,12 +102,33 @@ def get_docstring_lines(tree: ast.Module) -> set[int]:
 
         first = node.body[0]
 
-        if (
+        if not (
             isinstance(first, ast.Expr)
             and isinstance(first.value, ast.Constant)
             and isinstance(first.value.value, str)
         ):
-            lines.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
+            continue
+
+        start = first.lineno
+        end = first.end_lineno or start
+        before = source[start - 1][: first.col_offset].strip()
+        after = source[end - 1][first.end_col_offset :].strip()
+        opens_alone = before == b""
+        closes_alone = after == b"" or after.startswith(b"#")
+
+        if start == end:
+            if opens_alone and closes_alone:
+                lines.add(start)
+
+            continue
+
+        lines.update(range(start + 1, end))
+
+        if opens_alone:
+            lines.add(start)
+
+        if closes_alone:
+            lines.add(end)
 
     return lines
 
@@ -102,7 +143,8 @@ def main(argv: list[str]) -> int:
 
     try:
         source = read_blob(ref, path)
-        lines = get_docstring_lines(ast.parse(source)) | get_comment_lines(source)
+        docstrings = get_docstring_lines(ast.parse(source), get_source_lines(source))
+        lines = docstrings | get_comment_lines(source)
     except (
         subprocess.CalledProcessError,
         SyntaxError,
@@ -110,7 +152,12 @@ def main(argv: list[str]) -> int:
         UnicodeDecodeError,
         ValueError,
     ) as error:
-        print(f"python-comment-lines.py: {path} at {ref}: {error}", file=sys.stderr)
+        version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        print(
+            f"python-comment-lines.py: {path} at {ref}: {error}"
+            f" (under {sys.executable} {version})",
+            file=sys.stderr,
+        )
 
         return 1
 

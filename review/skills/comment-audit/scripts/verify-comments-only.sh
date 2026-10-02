@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Usage: verify-comments-only.sh FROM TO [DIR...]
-# Run from the repository root.
 # Prints every changed line between FROM and TO (two-dot diff) that is not a comment,
 # a comment terminator, or blank. Markdown files are excluded because README sections
 # are an expected part of a comment trim. Exit 1 when any line is printed.
@@ -37,24 +36,23 @@ filter_by_regex() {
 
 # Changed lines of one Python file that are not blank and not a comment line on
 # their own side: FROM for a removed line, TO for an added one.
+# A file that parses at FROM and not at TO was broken by the change, so that is
+# a hit. One that already failed at FROM falls back to the regex filter.
 python_hits() {
-  local status=$1 path=$2 old=$3 before="" after="" parsed=yes
+  local status=$1 path=$2 old=$3 before="" after=""
 
-  if [[ $status != A ]]; then
-    before=$("$python" "$helper" "$from" "${old:-$path}" 2>/dev/null) || parsed=no
-  fi
-
-  if [[ $parsed == yes && $status != D ]]; then
-    after=$("$python" "$helper" "$to" "$path" 2>/dev/null) || parsed=no
-  fi
-
-  if [[ $parsed == no ]]; then
+  if [[ $status != A ]] && ! before=$("$python" "$helper" "$from" "${old:-$path}" 2>/dev/null); then
     echo "verify-comments-only.sh: $path does not parse as Python; checked with the regex" >&2
-    git diff "$from" "$to" -- ${old:+"$old"} "$path" | filter_by_regex
+    git diff "$from" "$to" -- ${old:+":(top)$old"} ":(top)$path" | filter_by_regex
     return
   fi
 
-  git diff "$from" "$to" -- ${old:+"$old"} "$path" \
+  if [[ $status != D ]] && ! after=$("$python" "$helper" "$to" "$path" 2>/dev/null); then
+    echo "$path: does not parse as Python at $to"
+    return
+  fi
+
+  git diff "$from" "$to" -- ${old:+":(top)$old"} ":(top)$path" \
     | awk -v before="$(printf '%s ' $before)" -v after="$(printf '%s ' $after)" '
         BEGIN {
           n = split(before, b, " "); for (i = 1; i <= n; i++) was[b[i]] = 1
@@ -74,7 +72,7 @@ python_hits() {
 }
 
 if command -v "$python" >/dev/null 2>&1; then
-  hits=$(git diff "$from" "$to" -- "$@" ':(exclude)*.md' ':(exclude)*.py' | filter_by_regex)
+  hits=$(git diff "$from" "$to" -- "$@" ':(top,exclude)*.md' ':(top,exclude)*.py' | filter_by_regex)
 
   while IFS= read -r -d '' status; do
     old=""
@@ -93,7 +91,7 @@ if command -v "$python" >/dev/null 2>&1; then
   hits=$(printf '%s\n' "$hits" | sed '/^$/d')
 else
   echo "verify-comments-only.sh: $python not found; Python files are checked with the regex" >&2
-  hits=$(git diff "$from" "$to" -- "$@" ':(exclude)*.md' | filter_by_regex)
+  hits=$(git diff "$from" "$to" -- "$@" ':(top,exclude)*.md' | filter_by_regex)
 fi
 
 if [ -n "$hits" ]; then

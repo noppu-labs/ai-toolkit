@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Usage: count-comment-lines.sh BASE HEAD [DIR...]
-# Run from the repository root.
 # Prints the number of comment lines added between BASE and HEAD (three-dot diff),
 # limited to DIR paths when given. Recognises //, #, *, /*, /**, """, {/* and <!--.
 # Python files are counted by python-comment-lines.py instead, which knows every
@@ -38,11 +37,11 @@ count_python() {
 
   if ! lines=$("$python" "$helper" "$head" "$path" 2>/dev/null); then
     echo "count-comment-lines.sh: $path does not parse as Python at $head; counted by the regex" >&2
-    count_by_regex ${old:+"$old"} "$path"
+    count_by_regex ${old:+":(top)$old"} ":(top)$path"
     return
   fi
 
-  git diff -U0 "${base}...${head}" -- ${old:+"$old"} "$path" \
+  git diff -U0 "${base}...${head}" -- ${old:+":(top)$old"} ":(top)$path" \
     | awk -v keep="$(printf '%s ' $lines)" '
         BEGIN { n = split(keep, k, " "); for (i = 1; i <= n; i++) comment[k[i]] = 1 }
         /^diff --git / { line = 0; next }
@@ -58,7 +57,7 @@ if ! command -v "$python" >/dev/null 2>&1; then
   exit 0
 fi
 
-total=$(count_by_regex "$@" ':(exclude)*.py')
+total=$(count_by_regex "$@" ':(top,exclude)*.py')
 
 while IFS= read -r -d '' status; do
   old=""
