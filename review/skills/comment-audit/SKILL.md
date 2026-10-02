@@ -46,16 +46,27 @@ In this order, stopping at the first source that answers:
 | --- | --- | --- | --- |
 | base | `base=` | `gh pr view --json baseRefName`; else the default branch of `origin` | yes |
 | head | `head=` | `HEAD` | no |
-| dirs | `dirs=` | every path in the diff, minus `vendor/`, `node_modules/`, lockfiles, and paths matching generated-code markers (`generated`, `wayfinder`, `.d.ts` under a generated dir, `*.min.*`) | no, but list the exclusions in the report |
+| dirs | `dirs=` | every path in the diff, minus `vendor/`, `node_modules/`, `.venv/`, `venv/`, `site-packages/`, `__pycache__/`, `.egg-info/`, `build/` and `dist/` in a Python package, tool caches (`.ruff_cache/`, `.pytest_cache/`, `.mypy_cache/`, `.pyrefly_cache/`, `.complexipy_cache/`), lockfiles (`uv.lock`, `poetry.lock`, and `Pipfile.lock` among them), and paths matching generated-code markers (`generated`, `wayfinder`, `.d.ts` under a generated dir, `*.min.*`, `*_pb2.py`, `*_pb2_grpc.py`, `.pyi` under a generated dir, `migrations/versions/`, `*/migrations/0*.py`) | no, but list the exclusions in the report |
 | readme | `readme=` | nearest `README.md` at or above the directory with the most diffed files | yes, only when a MOVE verdict needs one |
 | ticket | `ticket=` | branch name pattern `[A-Z]+-\d+`; else the PR title | no, fall back to `docs:` prefix |
-| format, lint, test commands | none | the project's `CLAUDE.md` and `.claude/rules/*.md`; else `composer.json` / `package.json` scripts | yes, in `--apply` mode only |
+| format, lint, test commands | none | the project's `CLAUDE.md` and `.claude/rules/*.md`; else `composer.json` / `package.json` scripts; else, for a Python project, the sources under [Python commands](#python-commands) | yes, in `--apply` mode only |
 | sibling checkouts | `sibling=` | none | no; claims about another system become UNSURE with the path that would settle them |
 | out | `out=` | `<scratchpad>/comment-audit-<pr or branch>.md` | no |
 
 Echo the resolved values at the top of the report.
 
 When a row marked `yes` cannot be resolved and no answer is available, stop and report which value is missing. Do not guess a base ref.
+
+### Python commands
+
+When `CLAUDE.md` and `.claude/rules/*.md` name no command, a Python project resolves each of format, lint, type check, and test from the first of these sources that names it:
+
+1. `Makefile` or `justfile` targets named `format`, `lint`, `typecheck`, and `test`, run as `make <target>` or `just <target>`.
+2. `noxfile.py` sessions and `tox.ini` environments with those names, run as `nox -s <name>` or `tox -e <name>`.
+3. `.pre-commit-config.yaml`. When it is the only gate, lint is `pre-commit run --all-files`. Its local hooks name the type checker and any extra gates (`deptry`, `bandit`, `vulture`, `complexipy`, `pylint`), which a stage may also run.
+4. `pyproject.toml` tool tables: `[tool.ruff]` gives `ruff format` and `ruff check`; `[tool.mypy]`, `[tool.pyright]`, `[tool.pyrefly]`, or `[tool.ty]` gives `mypy`, `pyright`, `pyrefly check`, or `ty check`; `[tool.pytest.ini_options]` gives `pytest`.
+
+A command from the tool tables runs as `uv run <command>` when `uv.lock` exists, and as `poetry run <command>` when `poetry.lock` exists. A command `CLAUDE.md` lists wins over all of these, as it does for every other language.
 
 ## Step 1: baseline
 
