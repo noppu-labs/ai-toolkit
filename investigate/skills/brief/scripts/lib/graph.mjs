@@ -4,11 +4,36 @@ import { run } from "./exec.mjs";
 
 const CODEGRAPH_CAP = 80;
 
+const isObject = (v) =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+const objects = (v) => (Array.isArray(v) ? v.filter(isObject) : []);
+
+// Only `status` is guaranteed; every other field is shaped here so one
+// malformed symbol cannot throw while the brief renders.
+function toGraphContext(parsed) {
+  const incoming = isObject(parsed.incoming) ? parsed.incoming : {};
+  return {
+    ...parsed,
+    symbol: isObject(parsed.symbol) ? parsed.symbol : null,
+    boundaries: Array.isArray(parsed.boundaries)
+      ? parsed.boundaries.filter((b) => typeof b === "string")
+      : [],
+    incoming: {
+      calls: objects(incoming.calls),
+      imports: objects(incoming.imports),
+    },
+    processes: Array.isArray(parsed.processes) ? parsed.processes : [],
+    epistemic: typeof parsed.epistemic === "string" ? parsed.epistemic : "",
+  };
+}
+
 export function parseGraphContext(stdout) {
   if (!stdout) return null;
   try {
     const parsed = JSON.parse(stdout);
-    return parsed && parsed.status === "found" ? parsed : null;
+    return isObject(parsed) && parsed.status === "found"
+      ? toGraphContext(parsed)
+      : null;
   } catch {
     return null;
   }

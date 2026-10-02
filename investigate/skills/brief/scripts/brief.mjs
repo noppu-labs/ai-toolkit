@@ -23,7 +23,6 @@ const MAX_SYMBOLS_DEFAULT = 15;
 const C7_TTL_MS = 6 * 60 * 60 * 1000;
 export const USAGE =
   "usage: node brief.mjs <target-path> [--max-symbols N] [--no-docs] [--no-lsp] [--help]";
-const LIST_FAILED_PREFIX = "gitnexus list failed";
 
 const BOOLEAN_FLAGS = {
   "--no-docs": "noDocs",
@@ -65,14 +64,16 @@ export function parseArgs(argv) {
   return out;
 }
 
-function gitnexusStatus(freshness) {
+export function gitnexusStatus(freshness) {
+  if (freshness.ok && !freshness.stale) return "ran (index current)";
   if (freshness.ok) {
-    return freshness.stale
-      ? `ran (index STALE, ${freshness.commitsBehind ?? "?"} commits behind)`
-      : "ran (index current)";
+    return freshness.divergent
+      ? "ran (index STALE, indexed commit is not in HEAD's history)"
+      : `ran (index STALE, ${freshness.commitsBehind} commits behind)`;
   }
-  return freshness.note.startsWith(LIST_FAILED_PREFIX)
-    ? "not on PATH"
+  if (freshness.absent) return "not on PATH";
+  return freshness.failed
+    ? `FAILED (${freshness.note})`
     : `unavailable (${freshness.note})`;
 }
 

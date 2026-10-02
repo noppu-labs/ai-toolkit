@@ -13,6 +13,7 @@ type RenderModule = {
   renderDocSources: (gate: null, skippedReason: string | null) => string[];
   renderDependencies: (rows: never[], unread: string[]) => string[];
   renderTools: (tools: Record<string, string>) => string[];
+  renderIndex: (freshness: Record<string, unknown>) => string[];
   renderSymbol: (
     sym: { name: string; file: string; kind: string },
     parts: {
@@ -45,6 +46,7 @@ type CliModule = {
       | { results: Map<string, unknown>; failures: string[]; total: number }
       | { error: string },
   ) => string;
+  gitnexusStatus: (freshness: Record<string, unknown>) => string;
   callerOwners: (
     symbols: Array<{ name: string; file: string }>,
     tsLsp: Map<string, { symbol: string }> | null,
@@ -312,6 +314,64 @@ describe("lspStatus", () => {
     );
     expect(cli.lspStatus(ran(0))).toBe("ran (no results)");
     expect(cli.lspStatus(ran(1))).toBe("ran");
+  });
+});
+
+describe("gitnexusStatus", () => {
+  it("separates current, behind, divergent, absent, failed, and unavailable", () => {
+    expect(cli.gitnexusStatus({ ok: true, stale: false })).toBe(
+      "ran (index current)",
+    );
+    expect(
+      cli.gitnexusStatus({ ok: true, stale: true, commitsBehind: 3 }),
+    ).toBe("ran (index STALE, 3 commits behind)");
+    expect(cli.gitnexusStatus({ ok: true, stale: true, divergent: true })).toBe(
+      "ran (index STALE, indexed commit is not in HEAD's history)",
+    );
+    expect(cli.gitnexusStatus({ ok: false, absent: true, note: "x" })).toBe(
+      "not on PATH",
+    );
+    expect(
+      cli.gitnexusStatus({
+        ok: false,
+        failed: true,
+        note: "gitnexus list exited 2",
+      }),
+    ).toBe("FAILED (gitnexus list exited 2)");
+    expect(cli.gitnexusStatus({ ok: false, note: "not registered" })).toBe(
+      "unavailable (not registered)",
+    );
+  });
+});
+
+describe("renderIndex", () => {
+  it("names the omission once and says how stale the index is", () => {
+    expect(
+      render.renderIndex({ ok: false, note: "gitnexus not on PATH" }),
+    ).toEqual([
+      "Index: UNAVAILABLE — gitnexus not on PATH. Graph sections omitted; wiring scan still valid.",
+      "",
+    ]);
+    expect(
+      render.renderIndex({
+        ok: true,
+        indexed: "abc",
+        branch: "main",
+        stale: true,
+        divergent: true,
+      })[0],
+    ).toBe(
+      "Index: commit abc (branch main) — STALE (indexed commit is not in HEAD's history; graph data may be outdated)",
+    );
+    expect(
+      render.renderIndex({
+        ok: true,
+        indexed: "abc",
+        branch: "main",
+        stale: true,
+        commitsBehind: 2,
+      })[0],
+    ).toContain("STALE (2 commits behind HEAD;");
   });
 });
 

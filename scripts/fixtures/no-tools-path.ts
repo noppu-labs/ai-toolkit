@@ -26,11 +26,11 @@ export function makeFakeLspPath(fakeServer: string): string {
   return bin;
 }
 
-// NO_TOOLS_PATH plus a fake ast-grep.
-export function makeFakeAstGrepPath(fakeAstGrep: string): string {
+// NO_TOOLS_PATH plus one fake binary under a real tool's name.
+export function makeFakeToolPath(name: string, fake: string): string {
   const bin = makeNoToolsPath();
-  chmodSync(fakeAstGrep, 0o755);
-  symlinkSync(fakeAstGrep, join(bin, "ast-grep"));
+  chmodSync(fake, 0o755);
+  symlinkSync(fake, join(bin, name));
 
   return bin;
 }

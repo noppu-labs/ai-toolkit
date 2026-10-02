@@ -5,10 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import {
-  makeFakeAstGrepPath,
-  makeNoToolsPath,
-} from "./fixtures/no-tools-path.ts";
+import { makeFakeToolPath, makeNoToolsPath } from "./fixtures/no-tools-path.ts";
 
 type Hit = {
   filePath: string;
@@ -58,7 +55,8 @@ const wiring: WiringModule = (await import(
 )) as WiringModule;
 
 const NO_TOOLS_PATH: string = makeNoToolsPath();
-const FAKE_AST_GREP_PATH: string = makeFakeAstGrepPath(
+const FAKE_AST_GREP_PATH: string = makeFakeToolPath(
+  "ast-grep",
   join(import.meta.dirname, "fixtures", "fake-ast-grep.mjs"),
 );
 
