@@ -89,6 +89,7 @@ describe("buildCatalog", () => {
       "laravel",
       "inertia-react",
       "review",
+      "investigate",
     ]);
     const laravel = catalog.plugins[0];
     expect(laravel?.skills.length).toBeGreaterThanOrEqual(16);

@@ -10,12 +10,14 @@ const CLAUDE_CODE_COMMANDS = [
   "/plugin install laravel@ai-toolkit",
   "/plugin install inertia-react@ai-toolkit",
   "/plugin install review@ai-toolkit",
+  "/plugin install investigate@ai-toolkit",
 ].join("\n");
 
 const SKILLS_CLI_COMMANDS = [
   "npx skills add noppu-labs/ai-toolkit/laravel",
   "npx skills add noppu-labs/ai-toolkit/inertia-react",
   "npx skills add noppu-labs/ai-toolkit/review",
+  "npx skills add noppu-labs/ai-toolkit/investigate",
 ].join("\n");
 
 const HERO_GRADIENT =
