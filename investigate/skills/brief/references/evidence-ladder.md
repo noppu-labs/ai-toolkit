@@ -2,22 +2,21 @@
 
 Rank order, highest first. A claim's label is the rung it was resolved at.
 
-1. **Installed source** — `vendor/<pkg>` or `node_modules/<pkg>` at the version the brief
+1. **Installed source**: `vendor/<pkg>` or `node_modules/<pkg>` at the version the brief
    names. Authoritative for *behaviour*: what the method returns, whether it mutates, what
    the guard actually checks. Read the body; a docblock is not the body.
-2. **context7 at a gate-approved id** — authoritative for *intent and idiom*: the supported
-   way to do X, what changed between majors, which API superseded which. Docs state intent
-   that source alone does not reveal. Only ids the brief's doc-source gate cleared count for
-   this rung; an id an agent found for itself is rung 3.
-3. **Recall** — label `INFERRED FROM RECALL, not resolved`, same as any other unresolved
+2. **context7 at a gate-approved id**: authoritative for *intent and idiom*, such as the
+   supported way to do X, what changed between majors, which API superseded which. Docs
+   state intent that source alone does not reveal. Only ids the brief's doc-source gate
+   cleared count for this rung; an id an agent found for itself is rung 3.
+3. **Recall**: label `INFERRED FROM RECALL, not resolved`, same as any other unresolved
    claim. Never launder it into a report as fact.
 
 ## Precedence
 
 On disagreement between rungs 1 and 2, installed source wins. context7 serves the docs for
 a library version that may not be the version installed here; the code under `vendor/` or
-`node_modules/` is what the application actually runs. Resolve against the real artifact,
-not a description of it.
+`node_modules/` is what the application actually runs.
 
 ## Labels
 

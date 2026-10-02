@@ -12,7 +12,7 @@ mentions, which is where most spec errors hide.
 Redundancy and the intersection rule work as in `investigate:module`. Read that skill
 for the reasoning; this one covers only what differs.
 
-## Step 0 — Obtain the document
+## Step 0: Obtain the document
 
 - **Path that exists** → read it in full.
 - **Ticket or document id** → fetch it through whatever ticket or document tools the
@@ -24,7 +24,7 @@ for the reasoning; this one covers only what differs.
 Never proceed from a title alone. If the fetch fails or returns a stub, say so and ask
 for the text.
 
-## Step 1 — Resolve the target set
+## Step 1: Resolve the target set
 
 Extract every file, class, and module the document references or proposes to change.
 
@@ -33,7 +33,7 @@ Extract every file, class, and module the document references or proposes to cha
 - Prefer modules the spec CHANGES over modules it merely mentions.
 - Dedupe to at most about four. Say which you dropped.
 
-## Step 2 — Generate the brief
+## Step 2: Generate the brief
 
 Invoke the `investigate:brief` skill once per module directory and concatenate the
 outputs under per-module headers, as in `investigate:module` Step 1.
@@ -41,7 +41,7 @@ outputs under per-module headers, as in `investigate:module` Step 1.
 If a brief fails, that module's structure is UNRESOLVED. Say so in the report; never
 review silently without the brief.
 
-## Step 3 — Dispatch two agents in parallel
+## Step 3: Dispatch two agents in parallel
 
 Build one prompt from `${CLAUDE_PLUGIN_ROOT}/skills/module/references/agent-prompt.md`
 using the **Spec review** question.
@@ -53,23 +53,20 @@ Step 2 describes.
 
 Send one message containing two Agent tool uses with identical prompts.
 
-## Step 4 — Synthesise and report
+## Step 4: Synthesise and report
 
-Apply the intersection rule from `investigate:module` Step 3: both agents agree →
-trusted; one agent → read the cited file:line or mark it single-source; disagreements
-are resolved by reading code.
+Apply the intersection rule from `investigate:module` Step 3.
 
 Organise the report by spec claim, not by agent:
 
-1. **Claims** — each claim quoted or paraphrased closely, then its verdict (CORRECT,
+1. **Claims**: each claim quoted or paraphrased closely, then its verdict (CORRECT,
    WRONG, UNVERIFIABLE) and the citation. Give a path-and-line for WRONG and CORRECT
    verdicts; name what is missing for UNVERIFIABLE.
-2. **Callers the spec does not mention** — each confirmed at file:line, with its
-   reachability outcome (Reachable, Guarded, or Unresolved).
-3. **Risks in touched modules** — gotchas, hidden side effects, and Unresolved items.
+2. **Risks in touched modules**: gotchas, hidden side effects, and Unresolved items.
+3. **Callers the spec does not mention**: the unmentioned blast radius, each caller
+   confirmed at file:line, with its reachability outcome (Reachable, Guarded, or
+   Unresolved).
 
 Single-source claims and `INFERRED FROM RECALL` claims stay labelled through to the
-report. Two agents agreeing on a recall-labelled claim is still one guess. A brief section
-is UNRESOLVED where its Tools status reads `FAILED (...)`, `unavailable (...)` or
-`UNAVAILABLE (...)`, `not on PATH`, or `no .codegraph index`, or where a doc lookup reads
-`lookup FAILED`. `ran (...)`, `skipped (...)` and `not needed (...)` are usable as stated.
+report. Treat each brief section as its Tools status says; see
+`${CLAUDE_PLUGIN_ROOT}/skills/brief/SKILL.md`, "Read the Tools section first".
