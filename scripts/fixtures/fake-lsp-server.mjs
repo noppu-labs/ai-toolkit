@@ -55,6 +55,14 @@ function symbolsFor(uri) {
           range,
           selectionRange: range,
         },
+        {
+          name: "repo",
+          kind: 7,
+          detail: ": Repo",
+          range,
+          selectionRange: range,
+        },
+        { name: "undocumented", kind: 6, range, selectionRange: range },
       ],
     },
   ];
