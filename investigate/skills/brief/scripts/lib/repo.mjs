@@ -156,12 +156,12 @@ export function tsExports(text) {
   return names;
 }
 
+function passesFilters(name) {
+  return name.length >= MIN_NAME_LENGTH && !GENERIC_NAMES.test(name);
+}
+
 function usable(name, seen) {
-  return (
-    name.length >= MIN_NAME_LENGTH &&
-    !GENERIC_NAMES.test(name) &&
-    !seen.has(name)
-  );
+  return passesFilters(name) && !seen.has(name);
 }
 
 function basenameOf(file) {
@@ -173,9 +173,9 @@ function symbolsOf(file, repoRoot) {
   if (file.endsWith(".php")) {
     return [{ name: basenameOf(file), file: rel, kind: "php" }];
   }
-  const names = tsExports(readFileSync(file, "utf8"));
+  const names = tsExports(readFileSync(file, "utf8")).filter(passesFilters);
   if (names.length === 0) {
-    // Same as the MVP: a file that exports nothing by name still gets its basename.
+    // Same as the MVP: a file with no usable export name still gets its basename.
     return [
       { name: basenameOf(file), file: rel, kind: "ts", basenameFallback: true },
     ];

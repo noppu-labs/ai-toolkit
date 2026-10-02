@@ -68,7 +68,8 @@ Every tool the brief used reports a status. Read these before trusting any other
 | `skipped (--no-lsp)`, `skipped (--no-docs)` | Deliberately not run. |
 | `skipped (no PHP scan dirs)` | None of `app`, `config`, `routes`, `database`, `src` exists, and those are the only directories ast-grep scans. The textual wiring scan still ran. |
 | `skipped (no composer.lock read)`, `skipped (no package-lock.json read)`, `skipped (no composer.lock or package-lock.json read)` | No lockfile was read for the target's sources, so its third-party imports are UNRESOLVED. pnpm, yarn, and bun lockfiles are not read. |
-| `not needed (no PHP files)`, `not needed (no PHP symbols)`, `not needed (no TypeScript/JavaScript symbols)`, `not needed (no third-party imports)` | Nothing for the tool to do. |
+| `…; composer imports UNRESOLVED (no composer.lock read)`, `…; npm imports UNRESOLVED (no package-lock.json read)` | The gate ran for one ecosystem, but the other's lockfile was not read, so that ecosystem's imports are UNRESOLVED. |
+| `not needed (no PHP files)`, `not needed (no PHP symbols)`, `not needed (no TypeScript/JavaScript symbols)`, `not needed (no third-party imports)`, `not needed (only dev packages imported)` | Nothing for the tool to do. Dev packages are listed under Third-party surface but never sent to context7. |
 
 For gitnexus, `not on PATH` means the binary is missing; an installed gitnexus whose `list`
 command fails reads `FAILED (...)`. A thin section under a tool marked `not on PATH` is
@@ -82,7 +83,7 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
   `Index: UNAVAILABLE` and the graph sections are omitted. A stale index is a confident
   wrong map.
 - **Files**: the source files in scope. A note says when symbol detail was capped, and
-  `(no named exports; basename used)` marks a JS/TS file whose symbol is its file name.
+  `(no named exports; basename used)` marks a JS/TS file with no usable export name, whose symbol is its file name.
 - **Third-party surface**: each package the target imports, with its INSTALLED version and
   where to read its source. Use these, never the manifest's caret range: `^3.1.0` is not a
   fact, `3.3.1` is. When no lockfile was read for the target's PHP or JS/TS sources, the
@@ -111,7 +112,7 @@ library ids yourself or judge versions: the context7 tool hides the deciding fie
 | `USE UNPINNED` | ✅. Hand over the id as-is. |
 | `PIN to <id>/<ver>` | ✅. Hand over the pinned id, `<id>/<ver>`, as the fetch list prints it. |
 | `NAME MISMATCH` | ⚠. Confirm it is really that package before handing it over. |
-| `AHEAD` / `no version signal` | ⚠, not in the fetch list. Read installed source; if you hand the id over anyway, label claims version-unconfirmed. |
+| `AHEAD` / `no version signal` | ⚠, not in the fetch list. Hand over nothing; read installed source. |
 | `installed version unparsed` | ⚠. The lockfile version did not parse; compare versions by hand. |
 | `STALE` / `STALE-ISH` / `pins are vX, installed is vY … do NOT pin` / `NO USABLE DOCS` | Hand over nothing; point at installed source. |
 | `DIFFERENT STACK` | The docs are for another framework's adapter. Hand over nothing. |

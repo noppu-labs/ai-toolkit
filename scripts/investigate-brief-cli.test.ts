@@ -713,6 +713,66 @@ describe("brief.mjs", () => {
     expect(r.stdout).not.toContain("not needed (no third-party imports)");
   });
 
+  it("skips the gate without a lookup when the target imports only dev packages", () => {
+    const cwd = makeRepo();
+    writeFileSync(
+      join(cwd, "src", "lib", "commands.ts"),
+      "import { it } from 'vitest';\nexport function formatDate() {}\n",
+    );
+    writeFileSync(
+      join(cwd, "package-lock.json"),
+      JSON.stringify({
+        packages: { "node_modules/vitest": { version: "5.0.2", dev: true } },
+      }),
+    );
+    const r = runBriefWith(
+      {
+        INVESTIGATE_BRIEF_CACHE_DIR: join(cwd, ".cache"),
+        INVESTIGATE_BRIEF_C7_URL: "http://127.0.0.1:9/search",
+      },
+      cwd,
+      "src/lib",
+      "--no-lsp",
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(
+      "- context7: not needed (only dev packages imported)",
+    );
+    expect(r.stdout).toContain("**vitest** 5.0.2 (dev)");
+    expect(r.stdout).toContain(
+      "- only dev packages imported; their docs are not looked up",
+    );
+    expect(r.stdout).not.toContain("lookup FAILED");
+  });
+
+  it("names an unread lockfile on the context7 Tools line when the gate still ran", () => {
+    const cwd = makeRepo();
+    git(cwd, "rm", "-q", "composer.lock");
+    writeFileSync(
+      join(cwd, "src", "lib", "commands.ts"),
+      "import x from 'left-pad';\nexport function formatDate() {}\n",
+    );
+    writeFileSync(
+      join(cwd, "package-lock.json"),
+      JSON.stringify({
+        packages: { "node_modules/left-pad": { version: "1.3.0" } },
+      }),
+    );
+    const r = runBriefWith(
+      {
+        INVESTIGATE_BRIEF_CACHE_DIR: join(cwd, ".cache"),
+        INVESTIGATE_BRIEF_C7_URL: "http://127.0.0.1:9/search",
+      },
+      cwd,
+      ".",
+      "--no-lsp",
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(
+      /- context7: FAILED \(all 1 lookups failed[^)]*\); composer imports UNRESOLVED \(no composer\.lock read\)/,
+    );
+  });
+
   it("includes the doc-source section header when docs are not skipped but context7 is unreachable", () => {
     const cwd = makeRepo();
     const r = spawnSync(
