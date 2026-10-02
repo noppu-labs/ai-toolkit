@@ -32,6 +32,18 @@ const BOOLEAN_FLAGS = {
   "-h": "help",
 };
 
+class UsageError extends Error {}
+
+function maxSymbolsValue(raw) {
+  const n = /^\d+$/.test(raw ?? "") ? Number.parseInt(raw, 10) : 0;
+  if (n < 1) {
+    throw new UsageError(
+      `--max-symbols needs a positive integer, got ${raw ?? "nothing"}`,
+    );
+  }
+  return n;
+}
+
 export function parseArgs(argv) {
   const out = {
     target: null,
@@ -44,9 +56,11 @@ export function parseArgs(argv) {
     const a = argv[i];
     if (a === "--max-symbols") {
       i++;
-      out.maxSymbols = Number.parseInt(argv[i], 10) || MAX_SYMBOLS_DEFAULT;
+      out.maxSymbols = maxSymbolsValue(argv[i]);
     } else if (Object.hasOwn(BOOLEAN_FLAGS, a)) out[BOOLEAN_FLAGS[a]] = true;
-    else if (!out.target) out.target = a;
+    else if (a.startsWith("-")) throw new UsageError(`unknown option ${a}`);
+    else if (out.target === null) out.target = a;
+    else throw new UsageError(`unexpected argument ${a}`);
   }
   return out;
 }
@@ -80,6 +94,18 @@ export function codegraphStatus({ hasIndex, probeOk, lines }) {
 export function astGrepStatus(probeOk, hits) {
   if (!probeOk) return "not on PATH";
   return hits === null ? "skipped (no PHP scan dirs)" : "ran";
+}
+
+// A lookup that errored leaves that package's docs UNRESOLVED, so the status has to say so.
+export function context7Status(gate) {
+  const total = gate.perPackage.length;
+  const failed = gate.perPackage.filter((e) => e.error).length;
+  const anon = gate.anonymous ? ", anonymous — no CONTEXT7_API_KEY" : "";
+  if (total > 0 && failed === total) {
+    return `FAILED (all ${total} lookups failed${anon})`;
+  }
+  if (failed > 0) return `ran (${failed} of ${total} lookups FAILED${anon})`;
+  return gate.anonymous ? "ran anonymously (no CONTEXT7_API_KEY)" : "ran";
 }
 
 async function runServer(ctx, files, server) {
@@ -136,9 +162,7 @@ async function runDocs(ctx, depRows, opts, tools) {
     apiKey: ctx.env.CONTEXT7_API_KEY,
     searchUrl: ctx.env.INVESTIGATE_BRIEF_C7_URL,
   });
-  tools.context7 = gate.anonymous
-    ? "ran anonymously (no CONTEXT7_API_KEY)"
-    : "ran";
+  tools.context7 = context7Status(gate);
   return { gate, skippedReason: null };
 }
 
@@ -211,13 +235,31 @@ async function buildBrief(opts, io) {
     ...symbols.flatMap((sym) => symbolSection(ctx, sym, state)),
     ...render.renderFooter(),
   ];
-  io.stdout.write(`${lines.join("\n")}\n`);
+  await writeAll(io.stdout, `${lines.join("\n")}\n`);
+}
+
+// A pipe write can still be queued when it returns, so wait for the flush callback.
+function writeAll(stream, text) {
+  return new Promise((resolve, reject) => {
+    stream.write(text, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
+function parseOrReport(argv, io) {
+  try {
+    return parseArgs(argv);
+  } catch (e) {
+    if (!(e instanceof UsageError)) throw e;
+    io.stderr.write(`brief.mjs: ${e.message}\n${USAGE}\n`);
+    return null;
+  }
 }
 
 export async function main(argv, io) {
-  const opts = parseArgs(argv);
+  const opts = parseOrReport(argv, io);
+  if (opts === null) return 1;
   if (opts.help) {
-    io.stdout.write(`${USAGE}\n`);
+    await writeAll(io.stdout, `${USAGE}\n`);
     return 0;
   }
   if (!opts.target) {
@@ -238,10 +280,10 @@ if (
   // Node runs the main module from its realpath, so compare against the realpath too.
   import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
 ) {
-  const code = await main(process.argv.slice(2), {
+  // exitCode, not exit(): exit() drops stdout still queued for a pipe.
+  process.exitCode = await main(process.argv.slice(2), {
     env: process.env,
     stdout: process.stdout,
     stderr: process.stderr,
   });
-  process.exit(code);
 }

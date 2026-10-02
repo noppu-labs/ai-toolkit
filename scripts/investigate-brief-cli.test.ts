@@ -45,6 +45,10 @@ type CliModule = {
     lines: string[] | null;
   }) => string;
   astGrepStatus: (probeOk: boolean, hits: unknown[] | null) => string;
+  context7Status: (gate: {
+    perPackage: Array<{ error?: string }>;
+    anonymous: boolean;
+  }) => string;
   main: (
     argv: string[],
     io: {
@@ -139,6 +143,39 @@ function makeRepo(): string {
   return cwd;
 }
 
+// Enough classes, each referenced by long lines in several files, to push the
+// brief past one 64 KiB pipe buffer.
+function makeLargeRepo(): string {
+  const cwd = mkdtempSync(join(tmpdir(), "investigate-cli-large-"));
+  git(cwd, "init", "-q", "-b", "main");
+  git(cwd, "config", "user.email", "t@example.com");
+  git(cwd, "config", "user.name", "t");
+  mkdirSync(join(cwd, "app", "Models"), { recursive: true });
+  mkdirSync(join(cwd, "app", "Http"), { recursive: true });
+  const names = Array.from(
+    { length: 120 },
+    (_, i) => `Model${String(i).padStart(3, "0")}`,
+  );
+  for (const name of names) {
+    writeFileSync(
+      join(cwd, "app", "Models", `${name}.php`),
+      `<?php\nclass ${name} {}\n`,
+    );
+  }
+  for (const consumer of ["A", "B", "C", "D"]) {
+    const body = names
+      .map((name) => `$a = new ${name}(${"x".repeat(120)});`)
+      .join("\n");
+    writeFileSync(
+      join(cwd, "app", "Http", `${consumer}.php`),
+      `<?php\n${body}\n`,
+    );
+  }
+  git(cwd, "add", ".");
+  git(cwd, "commit", "-q", "-m", "base");
+  return cwd;
+}
+
 function runBrief(
   cwd: string,
   ...args: string[]
@@ -173,11 +210,56 @@ describe("parseArgs", () => {
       help: false,
     });
     expect(cli.parseArgs([])).toMatchObject({ target: null, maxSymbols: 15 });
-    expect(cli.parseArgs(["--max-symbols", "zero", "x"])).toMatchObject({
-      maxSymbols: 15,
-      target: "x",
-    });
     expect(cli.parseArgs(["--help"])).toMatchObject({ help: true });
+  });
+
+  it.each([
+    [["a", "b"], "unexpected argument b"],
+    [["a", "--bogus"], "unknown option --bogus"],
+    [["a", "--max-symbols"], "--max-symbols needs a positive integer"],
+    [["--max-symbols", "zero", "x"], "--max-symbols needs a positive integer"],
+    [["a", "--max-symbols", "0"], "--max-symbols needs a positive integer"],
+    [
+      ["a", "--max-symbols", "--no-docs"],
+      "--max-symbols needs a positive integer",
+    ],
+  ])("rejects %j", (argv, reason) => {
+    expect(() => cli.parseArgs(argv)).toThrow(reason);
+  });
+});
+
+describe("context7Status", () => {
+  const entries = (
+    ...errors: Array<string | undefined>
+  ): {
+    perPackage: Array<{ error?: string }>;
+    anonymous: boolean;
+  } => ({
+    perPackage: errors.map((error) => (error ? { error } : {})),
+    anonymous: false,
+  });
+
+  it("separates clean, partly failed, and fully failed lookups", () => {
+    expect(cli.context7Status(entries(undefined, undefined))).toBe("ran");
+    expect(cli.context7Status({ ...entries(undefined), anonymous: true })).toBe(
+      "ran anonymously (no CONTEXT7_API_KEY)",
+    );
+    expect(cli.context7Status(entries("HTTP 500", undefined, undefined))).toBe(
+      "ran (1 of 3 lookups FAILED)",
+    );
+    expect(
+      cli.context7Status({
+        ...entries("HTTP 500", undefined),
+        anonymous: true,
+      }),
+    ).toBe("ran (1 of 2 lookups FAILED, anonymous — no CONTEXT7_API_KEY)");
+    expect(cli.context7Status(entries("HTTP 500", "boom"))).toBe(
+      "FAILED (all 2 lookups failed)",
+    );
+    expect(cli.context7Status({ ...entries("boom"), anonymous: true })).toBe(
+      "FAILED (all 1 lookups failed, anonymous — no CONTEXT7_API_KEY)",
+    );
+    expect(cli.context7Status(entries())).toBe("ran");
   });
 });
 
@@ -256,6 +338,36 @@ describe("brief.mjs", () => {
     expect(r.stderr).toContain("usage:");
     expect(runBrief(cwd, "--help").status).toBe(0);
   });
+
+  it("writes the whole brief through a pipe when it exceeds 64 KiB", () => {
+    const cwd = makeLargeRepo();
+    const r = runBrief(
+      cwd,
+      "app/Models",
+      "--max-symbols",
+      "200",
+      "--no-docs",
+      "--no-lsp",
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout.length).toBeGreaterThan(65_536);
+    expect(r.stdout).toContain("## Unresolved by construction");
+  });
+
+  it.each([
+    [["src/lib", "extra"], "unexpected argument extra"],
+    [["src/lib", "--bogus"], "unknown option --bogus"],
+    [["src/lib", "--max-symbols", "--no-docs"], "--max-symbols needs"],
+  ])(
+    "rejects %j with the reason and usage on stderr and exit 1",
+    (argv, reason) => {
+      const r = runBrief(makeRepo(), ...argv);
+      expect(r.status).toBe(1);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toContain(`brief.mjs: ${reason}`);
+      expect(r.stderr).toContain(cli.USAGE);
+    },
+  );
 
   it("exits 1 for a missing target, a non-git path, and a dir with no source files", () => {
     const cwd = makeRepo();
@@ -400,7 +512,7 @@ describe("brief.mjs", () => {
     expect(r.stdout).toContain("## Doc sources (context7 version gate)");
     expect(r.stdout).toContain("lookup FAILED");
     expect(r.stdout).toContain(
-      "- context7: ran anonymously (no CONTEXT7_API_KEY)",
+      "- context7: FAILED (all 1 lookups failed, anonymous — no CONTEXT7_API_KEY)",
     );
   });
 });
