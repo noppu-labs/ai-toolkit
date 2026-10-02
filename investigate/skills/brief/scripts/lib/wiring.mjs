@@ -87,9 +87,9 @@ function push(buckets, category, hit) {
 // Structural hits go first: they are AST-precise, so they own their file:line.
 function claimAstHits(buckets, sym, relTarget, astHits) {
   const claimed = new Set();
+  const classRef = new RegExp(`(^|[^\\w])${esc(sym)}::class`);
   for (const h of astHits ?? []) {
-    if (!h.text.includes(`${sym}::class`) || isInternal(h.filePath, relTarget))
-      continue;
+    if (!classRef.test(h.text) || isInternal(h.filePath, relTarget)) continue;
     claimed.add(`${h.filePath}:${h.lineNo}`);
     push(buckets, TEST_PATH_RE.test(h.filePath) ? "test" : h.category, h);
   }

@@ -156,6 +156,25 @@ describe("bucketHits", () => {
     expect(b.test).toHaveLength(1);
     expect(b.construction).toBeUndefined();
   });
+
+  it("claims an ast hit only when the symbol is word-bounded before ::class", () => {
+    const hit = (text: string): Hit => ({
+      category: "container",
+      filePath: "app/Jobs/Run.php",
+      lineNo: "5",
+      text,
+    });
+    expect(
+      wiring.bucketHits("Invoice", "app/Services", "", [
+        hit("$y = resolve(BarInvoice::class);"),
+      ]),
+    ).toEqual({});
+    expect(
+      wiring.bucketHits("Invoice", "app/Services", "", [
+        hit("resolve(\\App\\Invoice::class)"),
+      ]).container,
+    ).toHaveLength(1);
+  });
 });
 
 describe("wiringFor", () => {
@@ -175,6 +194,10 @@ describe("wiringFor", () => {
     expect(wiring.wiringFor(ctx, "NothingNamedThis")).toEqual({});
     expect(
       wiring.wiringFor({ ...ctx, repoRoot: "/nonexistent-root" }, "Invoice"),
+    ).toBeNull();
+    const notARepo = mkdtempSync(join(tmpdir(), "investigate-wiring-nogit-"));
+    expect(
+      wiring.wiringFor({ ...ctx, repoRoot: notARepo }, "Invoice"),
     ).toBeNull();
   });
 });
