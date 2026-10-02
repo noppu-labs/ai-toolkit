@@ -48,6 +48,7 @@ export class LspClient {
   #parser = new FrameParser();
   #nextId = 1;
   #pending = new Map();
+  #closed = false;
 
   constructor(cmd, args, cwd, env = process.env) {
     this.#proc = spawn(cmd, args, {
@@ -58,15 +59,17 @@ export class LspClient {
     this.#proc.stdout.on("data", (d) => {
       for (const msg of this.#parser.push(d)) this.#onMessage(msg);
     });
-    // A server that fails to start or dies mid-session fails its pending requests instead of hanging them.
-    this.#proc.on("error", (err) => this.#failPending(err));
-    this.#proc.on("exit", () => this.#failPending(new Error("server exited")));
+    // A server that fails to start or dies mid-session fails its pending and later requests instead of hanging them.
+    // "close" fires after stdout drains, so a reply written just before exit is still delivered.
+    this.#proc.on("error", (err) => this.#close(err));
+    this.#proc.on("close", () => this.#close(new Error("server exited")));
     this.#proc.stdin.on("error", () => {
-      /* EPIPE after the server exits; pending requests fail through the exit handler */
+      /* EPIPE after the server exits; requests fail through the close handler */
     });
   }
 
-  #failPending(err) {
+  #close(err) {
+    this.#closed = true;
     for (const p of this.#pending.values()) p.reject(err);
     this.#pending.clear();
   }
@@ -84,6 +87,7 @@ export class LspClient {
   }
 
   #write(obj) {
+    if (this.#closed) return;
     const s = JSON.stringify(obj);
     this.#proc.stdin.write(
       `Content-Length: ${Buffer.byteLength(s)}${SEPARATOR}${s}`,
@@ -91,6 +95,9 @@ export class LspClient {
   }
 
   request(method, params, timeoutMs) {
+    if (this.#closed) {
+      return Promise.reject(new Error(`server exited: ${method}`));
+    }
     const id = this.#nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {

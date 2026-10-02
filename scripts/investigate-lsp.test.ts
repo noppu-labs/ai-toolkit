@@ -130,6 +130,21 @@ describe("phpantomTypes", () => {
     ]);
   });
 
+  it("fails fast on every file once the server exits after initialize", async () => {
+    const ctx = {
+      ...makeRoot(),
+      env: { ...process.env, FAKE_LSP_EXIT_AFTER_INIT: "1" },
+    };
+    const files = [
+      join(ctx.repoRoot, "app", "Invoice.php"),
+      join(ctx.repoRoot, "app", "Invoice.php"),
+    ];
+    const started = Date.now();
+    const out = await php.phpantomTypes(ctx, files, fake);
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(out === null || out.size === 0).toBe(true);
+  });
+
   it("returns null when the binary is missing", async () => {
     expect(
       await php.phpantomTypes(makeRoot(), ["x.php"], "definitely-missing-lsp"),
