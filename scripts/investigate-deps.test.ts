@@ -21,7 +21,9 @@ type DepsModule = {
     version: string;
     dev: boolean;
   }> | null;
-  npmVersions: (repoRoot: string) => Map<string, string> | null;
+  npmVersions: (
+    repoRoot: string,
+  ) => Map<string, { version: string; dev: boolean }> | null;
   jsPackageOf: (spec: string) => string | null;
   collectDependencies: (ctx: { files: string[]; repoRoot: string }) => DepRow[];
 };
@@ -89,6 +91,8 @@ function makeRoot(): string {
         "node_modules/react": { version: "19.2.7" },
         "node_modules/@inertiajs/react": { version: "3.3.1" },
         "node_modules/a/node_modules/react": { version: "17.0.0" },
+        "node_modules/vitest": { version: "5.0.2", dev: true },
+        "node_modules/fsevents": { version: "2.3.3", devOptional: true },
       },
     }),
   );
@@ -98,7 +102,7 @@ function makeRoot(): string {
   );
   writeFileSync(
     join(root, "src", "page.tsx"),
-    "import { usePage } from '@inertiajs/react';\nimport React from \"react\";\nimport x from '@/lib/x';\nimport y from './y';\nconst z = require('react');\n",
+    "import { usePage } from '@inertiajs/react';\nimport React from \"react\";\nimport x from '@/lib/x';\nimport y from './y';\nconst z = require('react');\nimport { it } from 'vitest';\nimport fse from 'fsevents';\n",
   );
   return root;
 }
@@ -129,9 +133,18 @@ describe("composerNamespaceMap", () => {
 describe("npmVersions", () => {
   it("keeps top-level packages only", () => {
     const m = deps.npmVersions(makeRoot());
-    expect(m?.get("react")).toBe("19.2.7");
-    expect(m?.get("@inertiajs/react")).toBe("3.3.1");
-    expect(m?.size).toBe(2);
+    expect(m?.get("react")).toEqual({ version: "19.2.7", dev: false });
+    expect(m?.get("@inertiajs/react")).toEqual({
+      version: "3.3.1",
+      dev: false,
+    });
+    expect(m?.size).toBe(4);
+  });
+
+  it("marks dev and devOptional packages as dev", () => {
+    const m = deps.npmVersions(makeRoot());
+    expect(m?.get("vitest")).toEqual({ version: "5.0.2", dev: true });
+    expect(m?.get("fsevents")).toEqual({ version: "2.3.3", dev: true });
   });
 });
 
@@ -174,9 +187,11 @@ describe("collectDependencies", () => {
       "@inertiajs/react",
       "acme/a",
       "acme/b",
+      "fsevents",
       "laravel/pint",
       "react",
       "spatie/laravel-data",
+      "vitest",
     ]);
     expect(rows.find((r) => r.name === "acme/a")?.ambiguous).toEqual([
       "acme/a",
@@ -189,8 +204,11 @@ describe("collectDependencies", () => {
     });
     expect(rows.find((r) => r.name === "react")).toMatchObject({
       version: "19.2.7",
+      dev: false,
       importedAs: ["react"],
     });
+    expect(rows.find((r) => r.name === "vitest")?.dev).toBe(true);
+    expect(rows.find((r) => r.name === "fsevents")?.dev).toBe(true);
   });
 
   it("returns an empty array when no lockfile exists", () => {

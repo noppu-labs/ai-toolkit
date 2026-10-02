@@ -61,9 +61,10 @@ npx skills add noppu-labs/ai-toolkit/investigate
 The `investigate:brief` script needs only `git` and Node 20+. When they are on `PATH` it also
 uses `gitnexus` (call graph), `codegraph` (blast radius and inheritance), `ast-grep` (container
 and binding patterns), `phpantom_lsp` (PHP types), and `typescript-language-server` (verified
-TypeScript callers). By default it also sends each non-dev third-party package name to
-context7.com to find version-matched documentation sources, anonymously unless
-`CONTEXT7_API_KEY` is set; `--no-docs` disables that network call. Every missing tool is
+TypeScript callers). By default it also sends the names of up to 12 third-party packages the target imports
+(devDependencies and composer dev packages excluded) to context7.com to find version-matched
+documentation sources, anonymously unless `CONTEXT7_API_KEY` is set; `--no-docs` disables that
+network call. Every missing tool is
 reported under the brief's `Tools` section rather than failing the run.
 
 ## Verifying releases
