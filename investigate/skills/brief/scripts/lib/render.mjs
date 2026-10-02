@@ -70,8 +70,11 @@ export function renderIndex(freshness) {
       "",
     ];
   }
+  const behind = freshness.divergent
+    ? "indexed commit is not in HEAD's history"
+    : `${freshness.commitsBehind} commits behind HEAD`;
   const staleFlag = freshness.stale
-    ? ` — STALE (${freshness.commitsBehind ?? "?"} commits behind HEAD; graph data may be outdated)`
+    ? ` — STALE (${behind}; graph data may be outdated)`
     : " — current";
   return [
     `Index: commit ${freshness.indexed} (branch ${freshness.branch})${staleFlag}`,
