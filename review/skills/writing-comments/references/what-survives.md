@@ -1,6 +1,6 @@
 # What Survives
 
-The positive standard, taken from comments left untouched in files that were otherwise cut by half. Each explains something no name and no type could carry.
+The positive standard, taken from comments left untouched in files that were otherwise cut by half, plus one Python example written to the same standard. Each explains something no name and no type could carry.
 
 ## 1. Contracts with an external system, deploy skew, ordering
 

@@ -16,7 +16,7 @@ One of two things is in scope, never both:
 - **A diff**, when `base=` and `head=` are given, with the same defaults as step 0 of [../comment-audit/SKILL.md](../comment-audit/SKILL.md) when either is omitted. Read `git diff BASE...HEAD`, three dots, so only what the branch adds is ruled on.
 - **A path**, when a path is given as the argument. Every file under it is in scope whatever its git state, and `base=` and `head=` are ignored.
 
-Generated code is out of scope. Skip any path carrying a generated-code marker: `generated` as a path segment, `wayfinder`, a `.d.ts` file under a generated directory, `_ide_helper`, `*_pb2.py`, `*_pb2_grpc.py`, a `.pyi` file under a generated directory, `migrations/versions/`, and `*/migrations/0*.py`. Skip `vendor/`, `node_modules/`, `.venv/`, `venv/`, `site-packages/`, `__pycache__/`, `.egg-info/`, `build/` and `dist/` in a Python package, the `.ruff_cache/`, `.pytest_cache/`, `.mypy_cache/`, `.pyrefly_cache/`, and `.complexipy_cache/` directories, and lockfiles (`uv.lock`, `poetry.lock`, and `Pipfile.lock` among them) as well. List what was skipped in the report.
+Generated code is out of scope. Skip the paths that step 0 of [../comment-audit/SKILL.md](../comment-audit/SKILL.md) excludes from `dirs=`. List what was skipped in the report.
 
 ## Method
 
