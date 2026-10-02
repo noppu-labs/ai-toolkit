@@ -62,6 +62,7 @@ type GateModule = {
         put: (k: string, d: unknown) => void;
       };
       apiKey?: string;
+      searchUrl?: string;
     },
   ) => Promise<{ results: Cand[] } | { error: string }>;
   docSources: (
@@ -266,6 +267,13 @@ describe("c7Verdict", () => {
       6,
       /DIFFERENT STACK/,
     ],
+    [{ id: "/acme/trusted-types", branch: "3.x" }, 3, 0, /USE UNPINNED/],
+    [
+      { id: "/acme/react-lib", title: "React and Vue adapters" },
+      3,
+      6,
+      /DIFFERENT STACK \(mentions "Vue"\)/,
+    ],
   ])("%j with installed %i → rank %i", (over, major, rank, label) => {
     const v = gate.c7Verdict(cand(over), major, "@inertiajs/react");
     expect(v.rank).toBe(rank);
@@ -274,6 +282,16 @@ describe("c7Verdict", () => {
 
   it("reports an unparsed installed version as rank 4", () => {
     expect(gate.c7Verdict(cand({}), null, "x").rank).toBe(4);
+  });
+
+  it("tests every stack token, skipping one that is part of the package name", () => {
+    expect(
+      gate.c7Verdict(
+        cand({ id: "/acme/laravel-x", title: "Laravel Rails bridge" }),
+        3,
+        "acme/laravel-x",
+      ).label,
+    ).toMatch(/mentions "Rails"/);
   });
 
   it("does not flag a stack word that is part of the package name", () => {
@@ -354,7 +372,7 @@ describe("c7Search", () => {
         },
       ],
     });
-    expect(seenHeaders.Authorization).toBe("ctx7sk-secret");
+    expect(seenHeaders.Authorization).toBe("Bearer ctx7sk-secret");
     const r2 = await gate.c7Search("b", "npm", {
       fetchImpl: fakeFetch({ results: [] }),
       cache,
@@ -362,8 +380,49 @@ describe("c7Search", () => {
     expect(r2).toEqual(r1);
   });
 
-  it("refetches when the cached results are not an array of objects", async () => {
-    const searches = [{ results: [1, "x"] }, { results: [null] }].map((bad) => {
+  it("queries the override URL with the encoded query", async () => {
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ results: [] }));
+    }) as unknown as typeof fetch;
+    await gate.c7Search("@inertiajs/react", "npm", {
+      fetchImpl,
+      cache: memCache(),
+      searchUrl: "http://127.0.0.1:1/search",
+    });
+    await gate.c7Search("spatie/laravel-data", "composer", {
+      fetchImpl,
+      cache: memCache(),
+    });
+    expect(urls).toEqual([
+      "http://127.0.0.1:1/search?query=inertiajs",
+      "https://context7.com/api/v1/search?query=spatie%2Flaravel-data",
+    ]);
+  });
+
+  it("drops results without a string id and reports a reply with no results array", async () => {
+    const mixed = await gate.c7Search("b", "npm", {
+      fetchImpl: fakeFetch({ results: [{ id: 3 }, { id: "/a/b" }, null] }),
+      cache: memCache(),
+    });
+    expect(mixed).toMatchObject({ results: [{ id: "/a/b" }] });
+    const cache = memCache();
+    expect(
+      await gate.c7Search("b", "npm", {
+        fetchImpl: fakeFetch({ libraries: [] }),
+        cache,
+      }),
+    ).toEqual({ error: "unexpected context7 reply (no results array)" });
+    expect(cache.store.size).toBe(0);
+  });
+
+  it("refetches when the cached results are not an array of candidates", async () => {
+    const searches = [
+      { results: [1, "x"] },
+      { results: [null] },
+      { results: [{ foo: 1 }] },
+    ].map((bad) => {
       const cache = memCache();
       cache.put("b", bad);
       return gate.c7Search("b", "npm", {
@@ -372,6 +431,7 @@ describe("c7Search", () => {
       });
     });
     expect(await Promise.all(searches)).toEqual([
+      { results: [] },
       { results: [] },
       { results: [] },
     ]);
@@ -432,6 +492,32 @@ describe("docSources", () => {
         name: "@inertiajs/react",
         version: "3.3.1",
       },
+    ]);
+  });
+
+  it("lists a rank-2 pin in the fetch list as <id>/<pin>", async () => {
+    const g = await gate.docSources(
+      [row({ name: "pinlib", version: "3.3.1" })],
+      {
+        fetchImpl: fakeFetch({
+          results: [
+            {
+              id: "/acme/pinlib",
+              branch: "2.x",
+              versions: ["v3.3.0", "v2.9.0"],
+              lastUpdateDate: TODAY,
+            },
+          ],
+        }),
+        cache: memCache(),
+      },
+    );
+    expect(g.perPackage[0]?.verdicts[0]).toMatchObject({
+      id: "/acme/pinlib",
+      mark: "✅",
+    });
+    expect(g.fetchable).toEqual([
+      { id: "/acme/pinlib/v3.3.0", name: "pinlib", version: "3.3.1" },
     ]);
   });
 
