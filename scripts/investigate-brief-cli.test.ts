@@ -55,7 +55,7 @@ type CliModule = {
     probeOk: boolean;
     lines: string[] | null;
   }) => string;
-  astGrepStatus: (probeOk: boolean, hits: unknown[] | null) => string;
+  astGrepStatus: (scan: { state: string; error?: string }) => string;
   context7Status: (gate: {
     perPackage: Array<{ error?: string }>;
     anonymous: boolean;
@@ -355,10 +355,18 @@ describe("codegraphStatus", () => {
 });
 
 describe("astGrepStatus", () => {
-  it("separates absent binary, no scan dirs, and a scan that ran", () => {
-    expect(cli.astGrepStatus(false, null)).toBe("not on PATH");
-    expect(cli.astGrepStatus(true, null)).toBe("skipped (no PHP scan dirs)");
-    expect(cli.astGrepStatus(true, [])).toBe("ran");
+  it("separates absent, not needed, no scan dirs, failed, and ran", () => {
+    expect(cli.astGrepStatus({ state: "absent" })).toBe("not on PATH");
+    expect(cli.astGrepStatus({ state: "not-needed" })).toBe(
+      "not needed (no PHP files)",
+    );
+    expect(cli.astGrepStatus({ state: "no-dirs" })).toBe(
+      "skipped (no PHP scan dirs)",
+    );
+    expect(cli.astGrepStatus({ state: "failed", error: "ERROR: x" })).toBe(
+      "FAILED (every pattern errored: ERROR: x)",
+    );
+    expect(cli.astGrepStatus({ state: "ran" })).toBe("ran");
   });
 });
 

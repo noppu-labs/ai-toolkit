@@ -25,3 +25,12 @@ export function makeFakeLspPath(fakeServer: string): string {
 
   return bin;
 }
+
+// NO_TOOLS_PATH plus a fake ast-grep.
+export function makeFakeAstGrepPath(fakeAstGrep: string): string {
+  const bin = makeNoToolsPath();
+  chmodSync(fakeAstGrep, 0o755);
+  symlinkSync(fakeAstGrep, join(bin, "ast-grep"));
+
+  return bin;
+}

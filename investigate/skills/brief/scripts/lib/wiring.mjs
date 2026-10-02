@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { probe, run } from "./exec.mjs";
-import { TEST_PATH_RE } from "./repo.mjs";
+import { isTestPath } from "./repo.mjs";
 
 export const CATEGORIES = [
   "container",
@@ -37,7 +37,7 @@ const DEFINITION_GLOBS = [
 ];
 const GREP_LINE_RE = /^([^:]+):(\d+):(.*)$/;
 // ast-grep matches the AST, so these hits are multi-line-safe and immune to
-// comments and strings. One scan per pattern for the whole repo, filtered per symbol afterwards.
+// comments and strings. One scan per pattern across AST_SCAN_DIRS, filtered per symbol afterwards.
 const AST_PATTERNS = [
   ["container", "resolve($C::class)"],
   ["container", "resolve($C::class, $$$)"],
@@ -74,7 +74,15 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function phpCategory(sym, t) {
   const s = esc(sym);
-  if (/\b(bind|singleton|scoped|instance)\s*\(/.test(t)) return "binding";
+  // A container method call with the symbol's ::class among its arguments, so
+  // JS `.bind(` and `Foo::instance()` stay out of the bindings bucket.
+  if (
+    new RegExp(
+      `(->|::)\\s*(bind|singleton|scoped|instance)\\s*\\([^)]*?(\\\\?[\\w\\\\]*\\\\)?\\b${s}::class`,
+    ).test(t)
+  ) {
+    return "binding";
+  }
   if (
     new RegExp(
       `(\\bresolve|\\bapp|(->|::)make(With)?)\\s*\\(\\s*(\\\\?[\\w\\\\]*\\\\)?${s}::class`,
@@ -98,10 +106,14 @@ export function classifyHit(sym, text) {
   return phpCategory(sym, t) ?? "other";
 }
 
-function isInternal(filePath, relTarget) {
-  return (
-    filePath === relTarget || filePath.startsWith(`${relTarget}${path.sep}`)
-  );
+// git paths always use "/". With the repo root as target every hit is inside it,
+// so only the symbol's own file counts as internal there.
+function isInternal(filePath, scope) {
+  return filePath === scope || filePath.startsWith(`${scope}/`);
+}
+
+export function internalScope(relTarget, ownFile) {
+  return relTarget === "." ? ownFile : relTarget;
 }
 
 function push(buckets, category, hit) {
@@ -116,11 +128,7 @@ function claimAstHits(buckets, sym, relTarget, astHits) {
   for (const h of astHits ?? []) {
     if (!classRef.test(h.text) || isInternal(h.filePath, relTarget)) continue;
     claimed.add(`${h.filePath}:${h.lineNo}`);
-    push(
-      buckets,
-      TEST_PATH_RE.test(h.filePath) ? "test" : h.category,
-      forDisplay(h),
-    );
+    push(buckets, isTestPath(h.filePath) ? "test" : h.category, forDisplay(h));
   }
   return claimed;
 }
@@ -139,47 +147,59 @@ export function bucketHits(sym, relTarget, grepStdout, astHits) {
     }
     push(
       buckets,
-      TEST_PATH_RE.test(hit.filePath) ? "test" : classifyHit(sym, hit.text),
+      isTestPath(hit.filePath) ? "test" : classifyHit(sym, hit.text),
       forDisplay(hit),
     );
   }
   return buckets;
 }
 
+// ast-grep exits 1 both for "no match" and for an error; only an error writes stderr.
 function scanPattern(ctx, scanDirs, category, pattern) {
   const res = run(
     "ast-grep",
     ["--pattern", pattern, "--lang", "php", ...scanDirs],
     { cwd: ctx.repoRoot, timeout: 30_000, env: ctx.env },
   );
-  if (res.error || !res.stdout) return [];
+  const failure =
+    res.error?.message ?? (res.status === 0 ? "" : (res.stderr ?? "").trim());
+  if (failure) return { hits: [], error: failure.split("\n")[0] };
   const hits = [];
-  for (const line of res.stdout.split("\n")) {
+  for (const line of (res.stdout ?? "").split("\n")) {
     const hit = splitGrepLine(line);
     if (hit) hits.push({ category, ...hit });
   }
-  return hits;
+  return { hits, error: null };
 }
 
-function computeAstHits(ctx) {
-  if (!probe("ast-grep", ctx.env)) return null;
+function computeAstScan(ctx) {
+  if (!probe("ast-grep", ctx.env)) return { state: "absent", hits: null };
+  if (!ctx.files.some((f) => f.endsWith(".php"))) {
+    return { state: "not-needed", hits: null };
+  }
   const scanDirs = AST_SCAN_DIRS.filter((d) =>
     existsSync(path.join(ctx.repoRoot, d)),
   );
-  if (scanDirs.length === 0) return null;
-  return AST_PATTERNS.flatMap(([category, pattern]) =>
+  if (scanDirs.length === 0) return { state: "no-dirs", hits: null };
+  const scans = AST_PATTERNS.map(([category, pattern]) =>
     scanPattern(ctx, scanDirs, category, pattern),
   );
+  const errors = scans.map((r) => r.error).filter(Boolean);
+  if (errors.length === scans.length) {
+    return { state: "failed", hits: null, error: errors[0] };
+  }
+  return { state: "ran", hits: scans.flatMap((r) => r.hits) };
 }
 
-export function astGrepHits(ctx) {
+/** One ast-grep pass per ctx: the Tools line and every symbol's wiring share it. */
+export function astGrepScan(ctx) {
   if (astCache.has(ctx)) return astCache.get(ctx);
-  const hits = computeAstHits(ctx);
-  astCache.set(ctx, hits);
-  return hits;
+  const scan = computeAstScan(ctx);
+  astCache.set(ctx, scan);
+  return scan;
 }
 
-export function wiringFor(ctx, sym) {
+export function wiringFor(ctx, sym, ownFile) {
   // git grep: tracked files only, so vendor/ and node_modules/ drop out for free.
   const res = run(
     "git",
@@ -199,7 +219,12 @@ export function wiringFor(ctx, sym) {
   );
   // git grep exits 1 on "no matches"; only >= 2 is a failure.
   if (res.error || (res.status !== 0 && res.status !== 1)) return null;
-  return bucketHits(sym, ctx.relTarget, res.stdout ?? "", astGrepHits(ctx));
+  return bucketHits(
+    sym,
+    internalScope(ctx.relTarget, ownFile),
+    res.stdout ?? "",
+    astGrepScan(ctx).hits,
+  );
 }
 
 // The wiring scan matches by word, so a same-named class elsewhere makes
