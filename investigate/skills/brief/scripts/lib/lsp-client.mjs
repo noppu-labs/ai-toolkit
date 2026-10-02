@@ -1,0 +1,171 @@
+import { spawn } from "node:child_process";
+
+export const CLASS_KIND = 5;
+export const METHOD_KIND = 6;
+export const CONSTRUCTOR_KIND = 9;
+export const FUNCTION_KIND = 12;
+const SEPARATOR = "\r\n\r\n";
+
+export class FrameParser {
+  #buf = Buffer.alloc(0);
+
+  push(chunk) {
+    this.#buf = Buffer.concat([this.#buf, chunk]);
+    const out = [];
+    for (let msg = this.#next(); msg !== undefined; msg = this.#next()) {
+      if (msg !== null) out.push(msg);
+    }
+    return out;
+  }
+
+  /** @returns undefined when no complete frame is buffered, null for a skipped frame */
+  #next() {
+    const headerEnd = this.#buf.indexOf(SEPARATOR);
+    if (headerEnd === -1) return undefined;
+    const m = /Content-Length: (\d+)/i.exec(
+      this.#buf.subarray(0, headerEnd).toString(),
+    );
+    if (!m) {
+      this.#buf = this.#buf.subarray(headerEnd + SEPARATOR.length);
+      return null;
+    }
+    const total = headerEnd + SEPARATOR.length + Number.parseInt(m[1], 10);
+    if (this.#buf.length < total) return undefined;
+    const body = this.#buf
+      .subarray(headerEnd + SEPARATOR.length, total)
+      .toString();
+    this.#buf = this.#buf.subarray(total);
+    try {
+      return JSON.parse(body);
+    } catch {
+      return null;
+    }
+  }
+}
+
+export class LspClient {
+  #proc;
+  #parser = new FrameParser();
+  #nextId = 1;
+  #pending = new Map();
+
+  constructor(cmd, args, cwd, env = process.env) {
+    this.#proc = spawn(cmd, args, {
+      cwd,
+      env,
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    this.#proc.stdout.on("data", (d) => {
+      for (const msg of this.#parser.push(d)) this.#onMessage(msg);
+    });
+    // A server that fails to start or dies mid-session fails its pending requests instead of hanging them.
+    this.#proc.on("error", (err) => this.#failPending(err));
+    this.#proc.on("exit", () => this.#failPending(new Error("server exited")));
+    this.#proc.stdin.on("error", () => {
+      /* EPIPE after the server exits; pending requests fail through the exit handler */
+    });
+  }
+
+  #failPending(err) {
+    for (const p of this.#pending.values()) p.reject(err);
+    this.#pending.clear();
+  }
+
+  #onMessage(msg) {
+    if (msg.id !== undefined && msg.method) {
+      this.#write({ jsonrpc: "2.0", id: msg.id, result: null });
+      return;
+    }
+    const p = this.#pending.get(msg.id);
+    if (!p) return;
+    this.#pending.delete(msg.id);
+    if (msg.error) p.reject(new Error(msg.error.message));
+    else p.resolve(msg.result);
+  }
+
+  #write(obj) {
+    const s = JSON.stringify(obj);
+    this.#proc.stdin.write(
+      `Content-Length: ${Buffer.byteLength(s)}${SEPARATOR}${s}`,
+    );
+  }
+
+  request(method, params, timeoutMs) {
+    const id = this.#nextId++;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.#pending.delete(id);
+        reject(new Error(`timeout: ${method}`));
+      }, timeoutMs);
+      const settle = (fn) => (v) => {
+        clearTimeout(timer);
+        fn(v);
+      };
+      this.#pending.set(id, {
+        resolve: settle(resolve),
+        reject: settle(reject),
+      });
+      this.#write({ jsonrpc: "2.0", id, method, params });
+    });
+  }
+
+  notify(method, params) {
+    this.#write({ jsonrpc: "2.0", method, params });
+  }
+
+  kill() {
+    try {
+      this.#proc.kill();
+    } catch {
+      /* already gone */
+    }
+  }
+}
+
+export function flattenSymbols(syms, acc = []) {
+  for (const s of syms ?? []) {
+    acc.push(s);
+    if (s.children) flattenSymbols(s.children, acc);
+  }
+  return acc;
+}
+
+export async function withClient(cmd, ctx, initTimeoutMs, body) {
+  const client = new LspClient(cmd, ["--stdio"], ctx.repoRoot, ctx.env);
+  try {
+    await client.request(
+      "initialize",
+      {
+        processId: process.pid,
+        rootUri: `file://${ctx.repoRoot}`,
+        capabilities: {
+          textDocument: {
+            documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+          },
+        },
+        workspaceFolders: [
+          { uri: `file://${ctx.repoRoot}`, name: ctx.repoName },
+        ],
+      },
+      initTimeoutMs,
+    );
+    client.notify("initialized", {});
+    return await body(client);
+  } catch {
+    return null;
+  } finally {
+    client.kill();
+  }
+}
+
+export function openDocument(client, file, languageId, text) {
+  client.notify("textDocument/didOpen", {
+    textDocument: { uri: `file://${file}`, languageId, version: 1, text },
+  });
+}
+
+export function closeDocument(client, file) {
+  client.notify("textDocument/didClose", {
+    textDocument: { uri: `file://${file}` },
+  });
+}
