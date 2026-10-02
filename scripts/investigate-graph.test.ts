@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -67,6 +67,10 @@ const FAKE_GITNEXUS_PATH: string = makeFakeToolPath(
   join(import.meta.dirname, "fixtures", "fake-gitnexus.mjs"),
 );
 const NO_TOOLS_PATH: string = makeNoToolsPath();
+const FAKE_CODEGRAPH_PATH: string = makeFakeToolPath(
+  "codegraph",
+  join(import.meta.dirname, "fixtures", "fake-codegraph.mjs"),
+);
 
 // main has three commits; side branches off the first and adds one of its own.
 function makeHistory(): { root: string; shas: string[]; side: string } {
@@ -310,6 +314,47 @@ describe("codegraphOverview", () => {
     const root = mkdtempSync(join(tmpdir(), "investigate-cg-"));
     expect(
       graph.codegraphOverview({ repoRoot: root, env: process.env }, ["Foo"]),
+    ).toBeNull();
+  });
+
+  function indexedRoot(): string {
+    const root = mkdtempSync(join(tmpdir(), "investigate-cg-"));
+    mkdirSync(join(root, ".codegraph"));
+    return root;
+  }
+
+  it("returns the explore output through the env's PATH", () => {
+    expect(
+      graph.codegraphOverview(
+        { repoRoot: indexedRoot(), env: { PATH: FAKE_CODEGRAPH_PATH } },
+        ["Foo"],
+      ),
+    ).toEqual(["line 1", "line 2", "line 3"]);
+  });
+
+  it("truncates past 80 lines and says how many were cut", () => {
+    const lines = graph.codegraphOverview(
+      {
+        repoRoot: indexedRoot(),
+        env: { PATH: FAKE_CODEGRAPH_PATH, FAKE_CODEGRAPH_LINES: "85" },
+      },
+      ["Foo"],
+    );
+    expect(lines).toHaveLength(81);
+    expect(lines?.at(-1)).toBe(
+      "… truncated (5 more lines; run codegraph explore for full output)",
+    );
+  });
+
+  it("returns null when explore exits non-zero", () => {
+    expect(
+      graph.codegraphOverview(
+        {
+          repoRoot: indexedRoot(),
+          env: { PATH: FAKE_CODEGRAPH_PATH, FAKE_CODEGRAPH_EXIT: "3" },
+        },
+        ["Foo"],
+      ),
     ).toBeNull();
   });
 });

@@ -15,22 +15,26 @@ export function makeNoToolsPath(): string {
   return bin;
 }
 
-// NO_TOOLS_PATH plus the fake language server under both real server names.
-export function makeFakeLspPath(fakeServer: string): string {
+// NO_TOOLS_PATH plus fakes under real tool names, as { name: fakeScript }.
+export function makeFakeToolsPath(fakes: Record<string, string>): string {
   const bin = makeNoToolsPath();
-  chmodSync(fakeServer, 0o755);
-  for (const name of ["phpantom_lsp", "typescript-language-server"]) {
-    symlinkSync(fakeServer, join(bin, name));
+  for (const [name, fake] of Object.entries(fakes)) {
+    chmodSync(fake, 0o755);
+    symlinkSync(fake, join(bin, name));
   }
 
   return bin;
 }
 
+// NO_TOOLS_PATH plus the fake language server under both real server names.
+export function makeFakeLspPath(fakeServer: string): string {
+  return makeFakeToolsPath({
+    phpantom_lsp: fakeServer,
+    "typescript-language-server": fakeServer,
+  });
+}
+
 // NO_TOOLS_PATH plus one fake binary under a real tool's name.
 export function makeFakeToolPath(name: string, fake: string): string {
-  const bin = makeNoToolsPath();
-  chmodSync(fake, 0o755);
-  symlinkSync(fake, join(bin, name));
-
-  return bin;
+  return makeFakeToolsPath({ [name]: fake });
 }

@@ -55,6 +55,10 @@ type GateModule = {
       searchUrl?: string;
     },
   ) => Promise<{ results: Cand[] } | { error: string }>;
+  scoreCandidates: (
+    results: Cand[],
+    row: { name: string; version: string; ecosystem: string },
+  ) => Array<{ c: Cand; v: Verdict }>;
   docSources: (
     rows: GateRow[],
     deps: {
@@ -180,6 +184,30 @@ describe("bestPin", () => {
             r === undefined ||
             (versions.includes(r) && gate.majorOf(r) === major)
           );
+        },
+      ),
+    );
+  });
+
+  // Oracle: the versions are generated as tuples, so the expected pin is the
+  // lexicographically highest tuple of the installed major, found without bestPin's comparator.
+  it("returns the highest dotted version of the installed major", () => {
+    const tuple = fc.tuple(fc.nat(5), fc.nat(20), fc.nat(20));
+    fc.assert(
+      fc.property(
+        fc.array(fc.record({ t: tuple, v: fc.boolean() }), { minLength: 1 }),
+        fc.nat(5),
+        (entries, major) => {
+          const versions = entries.map(
+            ({ t, v }) => `${v ? "v" : ""}${t.join(".")}`,
+          );
+          const same = entries
+            .map((e) => e.t)
+            .filter(([m]) => m === major)
+            .sort((a, b) => b[0] - a[0] || b[1] - a[1] || b[2] - a[2]);
+          const r = gate.bestPin(versions, major);
+          if (same.length === 0) return r === undefined;
+          return String(r).replace(/^v/, "") === (same[0] ?? []).join(".");
         },
       ),
     );
@@ -312,6 +340,25 @@ describe("c7Verdict", () => {
           );
         },
       ),
+    );
+  });
+});
+
+describe("scoreCandidates", () => {
+  it("demotes a loose name match by 3 ranks and labels it, without dropping it", () => {
+    const scored = gate.scoreCandidates(
+      [
+        cand({ id: "/facebook/react", branch: "3.x" }),
+        cand({ id: "/inertiajs/inertia", branch: "2.x" }),
+      ],
+      { name: "@inertiajs/react", version: "3.3.1", ecosystem: "npm" },
+    );
+    expect(scored.map((s) => [s.c.id, s.v.rank])).toEqual([
+      ["/facebook/react", 3],
+      ["/inertiajs/inertia", 5],
+    ]);
+    expect(scored[0]?.v.label).toBe(
+      "NAME MISMATCH — confirm this is really @inertiajs/react; USE UNPINNED — branch 3.x == installed v3",
     );
   });
 });
@@ -502,6 +549,20 @@ describe("docSources", () => {
     expect(g.fetchable).toEqual([
       { id: "/acme/pinlib/v3.3.0", name: "pinlib", version: "3.3.1" },
     ]);
+  });
+
+  it("looks up at most 12 non-dev packages", async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls++;
+      return new Response(JSON.stringify({ results: [] }));
+    }) as unknown as typeof fetch;
+    const rows = Array.from({ length: 14 }, (_, i) => row({ name: `pkg${i}` }));
+    const g = await gate.docSources(rows, { fetchImpl, cache: memCache() });
+    expect(calls).toBe(12);
+    expect(g.perPackage.map((e) => e.row.name)).toEqual(
+      rows.slice(0, 12).map((r) => r.name),
+    );
   });
 
   it("reports error, no-match, and no-usable outcomes", async () => {

@@ -162,6 +162,30 @@ describe("bucketHits", () => {
     expect(b.construction).toBeUndefined();
   });
 
+  it("lets an ast hit take a line the text classifier would file elsewhere", () => {
+    const grep = "app/Jobs/Run.php:3:$x = new Invoice(); // Invoice::class";
+    const ast: Hit[] = [
+      {
+        category: "container",
+        filePath: "app/Jobs/Run.php",
+        lineNo: "3",
+        text: "resolve(Invoice::class)",
+      },
+    ];
+    expect(wiring.bucketHits("Invoice", "app/Services", grep, null)).toEqual({
+      construction: [
+        {
+          filePath: "app/Jobs/Run.php",
+          lineNo: "3",
+          text: "$x = new Invoice(); // Invoice::class",
+        },
+      ],
+    });
+    const claimed = wiring.bucketHits("Invoice", "app/Services", grep, ast);
+    expect(claimed.construction).toBeUndefined();
+    expect(claimed.container).toHaveLength(1);
+  });
+
   it("classifies on the full line and truncates only the stored text", () => {
     const params = Array.from(
       { length: 8 },

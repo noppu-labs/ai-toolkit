@@ -1,5 +1,11 @@
 import { spawn, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable } from "node:stream";
@@ -7,7 +13,11 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { git } from "./fixtures/investigate-git.ts";
 import type { Hit, Sym, TsCallers } from "./fixtures/investigate-types.ts";
-import { makeFakeLspPath, makeNoToolsPath } from "./fixtures/no-tools-path.ts";
+import {
+  makeFakeLspPath,
+  makeFakeToolsPath,
+  makeNoToolsPath,
+} from "./fixtures/no-tools-path.ts";
 
 type RenderModule = {
   DOCS_NO_IMPORTS: string;
@@ -793,6 +803,49 @@ describe("brief.mjs with language servers on PATH", () => {
       "1",
     );
     expect(r.stdout).toContain("- phpantom_lsp: ran");
+  });
+});
+
+describe("brief.mjs with gitnexus and codegraph on PATH", () => {
+  it("threads the env to both tools and renders the index, module graph, and graph lines", () => {
+    const fixtures = join(import.meta.dirname, "fixtures");
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, ".codegraph"));
+    const root = realpathSync(cwd);
+    const name = root.split("/").pop() ?? "";
+    const head = git(cwd, "rev-parse", "HEAD");
+    const r = runBriefWith(
+      {
+        PATH: makeFakeToolsPath({
+          gitnexus: join(fixtures, "fake-gitnexus.mjs"),
+          codegraph: join(fixtures, "fake-codegraph.mjs"),
+        }),
+        FAKE_GITNEXUS_LIST: `${name}\n  Path:    ${root}\n  Commit:  ${head}\n  Branch:  main\n`,
+        FAKE_GITNEXUS_CONTEXT: JSON.stringify({
+          status: "found",
+          symbol: {
+            kind: "Class",
+            filePath: "app/Services/Invoice.php",
+            startLine: 3,
+            endLine: 3,
+          },
+          incoming: { calls: [{ name: "boot", filePath: "app/Boot.php" }] },
+        }),
+      },
+      cwd,
+      "app/Services",
+      "--no-docs",
+      "--no-lsp",
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("- gitnexus: ran (index current)");
+    expect(r.stdout).toContain(`Index: commit ${head} (branch main) — current`);
+    expect(r.stdout).toContain("- codegraph: ran");
+    expect(r.stdout).toContain("## Module graph (codegraph");
+    expect(r.stdout).toContain(
+      "- graph: Class at app/Services/Invoice.php:3-3 (epistemic: ?)",
+    );
+    expect(r.stdout).toContain("    - boot (app/Boot.php)");
   });
 });
 
