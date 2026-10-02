@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "skills": {
+    "brief": { "sourceType": "local" },
+    "module": { "sourceType": "local" },
+    "spec": { "sourceType": "local" }
+  }
+}
