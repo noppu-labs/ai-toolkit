@@ -153,6 +153,33 @@ describe("bucketHits", () => {
     expect(b.construction).toBeUndefined();
   });
 
+  it("classifies on the full line and truncates only the stored text", () => {
+    const params = Array.from(
+      { length: 8 },
+      (_, i) => `LongDependencyName${i} $dep${i}`,
+    ).join(", ");
+    const line = `public function __construct(${params}, Invoice $invoice) {}`;
+    expect(line.length).toBeGreaterThan(200);
+    const b = wiring.bucketHits(
+      "Invoice",
+      "app/Services",
+      `app/Http/InvoiceController.php:3:${line}`,
+      null,
+    );
+    expect(b.typehint).toHaveLength(1);
+    expect(b.typehint?.[0]?.text.length).toBe(160);
+    const claimed = wiring.bucketHits("Invoice", "app/Services", "", [
+      {
+        category: "container",
+        filePath: "app/Jobs/Run.php",
+        lineNo: "5",
+        text: `$x = foo(${"a".repeat(180)}, resolve(Invoice::class));`,
+      },
+    ]);
+    expect(claimed.container).toHaveLength(1);
+    expect(claimed.container?.[0]?.text.length).toBe(160);
+  });
+
   it("claims an ast hit only when the symbol is word-bounded before ::class", () => {
     const hit = (text: string): Hit => ({
       category: "container",
