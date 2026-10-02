@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
-import { makeNoToolsPath } from "./fixtures/no-tools-path.ts";
+import { makeFakeLspPath, makeNoToolsPath } from "./fixtures/no-tools-path.ts";
 
 type RenderModule = {
   DOCS_NO_IMPORTS: string;
@@ -40,7 +40,16 @@ type CliModule = {
     help: boolean;
   };
   USAGE: string;
-  lspStatus: (result: Map<string, unknown> | null, probeOk: boolean) => string;
+  lspStatus: (
+    outcome:
+      | { results: Map<string, unknown>; failures: string[]; total: number }
+      | { error: string },
+  ) => string;
+  callerOwners: (
+    symbols: Array<{ name: string; file: string }>,
+    tsLsp: Map<string, { symbol: string }> | null,
+    repoRoot: string,
+  ) => Map<string, string>;
   codegraphStatus: (s: {
     hasIndex: boolean;
     probeOk: boolean;
@@ -76,6 +85,9 @@ const render: RenderModule = (await import(
 const cli: CliModule = (await import(pathToFileURL(script).href)) as CliModule;
 
 const NO_TOOLS_PATH: string = makeNoToolsPath();
+const FAKE_LSP_PATH: string = makeFakeLspPath(
+  join(import.meta.dirname, "fixtures", "fake-lsp-server.mjs"),
+);
 
 function git(cwd: string, ...args: string[]): void {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -182,16 +194,24 @@ function makeLargeRepo(): string {
   return cwd;
 }
 
-function runBrief(
+function runBriefWith(
+  extraEnv: Record<string, string>,
   cwd: string,
   ...args: string[]
 ): { status: number | null; stdout: string; stderr: string } {
   const r = spawnSync(process.execPath, [script, ...args], {
     cwd,
     encoding: "utf8",
-    env: { PATH: NO_TOOLS_PATH, HOME: cwd },
+    env: { PATH: NO_TOOLS_PATH, HOME: cwd, ...extraEnv },
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+
+function runBrief(
+  cwd: string,
+  ...args: string[]
+): { status: number | null; stdout: string; stderr: string } {
+  return runBriefWith({}, cwd, ...args);
 }
 
 describe("NO_TOOLS_PATH", () => {
@@ -270,13 +290,50 @@ describe("context7Status", () => {
 });
 
 describe("lspStatus", () => {
-  it("separates absent, failed, empty, and populated servers", () => {
-    expect(cli.lspStatus(null, false)).toBe("not on PATH");
-    expect(cli.lspStatus(null, true)).toBe(
-      "FAILED (server did not initialise or exited)",
+  const ran = (
+    size: number,
+    failures: string[] = [],
+    total = 2,
+  ): { results: Map<string, unknown>; failures: string[]; total: number } => ({
+    results: new Map(Array.from({ length: size }, (_, i) => [`f${i}`, i])),
+    failures,
+    total,
+  });
+
+  it("separates failed, partial, empty, and populated servers", () => {
+    expect(cli.lspStatus({ error: "initialize: boom" })).toBe(
+      "FAILED (initialize: boom)",
     );
-    expect(cli.lspStatus(new Map(), true)).toBe("ran (no results)");
-    expect(cli.lspStatus(new Map([["a", 1]]), true)).toBe("ran");
+    expect(cli.lspStatus(ran(0, ["timeout: x", "timeout: y"]))).toBe(
+      "FAILED (2 of 2 files failed: timeout: x)",
+    );
+    expect(cli.lspStatus(ran(1, ["timeout: x"]))).toBe(
+      "partial (1 of 2 files failed: timeout: x)",
+    );
+    expect(cli.lspStatus(ran(0))).toBe("ran (no results)");
+    expect(cli.lspStatus(ran(1))).toBe("ran");
+  });
+});
+
+describe("callerOwners", () => {
+  const syms = [
+    { name: "formatDate", file: "src/a.ts" },
+    { name: "parseDate", file: "src/a.ts" },
+    { name: "Button", file: "src/b.tsx" },
+  ];
+
+  it("gives each file's callers to the symbol they were computed for, else the file's first symbol", () => {
+    const tsLsp = new Map([
+      ["/r/src/a.ts", { symbol: "parseDate" }],
+      ["/r/src/b.tsx", { symbol: "b" }],
+    ]);
+    expect(cli.callerOwners(syms, tsLsp, "/r")).toEqual(
+      new Map([
+        ["src/a.ts", "parseDate"],
+        ["src/b.tsx", "Button"],
+      ]),
+    );
+    expect(cli.callerOwners(syms, null, "/r")).toEqual(new Map());
   });
 });
 
@@ -544,6 +601,73 @@ describe("brief.mjs", () => {
     expect(r.stdout).toContain(
       "- context7: FAILED (all 1 lookups failed, anonymous — no CONTEXT7_API_KEY)",
     );
+  });
+});
+
+describe("brief.mjs with language servers on PATH", () => {
+  it("reports both servers as ran and renders types and callers once per file", () => {
+    const cwd = makeRepo();
+    writeFileSync(
+      join(cwd, "src", "lib", "commands.ts"),
+      "export function formatDate(d: Date): string { return d.toISOString(); }\nexport const parseDate = (s: string): Date => new Date(s);\n",
+    );
+    git(cwd, "commit", "-qam", "two exports");
+    const env = { PATH: FAKE_LSP_PATH };
+    const ts = runBriefWith(env, cwd, "src/lib", "--no-docs");
+    expect(ts.status).toBe(0);
+    expect(ts.stdout).toContain("- typescript-language-server: ran");
+    expect(ts.stdout).toContain("- phpantom_lsp: not needed (no PHP symbols)");
+    expect(ts.stdout.match(/verified callers \(ts-lsp/g)).toHaveLength(1);
+    const formatSection = ts.stdout.split("## parseDate")[0] ?? "";
+    expect(formatSection).toContain(
+      "- verified callers (ts-lsp incomingCalls on commands, 2 shown):",
+    );
+    const php = runBriefWith(env, cwd, "app/Services", "--no-docs");
+    expect(php.stdout).toContain("- phpantom_lsp: ran");
+    expect(php.stdout).toContain("- resolved types (phpantom, 2 methods):");
+  });
+
+  it("carries the server's initialize error into the FAILED status", () => {
+    const cwd = makeRepo();
+    const r = runBriefWith(
+      { PATH: FAKE_LSP_PATH, FAKE_LSP_FAIL_INIT: "1" },
+      cwd,
+      "src/lib",
+      "--no-docs",
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(
+      "- typescript-language-server: FAILED (initialize: Could not find a valid installation; stderr: fake: no TypeScript install found)",
+    );
+  });
+
+  it("reports FAILED when every per-file request fails after initialize", () => {
+    const cwd = makeRepo();
+    const r = runBriefWith(
+      { PATH: FAKE_LSP_PATH, FAKE_LSP_EXIT_AFTER_INIT: "1" },
+      cwd,
+      "app/Services",
+      "--no-docs",
+    );
+    expect(r.stdout).toMatch(
+      /- phpantom_lsp: FAILED \(1 of 1 files failed: .*server exited/,
+    );
+  });
+
+  it("sends only the files behind rendered symbols to the server", () => {
+    const cwd = makeRepo();
+    writeFileSync(join(cwd, "app", "Services", "Zeta.php"), "<?php\n");
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "zeta");
+    const r = runBriefWith(
+      { PATH: FAKE_LSP_PATH, FAKE_LSP_FAIL_URI_MATCH: "Zeta" },
+      cwd,
+      "app/Services",
+      "--no-docs",
+      "--max-symbols",
+      "1",
+    );
+    expect(r.stdout).toContain("- phpantom_lsp: ran");
   });
 });
 

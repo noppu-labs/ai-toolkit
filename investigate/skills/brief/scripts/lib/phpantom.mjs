@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
-import { probe } from "./exec.mjs";
 import {
   CONSTRUCTOR_KIND,
   closeDocument,
+  fileUri,
   flattenSymbols,
   METHOD_KIND,
   openDocument,
+  perFile,
   withClient,
 } from "./lsp-client.mjs";
 
@@ -27,31 +28,23 @@ function methodRows(syms) {
     }));
 }
 
-async function symbolsFor(client, file) {
+async function typesFor(client, file) {
   openDocument(client, file, "php", readFileSync(file, "utf8"));
   try {
-    return await client.request(
+    const syms = await client.request(
       "textDocument/documentSymbol",
-      { textDocument: { uri: `file://${file}` } },
+      { textDocument: { uri: fileUri(file) } },
       SYMBOL_TIMEOUT_MS,
     );
-  } catch {
-    return null;
+    const rows = methodRows(syms ?? []);
+    return rows.length ? rows : null;
   } finally {
     closeDocument(client, file);
   }
 }
 
-export async function phpantomTypes(ctx, phpFiles, cmd = "phpantom_lsp") {
-  if (phpFiles.length === 0 || !probe(cmd, ctx.env)) return null;
-  return withClient(cmd, ctx, INIT_TIMEOUT_MS, async (client) => {
-    const out = new Map();
-    for (const file of phpFiles) {
-      // biome-ignore lint/performance/noAwaitInLoops: one LSP connection; requests must be sequential
-      const syms = await symbolsFor(client, file);
-      const rows = methodRows(syms ?? []);
-      if (rows.length) out.set(file, rows);
-    }
-    return out;
-  });
+export function phpantomTypes(ctx, phpFiles, cmd = "phpantom_lsp") {
+  return withClient(cmd, ctx, INIT_TIMEOUT_MS, (client) =>
+    perFile(client, phpFiles, typesFor),
+  );
 }

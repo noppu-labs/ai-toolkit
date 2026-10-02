@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, symlinkSync } from "node:fs";
+import { chmodSync, mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,6 +11,17 @@ export function makeNoToolsPath(): string {
   const git = spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim();
   symlinkSync(process.execPath, join(bin, "node"));
   symlinkSync(git, join(bin, "git"));
+
+  return bin;
+}
+
+// NO_TOOLS_PATH plus the fake language server under both real server names.
+export function makeFakeLspPath(fakeServer: string): string {
+  const bin = makeNoToolsPath();
+  chmodSync(fakeServer, 0o755);
+  for (const name of ["phpantom_lsp", "typescript-language-server"]) {
+    symlinkSync(fakeServer, join(bin, name));
+  }
 
   return bin;
 }

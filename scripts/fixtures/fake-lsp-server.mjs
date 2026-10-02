@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { basename } from "node:path";
+import { basename, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 if (process.argv.includes("--version")) {
   process.stdout.write("fake 1.0\n");
@@ -8,6 +9,10 @@ if (process.argv.includes("--version")) {
 
 const CONFIG_REQUEST_ID = 999;
 const exitAfterInit = process.env.FAKE_LSP_EXIT_AFTER_INIT === "1";
+const failInit = process.env.FAKE_LSP_FAIL_INIT === "1";
+// Requests about a document whose uri contains this text, or for this method, get an error reply.
+const failUriMatch = process.env.FAKE_LSP_FAIL_URI_MATCH ?? "";
+const failMethod = process.env.FAKE_LSP_FAIL_METHOD ?? "";
 
 let buf = Buffer.alloc(0);
 let root = "";
@@ -60,7 +65,7 @@ function callersFor() {
     {
       from: {
         name: "Home",
-        uri: `file://${root}/src/pages/Home.tsx`,
+        uri: pathToFileURL(join(root, "src", "pages", "Home.tsx")).href,
         range: { start: { line: 9 } },
       },
       fromRanges: [{}, {}],
@@ -68,7 +73,7 @@ function callersFor() {
     {
       from: {
         name: "Nav",
-        uri: `file://${root}/src/Nav.tsx`,
+        uri: pathToFileURL(join(root, "src", "Nav.tsx")).href,
         range: { start: { line: 1 } },
       },
       fromRanges: [{}],
@@ -99,10 +104,24 @@ const results = {
   "callHierarchy/incomingCalls": callersFor,
 };
 
+function failsFor(msg) {
+  if (failMethod !== "") return msg.method === failMethod;
+  const uri = msg.params?.textDocument?.uri ?? "";
+  return failUriMatch !== "" && uri.includes(failUriMatch);
+}
+
 function reply(msg) {
   if (!sentBad) {
     sentBad = true;
     process.stdout.write("Content-Length: 5\r\n\r\n{bad}");
+  }
+  if (failsFor(msg)) {
+    send({
+      jsonrpc: "2.0",
+      id: msg.id,
+      error: { code: -32603, message: "fake request failure" },
+    });
+    return;
   }
   send({
     jsonrpc: "2.0",
@@ -124,8 +143,17 @@ function handle(msg) {
     onResponse(msg);
     return;
   }
+  if (msg.method === "initialize" && failInit) {
+    process.stderr.write("fake: no TypeScript install found\n");
+    send({
+      jsonrpc: "2.0",
+      id: msg.id,
+      error: { code: -32603, message: "Could not find a valid installation" },
+    });
+    return;
+  }
   if (msg.method === "initialize") {
-    root = String(msg.params.rootUri).replace("file://", "");
+    root = fileURLToPath(String(msg.params.rootUri));
     const done = exitAfterInit ? () => process.exit(0) : undefined;
     send({ jsonrpc: "2.0", id: msg.id, result: { capabilities: {} } }, done);
     return;

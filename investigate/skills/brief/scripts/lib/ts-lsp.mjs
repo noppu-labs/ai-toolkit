@@ -1,12 +1,14 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { probe } from "./exec.mjs";
+import { fileURLToPath } from "node:url";
 import {
   CLASS_KIND,
   closeDocument,
   FUNCTION_KIND,
+  fileUri,
   flattenSymbols,
   openDocument,
+  perFile,
   withClient,
 } from "./lsp-client.mjs";
 
@@ -29,28 +31,31 @@ function primarySymbol(syms, file) {
   );
 }
 
+function locOf(ctx, from) {
+  const rel = path.relative(ctx.repoRoot, fileURLToPath(from.uri));
+  return `${rel}:${from.range.start.line + 1}`;
+}
+
 async function callersOf(client, ctx, file, primary) {
-  const uri = `file://${file}`;
-  try {
-    const items = await client.request(
-      "textDocument/prepareCallHierarchy",
-      { textDocument: { uri }, position: primary.selectionRange.start },
-      CALL_HIERARCHY_TIMEOUT_MS,
-    );
-    if (!items?.length) return [];
-    const calls = await client.request(
-      "callHierarchy/incomingCalls",
-      { item: items[0] },
-      CALL_HIERARCHY_TIMEOUT_MS,
-    );
-    return (calls ?? []).slice(0, MAX_TS_CALLERS).map((c) => ({
-      name: c.from.name,
-      loc: `${c.from.uri.replace(`file://${ctx.repoRoot}/`, "")}:${c.from.range.start.line + 1}`,
-      sites: (c.fromRanges ?? []).length,
-    }));
-  } catch {
-    return [];
-  }
+  const items = await client.request(
+    "textDocument/prepareCallHierarchy",
+    {
+      textDocument: { uri: fileUri(file) },
+      position: primary.selectionRange.start,
+    },
+    CALL_HIERARCHY_TIMEOUT_MS,
+  );
+  if (!items?.length) return [];
+  const calls = await client.request(
+    "callHierarchy/incomingCalls",
+    { item: items[0] },
+    CALL_HIERARCHY_TIMEOUT_MS,
+  );
+  return (calls ?? []).slice(0, MAX_TS_CALLERS).map((c) => ({
+    name: c.from.name,
+    loc: locOf(ctx, c.from),
+    sites: (c.fromRanges ?? []).length,
+  }));
 }
 
 async function fileCallers(client, ctx, file) {
@@ -63,33 +68,20 @@ async function fileCallers(client, ctx, file) {
   try {
     const syms = await client.request(
       "textDocument/documentSymbol",
-      { textDocument: { uri: `file://${file}` } },
+      { textDocument: { uri: fileUri(file) } },
       SYMBOL_TIMEOUT_MS,
     );
     const primary = primarySymbol(syms, file);
     if (!primary) return null;
     const rows = await callersOf(client, ctx, file, primary);
     return rows.length ? { symbol: primary.name, rows } : null;
-  } catch {
-    return null;
   } finally {
     closeDocument(client, file);
   }
 }
 
-export async function tsLspCallers(
-  ctx,
-  tsFiles,
-  cmd = "typescript-language-server",
-) {
-  if (tsFiles.length === 0 || !probe(cmd, ctx.env)) return null;
-  return withClient(cmd, ctx, INIT_TIMEOUT_MS, async (client) => {
-    const out = new Map();
-    for (const file of tsFiles) {
-      // biome-ignore lint/performance/noAwaitInLoops: one LSP connection; requests must be sequential
-      const entry = await fileCallers(client, ctx, file);
-      if (entry) out.set(file, entry);
-    }
-    return out;
-  });
+export function tsLspCallers(ctx, tsFiles, cmd = "typescript-language-server") {
+  return withClient(cmd, ctx, INIT_TIMEOUT_MS, (client) =>
+    perFile(client, tsFiles, (c, file) => fileCallers(c, ctx, file)),
+  );
 }

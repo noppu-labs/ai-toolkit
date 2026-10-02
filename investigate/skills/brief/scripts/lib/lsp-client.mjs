@@ -1,10 +1,15 @@
 import { spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 export const CLASS_KIND = 5;
 export const METHOD_KIND = 6;
 export const CONSTRUCTOR_KIND = 9;
 export const FUNCTION_KIND = 12;
 const SEPARATOR = "\r\n\r\n";
+const STDERR_KEEP_CHARS = 4096;
+const REASON_CAP = 240;
+
+export const fileUri = (file) => pathToFileURL(file).href;
 
 export class FrameParser {
   #buf = Buffer.alloc(0);
@@ -49,20 +54,26 @@ export class LspClient {
   #nextId = 1;
   #pending = new Map();
   #closed = false;
+  #stderr = "";
 
   constructor(cmd, args, cwd, env = process.env) {
     this.#proc = spawn(cmd, args, {
       cwd,
       env,
-      stdio: ["pipe", "pipe", "ignore"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
     this.#proc.stdout.on("data", (d) => {
       for (const msg of this.#parser.push(d)) this.#onMessage(msg);
     });
+    this.#proc.stderr.on("data", (d) => {
+      this.#stderr = `${this.#stderr}${d}`.slice(-STDERR_KEEP_CHARS);
+    });
     // A server that fails to start or dies mid-session fails its pending and later requests instead of hanging them.
     // "close" fires after stdout drains, so a reply written just before exit is still delivered.
     this.#proc.on("error", (err) => this.#close(err));
-    this.#proc.on("close", () => this.#close(new Error("server exited")));
+    this.#proc.on("close", (code, signal) =>
+      this.#close(new Error(`server exited (${signal ?? `code ${code}`})`)),
+    );
     this.#proc.stdin.on("error", () => {
       /* EPIPE after the server exits; requests fail through the close handler */
     });
@@ -82,8 +93,13 @@ export class LspClient {
     const p = this.#pending.get(msg.id);
     if (!p) return;
     this.#pending.delete(msg.id);
-    if (msg.error) p.reject(new Error(msg.error.message));
+    if (msg.error) p.reject(new Error(`${p.method}: ${msg.error.message}`));
     else p.resolve(msg.result);
+  }
+
+  /** The last non-empty stderr line, for a failure reason. */
+  stderrTail() {
+    return this.#stderr.trim().split("\n").filter(Boolean).at(-1) ?? "";
   }
 
   #write(obj) {
@@ -109,6 +125,7 @@ export class LspClient {
         fn(v);
       };
       this.#pending.set(id, {
+        method,
         resolve: settle(resolve),
         reject: settle(reject),
       });
@@ -137,42 +154,69 @@ export function flattenSymbols(syms, acc = []) {
   return acc;
 }
 
+// One line: the error, then the server's own last stderr line when it left one.
+function failureReason(err, client) {
+  const tail = client.stderrTail();
+  const reason = `${err?.message ?? err}${tail ? `; stderr: ${tail}` : ""}`;
+
+  return reason.replace(/\s+/g, " ").slice(0, REASON_CAP);
+}
+
+/**
+ * Runs body over one initialised connection. A failure to start or initialise
+ * returns { error }; body reports per-file failures in its own result.
+ */
 export async function withClient(cmd, ctx, initTimeoutMs, body) {
   const client = new LspClient(cmd, ["--stdio"], ctx.repoRoot, ctx.env);
+  const rootUri = fileUri(ctx.repoRoot);
   try {
     await client.request(
       "initialize",
       {
         processId: process.pid,
-        rootUri: `file://${ctx.repoRoot}`,
+        rootUri,
         capabilities: {
           textDocument: {
             documentSymbol: { hierarchicalDocumentSymbolSupport: true },
           },
         },
-        workspaceFolders: [
-          { uri: `file://${ctx.repoRoot}`, name: ctx.repoName },
-        ],
+        workspaceFolders: [{ uri: rootUri, name: ctx.repoName }],
       },
       initTimeoutMs,
     );
     client.notify("initialized", {});
     return await body(client);
-  } catch {
-    return null;
+  } catch (e) {
+    return { error: failureReason(e, client) };
   } finally {
     client.kill();
   }
 }
 
+/** Runs one request batch per file in order, recording each file that failed. */
+export async function perFile(client, files, fn) {
+  const results = new Map();
+  const failures = [];
+  for (const file of files) {
+    try {
+      // biome-ignore lint/performance/noAwaitInLoops: one LSP connection; requests must be sequential
+      const entry = await fn(client, file);
+      if (entry) results.set(file, entry);
+    } catch (e) {
+      failures.push(failureReason(e, client));
+    }
+  }
+  return { results, failures, total: files.length };
+}
+
 export function openDocument(client, file, languageId, text) {
   client.notify("textDocument/didOpen", {
-    textDocument: { uri: `file://${file}`, languageId, version: 1, text },
+    textDocument: { uri: fileUri(file), languageId, version: 1, text },
   });
 }
 
 export function closeDocument(client, file) {
   client.notify("textDocument/didClose", {
-    textDocument: { uri: `file://${file}` },
+    textDocument: { uri: fileUri(file) },
   });
 }

@@ -76,11 +76,18 @@ function gitnexusStatus(freshness) {
     : `unavailable (${freshness.note})`;
 }
 
-// The LSP passes return null only on failure; an empty Map means the server ran and found nothing.
-export function lspStatus(result, probeOk) {
-  if (!probeOk) return "not on PATH";
-  if (result === null) return "FAILED (server did not initialise or exited)";
-  return result.size === 0 ? "ran (no results)" : "ran";
+// A server that started but failed every file has resolved nothing, so it is
+// FAILED, not "ran (no results)".
+export function lspStatus(outcome) {
+  if (outcome.error) return `FAILED (${outcome.error})`;
+  const failed = outcome.failures.length;
+  if (failed > 0) {
+    const scope = `${failed} of ${outcome.total} files failed: ${outcome.failures[0]}`;
+    return failed === outcome.total
+      ? `FAILED (${scope})`
+      : `partial (${scope})`;
+  }
+  return outcome.results.size === 0 ? "ran (no results)" : "ran";
 }
 
 export function codegraphStatus({ hasIndex, probeOk, lines }) {
@@ -110,11 +117,23 @@ export function context7Status(gate) {
 
 async function runServer(ctx, files, server) {
   if (files.length === 0) return { result: null, status: server.notNeeded };
-  const result = await server.fn(ctx, files);
-  return { result, status: lspStatus(result, probe(server.cmd, ctx.env)) };
+  if (!probe(server.cmd, ctx.env)) {
+    return { result: null, status: "not on PATH" };
+  }
+  const outcome = await server.fn(ctx, files);
+  return { result: outcome.results ?? null, status: lspStatus(outcome) };
 }
 
-async function runLsp(ctx, opts, tools) {
+// Only the files behind rendered symbols: the rest would cost LSP timeouts for
+// detail the brief never prints.
+function symbolFiles(ctx, symbols, test) {
+  const files = symbols
+    .map((s) => path.join(ctx.repoRoot, s.file))
+    .filter((f) => test(f));
+  return [...new Set(files)];
+}
+
+async function runLsp(ctx, symbols, opts, tools) {
   if (opts.noLsp) {
     tools.phpantom_lsp = "skipped (--no-lsp)";
     tools["typescript-language-server"] = "skipped (--no-lsp)";
@@ -122,20 +141,20 @@ async function runLsp(ctx, opts, tools) {
   }
   const php = await runServer(
     ctx,
-    ctx.files.filter((f) => f.endsWith(".php")),
+    symbolFiles(ctx, symbols, (f) => f.endsWith(".php")),
     {
       fn: phpantomTypes,
       cmd: "phpantom_lsp",
-      notNeeded: "not needed (no PHP files)",
+      notNeeded: "not needed (no PHP symbols)",
     },
   );
   const ts = await runServer(
     ctx,
-    ctx.files.filter((f) => TS_EXT_RE.test(f)),
+    symbolFiles(ctx, symbols, (f) => TS_EXT_RE.test(f)),
     {
       fn: tsLspCallers,
       cmd: "typescript-language-server",
-      notNeeded: "not needed (no TypeScript/JavaScript files)",
+      notNeeded: "not needed (no TypeScript/JavaScript symbols)",
     },
   );
   tools.phpantom_lsp = php.status;
@@ -191,12 +210,28 @@ function runAstGrep(ctx, tools) {
   tools["ast-grep"] = astGrepStatus(probeOk, probeOk ? astGrepHits(ctx) : null);
 }
 
+// The TS pass computes callers once per file, for the server's primary symbol.
+// Show them once: under that symbol when it is rendered, else under the file's first.
+export function callerOwners(symbols, tsLsp, repoRoot) {
+  const owners = new Map();
+  if (!tsLsp) return owners;
+  for (const sym of symbols) {
+    const entry = tsLsp.get(path.join(repoRoot, sym.file));
+    if (!entry) continue;
+    if (!owners.has(sym.file) || sym.name === entry.symbol) {
+      owners.set(sym.file, sym.name);
+    }
+  }
+  return owners;
+}
+
 function symbolSection(ctx, sym, state) {
   const abs = path.join(ctx.repoRoot, sym.file);
+  const ownsCallers = state.callerOwners.get(sym.file) === sym.name;
   return render.renderSymbol(sym, {
     dupes: duplicateDefinitions(ctx, sym.name, sym.file),
     typeRows: state.lsp?.get(abs) ?? null,
-    tsCallers: state.tsLsp?.get(abs) ?? null,
+    tsCallers: ownsCallers ? (state.tsLsp?.get(abs) ?? null) : null,
     graph: state.freshness.ok ? graphContext(ctx, sym.name) : null,
     freshnessOk: state.freshness.ok,
     wiring: wiringFor(ctx, sym.name),
@@ -222,13 +257,18 @@ async function buildBrief(opts, io) {
     ctx.repoRoot,
     opts.maxSymbols,
   );
-  const { lsp, tsLsp } = await runLsp(ctx, opts, tools);
+  const { lsp, tsLsp } = await runLsp(ctx, symbols, opts, tools);
   runAstGrep(ctx, tools);
   const deps = collectDependencies(ctx);
   const docs = await runDocs(ctx, deps, opts, tools);
   const cg = runCodegraph(ctx, symbols, tools);
 
-  const state = { lsp, tsLsp, freshness };
+  const state = {
+    lsp,
+    tsLsp,
+    freshness,
+    callerOwners: callerOwners(symbols, tsLsp, ctx.repoRoot),
+  };
   const lines = [
     ...render.renderHeader(ctx.relTarget, ctx.repoName),
     ...render.renderTools(tools),
