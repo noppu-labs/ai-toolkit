@@ -109,6 +109,19 @@ Review by hand: read the diff and the changed files, and look for behaviour chan
 error handling, boundary conditions, and missing tests. Validate any claim you can by
 running the project's tests or linters; record what you ran.
 
+For a Python project, run `pytest`, `ruff check`, and the configured type checker
+(mypy, pyright, pyrefly, or ty), resolving each command the way step 0 of
+`review:comment-audit` does. When pytest runs with `filterwarnings = ["error"]`, a
+new deprecation warning fails the suite, so a passing run is also evidence that the
+branch adds no warning. Look in particular for a mutable default argument; a bare
+`except:` or an `except Exception: pass`; a coroutine called without `await`; `is`
+compared with a literal; a collection mutated inside the loop that iterates it; a
+`datetime.now()` without a timezone where the stored value has one; an f-string or
+`%` interpolation inside a SQL or shell call; blocking I/O inside an `async def`
+that belongs in `asyncio.to_thread` or an async client; and a module-level
+environment read that raises at import time and so leaves the module untestable.
+These are leads, not rules: each finding still ends with its outcome.
+
 End every finding with its outcome, one of: crash, wrong data shown, wrong data
 persisted, harmless, question. Harmless means no crash, no wrong data shown or
 persisted, and an effect that clears on retry or reload. Question means the diff
