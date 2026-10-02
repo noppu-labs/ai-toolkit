@@ -141,8 +141,8 @@ Structural brief:
 
 Invoke `review:type-safety-review base=<BASE> head=<HEAD>`. That skill returns its
 report as its response and writes no file. Relay its findings in the shape below,
-keeping each finding's rule id (`PHP-1` to `PHP-5`, `TS-1` to `TS-4`), its verbatim
-quote, and its proposed shape.
+keeping each finding's rule id (`PHP-1` to `PHP-5`, `TS-1` to `TS-4`, `PY-1` to
+`PY-5`), its verbatim quote, and its proposed shape.
 
 That skill inherits comment-audit's `base=`/`head=` detection and its ask. Both are
 already given above, so if it asks for anything else, you have no one to ask: record

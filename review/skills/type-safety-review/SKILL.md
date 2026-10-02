@@ -1,11 +1,11 @@
 ---
 name: type-safety-review
-description: Review a diff or a path for type-safety findings (mixed and any, unstructured arrays where a DTO belongs, array-shape pseudo-types without a reason, duplicate types, unchecked casts). Use during PR review, before opening a PR, or when asked about type coverage or type hierarchy. Calibrated on PHP and PHPStan first, with a TypeScript section.
+description: Review a diff or a path for type-safety findings (mixed and any, unstructured arrays where a DTO belongs, array-shape pseudo-types without a reason, duplicate types, unchecked casts). Use during PR review, before opening a PR, or when asked about type coverage or type hierarchy. Calibrated on PHP and PHPStan first, with TypeScript and Python sections.
 ---
 
 # Type-safety review
 
-This skill is a checklist, not an editor. It walks the types a diff or a path introduces, rules each one against the rules in `references/php.md` and `references/typescript.md`, and reports every finding with the shape it proposes instead. It edits no file, writes no code, and makes no commit; the reviewer decides what to act on.
+This skill is a checklist, not an editor. It walks the types a diff or a path introduces, rules each one against the rules in `references/php.md`, `references/typescript.md`, and `references/python.md`, and reports every finding with the shape it proposes instead. It edits no file, writes no code, and makes no commit; the reviewer decides what to act on.
 
 ## Scope
 
@@ -16,7 +16,7 @@ One of two things is in scope, never both:
 - **A diff**, when `base=` and `head=` are given, with the same defaults as step 0 of [../comment-audit/SKILL.md](../comment-audit/SKILL.md) when either is omitted. Read `git diff BASE...HEAD`, three dots, so only what the branch adds is ruled on.
 - **A path**, when a path is given as the argument. Every file under it is in scope whatever its git state, and `base=` and `head=` are ignored.
 
-Generated code is out of scope. Skip any path carrying a generated-code marker: `generated` as a path segment, `wayfinder`, a `.d.ts` file under a generated directory, `_ide_helper`. Skip `vendor/`, `node_modules/`, and lockfiles as well. List what was skipped in the report.
+Generated code is out of scope. Skip any path carrying a generated-code marker: `generated` as a path segment, `wayfinder`, a `.d.ts` file under a generated directory, `_ide_helper`, `*_pb2.py`, `*_pb2_grpc.py`, a `.pyi` file under a generated directory, `migrations/versions/`, and `*/migrations/0*.py`. Skip `vendor/`, `node_modules/`, `.venv/`, `venv/`, `site-packages/`, `__pycache__/`, `.egg-info/`, `build/` and `dist/` in a Python package, the `.ruff_cache/`, `.pytest_cache/`, `.mypy_cache/`, `.pyrefly_cache/`, and `.complexipy_cache/` directories, and lockfiles (`uv.lock`, `poetry.lock`, and `Pipfile.lock` among them) as well. List what was skipped in the report.
 
 ## Method
 
@@ -26,9 +26,11 @@ A narrower type that is not reachable is not a finding. When the origin has no n
 
 When the origin cannot be resolved, say so in the finding and name the file that would settle it. An unresolved origin is not evidence that a finding exists.
 
+For Python, run the type checker and the lint command that step 0 of [../comment-audit/SKILL.md](../comment-audit/SKILL.md) resolves before ruling on `PY-5`, and record each command and its result. A checker that reports nothing is evidence for its configured strictness only, not for the rules it leaves off.
+
 ## Rules
 
-Read [references/php.md](references/php.md) for PHP and [references/typescript.md](references/typescript.md) for TypeScript. Rule ids are `PHP-1` through `PHP-5` and `TS-1` through `TS-4`. Every finding carries exactly one rule id, and no finding is reported without one.
+Read [references/php.md](references/php.md) for PHP, [references/typescript.md](references/typescript.md) for TypeScript, and [references/python.md](references/python.md) for Python. Rule ids are `PHP-1` through `PHP-5`, `TS-1` through `TS-4`, and `PY-1` through `PY-5`. Every finding carries exactly one rule id, and no finding is reported without one.
 
 ## Finding format
 
@@ -59,16 +61,16 @@ final readonly class InvoiceTotals
 
 The report is the whole output of this skill. It has two parts, in this order:
 
-1. A count per rule id, listing every id from `PHP-1` to `PHP-5` and `TS-1` to `TS-4` including the ones with zero findings, then the paths skipped as generated or vendored.
+1. A count per rule id, listing every id from `PHP-1` to `PHP-5`, `TS-1` to `TS-4`, and `PY-1` to `PY-5` including the ones with zero findings, then the paths skipped as generated or vendored.
 2. The findings, grouped by file, most severe first both within a file and between files.
 
 Severity order, highest first:
 
-1. An unchecked cast, or `mixed` on a boundary (`PHP-1`, `TS-1`, `TS-3`).
-2. An unstructured array crossing a boundary (`PHP-2`).
-3. A duplicate type (`PHP-4`, `TS-4`).
-4. A pseudo-type without a stated reason, and the loose object it maps to in TypeScript (`PHP-3`, `TS-2`).
-5. A missing sanity check (`PHP-5`).
+1. An unchecked cast, or `mixed` or `Any` on a boundary (`PHP-1`, `TS-1`, `TS-3`, `PY-1`, and a `PY-3` `cast()`).
+2. An unstructured array or fixed-key `dict` crossing a boundary (`PHP-2`, `PY-2`).
+3. A duplicate type (`PHP-4`, `TS-4`, `PY-4`).
+4. A pseudo-type without a stated reason, and the loose object it maps to in TypeScript (`PHP-3`, `TS-2`, and a `PY-3` `TypedDict` or `# type: ignore` without a reason).
+5. A missing sanity check (`PHP-5`, `PY-5`).
 
 Nothing outside the report is produced. A finding proposes a shape; it never applies one.
 

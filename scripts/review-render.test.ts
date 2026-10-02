@@ -194,6 +194,26 @@ describe("scrubBody", () => {
       expected: "Real body.",
     },
     {
+      name: "an anchor and Python rule id header",
+      input: "**app/totals.py:12, PY-2**: Real body.",
+      expected: "Real body.",
+    },
+    {
+      name: "a bold Python rule id",
+      input: "**PY-2**: Real body.",
+      expected: "Real body.",
+    },
+    {
+      name: "a bare Python rule id",
+      input: "PY-1: Real body.",
+      expected: "Real body.",
+    },
+    {
+      name: "a parenthesised Python rule id",
+      input: "(PY-3) Real body.",
+      expected: "Real body.",
+    },
+    {
       name: "a bold audit verdict",
       input: "**DELETE**: Real body.",
       expected: "Real body.",
@@ -233,6 +253,12 @@ describe("scrubBody", () => {
     expect(scrubBody(body)).toBe(body);
   });
 
+  it("leaves a Python rule id that is not at the start intact", () => {
+    const body = "The dict flagged as PY-2: callers read three fixed keys.";
+
+    expect(scrubBody(body)).toBe(body);
+  });
+
   it("strips nothing from a body that already starts with the problem", () => {
     const body =
       "`sync()` swallows the client error.\n\n```php\nthrow $e;\n```";
@@ -246,6 +272,10 @@ describe("scrubBody", () => {
     "**TS-1**: ",
     "PHP-2: ",
     "(TS-3) ",
+    "**app/totals.py:12, PY-2**: ",
+    "**PY-2**: ",
+    "PY-1: ",
+    "(PY-3) ",
     "**DELETE**: ",
     "WRONG: ",
     "[both passes] ",
