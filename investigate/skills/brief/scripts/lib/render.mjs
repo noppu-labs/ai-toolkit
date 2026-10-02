@@ -29,6 +29,11 @@ export const WIRING_LABELS = {
   other: "other references",
 };
 
+export const DOCS_SKIPPED = "--no-docs";
+export const DOCS_NO_IMPORTS = "no third-party imports";
+export const DOCS_NO_FETCH = "no global fetch";
+const DOC_SOURCES_HEADING = "## Doc sources (context7 version gate)";
+
 // High-volume, low-signal categories: counts + file list only.
 const COUNT_ONLY = new Set(["test", "import"]);
 
@@ -114,7 +119,7 @@ export function renderDependencies(rows) {
 }
 
 function docPreamble(anonymous) {
-  const lines = ["## Doc sources (context7 version gate)", ""];
+  const lines = [DOC_SOURCES_HEADING, ""];
   if (anonymous) {
     lines.push(
       "> CONTEXT7_API_KEY not set — queried anonymously (results may be rate-limited).",
@@ -182,7 +187,15 @@ function fetchLines(fetchable) {
 }
 
 export function renderDocSources(gate, skippedReason) {
-  if (skippedReason === "--no-docs") return [];
+  if (skippedReason === DOCS_SKIPPED) return [];
+  if (skippedReason === DOCS_NO_IMPORTS) {
+    return [
+      DOC_SOURCES_HEADING,
+      "",
+      "- no third-party imports in this target — nothing to gate",
+      "",
+    ];
+  }
   if (gate === null) {
     return [
       "## Doc sources (context7)",
