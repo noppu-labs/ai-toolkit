@@ -1,7 +1,7 @@
 ---
 name: brief
 description: Generate a deterministic structural brief for a path before anyone reads code — callers, wiring, blast radius, installed third-party versions, and version-checked doc sources. Use when asked for a brief, a blast radius, who calls this, or a pre-computation for an investigation or review; the module and spec skills call it first. Not an investigation by itself.
-compatibility: Requires git and Node 20+. Optional on PATH — gitnexus, codegraph, ast-grep, phpantom_lsp, typescript-language-server; optional CONTEXT7_API_KEY for the doc-source gate. Each missing tool degrades its section and is reported under Tools.
+compatibility: Requires git and Node 20+. Optional on PATH — gitnexus, codegraph, ast-grep, phpantom_lsp, typescript-language-server. By default the doc-source gate sends each non-dev third-party package name to context7.com (anonymously unless CONTEXT7_API_KEY is set); --no-docs disables that network call. Each missing tool degrades its section and is reported under Tools.
 ---
 
 # Structural brief
@@ -21,18 +21,23 @@ mode: both share the same stale recall and agree.
 ## Run it
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/brief/scripts/brief.mjs" <target-dir> [--no-docs] [--no-lsp] [--max-symbols N]
+node "${CLAUDE_PLUGIN_ROOT}/skills/brief/scripts/brief.mjs" <target-dir> [--max-symbols N] [--no-docs] [--no-lsp] [--help] \
+  > "${TMPDIR:-/tmp}/brief-<module>.md"
 ```
 
 - One run per target directory (a file's dirname is fine). Concatenate several runs under
   per-module headers.
+- Redirect the output to a file and read the file, as above. A large brief overruns the
+  harness's output cap when printed directly.
 - Run in a checkout that has `vendor/` or `node_modules/` and any code-graph indexes. A bare
   worktree degrades resolved types and omits graph sections.
 - Sources recognised: PHP, and JS/TS including `.mjs`, `.cjs`, `.mts`, `.cts`.
-- `--no-docs` skips the doc-source gate; `--no-lsp` skips language-server resolution.
+- `--no-docs` skips the doc-source gate and its calls to context7.com; `--no-lsp` skips
+  language-server resolution.
   `--max-symbols N` raises the per-symbol detail cap.
-- Exit non-zero: fix the cause, or mark that module's structure UNRESOLVED. Never
-  investigate silently without the brief.
+- Exit non-zero: fix the cause, or mark that module's structure UNRESOLVED. A usage error
+  (unknown flag, a second path, a bad `--max-symbols`) also exits 1. Never investigate
+  silently without the brief.
 
 ## Read the Tools section first
 
@@ -44,11 +49,12 @@ Every tool the brief used reports a status. Read these before trusting any other
 | `ran (index STALE, N commits behind)` | Graph data may be outdated. |
 | `ran (no results)` | Tool worked and found nothing. |
 | `ran anonymously (no CONTEXT7_API_KEY)` | Doc gate ran without a key; rate limits may apply. |
+| `ran (k of N lookups FAILED)` | Some doc lookups errored. Those packages' docs are UNRESOLVED. |
 | `FAILED (...)` | Tool is present but errored. Treat its section as UNRESOLVED, not empty. |
 | `unavailable (<note>)`, `UNAVAILABLE (no global fetch)` | Tool could not run. Section is UNRESOLVED. |
 | `not on PATH`, `no .codegraph index` | Tool absent. Section is thin or missing. |
 | `skipped (--no-lsp)`, `skipped (--no-docs)`, `skipped (no PHP scan dirs)` | Deliberately not run. |
-| `not needed (no PHP files)`, `not needed (no third-party imports)` | Nothing for the tool to do. |
+| `not needed (no PHP files)`, `not needed (no TypeScript/JavaScript files)`, `not needed (no third-party imports)` | Nothing for the tool to do. |
 
 A thin section under a tool marked `not on PATH` is absence of a tool, not absence of
 callers. If gitnexus reports STALE and its CLI is available, run `gitnexus analyze` from the
@@ -86,7 +92,9 @@ markers hide in ids, and benchmark score is not relevance.
 | `PIN to <id>/<ver>` | Hand over the pinned id; the default branch is behind. |
 | `NAME MISMATCH` | Confirm it is really that package before handing it over. |
 | `AHEAD` / `no version signal` | Usable, but label claims version-unconfirmed. |
-| `STALE` / `NO USABLE DOCS` | Hand over nothing; point at installed source. |
+| `STALE` / `STALE-ISH` / `NO USABLE DOCS` | Hand over nothing; point at installed source. |
+| `no context7 match — read installed source` | context7 has no docs for it; read installed source. |
+| `lookup FAILED` | That package's docs are UNRESOLVED; read installed source. |
 
 Prefer unpinned when the branch matches. A pin is a snapshot of one release and can be older
 than the default branch. The gate recommends a pin only when the default branch is behind.
@@ -107,8 +115,9 @@ DOC SOURCES — pre-resolved and version-checked. Do not resolve your own.
 Choosing which packages need docs is still a judgment call: usually 2 to 4, the ones whose
 semantics the target leans on. Most first-party work needs none.
 
-The gate never blocks the brief. No key, no network, or an API change degrades to an
-UNAVAILABLE or FAILED status, which means UNRESOLVED: read installed source. Results cache
+The gate never blocks the brief. No network or an API change degrades to an UNAVAILABLE or
+FAILED status, or to `lookup FAILED` on the packages it hit; each means UNRESOLVED: read
+installed source. No key only means anonymous queries. Results cache
 for 6 hours under the OS temp directory (`investigate-brief/context7`; override with
 `INVESTIGATE_BRIEF_CACHE_DIR`). Never carry a doc verdict across sessions; recompute it.
 

@@ -21,10 +21,10 @@ not a description of it.
 
 ## Labels
 
-Label every third-party behaviour claim with its rung: `vendor:<file:line>`,
-`docs:<library-id>`, or `INFERRED FROM RECALL`. An unlabelled framework claim is treated as
-recall. Name the version a version-dependent behaviour holds for, taken from the brief's
-installed versions.
+Label every third-party behaviour claim with its rung: `vendor:<file:line>` or
+`node_modules:<file:line>`, `docs:<library-id>`, or `INFERRED FROM RECALL`. An unlabelled
+framework claim is treated as recall. Name the version a version-dependent behaviour holds
+for, taken from the brief's installed versions.
 
 ## Agreement is not evidence for recall
 

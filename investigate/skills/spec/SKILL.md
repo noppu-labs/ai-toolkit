@@ -69,5 +69,7 @@ Organise the report by spec claim, not by agent:
 3. **Risks in touched modules** — gotchas, hidden side effects, and Unresolved items.
 
 Single-source claims and `INFERRED FROM RECALL` claims stay labelled through to the
-report. Two agents agreeing on a recall-labelled claim is still one guess. Note any
-brief section whose Tools status was not `ran`; those sections are UNRESOLVED.
+report. Two agents agreeing on a recall-labelled claim is still one guess. A brief section
+is UNRESOLVED where its Tools status reads `FAILED (...)`, `unavailable (...)` or
+`UNAVAILABLE (...)`, `not on PATH`, or `no .codegraph index`, or where a doc lookup reads
+`lookup FAILED`. `ran (...)`, `skipped (...)` and `not needed (...)` are usable as stated.
