@@ -41,14 +41,14 @@ State the resolved pairs before starting, one line per PR: number, title, base, 
 
 One brief per PR, plain text, pasted whole into every subagent prompt for that PR.
 
-If a skill named `investigate` is available, invoke it for that PR's changed paths and use its brief.
+If a skill named `investigate` is available, invoke it for that PR's changed paths and use its brief. When that brief lists no symbols and `git diff --stat` shows most of the changed lines are in `.py` files, build the brief from the commands below instead, and record under `## Not available in this run` that the structural brief came from the fallback commands.
 
 If it is not, build a lighter one from these commands:
 
 ```sh
 git diff --stat <BASE>...<HEAD>
 git diff -U0 <BASE>...<HEAD> | grep -E '^@@'
-git diff <BASE>...<HEAD> | grep -E '^\+(export )?(async )?(function|class|const|interface|type) |^\+[[:space:]]*(public|protected|private) function'
+git diff <BASE>...<HEAD> | grep -E '^\+(export )?(async )?(function|class|const|interface|type) |^\+[[:space:]]*(public|protected|private) function|^\+[[:space:]]*(async )?def [A-Za-z_]|^\+[[:space:]]*class [A-Za-z_]'
 git grep -nw <symbol> <HEAD>
 ```
 
@@ -56,7 +56,11 @@ git grep -nw <symbol> <HEAD>
 
 The first gives the shape of the change. The next two give the added or changed functions, classes, and methods, from the hunk headers and from the added lines. The last runs once per changed symbol and gives its callers on the head ref, which is what tells a stage whether a signature change has call sites the PR missed.
 
-Both anchors in the third command carry a `+`, so it matches added lines and not the context lines around them. Dropping the `+` inverts the result: every unchanged declaration in the hunk matches and every added one does not, and the per-symbol `git grep` then has nothing to run on.
+Every anchor in the third command carries a `+`, so it matches added lines and not the context lines around them. Dropping the `+` inverts the result: every unchanged declaration in the hunk matches and every added one does not, and the per-symbol `git grep` then has nothing to run on.
+
+The last two anchors are for Python. A Python method is indented under its class, so they allow leading whitespace before `def` and `class`. For a Python symbol, run the caller command as `git grep -nw <symbol> <HEAD> -- '*.py'`. The word match finds a call, a decorator argument, and a reference passed as a value, such as `Depends(get_db)` or `callbacks=[handler]`, and the pathspec keeps a same-named symbol in another language out of the list. Search for the bare name, never a dotted module path: a Python project without a package layout imports a sibling module by bare name and may load a hyphenated script file by path.
+
+An empty caller list for a Python symbol is not evidence of dead code when the symbol is a function a decorator registers (a web route, a CLI command, a pytest fixture), a method a framework calls by name (a pydantic validator, a `__dunder__` method), or a module imported for what it does at import time. None of them has a textual caller. List such a symbol in the brief as `callers unresolved`, not with an empty caller list.
 
 Three dots, so only what the branch adds is in scope.
 
