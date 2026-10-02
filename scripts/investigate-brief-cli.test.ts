@@ -501,6 +501,23 @@ describe("brief.mjs", () => {
     );
   });
 
+  it("marks a file whose symbol came from its basename in the Files section", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, "ui"));
+    writeFileSync(
+      join(cwd, "ui", "Button.tsx"),
+      "function Button() {}\nexport { Button as default };\n",
+    );
+    writeFileSync(join(cwd, "ui", "Dialog.tsx"), "export * from './parts';\n");
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "ui");
+    const out = runBrief(cwd, "ui", "--no-docs", "--no-lsp").stdout;
+    expect(out).toContain("- ui/Button.tsx (no named exports; basename used)");
+    expect(out).toContain("- ui/Dialog.tsx (no named exports; basename used)");
+    expect(out).toContain("## Button (ui/Button.tsx)");
+    expect(out).toContain("## Dialog (ui/Dialog.tsx)");
+  });
+
   // root ignores file modes, so the chmod cannot make the file unreadable there.
   it("exits 1 with the reason and no stack trace when a source file is unreadable", {
     skip: process.getuid?.() === 0,

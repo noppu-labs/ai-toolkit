@@ -1,15 +1,20 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
-type Symbol = { name: string; file: string; kind: "php" | "ts" };
+type Symbol = {
+  name: string;
+  file: string;
+  kind: "php" | "ts";
+  basenameFallback?: true;
+};
 
 type RepoModule = {
   TS_EXT_RE: RegExp;
-  collectFiles: (p: string) => string[];
+  collectFiles: (p: string, env?: NodeJS.ProcessEnv) => string[];
   tsExports: (text: string) => string[];
   deriveSymbols: (
     files: string[],
@@ -55,9 +60,14 @@ function git(cwd: string, ...args: string[]): void {
   if (r.status !== 0) throw new Error(r.stderr);
 }
 
-function makeRepo(): string {
-  const cwd = mkdtempSync(join(tmpdir(), "investigate-repo-"));
+function gitInit(prefix: string): string {
+  const cwd = mkdtempSync(join(tmpdir(), prefix));
   git(cwd, "init", "-q", "-b", "main");
+  return cwd;
+}
+
+function makeRepo(): string {
+  const cwd = gitInit("investigate-repo-");
   mkdirSync(join(cwd, "app", "Services"), { recursive: true });
   mkdirSync(join(cwd, "src", "lib"), { recursive: true });
   mkdirSync(join(cwd, "tests", "Unit"), { recursive: true });
@@ -95,6 +105,7 @@ describe("collectFiles", () => {
     const base = mkdtempSync(join(tmpdir(), "investigate-ancestor-"));
     const cwd = join(base, "tests", "repo");
     mkdirSync(join(cwd, "app", "Services"), { recursive: true });
+    git(cwd, "init", "-q", "-b", "main");
     mkdirSync(join(cwd, "tests", "Unit"), { recursive: true });
     writeFileSync(join(cwd, "app", "Services", "Invoice.php"), "<?php\n");
     writeFileSync(join(cwd, "tests", "Unit", "InvoiceTest.php"), "<?php\n");
@@ -110,7 +121,7 @@ describe("collectFiles", () => {
   });
 
   it("keeps .mjs, .cjs, .mts, and .cts sources and drops their test variants", () => {
-    const cwd = mkdtempSync(join(tmpdir(), "investigate-modext-"));
+    const cwd = gitInit("investigate-modext-");
     for (const f of [
       "a.mjs",
       "b.cjs",
@@ -127,6 +138,26 @@ describe("collectFiles", () => {
       ["a.mjs", "b.cjs", "c.mts", "d.cts"].map((f) => join(cwd, f)),
     );
     expect(repo.collectFiles(join(cwd, "a.test.mjs"))).toEqual([]);
+  });
+
+  it("skips gitignored files, symlinks, and symlink loops without throwing", () => {
+    const cwd = gitInit("investigate-links-");
+    mkdirSync(join(cwd, "src", "gen"), { recursive: true });
+    writeFileSync(join(cwd, ".gitignore"), "src/gen/\n");
+    writeFileSync(join(cwd, "src", "real.ts"), "export const real = 1;\n");
+    writeFileSync(join(cwd, "src", "gen", "out.ts"), "export const gen = 1;\n");
+    symlinkSync(join(cwd, "missing.ts"), join(cwd, "src", "dangling.ts"));
+    symlinkSync(join(cwd, "src", "real.ts"), join(cwd, "src", "alias.ts"));
+    symlinkSync(cwd, join(cwd, "src", "loop"));
+    expect(repo.collectFiles(join(cwd, "src"))).toEqual([
+      join(cwd, "src", "real.ts"),
+    ]);
+  });
+
+  it("throws when the directory is not inside a git repository", () => {
+    const plain = mkdtempSync(join(tmpdir(), "investigate-nogit-files-"));
+    writeFileSync(join(plain, "a.ts"), "export const a = 1;\n");
+    expect(() => repo.collectFiles(plain)).toThrow(/git ls-files failed/);
   });
 
   it("returns a single file when given a file", () => {
@@ -160,6 +191,22 @@ describe("tsExports", () => {
         "export const enum Dir {}\nexport declare function foo(): void;\nexport declare const bar: number;\n",
       ),
     ).toEqual(["Dir", "foo", "bar"]);
+  });
+
+  it("names export lists, default identifiers, and CommonJS exports", () => {
+    expect(
+      repo.tsExports(
+        "const Button = 1;\nexport { Button, buttonVariants as variants, Card as default };\nexport type { Props };\nexport { reexported } from './x';\nexport default Widget;\nmodule.exports = Legacy;\nexports.helper = 1;\nmodule.exports.other = 2;\n",
+      ),
+    ).toEqual([
+      "Button",
+      "variants",
+      "Props",
+      "Widget",
+      "Legacy",
+      "helper",
+      "other",
+    ]);
   });
 
   it("dedupes repeated names", () => {
@@ -217,6 +264,26 @@ describe("deriveSymbols", () => {
       { name: "formatDate", file: "src/lib/commands.ts", kind: "ts" },
       { name: "parseDate", file: "src/lib/commands.ts", kind: "ts" },
       { name: "main", file: "src/lib/commands.ts", kind: "ts" },
+    ]);
+  });
+
+  it("falls back to the basename for a JS/TS file with no named exports", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-fallback-"));
+    const files = ["Dialog.tsx", "index.ts", "ab.ts", "Named.ts"].map((f) =>
+      join(cwd, f),
+    );
+    writeFileSync(files[0] ?? "", "export * from './x';\n");
+    writeFileSync(files[1] ?? "", "const a = 1;\n");
+    writeFileSync(files[2] ?? "", "const a = 1;\n");
+    writeFileSync(files[3] ?? "", "export const named = 1;\n");
+    expect(repo.deriveSymbols(files, cwd, 15).symbols).toEqual([
+      {
+        name: "Dialog",
+        file: "Dialog.tsx",
+        kind: "ts",
+        basenameFallback: true,
+      },
+      { name: "named", file: "Named.ts", kind: "ts" },
     ]);
   });
 
