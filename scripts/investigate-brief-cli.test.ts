@@ -337,6 +337,19 @@ describe("brief.mjs", () => {
     }
   });
 
+  it("briefs a target that holds only .mjs files", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, "tools"));
+    writeFileSync(
+      join(cwd, "tools", "render-comments.mjs"),
+      "export function renderComments() {}\n",
+    );
+    const r = runBrief(cwd, "tools", "--no-lsp");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("## renderComments (tools/render-comments.mjs)");
+    expect(r.stdout).toContain("## Doc sources (context7 version gate)");
+  });
+
   it("keeps the doc-source section without a network call when the target has no third-party imports", () => {
     const cwd = makeRepo();
     const r = spawnSync(process.execPath, [script, "src/lib", "--no-lsp"], {

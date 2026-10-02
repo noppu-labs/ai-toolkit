@@ -15,6 +15,26 @@ export const CATEGORIES = [
   "test",
 ];
 const TEXT_CAP = 160;
+const SOURCE_GLOBS = [
+  "*.php",
+  "*.ts",
+  "*.tsx",
+  "*.js",
+  "*.jsx",
+  "*.mjs",
+  "*.cjs",
+  "*.mts",
+  "*.cts",
+];
+const DEFINITION_GLOBS = [
+  "*.php",
+  "*.ts",
+  "*.tsx",
+  "*.mjs",
+  "*.cjs",
+  "*.mts",
+  "*.cts",
+];
 const GREP_LINE_RE = /^([^:]+):(\d+):(.*)$/;
 // ast-grep matches the AST, so these hits are multi-line-safe and immune to
 // comments and strings. One scan per pattern for the whole repo, filtered per symbol afterwards.
@@ -160,11 +180,7 @@ export function wiringFor(ctx, sym) {
       "--no-color",
       sym,
       "--",
-      "*.php",
-      "*.ts",
-      "*.tsx",
-      "*.js",
-      "*.jsx",
+      ...SOURCE_GLOBS,
       ":!doc",
       ":!storage",
       ":!dist",
@@ -187,9 +203,7 @@ export function duplicateDefinitions(ctx, sym, ownFile) {
       "-nwE",
       `(class|interface|trait|enum) ${sym}`,
       "--",
-      "*.php",
-      "*.ts",
-      "*.tsx",
+      ...DEFINITION_GLOBS,
     ],
     { cwd: ctx.repoRoot, timeout: 10_000, env: ctx.env },
   );

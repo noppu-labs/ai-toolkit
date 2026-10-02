@@ -8,12 +8,22 @@ import {
 import path from "node:path";
 import { run } from "./exec.mjs";
 
-export const SOURCE_EXT = new Set([".php", ".ts", ".tsx", ".js", ".jsx"]);
+export const SOURCE_EXT = new Set([
+  ".php",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".mts",
+  ".cts",
+]);
 export const GENERIC_NAMES =
   /^(index|types|schemas|utils|helpers|config|constants)$/i;
 export const TEST_PATH_RE = /(^|\/)(tests?|__tests__|__mocks__)\//;
-export const TS_EXT_RE = /\.(ts|tsx|js|jsx)$/;
-const TEST_FILE_RE = /\.(test|spec|stories)\.[jt]sx?$/;
+export const TS_EXT_RE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
+const TEST_FILE_RE = /\.(test|spec|stories)\.(?:[cm]?[jt]s|[jt]sx)$/;
 const MIN_NAME_LENGTH = 4;
 const EXPORT_RE =
   /^\s*export\s+(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:function\s*\*?|class|const\s+enum|const|let|var|enum|type|interface|abstract\s+class)\s+([A-Za-z_$][\w$]*)/gm;
