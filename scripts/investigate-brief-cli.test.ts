@@ -1,11 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 type RenderModule = {
+  DOCS_NO_IMPORTS: string;
+  DOCS_SKIPPED: string;
+  renderDocSources: (gate: null, skippedReason: string | null) => string[];
   renderTools: (tools: Record<string, string>) => string[];
   renderSymbol: (
     sym: { name: string; file: string; kind: string },
@@ -33,6 +36,22 @@ type CliModule = {
     noLsp: boolean;
     help: boolean;
   };
+  USAGE: string;
+  lspStatus: (result: Map<string, unknown> | null, probeOk: boolean) => string;
+  codegraphStatus: (s: {
+    hasIndex: boolean;
+    probeOk: boolean;
+    lines: string[] | null;
+  }) => string;
+  astGrepStatus: (probeOk: boolean, hits: unknown[] | null) => string;
+  main: (
+    argv: string[],
+    io: {
+      env: Record<string, string>;
+      stdout: { write: (s: string) => void };
+      stderr: { write: (s: string) => void };
+    },
+  ) => Promise<number>;
 };
 
 const scriptsDir: string = join(
@@ -156,6 +175,73 @@ describe("parseArgs", () => {
   });
 });
 
+describe("lspStatus", () => {
+  it("separates absent, failed, empty, and populated servers", () => {
+    expect(cli.lspStatus(null, false)).toBe("not on PATH");
+    expect(cli.lspStatus(null, true)).toBe(
+      "FAILED (server did not initialise or exited)",
+    );
+    expect(cli.lspStatus(new Map(), true)).toBe("ran (no results)");
+    expect(cli.lspStatus(new Map([["a", 1]]), true)).toBe("ran");
+  });
+});
+
+describe("codegraphStatus", () => {
+  it("separates no index, absent binary, failure, and output", () => {
+    expect(
+      cli.codegraphStatus({ hasIndex: false, probeOk: true, lines: null }),
+    ).toBe("no .codegraph index");
+    expect(
+      cli.codegraphStatus({ hasIndex: true, probeOk: false, lines: null }),
+    ).toBe("not on PATH");
+    expect(
+      cli.codegraphStatus({ hasIndex: true, probeOk: true, lines: null }),
+    ).toBe("FAILED (codegraph explore exited non-zero or timed out)");
+    expect(
+      cli.codegraphStatus({ hasIndex: true, probeOk: true, lines: ["x"] }),
+    ).toBe("ran");
+  });
+});
+
+describe("astGrepStatus", () => {
+  it("separates absent binary, no scan dirs, and a scan that ran", () => {
+    expect(cli.astGrepStatus(false, null)).toBe("not on PATH");
+    expect(cli.astGrepStatus(true, null)).toBe("skipped (no PHP scan dirs)");
+    expect(cli.astGrepStatus(true, [])).toBe("ran");
+  });
+});
+
+describe("main", () => {
+  it("lists --help in the usage line", () => {
+    expect(cli.USAGE).toBe(
+      "usage: node brief.mjs <target-path> [--max-symbols N] [--no-docs] [--no-lsp] [--help]",
+    );
+  });
+
+  it("turns any thrown error into a one-line stderr reason and exit 1", async () => {
+    const cwd = makeRepo();
+    let err = "";
+    const code = await cli.main(
+      [join(cwd, "src", "lib"), "--no-docs", "--no-lsp"],
+      {
+        env: { PATH: NO_TOOLS_PATH, HOME: cwd },
+        stdout: {
+          write: () => {
+            throw new Error("boom");
+          },
+        },
+        stderr: {
+          write: (s: string) => {
+            err += s;
+          },
+        },
+      },
+    );
+    expect(code).toBe(1);
+    expect(err).toBe("brief.mjs: boom\n");
+  });
+});
+
 describe("brief.mjs", () => {
   it("prints usage and exits 1 without a target, exits 0 with --help", () => {
     const cwd = makeRepo();
@@ -234,6 +320,46 @@ describe("brief.mjs", () => {
     );
   });
 
+  // root ignores file modes, so the chmod cannot make the file unreadable there.
+  it("exits 1 with the reason and no stack trace when a source file is unreadable", {
+    skip: process.getuid?.() === 0,
+  }, () => {
+    const cwd = makeRepo();
+    const file = join(cwd, "src", "lib", "commands.ts");
+    chmodSync(file, 0o000);
+    try {
+      const r = runBrief(cwd, "src/lib", "--no-docs", "--no-lsp");
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/^brief\.mjs: .*EACCES/);
+      expect(r.stderr).not.toContain("    at ");
+    } finally {
+      chmodSync(file, 0o644);
+    }
+  });
+
+  it("keeps the doc-source section without a network call when the target has no third-party imports", () => {
+    const cwd = makeRepo();
+    const r = spawnSync(process.execPath, [script, "src/lib", "--no-lsp"], {
+      cwd,
+      encoding: "utf8",
+      env: {
+        PATH: NO_TOOLS_PATH,
+        HOME: cwd,
+        INVESTIGATE_BRIEF_CACHE_DIR: join(cwd, ".cache"),
+        INVESTIGATE_BRIEF_C7_URL: "http://127.0.0.1:9/search",
+      },
+    });
+    expect(r.status).toBe(0);
+    expect(r.stdout).not.toContain("## Third-party surface");
+    expect(r.stdout).toContain(
+      "## Doc sources (context7 version gate)\n\n- no third-party imports in this target — nothing to gate",
+    );
+    expect(r.stdout).not.toContain("lookup FAILED");
+    expect(r.stdout).toContain(
+      "- context7: not needed (no third-party imports)",
+    );
+  });
+
   it("includes the doc-source section header when docs are not skipped but context7 is unreachable", () => {
     const cwd = makeRepo();
     const r = spawnSync(
@@ -265,6 +391,20 @@ describe("renderTools", () => {
     expect(render.renderTools({ git: "ran", gitnexus: "not on PATH" })).toEqual(
       ["## Tools", "", "- git: ran", "- gitnexus: not on PATH", ""],
     );
+  });
+});
+
+describe("renderDocSources", () => {
+  it("renders nothing for --no-docs and a no-imports line without the fetch block", () => {
+    expect(render.renderDocSources(null, render.DOCS_SKIPPED)).toEqual([]);
+    const lines = render.renderDocSources(null, render.DOCS_NO_IMPORTS);
+    expect(lines).toEqual([
+      "## Doc sources (context7 version gate)",
+      "",
+      "- no third-party imports in this target — nothing to gate",
+      "",
+    ]);
+    expect(lines.join("\n")).not.toContain("UNAVAILABLE");
   });
 });
 

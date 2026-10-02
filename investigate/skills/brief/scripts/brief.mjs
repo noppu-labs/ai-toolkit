@@ -17,12 +17,12 @@ import {
   TS_EXT_RE,
 } from "./lib/repo.mjs";
 import { tsLspCallers } from "./lib/ts-lsp.mjs";
-import { duplicateDefinitions, wiringFor } from "./lib/wiring.mjs";
+import { astGrepHits, duplicateDefinitions, wiringFor } from "./lib/wiring.mjs";
 
 const MAX_SYMBOLS_DEFAULT = 15;
 const C7_TTL_MS = 6 * 60 * 60 * 1000;
-const USAGE =
-  "usage: node brief.mjs <target-path> [--max-symbols N] [--no-docs] [--no-lsp]";
+export const USAGE =
+  "usage: node brief.mjs <target-path> [--max-symbols N] [--no-docs] [--no-lsp] [--help]";
 const LIST_FAILED_PREFIX = "gitnexus list failed";
 
 const BOOLEAN_FLAGS = {
@@ -62,15 +62,30 @@ function gitnexusStatus(freshness) {
     : `unavailable (${freshness.note})`;
 }
 
-function lspStatus(result, cmd, env) {
-  if (result !== null) return "ran";
-  return probe(cmd, env) ? "ran (no results)" : "not on PATH";
+// The LSP passes return null only on failure; an empty Map means the server ran and found nothing.
+export function lspStatus(result, probeOk) {
+  if (!probeOk) return "not on PATH";
+  if (result === null) return "FAILED (server did not initialise or exited)";
+  return result.size === 0 ? "ran (no results)" : "ran";
+}
+
+export function codegraphStatus({ hasIndex, probeOk, lines }) {
+  if (!hasIndex) return "no .codegraph index";
+  if (!probeOk) return "not on PATH";
+  return lines === null
+    ? "FAILED (codegraph explore exited non-zero or timed out)"
+    : "ran";
+}
+
+export function astGrepStatus(probeOk, hits) {
+  if (!probeOk) return "not on PATH";
+  return hits === null ? "skipped (no PHP scan dirs)" : "ran";
 }
 
 async function runServer(ctx, files, server) {
   if (files.length === 0) return { result: null, status: server.notNeeded };
   const result = await server.fn(ctx, files);
-  return { result, status: lspStatus(result, server.cmd, ctx.env) };
+  return { result, status: lspStatus(result, probe(server.cmd, ctx.env)) };
 }
 
 async function runLsp(ctx, opts, tools) {
@@ -105,15 +120,15 @@ async function runLsp(ctx, opts, tools) {
 async function runDocs(ctx, depRows, opts, tools) {
   if (opts.noDocs) {
     tools.context7 = "skipped (--no-docs)";
-    return { gate: null, skippedReason: "--no-docs" };
+    return { gate: null, skippedReason: render.DOCS_SKIPPED };
   }
   if (depRows.length === 0) {
     tools.context7 = "not needed (no third-party imports)";
-    return { gate: null, skippedReason: "no third-party imports" };
+    return { gate: null, skippedReason: render.DOCS_NO_IMPORTS };
   }
   if (typeof globalThis.fetch !== "function") {
     tools.context7 = "UNAVAILABLE (no global fetch)";
-    return { gate: null, skippedReason: null };
+    return { gate: null, skippedReason: render.DOCS_NO_FETCH };
   }
   const gate = await docSources(depRows, {
     fetchImpl: globalThis.fetch,
@@ -127,12 +142,24 @@ async function runDocs(ctx, depRows, opts, tools) {
   return { gate, skippedReason: null };
 }
 
-function codegraphStatus(ctx, lines) {
-  if (lines !== null) return "ran";
-  if (!existsSync(path.join(ctx.repoRoot, ".codegraph"))) {
-    return "no .codegraph index";
-  }
-  return probe("codegraph", ctx.env) ? "ran (no results)" : "not on PATH";
+function runCodegraph(ctx, symbols, tools) {
+  const lines = codegraphOverview(
+    ctx,
+    symbols.map((s) => s.name),
+  );
+  const hasIndex = existsSync(path.join(ctx.repoRoot, ".codegraph"));
+  tools.codegraph = codegraphStatus({
+    hasIndex,
+    probeOk: hasIndex && probe("codegraph", ctx.env),
+    lines,
+  });
+  return lines;
+}
+
+function runAstGrep(ctx, tools) {
+  const probeOk = probe("ast-grep", ctx.env);
+  // astGrepHits caches per ctx, so the wiring scan reuses this result.
+  tools["ast-grep"] = astGrepStatus(probeOk, probeOk ? astGrepHits(ctx) : null);
 }
 
 function symbolSection(ctx, sym, state) {
@@ -156,6 +183,37 @@ function loadContext(target, env) {
   return { ...repo, files, env };
 }
 
+async function buildBrief(opts, io) {
+  const ctx = loadContext(opts.target, io.env);
+  const tools = { git: "ran" };
+  const freshness = indexFreshness(ctx);
+  tools.gitnexus = gitnexusStatus(freshness);
+  const { symbols, truncated } = deriveSymbols(
+    ctx.files,
+    ctx.repoRoot,
+    opts.maxSymbols,
+  );
+  const { lsp, tsLsp } = await runLsp(ctx, opts, tools);
+  runAstGrep(ctx, tools);
+  const depRows = collectDependencies(ctx);
+  const docs = await runDocs(ctx, depRows, opts, tools);
+  const cg = runCodegraph(ctx, symbols, tools);
+
+  const state = { lsp, tsLsp, freshness };
+  const lines = [
+    ...render.renderHeader(ctx.relTarget, ctx.repoName),
+    ...render.renderTools(tools),
+    ...render.renderIndex(freshness),
+    ...render.renderFiles(ctx.files, ctx.repoRoot, truncated, opts.maxSymbols),
+    ...(depRows.length ? render.renderDependencies(depRows) : []),
+    ...render.renderDocSources(docs.gate, docs.skippedReason),
+    ...render.renderCodegraph(cg),
+    ...symbols.flatMap((sym) => symbolSection(ctx, sym, state)),
+    ...render.renderFooter(),
+  ];
+  io.stdout.write(`${lines.join("\n")}\n`);
+}
+
 export async function main(argv, io) {
   const opts = parseArgs(argv);
   if (opts.help) {
@@ -166,50 +224,13 @@ export async function main(argv, io) {
     io.stderr.write(`${USAGE}\n`);
     return 1;
   }
-  let ctx;
   try {
-    ctx = loadContext(opts.target, io.env);
+    await buildBrief(opts, io);
+    return 0;
   } catch (e) {
-    io.stderr.write(`brief.mjs: ${e.message}\n`);
+    io.stderr.write(`brief.mjs: ${e?.message ?? e}\n`);
     return 1;
   }
-
-  const tools = { git: "ran" };
-  const freshness = indexFreshness(ctx);
-  tools.gitnexus = gitnexusStatus(freshness);
-  const { symbols, truncated } = deriveSymbols(
-    ctx.files,
-    ctx.repoRoot,
-    opts.maxSymbols,
-  );
-  const { lsp, tsLsp } = await runLsp(ctx, opts, tools);
-  tools["ast-grep"] = probe("ast-grep", ctx.env) ? "ran" : "not on PATH";
-  const depRows = collectDependencies(ctx);
-  const docs = await runDocs(ctx, depRows, opts, tools);
-  const cg = codegraphOverview(
-    ctx,
-    symbols.map((s) => s.name),
-  );
-  tools.codegraph = codegraphStatus(ctx, cg);
-
-  const state = { lsp, tsLsp, freshness };
-  const lines = [
-    ...render.renderHeader(ctx.relTarget, ctx.repoName),
-    ...render.renderTools(tools),
-    ...render.renderIndex(freshness),
-    ...render.renderFiles(ctx.files, ctx.repoRoot, truncated, opts.maxSymbols),
-    ...(depRows.length
-      ? [
-          ...render.renderDependencies(depRows),
-          ...render.renderDocSources(docs.gate, docs.skippedReason),
-        ]
-      : []),
-    ...render.renderCodegraph(cg),
-    ...symbols.flatMap((sym) => symbolSection(ctx, sym, state)),
-    ...render.renderFooter(),
-  ];
-  io.stdout.write(`${lines.join("\n")}\n`);
-  return 0;
 }
 
 if (
