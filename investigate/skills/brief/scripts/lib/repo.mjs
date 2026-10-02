@@ -16,7 +16,7 @@ export const TS_EXT_RE = /\.(ts|tsx|js|jsx)$/;
 const TEST_FILE_RE = /\.(test|spec|stories)\.[jt]sx?$/;
 const MIN_NAME_LENGTH = 4;
 const EXPORT_RE =
-  /^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function\s*\*?|class|const|let|var|enum|type|interface|abstract\s+class)\s+([A-Za-z_$][\w$]*)/gm;
+  /^\s*export\s+(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:function\s*\*?|class|const\s+enum|const|let|var|enum|type|interface|abstract\s+class)\s+([A-Za-z_$][\w$]*)/gm;
 
 export function resolveRepo(targetArg, env = process.env) {
   const resolved = path.resolve(targetArg);
@@ -38,29 +38,34 @@ export function resolveRepo(targetArg, env = process.env) {
   };
 }
 
-function isSourceFile(p) {
+function isSourceFile(rel) {
   return (
-    SOURCE_EXT.has(path.extname(p)) &&
-    !TEST_PATH_RE.test(p) &&
-    !TEST_FILE_RE.test(p)
+    SOURCE_EXT.has(path.extname(rel)) &&
+    !TEST_PATH_RE.test(rel) &&
+    !TEST_FILE_RE.test(rel)
   );
 }
 
-function walk(p, acc) {
-  if (statSync(p).isFile()) {
-    if (isSourceFile(p)) acc.push(p);
-    return acc;
-  }
-  for (const entry of readdirSync(p)) {
-    if (entry === "vendor" || entry === "node_modules" || entry.startsWith("."))
+function walk(dir, root, acc) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (
+      entry.name === "vendor" ||
+      entry.name === "node_modules" ||
+      entry.name.startsWith(".")
+    ) {
       continue;
-    walk(path.join(p, entry), acc);
+    }
+    const full = path.join(dir, entry.name);
+    if (statSync(full).isDirectory()) walk(full, root, acc);
+    else if (isSourceFile(path.relative(root, full))) acc.push(full);
   }
   return acc;
 }
 
 export function collectFiles(p) {
-  return walk(p, []).sort();
+  // Filters see paths relative to the target so an ancestor named `tests` cannot hide the repo.
+  if (statSync(p).isFile()) return isSourceFile(path.basename(p)) ? [p] : [];
+  return walk(p, p, []).sort();
 }
 
 export function tsExports(text) {
