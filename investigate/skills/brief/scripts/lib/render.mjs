@@ -79,9 +79,15 @@ export function renderIndex(freshness) {
   ];
 }
 
-export function renderFiles(files, repoRoot, truncated, maxSymbols) {
+export function renderFiles(files, repoRoot, truncated, maxSymbols, notes) {
   const lines = [`## Files (${files.length})`];
-  for (const f of files) lines.push(`- ${path.relative(repoRoot, f)}`);
+  for (const f of files) {
+    const rel = path.relative(repoRoot, f);
+    const note = notes?.basenameFiles?.has(rel)
+      ? " (no named exports; basename used)"
+      : "";
+    lines.push(`- ${rel}${note}`);
+  }
   if (truncated) {
     lines.push(
       `- … symbol detail capped at ${maxSymbols} classes (--max-symbols to raise)`,

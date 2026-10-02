@@ -240,7 +240,7 @@ function symbolSection(ctx, sym, state) {
 
 function loadContext(target, env) {
   const repo = resolveRepo(target, env);
-  const files = collectFiles(repo.target);
+  const files = collectFiles(repo.target, env);
   if (files.length === 0) {
     throw new Error(`no source files found under ${repo.relTarget}`);
   }
@@ -273,7 +273,11 @@ async function buildBrief(opts, io) {
     ...render.renderHeader(ctx.relTarget, ctx.repoName),
     ...render.renderTools(tools),
     ...render.renderIndex(freshness),
-    ...render.renderFiles(ctx.files, ctx.repoRoot, truncated, opts.maxSymbols),
+    ...render.renderFiles(ctx.files, ctx.repoRoot, truncated, opts.maxSymbols, {
+      basenameFiles: new Set(
+        symbols.filter((s) => s.basenameFallback).map((s) => s.file),
+      ),
+    }),
     ...render.renderDependencies(deps.rows, deps.unread),
     ...render.renderDocSources(docs.gate, docs.skippedReason),
     ...render.renderCodegraph(cg),
