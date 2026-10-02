@@ -63,7 +63,10 @@ Send one message containing two Agent tool uses with identical prompts.
 - Carry rung labels through: `vendor:<file:line>`, `node_modules:<file:line>`,
   `docs:<library-id>`, or `INFERRED FROM RECALL`.
 - Pin version-dependent framework claims to the installed version named in the brief.
-- Note any brief section whose Tools status was not `ran`; those sections are UNRESOLVED.
+- A brief section is UNRESOLVED where its Tools status reads `FAILED (...)`,
+  `unavailable (...)` or `UNAVAILABLE (...)`, `not on PATH`, or `no .codegraph index`,
+  or where a doc lookup reads `lookup FAILED`. `ran (...)`, `skipped (...)` and
+  `not needed (...)` are usable as stated.
 
 ## Cheap variant
 
