@@ -1,16 +1,10 @@
-import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
-
-type Symbol = {
-  name: string;
-  file: string;
-  kind: "php" | "ts";
-  basenameFallback?: true;
-};
+import { git } from "./fixtures/investigate-git.ts";
+import type { Sym } from "./fixtures/investigate-types.ts";
 
 type RepoModule = {
   TS_EXT_RE: RegExp;
@@ -20,7 +14,7 @@ type RepoModule = {
     files: string[],
     repoRoot: string,
     maxSymbols: number,
-  ) => { symbols: Symbol[]; truncated: boolean };
+  ) => { symbols: Sym[]; truncated: boolean };
   resolveRepo: (targetArg: string) => {
     target: string;
     repoRoot: string;
@@ -54,11 +48,6 @@ const repo: RepoModule = (await import(
 const exec: ExecModule = (await import(
   pathToFileURL(join(libDir, "exec.mjs")).href
 )) as ExecModule;
-
-function git(cwd: string, ...args: string[]): void {
-  const r = spawnSync("git", args, { cwd, encoding: "utf8" });
-  if (r.status !== 0) throw new Error(r.stderr);
-}
 
 function gitInit(prefix: string): string {
   const cwd = mkdtempSync(join(tmpdir(), prefix));

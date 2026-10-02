@@ -4,16 +4,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import type { DepRow } from "./fixtures/investigate-types.ts";
 
-type DepRow = {
-  name: string;
-  version: string;
-  dev: boolean;
-  ecosystem: "composer" | "npm";
-  path: string;
-  ambiguous: string[] | null;
-  importedAs: string[];
-};
 type DepsModule = {
   composerNamespaceMap: (repoRoot: string) => Array<{
     ns: string;
