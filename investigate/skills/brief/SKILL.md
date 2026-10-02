@@ -1,7 +1,7 @@
 ---
 name: brief
 description: Generate a deterministic structural brief for a path before anyone reads code — callers, wiring, blast radius, installed third-party versions, and version-checked doc sources. Use when asked for a brief, a blast radius, who calls this, or a pre-computation for an investigation or review; the module and spec skills call it first. Not an investigation by itself.
-compatibility: Requires git and Node 20+. Optional on PATH — gitnexus, codegraph, ast-grep, phpantom_lsp, typescript-language-server. By default the doc-source gate sends each non-dev third-party package name to context7.com (anonymously unless CONTEXT7_API_KEY is set); --no-docs disables that network call. Each missing tool degrades its section and is reported under Tools.
+compatibility: Requires git and Node 20+. Optional on PATH — gitnexus, codegraph, ast-grep, phpantom_lsp, typescript-language-server. By default the doc-source gate sends the names of up to 12 third-party packages the target imports (devDependencies and composer dev packages excluded) to context7.com, anonymously unless CONTEXT7_API_KEY is set; --no-docs disables that network call. Each missing tool degrades its section and is reported under Tools.
 ---
 
 # Structural brief

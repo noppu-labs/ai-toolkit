@@ -79,7 +79,13 @@ export function npmVersions(repoRoot) {
     const name = key.slice(NODE_MODULES_PREFIX.length);
     // Nested installs (a/node_modules/b) are not the top-level resolution.
     if (name.includes(NODE_MODULES_PREFIX)) continue;
-    if (meta?.version) map.set(name, meta.version);
+    // devOptional: reached only through devDependencies' optional deps, so still dev.
+    if (meta?.version) {
+      map.set(name, {
+        version: meta.version,
+        dev: meta.dev === true || meta.devOptional === true,
+      });
+    }
   }
 
   return map;
@@ -136,16 +142,17 @@ function phpUses(text, nsMap, found) {
 function jsImports(text, npm, found) {
   for (const m of text.matchAll(JS_IMPORT_RE)) {
     const pkg = jsPackageOf(m[1]);
-    if (!pkg || !npm.has(pkg)) continue;
+    const installed = pkg ? npm.get(pkg) : undefined;
+    if (!installed) continue;
 
     note(
       found,
       pkg,
       {
         name: pkg,
-        version: npm.get(pkg),
+        version: installed.version,
         ecosystem: "npm",
-        dev: false,
+        dev: installed.dev,
         path: `${NODE_MODULES_PREFIX}${pkg}`,
         ambiguous: null,
       },
