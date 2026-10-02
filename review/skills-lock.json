@@ -3,7 +3,7 @@
   "skills": {
     "comment-audit": {
       "sourceType": "local",
-      "vendoredHash": "98dd80e5225f68394be503dd7cafab3a6abdbab894720492c396ddc834a05038"
+      "vendoredHash": "41116751ee303eb386fb15f6d5bdef306432eada05346637efb0b75e564715eb"
     },
     "pr-comments": {
       "sourceType": "local",
@@ -11,15 +11,15 @@
     },
     "pr-review": {
       "sourceType": "local",
-      "vendoredHash": "9e4b4ec915f2cb83a6e0218b510ee64cffc23501c898f58f946f08c90e5293a6"
+      "vendoredHash": "c4016930b56410090f7995bb6bfd11b282567059643c13586590f670987a6a9c"
     },
     "type-safety-review": {
       "sourceType": "local",
-      "vendoredHash": "00a357de2c55d5bbf7707eb2cd741124f8a1c639569f0409a8b47766f5dce901"
+      "vendoredHash": "aa75b60d45a2fd9b1c1bc6b8324bf9fd93eacbbedd696634eab712a3e1903b3b"
     },
     "writing-comments": {
       "sourceType": "local",
-      "vendoredHash": "e01e49733e2eec13062fca623a4abb948d9cc8a5af8fb8a9cb9599a35c5d3342"
+      "vendoredHash": "34524eb2aa29d333cd177a8288486408428b1bb08a565b8290b0418b8d90bc0b"
     }
   }
 }
