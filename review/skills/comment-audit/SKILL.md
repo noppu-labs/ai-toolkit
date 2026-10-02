@@ -65,6 +65,8 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/comment-audit/scripts/count-comment-lines.sh B
 
 It prints one number: the added lines whose first non-blank characters are `//`, `#`, `*`, `/*`, `/**`, `"""`, `{/*`, or `<!--`. The report opens with it.
 
+A `.py` file is counted by `python-comment-lines.py` beside the script instead: every line of a module, class, or function docstring in any quote style, and every `#` comment with nothing before it on its line. A shebang, an encoding declaration, and a tool directive (`# noqa`, `# type:`, `# pragma:`, `# fmt:`, `# pyright:`, `# mypy:`, `# ruff:`, `# isort:`, `# nosec`, `# complexipy:`, `# pylint:`) are not counted, even when a reason follows the marker. Step 3 still rules on that reason, so the findings can hold more entries than the count; when they do, the report says the difference is reasoned directives. Without `python3` on `PATH`, or for a file that does not parse, Python is counted with the regex above and the script prints one line to stderr. Quote that line under the count.
+
 If the command fails, the ref does not exist in this clone. Run `git fetch` and retry, or re-resolve `base`. A count of `0` means the branch adds no comments; write the report saying so and stop.
 
 Steps 2 through 4 read `git diff BASE...HEAD -- DIRS`. Three dots, so only what the branch adds is in scope.
@@ -159,9 +161,9 @@ The template's two summary requirements are easy to drop and both are mandatory:
   bash ${CLAUDE_PLUGIN_ROOT}/skills/comment-audit/scripts/verify-comments-only.sh FROM TO DIRS
   ```
 
-  `FROM` is the commit before the trim and `TO` is the commit carrying it, so `HEAD~1 HEAD` after the commit. The script prints every changed line that is not a comment or blank and exits `1`. It excludes `*.md` files, so doc edits never appear as hits. Every hit gets a one-line explanation in the report. Two kinds of hit are expected and still get their line:
+  `FROM` is the commit before the trim and `TO` is the commit carrying it, so `HEAD~1 HEAD` after the commit. The script prints every changed line that is not a comment or blank and exits `1`. It excludes `*.md` files, so doc edits never appear as hits. A `.py` file is checked with `python-comment-lines.py` on each side of the diff, so a docstring trim produces no hits, while a changed directive comment (`# type: ignore`, `# noqa`, `# pragma:`) is a hit, because it changes what a tool reports. Every hit gets a one-line explanation in the report. Two kinds of hit are expected and still get their line:
   - A blank line left where a docblock shrank to nothing.
-  - Interior lines of a block comment that carry no per-line marker: the body of a multi-line `<!-- -->`, or a `/* */` block without a leading `*` on each line.
+  - Interior lines of a block comment that carry no per-line marker: the body of a multi-line `<!-- -->`, a `/* */` block without a leading `*` on each line, or, when the script warned that `python3` is missing or a file does not parse, the inside of a Python docstring.
 
 - Run the project's format, lint, and test commands, in that order, using the commands resolved in step 0. If one of them could not be resolved, skip it and say so in the final message.
 - If the formatter changes a file the audit did not touch, revert that file. Amend the trim commit with formatter changes to files the audit did touch, so the branch still carries one commit.

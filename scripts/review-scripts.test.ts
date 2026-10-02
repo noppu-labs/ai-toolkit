@@ -21,14 +21,18 @@ function git(cwd: string, ...args: string[]): string {
   return result.stdout.trim();
 }
 
-function run(
+type RunResult = { status: number | null; stdout: string; stderr: string };
+
+function runWithEnv(
+  env: Record<string, string>,
   script: string,
   cwd: string,
   ...args: string[]
-): { status: number | null; stdout: string; stderr: string } {
+): RunResult {
   const result = spawnSync("bash", [join(scriptsDir, script), ...args], {
     cwd,
     encoding: "utf8",
+    env: { ...process.env, ...env },
   });
   return {
     status: result.status,
@@ -36,6 +40,85 @@ function run(
     stderr: result.stderr,
   };
 }
+
+function run(script: string, cwd: string, ...args: string[]): RunResult {
+  return runWithEnv({}, script, cwd, ...args);
+}
+
+// An interpreter name that resolves to nothing, so the scripts take the same
+// branch as a machine without python3 on PATH.
+const NO_PYTHON: Record<string, string> = {
+  REVIEW_PYTHON: "python3-not-installed",
+};
+
+function commitFiles(
+  cwd: string,
+  files: Record<string, string>,
+  message: string,
+): void {
+  for (const [path, content] of Object.entries(files)) {
+    writeFileSync(join(cwd, path), content);
+  }
+  git(cwd, "add", "-A");
+  git(cwd, "commit", "-q", "-m", message);
+}
+
+// 28 lines. The helper counts 11 of them: the module docstring (2-5), the
+// ''' class docstring (14), the r""" method docstring (17-20), the own-line
+// comment (21), and the function docstring (26). The shebang, both `# fmt:`
+// lines, and the three trailing comments are not counted. The regex alone
+// counts 8: lines 1, 2, 5, 8, 10, 20, 21, and 26.
+const INVOICE_PY: string = [
+  "#!/usr/bin/env python3",
+  '"""Invoice totals for the billing service.',
+  "",
+  "Kept separate from the HTTP layer.",
+  '"""',
+  "from typing import Any  # noqa: F401",
+  "",
+  "# fmt: off",
+  'RATES = {"std": 0.2}',
+  "# fmt: on",
+  "",
+  "",
+  "class Invoice:",
+  "    '''An invoice line set.'''",
+  "",
+  "    def total(self, lines: list[float]) -> float:",
+  '        r"""Sum the lines.',
+  "",
+  "        Rounds half up.",
+  '        """',
+  "        # The upstream API sends cents as floats.",
+  "        return round(sum(lines), 2)  # trailing note",
+  "",
+  "",
+  "async def fetch(client: Any) -> dict:",
+  '    """Fetch the raw payload."""',
+  "    data = await client.get()  # type: ignore[attr-defined]",
+  "    return data",
+  "",
+].join("\n");
+
+const TOTALS_PY: string = "'''Totals.\n\nOne line of why.\n'''\nTOTAL = 1\n";
+
+// Enough unchanged lines that git still pairs the two paths as a rename after
+// the docstring above it shrinks.
+const RENAMED_BODY: string = [
+  "",
+  "",
+  "def first() -> int:",
+  "    return 1",
+  "",
+  "",
+  "def second() -> int:",
+  "    return 2",
+  "",
+  "",
+  "def third() -> int:",
+  "    return 3",
+  "",
+].join("\n");
 
 function makeRepo(): string {
   const cwd = mkdtempSync(join(tmpdir(), "review-scripts-"));
@@ -145,6 +228,171 @@ describe("count-comment-lines.sh", () => {
     expect(run("count-comment-lines.sh", cwd, "main", "feature").stdout).toBe(
       "2",
     );
+  });
+
+  it("counts every docstring line and own-line comment in a Python file, and no directive or trailing comment", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, { "app/invoice.py": INVOICE_PY }, "feature");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("11");
+    expect(result.stderr).toBe("");
+  });
+
+  it("sums PHP and Python comment lines in one diff", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "app/Thing.php":
+          "<?php\n// why\nclass Thing\n{\n    public function go(): void\n    {\n    }\n}\n",
+        "app/totals.py": `# noqa: E501\n${TOTALS_PY}`,
+      },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    // PHP "// why" is 1. Python is the four docstring lines; the noqa line is a directive.
+    expect(result.stdout).toBe("5");
+  });
+
+  it("counts only the comment lines a renamed Python file adds", () => {
+    const cwd = makeRepo();
+    const before =
+      '"""Module docstring.\n\nKept as is.\n"""\n\n\ndef go() -> None:\n    return None\n';
+    commitFiles(cwd, { "app/old_name.py": before }, "python base");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    git(cwd, "mv", "app/old_name.py", "app/new_name.py");
+    commitFiles(
+      cwd,
+      {
+        "app/new_name.py": before.replace(
+          "    return None",
+          "    # added\n    return None",
+        ),
+      },
+      "rename",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("1");
+  });
+
+  it("counts a Python file that does not parse with the regex, and names it on stderr", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "app/broken.py":
+          'def broken(:\n    """Doc.\n\n    More.\n    """\n# note\n',
+      },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    // The regex sees both """ lines and "# note", not the interior line.
+    expect(result.stdout).toBe("3");
+    expect(result.stderr).toContain("app/broken.py");
+  });
+
+  it("counts Python with the regex, and warns once, when python3 is missing", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, { "app/invoice.py": INVOICE_PY }, "feature");
+
+    const result = runWithEnv(
+      NO_PYTHON,
+      "count-comment-lines.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("8");
+    expect(result.stderr.trim().split("\n")).toHaveLength(1);
+    expect(result.stderr).toContain("python3-not-installed not found");
+  });
+
+  it("does not count a triple-quoted string that is not a docstring", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "app/queries.py":
+          '"""Queries."""\nQUERY = """\nselect 1\n"""\n\n\ndef run() -> str:\n    x = 1\n    """Not a docstring."""\n    return QUERY\n',
+      },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    // Only the module docstring. The regex alone would also count the closing
+    // """ of QUERY and the string statement after `x = 1`.
+    expect(result.stdout).toBe("1");
+  });
+
+  it("counts a Python file whose path has spaces, and one with CRLF line endings", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "app/my module.py": '"""One.\n\nTwo.\n"""\nX = 1\n',
+        "app/windows.py": '"""One.\r\n\r\nTwo.\r\n"""\r\n# why\r\nX = 1\r\n',
+      },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("9");
+    expect(result.stderr).toBe("");
+  });
+
+  it("limits the Python count to the given directories", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "vendor/lib.py": '"""Vendored.\n\nNot ours.\n"""\n',
+        "app/mine.py": '"""Mine."""\n',
+      },
+      "feature",
+    );
+
+    expect(
+      run("count-comment-lines.sh", cwd, "main", "feature", "app").stdout,
+    ).toBe("1");
+    expect(run("count-comment-lines.sh", cwd, "main", "feature").stdout).toBe(
+      "5",
+    );
+  });
+
+  it("exits 2 and names the ref when a ref does not exist", () => {
+    const cwd = makeRepo();
+
+    const result = run("count-comment-lines.sh", cwd, "no-such-ref", "main");
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("no-such-ref");
   });
 });
 
@@ -259,5 +507,217 @@ describe("verify-comments-only.sh", () => {
     const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
 
     expect(result.status).toBe(0);
+  });
+
+  it("passes a docstring-only trim in a Python file", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/invoice.py": INVOICE_PY }, "python base");
+    commitFiles(
+      cwd,
+      {
+        "app/invoice.py": [
+          "#!/usr/bin/env python3",
+          '"""Invoice totals for the billing service."""',
+          "from typing import Any  # noqa: F401",
+          "",
+          "# fmt: off",
+          'RATES = {"std": 0.2}',
+          "# fmt: on",
+          "",
+          "",
+          "class Invoice:",
+          "    def total(self, lines: list[float]) -> float:",
+          '        r"""Sum the lines, rounding half up."""',
+          "        return round(sum(lines), 2)  # trailing note",
+          "",
+          "",
+          "async def fetch(client: Any) -> dict:",
+          "    data = await client.get()  # type: ignore[attr-defined]",
+          "    return data",
+          "",
+        ].join("\n"),
+      },
+      "trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.status).toBe(0);
+  });
+
+  it("fails and prints both sides when code inside a Python function changed", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/invoice.py": INVOICE_PY }, "python base");
+    commitFiles(
+      cwd,
+      {
+        "app/invoice.py": INVOICE_PY.replace(
+          "round(sum(lines), 2)",
+          "round(sum(lines), 3)",
+        ),
+      },
+      "oops",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "-        return round(sum(lines), 2)  # trailing note",
+      "+        return round(sum(lines), 3)  # trailing note",
+    ]);
+  });
+
+  it("fails when a Python directive comment changed, standalone or trailing", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "app/loader.py":
+          "# type: ignore\nimport vendor_sdk\n\nHANDLE = vendor_sdk.open()  # type: ignore[attr-defined]\n",
+      },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/loader.py":
+          "import vendor_sdk\n\nHANDLE = vendor_sdk.open()  # type: ignore[union-attr]\n",
+      },
+      "directive",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "-# type: ignore",
+      "-HANDLE = vendor_sdk.open()  # type: ignore[attr-defined]",
+      "+HANDLE = vendor_sdk.open()  # type: ignore[union-attr]",
+    ]);
+  });
+
+  it("passes a docstring trim in a renamed Python file", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "app/old_name.py": `"""Module docstring.\n\nA second paragraph.\n"""\n${RENAMED_BODY}`,
+      },
+      "python base",
+    );
+    git(cwd, "mv", "app/old_name.py", "app/new_name.py");
+    commitFiles(
+      cwd,
+      {
+        "app/new_name.py": `"""Module docstring."""\n${RENAMED_BODY}`,
+      },
+      "rename and trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.status).toBe(0);
+  });
+
+  it("reports only the PHP code line in a diff that also trims a Python docstring", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/totals.py": TOTALS_PY }, "python base");
+    commitFiles(
+      cwd,
+      {
+        "app/totals.py": "'''Totals.'''\nTOTAL = 1\n",
+        "app/Thing.php":
+          "<?php\nclass Thing\n{\n    public function go(): int\n    {\n    }\n}\n",
+      },
+      "mixed",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "-    public function go(): void",
+      "+    public function go(): int",
+    ]);
+  });
+
+  it("checks a Python file that does not parse with the regex, and names it on stderr", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/broken.py": "def broken(:\n# old note\n" }, "base");
+    commitFiles(cwd, { "app/broken.py": "def broken(:\n# new note\n" }, "note");
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.stderr).toContain("app/broken.py");
+  });
+
+  it("uses the regex filter for Python, and warns once, when python3 is missing", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/totals.py": TOTALS_PY }, "python base");
+    commitFiles(cwd, { "app/totals.py": "'''Totals.'''\nTOTAL = 1\n" }, "trim");
+
+    const result = runWithEnv(
+      NO_PYTHON,
+      "verify-comments-only.sh",
+      cwd,
+      "HEAD~1",
+      "HEAD",
+      "app",
+    );
+
+    // The pre-change behaviour: ''' lines and docstring interiors carry no marker.
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("-One line of why.");
+    expect(result.stderr.trim().split("\n")).toHaveLength(1);
+    expect(result.stderr).toContain("python3-not-installed not found");
+  });
+
+  it("fails when a triple-quoted string that is not a docstring changed", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/queries.py": '"""Queries."""\nQUERY = """\nselect 1\n"""\n' },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      { "app/queries.py": '"""Queries."""\nQUERY = """\nselect 2\n"""\n' },
+      "query",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual(["-select 1", "+select 2"]);
+  });
+
+  it("passes a docstring trim in a Python file whose path has spaces", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/my module.py": '"""One.\n\nTwo.\n"""\nX = 1\n' },
+      "python base",
+    );
+    commitFiles(cwd, { "app/my module.py": '"""One."""\nX = 1\n' }, "trim");
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.status).toBe(0);
+  });
+
+  it("exits 2 and names the ref when a ref does not exist", () => {
+    const cwd = makeRepo();
+
+    const result = run("verify-comments-only.sh", cwd, "no-such-ref", "HEAD");
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("no-such-ref");
   });
 });
