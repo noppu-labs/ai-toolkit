@@ -171,31 +171,50 @@ async function runLsp(ctx, symbols, opts, tools) {
   return { lsp: php.result, tsLsp: ts.result };
 }
 
-async function runDocs(ctx, deps, opts, tools) {
-  const depRows = deps.rows;
-  if (opts.noDocs) {
-    tools.context7 = "skipped (--no-docs)";
-    return { gate: null, skippedReason: render.DOCS_SKIPPED };
+function unreadNote(unread) {
+  const ecosystems = {
+    "composer.lock": "composer",
+    "package-lock.json": "npm",
+  };
+  return unread
+    .map((f) => `; ${ecosystems[f]} imports UNRESOLVED (no ${f} read)`)
+    .join("");
+}
+
+// Why the gate did not run, or null when it should.
+function docsSkip(deps, opts) {
+  if (opts.noDocs) return ["skipped (--no-docs)", render.DOCS_SKIPPED];
+  if (deps.rows.length === 0 && deps.unread.length > 0) {
+    return [
+      `skipped (no ${deps.unread.join(" or ")} read)`,
+      render.DOCS_NO_LOCKFILE,
+    ];
   }
-  if (depRows.length === 0 && deps.unread.length > 0) {
-    tools.context7 = `skipped (no ${deps.unread.join(" or ")} read)`;
-    return { gate: null, skippedReason: render.DOCS_NO_LOCKFILE };
+  if (deps.rows.length === 0) {
+    return ["not needed (no third-party imports)", render.DOCS_NO_IMPORTS];
   }
-  if (depRows.length === 0) {
-    tools.context7 = "not needed (no third-party imports)";
-    return { gate: null, skippedReason: render.DOCS_NO_IMPORTS };
+  if (deps.rows.every((r) => r.dev)) {
+    return ["not needed (only dev packages imported)", render.DOCS_DEV_ONLY];
   }
   if (typeof globalThis.fetch !== "function") {
-    tools.context7 = "UNAVAILABLE (no global fetch)";
-    return { gate: null, skippedReason: render.DOCS_NO_FETCH };
+    return ["UNAVAILABLE (no global fetch)", render.DOCS_NO_FETCH];
   }
-  const gate = await docSources(depRows, {
+  return null;
+}
+
+async function runDocs(ctx, deps, opts, tools) {
+  const skip = docsSkip(deps, opts);
+  if (skip) {
+    tools.context7 = skip[0];
+    return { gate: null, skippedReason: skip[1] };
+  }
+  const gate = await docSources(deps.rows, {
     fetchImpl: globalThis.fetch,
     cache: new TtlCache(defaultCacheDir(ctx.env), C7_TTL_MS),
     apiKey: ctx.env.CONTEXT7_API_KEY,
     searchUrl: ctx.env.INVESTIGATE_BRIEF_C7_URL,
   });
-  tools.context7 = context7Status(gate);
+  tools.context7 = `${context7Status(gate)}${unreadNote(deps.unread)}`;
   return { gate, skippedReason: null };
 }
 

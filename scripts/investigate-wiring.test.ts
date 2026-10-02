@@ -128,6 +128,13 @@ describe("classifyHit", () => {
     expect(wiring.classifyHit("Foo", text)).toBe(expected);
   });
 
+  it("classifies a 200 KB line with a container call in linear time", () => {
+    const line = `$this->app->bind(${"a".repeat(200_000)}`;
+    const started = Date.now();
+    expect(wiring.classifyHit("Foo", line)).toBe("other");
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
   it("always returns a known non-test category", () => {
     fc.assert(
       fc.property(fc.string(), (text) => {

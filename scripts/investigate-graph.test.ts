@@ -297,6 +297,7 @@ describe("parseGraphContext", () => {
           symbol: { kind: "Class", filePath: "a.php" },
           boundaries: ["b", 1],
           incoming: { calls: [{ name: "x" }, null] },
+          processes: [null, "p1", { name: "p2" }, 3],
           epistemic: "graph",
         }),
       ),
@@ -304,6 +305,7 @@ describe("parseGraphContext", () => {
       symbol: { kind: "Class", filePath: "a.php" },
       boundaries: ["b"],
       incoming: { calls: [{ name: "x" }], imports: [] },
+      processes: ["p1", { name: "p2" }],
       epistemic: "graph",
     });
   });

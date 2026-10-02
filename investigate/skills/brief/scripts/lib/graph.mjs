@@ -22,7 +22,9 @@ function toGraphContext(parsed) {
       calls: objects(incoming.calls),
       imports: objects(incoming.imports),
     },
-    processes: Array.isArray(parsed.processes) ? parsed.processes : [],
+    processes: Array.isArray(parsed.processes)
+      ? parsed.processes.filter((p) => typeof p === "string" || isObject(p))
+      : [],
     epistemic: typeof parsed.epistemic === "string" ? parsed.epistemic : "",
   };
 }

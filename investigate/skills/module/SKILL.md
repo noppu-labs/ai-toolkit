@@ -40,7 +40,8 @@ question. Fill `<BRIEF>` with the concatenated briefs.
 Fill `<DOC SOURCES>` with one condensed verdict line for each of the 2 to 4 packages whose
 semantics the target leans on, in the form `investigate:brief` shows under "Doc-source
 verdicts". Take each id from the brief's FETCH BEFORE CLAIMING list, including the pinned
-id of a `PIN to` verdict. Most first-party investigations need none; then write
+id of a `PIN to` verdict. A chosen package with no id in that list gets a line that says to
+read its installed source instead. Most first-party investigations need none; then write
 `none handed over`.
 
 Send one message containing two Agent tool uses with identical prompts.

@@ -72,17 +72,24 @@ export function parseGrepLine(line) {
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const BINDING_CALL_RE = /(->|::)\s*(bind|singleton|scoped|instance)\s*\(/g;
+
+// A container method call with the symbol's ::class among its arguments, so
+// JS `.bind(` and `Foo::instance()` stay out of the bindings bucket. The
+// arguments are cut at the first `)` before matching, which keeps it linear.
+function isBinding(sym, t) {
+  const classRef = new RegExp(`(^|[^\\w])${esc(sym)}::class`);
+  for (const m of t.matchAll(BINDING_CALL_RE)) {
+    const start = m.index + m[0].length;
+    const end = t.indexOf(")", start);
+    if (classRef.test(t.slice(start, end === -1 ? t.length : end))) return true;
+  }
+  return false;
+}
+
 function phpCategory(sym, t) {
   const s = esc(sym);
-  // A container method call with the symbol's ::class among its arguments, so
-  // JS `.bind(` and `Foo::instance()` stay out of the bindings bucket.
-  if (
-    new RegExp(
-      `(->|::)\\s*(bind|singleton|scoped|instance)\\s*\\([^)]*?(\\\\?[\\w\\\\]*\\\\)?\\b${s}::class`,
-    ).test(t)
-  ) {
-    return "binding";
-  }
+  if (isBinding(sym, t)) return "binding";
   if (
     new RegExp(
       `(\\bresolve|\\bapp|(->|::)make(With)?)\\s*\\(\\s*(\\\\?[\\w\\\\]*\\\\)?${s}::class`,

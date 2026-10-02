@@ -33,6 +33,7 @@ export const DOCS_SKIPPED = "--no-docs";
 export const DOCS_NO_IMPORTS = "no third-party imports";
 export const DOCS_NO_FETCH = "no global fetch";
 export const DOCS_NO_LOCKFILE = "no lockfile read";
+export const DOCS_DEV_ONLY = "only dev packages imported";
 const LOCKFILE_ECOSYSTEM = {
   "composer.lock": "composer",
   "package-lock.json": "npm",
@@ -209,6 +210,14 @@ function fetchLines(fetchable) {
 
 export function renderDocSources(gate, skippedReason) {
   if (skippedReason === DOCS_SKIPPED) return [];
+  if (skippedReason === DOCS_DEV_ONLY) {
+    return [
+      DOC_SOURCES_HEADING,
+      "",
+      "- only dev packages imported; their docs are not looked up",
+      "",
+    ];
+  }
   if (skippedReason === DOCS_NO_LOCKFILE) {
     return [
       DOC_SOURCES_HEADING,

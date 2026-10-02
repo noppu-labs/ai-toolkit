@@ -265,7 +265,9 @@ describe("deriveSymbols", () => {
     writeFileSync(files[1] ?? "", "const a = 1;\n");
     writeFileSync(files[2] ?? "", "const a = 1;\n");
     writeFileSync(files[3] ?? "", "export const named = 1;\n");
-    expect(repo.deriveSymbols(files, cwd, 15).symbols).toEqual([
+    const filtered = join(cwd, "dateFormat.ts");
+    writeFileSync(filtered, "export const fmt = 1;\nexport const index = 2;\n");
+    expect(repo.deriveSymbols([...files, filtered], cwd, 15).symbols).toEqual([
       {
         name: "Dialog",
         file: "Dialog.tsx",
@@ -273,6 +275,12 @@ describe("deriveSymbols", () => {
         basenameFallback: true,
       },
       { name: "named", file: "Named.ts", kind: "ts" },
+      {
+        name: "dateFormat",
+        file: "dateFormat.ts",
+        kind: "ts",
+        basenameFallback: true,
+      },
     ]);
   });
 
