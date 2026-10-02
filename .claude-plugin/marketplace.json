@@ -19,6 +19,11 @@
       "name": "review",
       "source": "./review",
       "description": "Language-agnostic code review skills: comment audit, type-safety review, and a three-stage PR review orchestrator"
+    },
+    {
+      "name": "investigate",
+      "source": "./investigate",
+      "description": "Deterministic structural briefs and two-pass code investigations: brief, module, and spec review skills"
     }
   ]
 }

@@ -1,6 +1,11 @@
 // Shared types and constants for the skills sync tool.
 
-export const PLUGINS: string[] = ["laravel", "inertia-react", "review"];
+export const PLUGINS: string[] = [
+  "laravel",
+  "inertia-react",
+  "review",
+  "investigate",
+];
 
 export type SyncState =
   | "up-to-date"

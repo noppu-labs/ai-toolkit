@@ -27,6 +27,7 @@ Agents and skills for agentic development in modern Laravel and React applicatio
 | `laravel` | 16 backend skills, `laravel-backend-specialist` agent, 4 path-scoped rules |
 | `inertia-react` | 6 frontend skills, `frontend-developer` agent, 2 path-scoped rules |
 | `review` | 4 language-agnostic review skills: comment audit, writing comments, type-safety review, PR review orchestrator |
+| `investigate` | 3 skills: deterministic structural brief, two-pass module investigation, spec/ticket review |
 
 ## Install (Claude Code marketplace)
 
@@ -35,12 +36,13 @@ Agents and skills for agentic development in modern Laravel and React applicatio
 /plugin install laravel@ai-toolkit
 /plugin install inertia-react@ai-toolkit
 /plugin install review@ai-toolkit
+/plugin install investigate@ai-toolkit
 /laravel:install-rules
 /inertia-react:install-rules
 ```
 
 Skills are namespaced after install, e.g. `laravel:laravel-dtos`, `inertia-react:shadcn`,
-`review:comment-audit`.
+`review:comment-audit`, `investigate:brief`.
 The `install-rules` commands copy each plugin's path-scoped rules into your project's
 `.claude/rules/`. Review the copied rules afterwards and adjust any project-specific
 commands (formatter invocation, npm script names) to your setup.
@@ -51,7 +53,17 @@ commands (formatter invocation, npm script names) to your setup.
 npx skills add noppu-labs/ai-toolkit/laravel
 npx skills add noppu-labs/ai-toolkit/inertia-react
 npx skills add noppu-labs/ai-toolkit/review
+npx skills add noppu-labs/ai-toolkit/investigate
 ```
+
+## Optional tooling for `investigate`
+
+The `investigate:brief` script needs only `git` and Node 20+. When they are on `PATH` it also
+uses `gitnexus` (call graph), `codegraph` (blast radius and inheritance), `ast-grep` (container
+and binding patterns), `phpantom_lsp` (PHP types), and `typescript-language-server` (verified
+TypeScript callers), and with `CONTEXT7_API_KEY` set it queries context7 for version-matched
+documentation sources. Every missing tool is reported under the brief's `Tools` section rather
+than failing the run.
 
 ## Verifying releases
 
