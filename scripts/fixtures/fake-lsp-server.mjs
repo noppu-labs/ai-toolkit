@@ -6,13 +6,21 @@ if (process.argv.includes("--version")) {
   process.exit(0);
 }
 
+const CONFIG_REQUEST_ID = 999;
+const exitAfterInit = process.env.FAKE_LSP_EXIT_AFTER_INIT === "1";
+
 let buf = Buffer.alloc(0);
 let root = "";
 let sentBad = false;
+let gotConfigReply = false;
+const held = [];
 
-function send(obj) {
+function send(obj, done) {
   const s = JSON.stringify(obj);
-  process.stdout.write(`Content-Length: ${Buffer.byteLength(s)}\r\n\r\n${s}`);
+  process.stdout.write(
+    `Content-Length: ${Buffer.byteLength(s)}\r\n\r\n${s}`,
+    done,
+  );
 }
 
 function symbolsFor(uri) {
@@ -68,46 +76,72 @@ function callersFor() {
   ];
 }
 
+function itemFor(uri) {
+  const range = {
+    start: { line: 1, character: 0 },
+    end: { line: 1, character: 5 },
+  };
+  return [
+    {
+      name: basename(uri).replace(/\.[^.]+$/, ""),
+      uri,
+      range,
+      selectionRange: range,
+    },
+  ];
+}
+
+const results = {
+  "textDocument/documentSymbol": (params) =>
+    symbolsFor(params.textDocument.uri),
+  "textDocument/prepareCallHierarchy": (params) =>
+    itemFor(params.textDocument.uri),
+  "callHierarchy/incomingCalls": callersFor,
+};
+
+function reply(msg) {
+  if (!sentBad) {
+    sentBad = true;
+    process.stdout.write("Content-Length: 5\r\n\r\n{bad}");
+  }
+  send({
+    jsonrpc: "2.0",
+    id: msg.id,
+    result: results[msg.method]?.(msg.params) ?? null,
+  });
+}
+
+// Replies are held until the client answers workspace/configuration, so a client
+// that ignores server-to-client requests never gets its symbols.
+function onResponse(msg) {
+  if (msg.id !== CONFIG_REQUEST_ID) return;
+  gotConfigReply = true;
+  for (const m of held.splice(0)) reply(m);
+}
+
 function handle(msg) {
+  if (msg.method === undefined) {
+    onResponse(msg);
+    return;
+  }
   if (msg.method === "initialize") {
     root = String(msg.params.rootUri).replace("file://", "");
-    send({ jsonrpc: "2.0", id: msg.id, result: { capabilities: {} } });
+    const done = exitAfterInit ? () => process.exit(0) : undefined;
+    send({ jsonrpc: "2.0", id: msg.id, result: { capabilities: {} } }, done);
     return;
   }
   if (msg.method === "initialized") {
     send({
       jsonrpc: "2.0",
-      id: 999,
+      id: CONFIG_REQUEST_ID,
       method: "workspace/configuration",
       params: {},
     });
     return;
   }
   if (msg.id === undefined) return;
-  if (!sentBad) {
-    sentBad = true;
-    process.stdout.write("Content-Length: 5\r\n\r\n{bad}");
-  }
-  const results = {
-    "textDocument/documentSymbol": () =>
-      symbolsFor(msg.params.textDocument.uri),
-    "textDocument/prepareCallHierarchy": () => {
-      const range = {
-        start: { line: 1, character: 0 },
-        end: { line: 1, character: 5 },
-      };
-      return [
-        {
-          name: basename(msg.params.textDocument.uri).replace(/\.[^.]+$/, ""),
-          uri: msg.params.textDocument.uri,
-          range,
-          selectionRange: range,
-        },
-      ];
-    },
-    "callHierarchy/incomingCalls": callersFor,
-  };
-  send({ jsonrpc: "2.0", id: msg.id, result: results[msg.method]?.() ?? null });
+  if (gotConfigReply) reply(msg);
+  else held.push(msg);
 }
 
 process.stdin.on("data", (d) => {
