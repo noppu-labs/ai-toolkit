@@ -22,6 +22,11 @@ public function contentFor(string $journeyId): ?ConsentContentDto
  * The document the account holder is agreeing to, above the signature form.
 ```
 
+```python
+def find_invoice(invoice_id: int) -> Invoice | None:
+    """Find an invoice by its id, or return None when there is no such invoice."""
+```
+
 A nullable return type already announces that null is possible. Spend the comment on *which* null it is, or write nothing.
 
 ## B. Commit-message-in-a-comment

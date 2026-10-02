@@ -1,6 +1,6 @@
 ---
 name: comment-audit
-description: Audit every comment, docblock, JSDoc, GraphQL description, and markdown line a branch adds and give each a verdict (DELETE, TRIM, MOVE, KEEP, UNSURE, WRONG). Use before opening a PR, when reviewing a PR's comments, or when asked to trim, audit, or clean up comments. Report only by default; `--apply` edits and commits.
+description: Audit every comment, docblock, JSDoc, Python docstring, GraphQL description, and markdown line a branch adds and give each a verdict (DELETE, TRIM, MOVE, KEEP, UNSURE, WRONG). Use before opening a PR, when reviewing a PR's comments, or when asked to trim, audit, or clean up comments. Report only by default; `--apply` edits and commits.
 ---
 
 # Comment audit
@@ -109,7 +109,7 @@ If no README resolves and a MOVE needs one, ask for `readme=`. With no answer av
 
 ## Step 3: verdicts
 
-Every added comment, docblock, JSDoc, GraphQL description, Storybook description, and markdown line gets exactly one verdict:
+Every added comment, docblock, JSDoc, Python docstring, GraphQL description, Storybook description, and markdown line gets exactly one verdict:
 
 - **DELETE**: restates what the code visibly does, or restates the name, signature, return type, or the guard on the next line.
 - **TRIM**: a non-obvious WHY buried in prose. Give the rewrite. Fewest sentences, keeping the concrete reference (path, symbol, SQL, snippet, ticket).
@@ -133,6 +133,7 @@ Rules for the rewrites:
 - **Type annotations.** `@param`, `@return`, `@var`, `@phpstan-type`, `@property`, and JSDoc types are never removed. Only their descriptions are judged. A description that restates the name is a DELETE of the description, not of the annotation.
 - **GraphQL descriptions.** A `"""` description is a comment and is judged by the same rules. List every one with a verdict in its own report section, because they show up in introspection.
 - **Storybook stories.** A story's name is its comment. Prose that describes the rendered state is a DELETE.
+- **Python.** Docstrings, docstring sections, directive comments, and pytest names follow the Python section of [../writing-comments/SKILL.md](../writing-comments/SKILL.md#python). A directive with no reason after it gets no verdict.
 
 ## Step 4: verify before ruling
 

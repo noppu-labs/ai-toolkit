@@ -17,15 +17,24 @@ Comment syntax (`//` versus `/* */`, docblock markers) is the consuming project'
 
 - PHP
 - TypeScript
+- Python: docstrings and `#` comments, under the rules in [Python](#python)
 - JSX, inside `{/* */}`
 - GraphQL schema descriptions, inside `"""`
 - Storybook story names
-- Pest and Vitest test names
+- Pest, Vitest, and pytest test names
 - Markdown READMEs and the topic files they index. The README holds what every reader of the directory needs; narrower or longer rationale goes in a topic file beside it, with one README line saying when to read it.
 
 ## Style
 
 Comments and any report written about them follow [references/style.md](references/style.md).
+
+## Python
+
+- A docstring is runtime data: `help()`, Sphinx, and mkdocs read it. A WRONG docstring reaches users, so it outranks a wrong comment.
+- Docstring sections (`Args:`, `Returns:`, `Raises:`, `Yields:`, and their Sphinx and NumPy spellings) are judged the way `@param` descriptions are: the description is judged, and the section stays when the project's docstring convention requires it. Read `select` under `[tool.ruff.lint]` and `convention` under `[tool.ruff.lint.pydocstyle]` before ruling. When the `D` rules are selected, a one-line docstring on a public symbol is KEEP even when it restates the name, because deleting it fails lint.
+- Directive comments are never judged: `# noqa`, `# type: ignore[...]`, `# pragma: no cover`, `# fmt: off` and `# fmt: on`, `# pyright:`, `# mypy:`, `# ruff:`, `# isort:`, `# nosec`, `# complexipy: ignore`, `# pylint:`. When a directive carries a reason, as in `# noqa: BLE001 - the handler must not drop the request`, only the reason is judged, and it is KEEP whenever the project requires one, which `CLAUDE.md` says. Bandit reads the words after `nosec` as test ids, so a reason written after `# nosec` is WRONG, with the fix of moving it before the marker.
+- A pytest function name and a `parametrize` `ids=` value are the comment, as Pest and Vitest names are. The `reason=` string of a `pytest.mark.xfail` or `pytest.mark.skip` is a comment and is judged.
+- A type comment (`# type: int`) in code written for Python 3.8 or earlier is an annotation and is never removed.
 
 ## Core Concepts
 

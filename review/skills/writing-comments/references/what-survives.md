@@ -58,6 +58,12 @@ The strongest category. Without the comment, the next reader "fixes" it.
  */
 ```
 
+```python
+# The vendor SDK ships no stubs and builds `session` in __getattr__, so mypy
+# cannot see the attribute. Drop the ignore once the SDK ships a py.typed marker.
+session = client.session  # type: ignore[attr-defined]
+```
+
 ## 3. Domain, legal, and product reasons
 
 ```php
@@ -224,4 +230,4 @@ Fixture data that looks wrong needs a comment saying why it is deliberate:
 
 ## Applies to TypeScript and React too
 
-The same standard applied to components, hooks, and Vitest tests as to PHP classes and Pest tests, so treat everything here as language independent. JSX comments follow the same rules inside `{/* ... */}`.
+The same standard applied to components, hooks, and Vitest tests as to PHP classes and Pest tests, so treat everything here as language independent. JSX comments follow the same rules inside `{/* ... */}`, and Python docstrings and `#` comments follow them too, with the additions in the Python section of [../SKILL.md](../SKILL.md#python).
