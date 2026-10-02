@@ -233,13 +233,21 @@ function slimResult(r) {
   };
 }
 
+// A cache file from an older or foreign writer must not crash scoring; refetch instead.
+function isResultList(results) {
+  return (
+    Array.isArray(results) &&
+    results.every((r) => r !== null && typeof r === "object")
+  );
+}
+
 export async function c7Search(
   pkgName,
   ecosystem,
   { fetchImpl = fetch, cache, apiKey, searchUrl = C7_SEARCH_URL },
 ) {
   const cached = cache?.get(pkgName);
-  if (Array.isArray(cached?.results)) return cached;
+  if (isResultList(cached?.results)) return cached;
 
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), C7_TIMEOUT_MS);

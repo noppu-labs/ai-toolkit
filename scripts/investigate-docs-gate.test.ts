@@ -362,6 +362,21 @@ describe("c7Search", () => {
     expect(r2).toEqual(r1);
   });
 
+  it("refetches when the cached results are not an array of objects", async () => {
+    const searches = [{ results: [1, "x"] }, { results: [null] }].map((bad) => {
+      const cache = memCache();
+      cache.put("b", bad);
+      return gate.c7Search("b", "npm", {
+        fetchImpl: fakeFetch({ results: [] }),
+        cache,
+      });
+    });
+    expect(await Promise.all(searches)).toEqual([
+      { results: [] },
+      { results: [] },
+    ]);
+  });
+
   it("reports HTTP and thrown errors without leaking the key", async () => {
     expect(
       await gate.c7Search("b", "npm", {
