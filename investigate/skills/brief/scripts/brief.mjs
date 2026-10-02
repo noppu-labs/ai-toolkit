@@ -143,10 +143,15 @@ async function runLsp(ctx, opts, tools) {
   return { lsp: php.result, tsLsp: ts.result };
 }
 
-async function runDocs(ctx, depRows, opts, tools) {
+async function runDocs(ctx, deps, opts, tools) {
+  const depRows = deps.rows;
   if (opts.noDocs) {
     tools.context7 = "skipped (--no-docs)";
     return { gate: null, skippedReason: render.DOCS_SKIPPED };
+  }
+  if (depRows.length === 0 && deps.unread.length > 0) {
+    tools.context7 = `skipped (no ${deps.unread.join(" or ")} read)`;
+    return { gate: null, skippedReason: render.DOCS_NO_LOCKFILE };
   }
   if (depRows.length === 0) {
     tools.context7 = "not needed (no third-party imports)";
@@ -219,8 +224,8 @@ async function buildBrief(opts, io) {
   );
   const { lsp, tsLsp } = await runLsp(ctx, opts, tools);
   runAstGrep(ctx, tools);
-  const depRows = collectDependencies(ctx);
-  const docs = await runDocs(ctx, depRows, opts, tools);
+  const deps = collectDependencies(ctx);
+  const docs = await runDocs(ctx, deps, opts, tools);
   const cg = runCodegraph(ctx, symbols, tools);
 
   const state = { lsp, tsLsp, freshness };
@@ -229,7 +234,7 @@ async function buildBrief(opts, io) {
     ...render.renderTools(tools),
     ...render.renderIndex(freshness),
     ...render.renderFiles(ctx.files, ctx.repoRoot, truncated, opts.maxSymbols),
-    ...(depRows.length ? render.renderDependencies(depRows) : []),
+    ...render.renderDependencies(deps.rows, deps.unread),
     ...render.renderDocSources(docs.gate, docs.skippedReason),
     ...render.renderCodegraph(cg),
     ...symbols.flatMap((sym) => symbolSection(ctx, sym, state)),

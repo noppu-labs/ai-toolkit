@@ -169,15 +169,31 @@ function scanFile(file, nsMap, npm, found) {
   else if (TS_EXT_RE.test(file) && npm) jsImports(text, npm, found);
 }
 
+// A target whose ecosystem has no readable lockfile was never checked, which is
+// not the same as having no third-party imports.
+function unreadLockfiles(files, nsMap, npm) {
+  const unread = [];
+  if (!nsMap && files.some((f) => f.endsWith(".php"))) {
+    unread.push("composer.lock");
+  }
+  if (!npm && files.some((f) => TS_EXT_RE.test(f))) {
+    unread.push("package-lock.json");
+  }
+
+  return unread;
+}
+
 export function collectDependencies({ files, repoRoot }) {
   const nsMap = composerNamespaceMap(repoRoot);
   const npm = npmVersions(repoRoot);
-  if (!(nsMap || npm)) return [];
+  const unread = unreadLockfiles(files, nsMap, npm);
 
   const found = new Map();
   for (const f of files) scanFile(f, nsMap, npm, found);
 
-  return [...found.values()]
+  const rows = [...found.values()]
     .map((r) => ({ ...r, importedAs: [...r.importedAs].sort() }))
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  return { rows, unread };
 }

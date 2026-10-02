@@ -32,6 +32,11 @@ export const WIRING_LABELS = {
 export const DOCS_SKIPPED = "--no-docs";
 export const DOCS_NO_IMPORTS = "no third-party imports";
 export const DOCS_NO_FETCH = "no global fetch";
+export const DOCS_NO_LOCKFILE = "no lockfile read";
+const LOCKFILE_ECOSYSTEM = {
+  "composer.lock": "composer",
+  "package-lock.json": "npm",
+};
 const DOC_SOURCES_HEADING = "## Doc sources (context7 version gate)";
 
 // High-volume, low-signal categories: counts + file list only.
@@ -105,7 +110,12 @@ function dependencyRow(row) {
   return lines;
 }
 
-export function renderDependencies(rows) {
+function unreadLine(lockfile) {
+  return `- UNRESOLVED: no ${lockfile} was read, so this target's ${LOCKFILE_ECOSYSTEM[lockfile]} imports were not checked. Read the manifest and installed source by hand.`;
+}
+
+export function renderDependencies(rows, unread) {
+  if (rows.length === 0 && unread.length === 0) return [];
   return [
     "## Third-party surface (installed versions, from lockfiles)",
     "",
@@ -113,6 +123,7 @@ export function renderDependencies(rows) {
     "> how one of these behaves must cite installed source under the listed path, or a",
     "> context7 lookup at this version — never recall. On disagreement, installed source wins.",
     "",
+    ...unread.map(unreadLine),
     ...rows.flatMap(dependencyRow),
     "",
   ];
@@ -188,6 +199,14 @@ function fetchLines(fetchable) {
 
 export function renderDocSources(gate, skippedReason) {
   if (skippedReason === DOCS_SKIPPED) return [];
+  if (skippedReason === DOCS_NO_LOCKFILE) {
+    return [
+      DOC_SOURCES_HEADING,
+      "",
+      "- not run: no lockfile was read, so third-party imports are UNRESOLVED (see Third-party surface)",
+      "",
+    ];
+  }
   if (skippedReason === DOCS_NO_IMPORTS) {
     return [
       DOC_SOURCES_HEADING,

@@ -25,7 +25,10 @@ type DepsModule = {
     repoRoot: string,
   ) => Map<string, { version: string; dev: boolean }> | null;
   jsPackageOf: (spec: string) => string | null;
-  collectDependencies: (ctx: { files: string[]; repoRoot: string }) => DepRow[];
+  collectDependencies: (ctx: { files: string[]; repoRoot: string }) => {
+    rows: DepRow[];
+    unread: string[];
+  };
 };
 
 const libDir: string = join(
@@ -179,10 +182,11 @@ describe("jsPackageOf", () => {
 describe("collectDependencies", () => {
   it("attributes imports to installed packages, flags ambiguous namespaces, ignores root and alias imports", () => {
     const root = makeRoot();
-    const rows = deps.collectDependencies({
+    const { rows, unread } = deps.collectDependencies({
       files: [join(root, "app", "Thing.php"), join(root, "src", "page.tsx")],
       repoRoot: root,
     });
+    expect(unread).toEqual([]);
     expect(rows.map((r) => r.name)).toEqual([
       "@inertiajs/react",
       "acme/a",
@@ -211,12 +215,28 @@ describe("collectDependencies", () => {
     expect(rows.find((r) => r.name === "fsevents")?.dev).toBe(true);
   });
 
-  it("returns an empty array when no lockfile exists", () => {
+  it("names the lockfile it could not read for each ecosystem the target uses", () => {
     const root = mkdtempSync(join(tmpdir(), "x-"));
-    expect(deps.collectDependencies({ files: [], repoRoot: root })).toEqual([]);
+    expect(deps.collectDependencies({ files: [], repoRoot: root })).toEqual({
+      rows: [],
+      unread: [],
+    });
+    expect(
+      deps.collectDependencies({
+        files: [join(root, "a.php"), join(root, "b.mjs")],
+        repoRoot: root,
+      }),
+    ).toEqual({ rows: [], unread: ["composer.lock", "package-lock.json"] });
+    writeFileSync(join(root, "package-lock.json"), '{"packages":{}}');
+    expect(
+      deps.collectDependencies({
+        files: [join(root, "a.php"), join(root, "b.mjs")],
+        repoRoot: root,
+      }).unread,
+    ).toEqual(["composer.lock"]);
   });
 
-  it("returns an empty array for malformed lockfiles and skips unreadable files", () => {
+  it("treats malformed lockfiles as unread and skips unreadable files", () => {
     const root = mkdtempSync(join(tmpdir(), "x-"));
     writeFileSync(join(root, "composer.lock"), "{nope");
     writeFileSync(join(root, "package-lock.json"), "[[");
@@ -225,6 +245,6 @@ describe("collectDependencies", () => {
         files: [join(root, "missing.php")],
         repoRoot: root,
       }),
-    ).toEqual([]);
+    ).toEqual({ rows: [], unread: ["composer.lock"] });
   });
 });
