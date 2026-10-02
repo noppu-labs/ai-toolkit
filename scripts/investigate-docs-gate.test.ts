@@ -4,25 +4,21 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import type { DepRow, KeyCache } from "./fixtures/investigate-types.ts";
 
 type Cand = {
   id: string;
-  title?: string;
-  branch?: string;
+  title?: string | undefined;
+  branch?: string | undefined;
   versions: unknown[];
   updated: string;
-  bench?: number;
+  bench?: number | undefined;
 };
 type Verdict = { rank: number; label: string };
-type DepRow = {
-  name: string;
-  version: string;
-  dev: boolean;
-  ecosystem: "composer" | "npm";
-};
+type GateRow = Pick<DepRow, "name" | "version" | "dev" | "ecosystem">;
 type Gate = {
   perPackage: Array<{
-    row: DepRow;
+    row: GateRow;
     verdicts: Array<{ id: string; mark: string; label: string }>;
     error?: string;
     noMatch?: boolean;
@@ -32,10 +28,7 @@ type Gate = {
   anonymous: boolean;
 };
 type CacheModule = {
-  TtlCache: new (
-    dir: string,
-    ttlMs: number,
-  ) => { get: (k: string) => unknown; put: (k: string, d: unknown) => void };
+  TtlCache: new (dir: string, ttlMs: number) => KeyCache;
   defaultCacheDir: (env?: NodeJS.ProcessEnv) => string;
 };
 type GateModule = {
@@ -46,7 +39,7 @@ type GateModule = {
   bestPin: (
     versions: unknown[],
     installedMajor: number | null,
-  ) => string | undefined;
+  ) => string | number | undefined;
   c7Verdict: (
     cand: Cand,
     installedMajor: number | null,
@@ -57,22 +50,16 @@ type GateModule = {
     ecosystem: string,
     deps: {
       fetchImpl: typeof fetch;
-      cache: {
-        get: (k: string) => unknown;
-        put: (k: string, d: unknown) => void;
-      };
+      cache: KeyCache;
       apiKey?: string;
       searchUrl?: string;
     },
   ) => Promise<{ results: Cand[] } | { error: string }>;
   docSources: (
-    rows: DepRow[],
+    rows: GateRow[],
     deps: {
       fetchImpl: typeof fetch;
-      cache: {
-        get: (k: string) => unknown;
-        put: (k: string, d: unknown) => void;
-      };
+      cache: KeyCache;
       apiKey?: string;
     },
   ) => Promise<Gate>;
@@ -109,11 +96,7 @@ function fakeFetch(body: unknown, status = 200): typeof fetch {
     new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 }
 
-function memCache(): {
-  get: (k: string) => unknown;
-  put: (k: string, d: unknown) => void;
-  store: Map<string, unknown>;
-} {
+function memCache(): KeyCache & { store: Map<string, unknown> } {
   const store = new Map<string, unknown>();
   return {
     store,
@@ -320,7 +303,7 @@ describe("c7Verdict", () => {
         fc.option(fc.nat(50), { nil: null }),
         fc.string(),
         (c, major, pkg) => {
-          const v = gate.c7Verdict(c as Cand, major, pkg);
+          const v = gate.c7Verdict(c, major, pkg);
           return (
             Number.isInteger(v.rank) &&
             v.rank >= 0 &&
@@ -457,7 +440,7 @@ describe("c7Search", () => {
 });
 
 describe("docSources", () => {
-  const row = (over: Partial<DepRow>): DepRow => ({
+  const row = (over: Partial<GateRow>): GateRow => ({
     name: "@inertiajs/react",
     version: "3.3.1",
     dev: false,

@@ -1,9 +1,9 @@
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
+import { git } from "./fixtures/investigate-git.ts";
 import { makeFakeToolPath, makeNoToolsPath } from "./fixtures/no-tools-path.ts";
 
 type Fresh =
@@ -67,16 +67,6 @@ const FAKE_GITNEXUS_PATH: string = makeFakeToolPath(
   join(import.meta.dirname, "fixtures", "fake-gitnexus.mjs"),
 );
 const NO_TOOLS_PATH: string = makeNoToolsPath();
-
-function git(cwd: string, ...args: string[]): string {
-  const r = spawnSync(
-    "git",
-    ["-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", ...args],
-    { cwd, encoding: "utf8", env: { ...process.env, HOME: cwd } },
-  );
-  if (r.status !== 0) throw new Error(r.stderr);
-  return r.stdout.trim();
-}
 
 // main has three commits; side branches off the first and adds one of its own.
 function makeHistory(): { root: string; shas: string[]; side: string } {

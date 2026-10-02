@@ -1,18 +1,13 @@
-import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { git } from "./fixtures/investigate-git.ts";
+import type { Hit } from "./fixtures/investigate-types.ts";
 import { makeFakeToolPath, makeNoToolsPath } from "./fixtures/no-tools-path.ts";
 
-type Hit = {
-  filePath: string;
-  lineNo: string;
-  text: string;
-  category?: string;
-};
 type Buckets = Record<string, Hit[]>;
 type Ctx = {
   repoRoot: string;
@@ -59,11 +54,6 @@ const FAKE_AST_GREP_PATH: string = makeFakeToolPath(
   "ast-grep",
   join(import.meta.dirname, "fixtures", "fake-ast-grep.mjs"),
 );
-
-function git(cwd: string, ...args: string[]): void {
-  const r = spawnSync("git", args, { cwd, encoding: "utf8" });
-  if (r.status !== 0) throw new Error(r.stderr);
-}
 
 function makeRepo(): Ctx {
   const cwd = mkdtempSync(join(tmpdir(), "investigate-wiring-"));

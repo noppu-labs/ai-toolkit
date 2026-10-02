@@ -2,8 +2,11 @@ import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Writable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
+import { git } from "./fixtures/investigate-git.ts";
+import type { Hit, Sym, TsCallers } from "./fixtures/investigate-types.ts";
 import { makeFakeLspPath, makeNoToolsPath } from "./fixtures/no-tools-path.ts";
 
 type RenderModule = {
@@ -15,20 +18,14 @@ type RenderModule = {
   renderTools: (tools: Record<string, string>) => string[];
   renderIndex: (freshness: Record<string, unknown>) => string[];
   renderSymbol: (
-    sym: { name: string; file: string; kind: string },
+    sym: Sym,
     parts: {
       dupes: string[];
       typeRows: Array<{ detail: string }> | null;
-      tsCallers: {
-        symbol: string;
-        rows: Array<{ name: string; loc: string; sites: number }>;
-      } | null;
-      graph: unknown | null;
+      tsCallers: TsCallers | null;
+      graph: unknown;
       freshnessOk: boolean;
-      wiring: Record<
-        string,
-        Array<{ filePath: string; lineNo: string; text: string }>
-      > | null;
+      wiring: Record<string, Hit[]> | null;
     },
   ) => string[];
 };
@@ -66,7 +63,7 @@ type CliModule = {
     argv: string[],
     io: {
       env: Record<string, string>;
-      stdout: { write: (s: string) => void };
+      stdout: Pick<NodeJS.WritableStream, "write">;
       stderr: { write: (s: string) => void };
     },
   ) => Promise<number>;
@@ -90,11 +87,6 @@ const NO_TOOLS_PATH: string = makeNoToolsPath();
 const FAKE_LSP_PATH: string = makeFakeLspPath(
   join(import.meta.dirname, "fixtures", "fake-lsp-server.mjs"),
 );
-
-function git(cwd: string, ...args: string[]): void {
-  const r = spawnSync("git", args, { cwd, encoding: "utf8" });
-  if (r.status !== 0) throw new Error(r.stderr);
-}
 
 function makeRepo(): string {
   const cwd = mkdtempSync(join(tmpdir(), "investigate-cli-"));
@@ -435,6 +427,26 @@ describe("main", () => {
     expect(cli.USAGE).toBe(
       "usage: node brief.mjs <target-path> [--max-symbols N] [--no-docs] [--no-lsp] [--help]",
     );
+  });
+
+  it("resolves 0 once a conforming stream acknowledges the write", async () => {
+    const cwd = makeRepo();
+    let out = "";
+    const code = await cli.main(
+      [join(cwd, "src", "lib"), "--no-docs", "--no-lsp"],
+      {
+        env: { PATH: NO_TOOLS_PATH, HOME: cwd },
+        stdout: new Writable({
+          write(chunk: Buffer, _enc: string, done: () => void): void {
+            out += chunk.toString();
+            done();
+          },
+        }),
+        stderr: { write: (): void => undefined },
+      },
+    );
+    expect(code).toBe(0);
+    expect(out).toContain("## formatDate (src/lib/commands.ts)");
   });
 
   it("turns any thrown error into a one-line stderr reason and exit 1", async () => {
