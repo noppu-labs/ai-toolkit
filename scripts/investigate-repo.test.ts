@@ -90,6 +90,24 @@ describe("collectFiles", () => {
     ]);
   });
 
+  it("collects files when the repo lives under an ancestor directory named tests", () => {
+    const base = mkdtempSync(join(tmpdir(), "investigate-ancestor-"));
+    const cwd = join(base, "tests", "repo");
+    mkdirSync(join(cwd, "app", "Services"), { recursive: true });
+    mkdirSync(join(cwd, "tests", "Unit"), { recursive: true });
+    writeFileSync(join(cwd, "app", "Services", "Invoice.php"), "<?php\n");
+    writeFileSync(join(cwd, "tests", "Unit", "InvoiceTest.php"), "<?php\n");
+    expect(repo.collectFiles(join(cwd, "app", "Services"))).toEqual([
+      join(cwd, "app", "Services", "Invoice.php"),
+    ]);
+    expect(repo.collectFiles(cwd)).toEqual([
+      join(cwd, "app", "Services", "Invoice.php"),
+    ]);
+    expect(
+      repo.collectFiles(join(cwd, "app", "Services", "Invoice.php")),
+    ).toEqual([join(cwd, "app", "Services", "Invoice.php")]);
+  });
+
   it("returns a single file when given a file", () => {
     const cwd = makeRepo();
     const f = join(cwd, "src", "lib", "commands.ts");
@@ -113,6 +131,14 @@ describe("tsExports", () => {
       "load",
       "main",
     ]);
+  });
+
+  it("names const enums and declared exports", () => {
+    expect(
+      repo.tsExports(
+        "export const enum Dir {}\nexport declare function foo(): void;\nexport declare const bar: number;\n",
+      ),
+    ).toEqual(["Dir", "foo", "bar"]);
   });
 
   it("dedupes repeated names", () => {
