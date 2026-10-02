@@ -55,14 +55,19 @@ const AST_PATTERNS = [
 const AST_SCAN_DIRS = ["app", "config", "routes", "database", "src"];
 const astCache = new WeakMap();
 
-export function parseGrepLine(line) {
+// Untruncated: classification needs the whole line, since a type-hint or
+// `::class` past the display cap would otherwise land in the wrong bucket.
+function splitGrepLine(line) {
   const m = GREP_LINE_RE.exec(line);
   if (!m) return null;
-  return {
-    filePath: m[1],
-    lineNo: m[2],
-    text: m[3].trim().slice(0, TEXT_CAP),
-  };
+  return { filePath: m[1], lineNo: m[2], text: m[3].trim() };
+}
+
+const forDisplay = (hit) => ({ ...hit, text: hit.text.slice(0, TEXT_CAP) });
+
+export function parseGrepLine(line) {
+  const hit = splitGrepLine(line);
+  return hit && forDisplay(hit);
 }
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -111,7 +116,11 @@ function claimAstHits(buckets, sym, relTarget, astHits) {
   for (const h of astHits ?? []) {
     if (!classRef.test(h.text) || isInternal(h.filePath, relTarget)) continue;
     claimed.add(`${h.filePath}:${h.lineNo}`);
-    push(buckets, TEST_PATH_RE.test(h.filePath) ? "test" : h.category, h);
+    push(
+      buckets,
+      TEST_PATH_RE.test(h.filePath) ? "test" : h.category,
+      forDisplay(h),
+    );
   }
   return claimed;
 }
@@ -120,7 +129,7 @@ export function bucketHits(sym, relTarget, grepStdout, astHits) {
   const buckets = {};
   const claimed = claimAstHits(buckets, sym, relTarget, astHits);
   for (const line of grepStdout.split("\n")) {
-    const hit = parseGrepLine(line);
+    const hit = splitGrepLine(line);
     if (
       !hit ||
       isInternal(hit.filePath, relTarget) ||
@@ -131,7 +140,7 @@ export function bucketHits(sym, relTarget, grepStdout, astHits) {
     push(
       buckets,
       TEST_PATH_RE.test(hit.filePath) ? "test" : classifyHit(sym, hit.text),
-      hit,
+      forDisplay(hit),
     );
   }
   return buckets;
@@ -146,7 +155,7 @@ function scanPattern(ctx, scanDirs, category, pattern) {
   if (res.error || !res.stdout) return [];
   const hits = [];
   for (const line of res.stdout.split("\n")) {
-    const hit = parseGrepLine(line);
+    const hit = splitGrepLine(line);
     if (hit) hits.push({ category, ...hit });
   }
   return hits;
