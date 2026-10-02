@@ -41,7 +41,7 @@ State the resolved pairs before starting, one line per PR: number, title, base, 
 
 One brief per PR, plain text, pasted whole into every subagent prompt for that PR.
 
-If a skill named `investigate` is available, invoke it for that PR's changed paths and use its brief. When that brief lists no symbols and `git diff --stat` shows most of the changed lines are in `.py` files, build the brief from the commands below instead, and record under `## Not available in this run` that the structural brief came from the fallback commands.
+If the `investigate:brief` skill is available (the `investigate` plugin from this marketplace), invoke it once per directory the PR changes and paste its output, concatenated, as the brief. When that brief lists no symbols and `git diff --stat` shows most of the changed lines are in `.py` files, build the brief from the commands below instead, and record under `## Not available in this run` that the structural brief came from the fallback commands.
 
 If it is not, build a lighter one from these commands:
 
