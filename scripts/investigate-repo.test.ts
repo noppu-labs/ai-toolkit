@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 type Symbol = { name: string; file: string; kind: "php" | "ts" };
 
 type RepoModule = {
+  TS_EXT_RE: RegExp;
   collectFiles: (p: string) => string[];
   tsExports: (text: string) => string[];
   deriveSymbols: (
@@ -108,6 +109,26 @@ describe("collectFiles", () => {
     ).toEqual([join(cwd, "app", "Services", "Invoice.php")]);
   });
 
+  it("keeps .mjs, .cjs, .mts, and .cts sources and drops their test variants", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-modext-"));
+    for (const f of [
+      "a.mjs",
+      "b.cjs",
+      "c.mts",
+      "d.cts",
+      "a.test.mjs",
+      "b.spec.cjs",
+      "c.test.mts",
+      "d.stories.cts",
+    ]) {
+      writeFileSync(join(cwd, f), "export const value = 1;\n");
+    }
+    expect(repo.collectFiles(cwd)).toEqual(
+      ["a.mjs", "b.cjs", "c.mts", "d.cts"].map((f) => join(cwd, f)),
+    );
+    expect(repo.collectFiles(join(cwd, "a.test.mjs"))).toEqual([]);
+  });
+
   it("returns a single file when given a file", () => {
     const cwd = makeRepo();
     const f = join(cwd, "src", "lib", "commands.ts");
@@ -148,7 +169,40 @@ describe("tsExports", () => {
   });
 });
 
+describe("TS_EXT_RE", () => {
+  it("matches every JS/TS module variant and nothing else", () => {
+    for (const f of [
+      "a.ts",
+      "a.tsx",
+      "a.js",
+      "a.jsx",
+      "a.mjs",
+      "a.cjs",
+      "a.mts",
+      "a.cts",
+    ]) {
+      expect(repo.TS_EXT_RE.test(f)).toBe(true);
+    }
+    for (const f of ["a.php", "a.json", "a.mtsx", "a.d", "a.cs"]) {
+      expect(repo.TS_EXT_RE.test(f)).toBe(false);
+    }
+  });
+});
+
 describe("deriveSymbols", () => {
+  it("names the exports of a .mjs file", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-mjs-"));
+    const file = join(cwd, "render-comments.mjs");
+    writeFileSync(
+      file,
+      "export function renderComments() {}\nexport const parseFindings = 1;\n",
+    );
+    expect(repo.deriveSymbols([file], cwd, 15).symbols).toEqual([
+      { name: "renderComments", file: "render-comments.mjs", kind: "ts" },
+      { name: "parseFindings", file: "render-comments.mjs", kind: "ts" },
+    ]);
+  });
+
   it("uses the basename for PHP and the exports for TypeScript, skipping generic and short names", () => {
     const cwd = makeRepo();
     const files = [

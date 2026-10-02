@@ -202,6 +202,51 @@ describe("wiringFor", () => {
   });
 });
 
+function makeModuleRepo(): Ctx {
+  const cwd = mkdtempSync(join(tmpdir(), "investigate-wiring-mod-"));
+  git(cwd, "init", "-q", "-b", "main");
+  git(cwd, "config", "user.email", "t@example.com");
+  git(cwd, "config", "user.name", "t");
+  mkdirSync(join(cwd, "lib"));
+  mkdirSync(join(cwd, "bin"));
+  writeFileSync(
+    join(cwd, "lib", "format.mjs"),
+    "export function formatDate(d) { return d; }\nexport class Store {}\n",
+  );
+  writeFileSync(
+    join(cwd, "bin", "run.mjs"),
+    'import { formatDate } from "../lib/format.mjs";\nformatDate(1);\n',
+  );
+  writeFileSync(join(cwd, "bin", "legacy.cjs"), "formatDate(2);\n");
+  writeFileSync(join(cwd, "bin", "typed.mts"), "formatDate(3);\n");
+  writeFileSync(
+    join(cwd, "bin", "typed.cts"),
+    "formatDate(4);\nexport class Store {}\n",
+  );
+  git(cwd, "add", ".");
+  git(cwd, "commit", "-q", "-m", "base");
+  return { repoRoot: cwd, relTarget: "lib", env: { PATH: NO_TOOLS_PATH } };
+}
+
+describe("wiringFor on module variants", () => {
+  it("buckets callers in .mjs, .cjs, .mts, and .cts files", () => {
+    const b = wiring.wiringFor(makeModuleRepo(), "formatDate");
+    expect(b?.import?.map((h) => h.filePath)).toEqual(["bin/run.mjs"]);
+    expect(b?.other?.map((h) => `${h.filePath}:${h.lineNo}`).sort()).toEqual([
+      "bin/legacy.cjs:1",
+      "bin/run.mjs:2",
+      "bin/typed.cts:1",
+      "bin/typed.mts:1",
+    ]);
+  });
+
+  it("finds duplicate definitions in module-variant files", () => {
+    expect(
+      wiring.duplicateDefinitions(makeModuleRepo(), "Store", "lib/format.mjs"),
+    ).toEqual(["bin/typed.cts:2"]);
+  });
+});
+
 describe("astGrepHits", () => {
   it("returns null when ast-grep is not on PATH", () => {
     expect(wiring.astGrepHits(makeRepo())).toBeNull();
