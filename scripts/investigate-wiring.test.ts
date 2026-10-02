@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { makeNoToolsPath } from "./fixtures/no-tools-path.ts";
 
 type Hit = {
   filePath: string;
@@ -43,12 +44,7 @@ const wiring: WiringModule = (await import(
   pathToFileURL(join(libDir, "wiring.mjs")).href
 )) as WiringModule;
 
-const NO_TOOLS_PATH: string = [
-  join(process.execPath, ".."),
-  spawnSync("which", ["git"], { encoding: "utf8" })
-    .stdout.trim()
-    .replace(/\/git\n?$/, ""),
-].join(":");
+const NO_TOOLS_PATH: string = makeNoToolsPath();
 
 function git(cwd: string, ...args: string[]): void {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });

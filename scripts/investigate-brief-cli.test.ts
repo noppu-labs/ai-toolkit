@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
+import { makeNoToolsPath } from "./fixtures/no-tools-path.ts";
 
 type RenderModule = {
   DOCS_NO_IMPORTS: string;
@@ -68,12 +69,7 @@ const render: RenderModule = (await import(
 )) as RenderModule;
 const cli: CliModule = (await import(pathToFileURL(script).href)) as CliModule;
 
-const NO_TOOLS_PATH: string = [
-  join(process.execPath, ".."),
-  spawnSync("which", ["git"], { encoding: "utf8" })
-    .stdout.trim()
-    .replace(/\/git\n?$/, ""),
-].join(":");
+const NO_TOOLS_PATH: string = makeNoToolsPath();
 
 function git(cwd: string, ...args: string[]): void {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -154,6 +150,16 @@ function runBrief(
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
+
+describe("NO_TOOLS_PATH", () => {
+  // npm ships beside node, as globally installed tools do under nvm, fnm, or volta.
+  it("exposes node and git but nothing else from node's bin dir", () => {
+    const env = { PATH: NO_TOOLS_PATH };
+    expect(spawnSync("node", ["--version"], { env }).status).toBe(0);
+    expect(spawnSync("git", ["--version"], { env }).status).toBe(0);
+    expect(spawnSync("npm", ["--version"], { env }).error).toBeDefined();
+  });
+});
 
 describe("parseArgs", () => {
   it("parses target and flags with defaults", () => {
