@@ -57,12 +57,13 @@ export function resolveRepo(targetArg, env = process.env) {
   };
 }
 
+/** True for a path under a test directory or named *.test.*, *.spec.*, or *.stories.*. */
+export function isTestPath(rel) {
+  return TEST_PATH_RE.test(rel) || TEST_FILE_RE.test(rel);
+}
+
 function isSourceFile(rel) {
-  return (
-    SOURCE_EXT.has(path.extname(rel)) &&
-    !TEST_PATH_RE.test(rel) &&
-    !TEST_FILE_RE.test(rel)
-  );
+  return SOURCE_EXT.has(path.extname(rel)) && !isTestPath(rel);
 }
 
 function inSkippedDir(rel) {

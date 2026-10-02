@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { makeNoToolsPath } from "./fixtures/no-tools-path.ts";
+import {
+  makeFakeAstGrepPath,
+  makeNoToolsPath,
+} from "./fixtures/no-tools-path.ts";
 
 type Hit = {
   filePath: string;
@@ -14,7 +17,17 @@ type Hit = {
   category?: string;
 };
 type Buckets = Record<string, Hit[]>;
-type Ctx = { repoRoot: string; relTarget: string; env: NodeJS.ProcessEnv };
+type Ctx = {
+  repoRoot: string;
+  relTarget: string;
+  files: string[];
+  env: NodeJS.ProcessEnv;
+};
+type AstScan = {
+  state: "absent" | "not-needed" | "no-dirs" | "failed" | "ran";
+  hits: Hit[] | null;
+  error?: string;
+};
 
 type WiringModule = {
   CATEGORIES: string[];
@@ -26,8 +39,8 @@ type WiringModule = {
     grepStdout: string,
     astHits: Hit[] | null,
   ) => Buckets;
-  astGrepHits: (ctx: Ctx) => Hit[] | null;
-  wiringFor: (ctx: Ctx, sym: string) => Buckets | null;
+  astGrepScan: (ctx: Ctx) => AstScan;
+  wiringFor: (ctx: Ctx, sym: string, ownFile: string) => Buckets | null;
   duplicateDefinitions: (ctx: Ctx, sym: string, ownFile: string) => string[];
 };
 
@@ -45,6 +58,9 @@ const wiring: WiringModule = (await import(
 )) as WiringModule;
 
 const NO_TOOLS_PATH: string = makeNoToolsPath();
+const FAKE_AST_GREP_PATH: string = makeFakeAstGrepPath(
+  join(import.meta.dirname, "fixtures", "fake-ast-grep.mjs"),
+);
 
 function git(cwd: string, ...args: string[]): void {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -81,6 +97,7 @@ function makeRepo(): Ctx {
   return {
     repoRoot: cwd,
     relTarget: "app/Services",
+    files: [join(cwd, "app", "Services", "Invoice.php")],
     env: { PATH: NO_TOOLS_PATH },
   };
 }
@@ -108,6 +125,10 @@ describe("classifyHit", () => {
     ["} from './Foo'", "import"],
     ["<Foo prop={1} />", "jsx"],
     ["$this->app->bind(Foo::class, Bar::class)", "binding"],
+    ["$this->app->bind(Contract::class, Foo::class)", "binding"],
+    ["$this->app->singleton(Foo::class, fn () => new Foo())", "binding"],
+    ["Foo.bind(this)", "other"],
+    ["Foo::instance()", "static"],
     ["resolve(Foo::class)", "container"],
     ["app(\\App\\Foo::class)", "container"],
     ["$x = new Foo($y)", "construction"],
@@ -180,6 +201,21 @@ describe("bucketHits", () => {
     expect(claimed.container?.[0]?.text.length).toBe(160);
   });
 
+  it("routes co-located *.test.* and *.spec.* files to test references", () => {
+    const grep = [
+      "src/use.spec.ts:1:import { Invoice } from './Invoice';",
+      "src/Invoice.test.tsx:4:render(<Invoice />)",
+      "src/page.tsx:2:<Invoice />",
+    ].join("\n");
+    const b = wiring.bucketHits("Invoice", "lib", grep, null);
+    expect(b.test?.map((h) => h.filePath)).toEqual([
+      "src/use.spec.ts",
+      "src/Invoice.test.tsx",
+    ]);
+    expect(b.jsx?.map((h) => h.filePath)).toEqual(["src/page.tsx"]);
+    expect(b.import).toBeUndefined();
+  });
+
   it("claims an ast hit only when the symbol is word-bounded before ::class", () => {
     const hit = (text: string): Hit => ({
       category: "container",
@@ -203,7 +239,7 @@ describe("bucketHits", () => {
 describe("wiringFor", () => {
   it("buckets external references from git grep without any optional tool", () => {
     const ctx = makeRepo();
-    const b = wiring.wiringFor(ctx, "Invoice");
+    const b = wiring.wiringFor(ctx, "Invoice", "app/Services/Invoice.php");
     expect(b).not.toBeNull();
     expect(b?.binding?.[0]?.filePath).toBe(
       "app/Providers/AppServiceProvider.php",
@@ -214,14 +250,29 @@ describe("wiringFor", () => {
 
   it("returns empty buckets when nothing matches and null when git fails", () => {
     const ctx = makeRepo();
-    expect(wiring.wiringFor(ctx, "NothingNamedThis")).toEqual({});
+    const own = "app/Services/Invoice.php";
+    expect(wiring.wiringFor(ctx, "NothingNamedThis", own)).toEqual({});
     expect(
-      wiring.wiringFor({ ...ctx, repoRoot: "/nonexistent-root" }, "Invoice"),
+      wiring.wiringFor(
+        { ...ctx, repoRoot: "/nonexistent-root" },
+        "Invoice",
+        own,
+      ),
     ).toBeNull();
     const notARepo = mkdtempSync(join(tmpdir(), "investigate-wiring-nogit-"));
     expect(
-      wiring.wiringFor({ ...ctx, repoRoot: notARepo }, "Invoice"),
+      wiring.wiringFor({ ...ctx, repoRoot: notARepo }, "Invoice", own),
     ).toBeNull();
+  });
+
+  it("treats only the defining file as internal when the target is the repo root", () => {
+    const ctx = { ...makeRepo(), relTarget: "." };
+    const b = wiring.wiringFor(ctx, "Invoice", "app/Services/Invoice.php");
+    const listed = Object.values(b ?? {})
+      .flat()
+      .map((h) => h.filePath);
+    expect(listed).not.toContain("app/Services/Invoice.php");
+    expect(listed).toContain("app/Providers/AppServiceProvider.php");
   });
 });
 
@@ -248,12 +299,21 @@ function makeModuleRepo(): Ctx {
   );
   git(cwd, "add", ".");
   git(cwd, "commit", "-q", "-m", "base");
-  return { repoRoot: cwd, relTarget: "lib", env: { PATH: NO_TOOLS_PATH } };
+  return {
+    repoRoot: cwd,
+    relTarget: "lib",
+    files: [join(cwd, "lib", "format.mjs")],
+    env: { PATH: NO_TOOLS_PATH },
+  };
 }
 
 describe("wiringFor on module variants", () => {
   it("buckets callers in .mjs, .cjs, .mts, and .cts files", () => {
-    const b = wiring.wiringFor(makeModuleRepo(), "formatDate");
+    const b = wiring.wiringFor(
+      makeModuleRepo(),
+      "formatDate",
+      "lib/format.mjs",
+    );
     expect(b?.import?.map((h) => h.filePath)).toEqual(["bin/run.mjs"]);
     expect(b?.other?.map((h) => `${h.filePath}:${h.lineNo}`).sort()).toEqual([
       "bin/legacy.cjs:1",
@@ -270,9 +330,48 @@ describe("wiringFor on module variants", () => {
   });
 });
 
-describe("astGrepHits", () => {
-  it("returns null when ast-grep is not on PATH", () => {
-    expect(wiring.astGrepHits(makeRepo())).toBeNull();
+describe("astGrepScan", () => {
+  it("is absent when ast-grep is not on PATH", () => {
+    expect(wiring.astGrepScan(makeRepo())).toEqual({
+      state: "absent",
+      hits: null,
+    });
+  });
+
+  it("is not needed when the target has no PHP files", () => {
+    const ctx = { ...makeModuleRepo(), env: { PATH: FAKE_AST_GREP_PATH } };
+    expect(wiring.astGrepScan(ctx)).toEqual({
+      state: "not-needed",
+      hits: null,
+    });
+  });
+
+  it("collects hits per pattern and lets them claim the wiring line", () => {
+    const ctx = { ...makeRepo(), env: { PATH: FAKE_AST_GREP_PATH } };
+    const scan = wiring.astGrepScan(ctx);
+    expect(scan.state).toBe("ran");
+    expect(scan.hits).toEqual([
+      {
+        category: "container",
+        filePath: "app/Jobs/Run.php",
+        lineNo: "3",
+        text: "$x = resolve(Invoice::class);",
+      },
+    ]);
+    const b = wiring.wiringFor(ctx, "Invoice", "app/Services/Invoice.php");
+    expect(b?.container?.map((h) => h.filePath)).toEqual(["app/Jobs/Run.php"]);
+  });
+
+  it("reports FAILED when every pattern errors", () => {
+    const ctx = {
+      ...makeRepo(),
+      env: { PATH: FAKE_AST_GREP_PATH, FAKE_AST_GREP_FAIL: "1" },
+    };
+    expect(wiring.astGrepScan(ctx)).toEqual({
+      state: "failed",
+      hits: null,
+      error: "ERROR: fake pattern failure",
+    });
   });
 });
 

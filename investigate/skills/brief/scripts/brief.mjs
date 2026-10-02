@@ -17,7 +17,7 @@ import {
   TS_EXT_RE,
 } from "./lib/repo.mjs";
 import { tsLspCallers } from "./lib/ts-lsp.mjs";
-import { astGrepHits, duplicateDefinitions, wiringFor } from "./lib/wiring.mjs";
+import { astGrepScan, duplicateDefinitions, wiringFor } from "./lib/wiring.mjs";
 
 const MAX_SYMBOLS_DEFAULT = 15;
 const C7_TTL_MS = 6 * 60 * 60 * 1000;
@@ -98,9 +98,17 @@ export function codegraphStatus({ hasIndex, probeOk, lines }) {
     : "ran";
 }
 
-export function astGrepStatus(probeOk, hits) {
-  if (!probeOk) return "not on PATH";
-  return hits === null ? "skipped (no PHP scan dirs)" : "ran";
+const AST_GREP_STATUS = {
+  absent: "not on PATH",
+  "not-needed": "not needed (no PHP files)",
+  "no-dirs": "skipped (no PHP scan dirs)",
+  ran: "ran",
+};
+
+export function astGrepStatus(scan) {
+  return scan.state === "failed"
+    ? `FAILED (every pattern errored: ${scan.error})`
+    : AST_GREP_STATUS[scan.state];
 }
 
 // A lookup that errored leaves that package's docs UNRESOLVED, so the status has to say so.
@@ -205,9 +213,7 @@ function runCodegraph(ctx, symbols, tools) {
 }
 
 function runAstGrep(ctx, tools) {
-  const probeOk = probe("ast-grep", ctx.env);
-  // astGrepHits caches per ctx, so the wiring scan reuses this result.
-  tools["ast-grep"] = astGrepStatus(probeOk, probeOk ? astGrepHits(ctx) : null);
+  tools["ast-grep"] = astGrepStatus(astGrepScan(ctx));
 }
 
 // The TS pass computes callers once per file, for the server's primary symbol.
@@ -234,7 +240,7 @@ function symbolSection(ctx, sym, state) {
     tsCallers: ownsCallers ? (state.tsLsp?.get(abs) ?? null) : null,
     graph: state.freshness.ok ? graphContext(ctx, sym.name) : null,
     freshnessOk: state.freshness.ok,
-    wiring: wiringFor(ctx, sym.name),
+    wiring: wiringFor(ctx, sym.name, sym.file),
   });
 }
 
