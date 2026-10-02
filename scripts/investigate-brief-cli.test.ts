@@ -8,8 +8,10 @@ import { makeNoToolsPath } from "./fixtures/no-tools-path.ts";
 
 type RenderModule = {
   DOCS_NO_IMPORTS: string;
+  DOCS_NO_LOCKFILE: string;
   DOCS_SKIPPED: string;
   renderDocSources: (gate: null, skippedReason: string | null) => string[];
+  renderDependencies: (rows: never[], unread: string[]) => string[];
   renderTools: (tools: Record<string, string>) => string[];
   renderSymbol: (
     sym: { name: string; file: string; kind: string },
@@ -137,6 +139,10 @@ function makeRepo(): string {
       ],
       "packages-dev": [],
     }),
+  );
+  writeFileSync(
+    join(cwd, "package-lock.json"),
+    JSON.stringify({ packages: { "": { name: "fixture" } } }),
   );
   git(cwd, "add", ".");
   git(cwd, "commit", "-q", "-m", "base");
@@ -491,6 +497,30 @@ describe("brief.mjs", () => {
     );
   });
 
+  it("reports third-party imports as UNRESOLVED when the target's lockfile is missing", () => {
+    const cwd = makeRepo();
+    git(cwd, "rm", "-q", "package-lock.json");
+    git(cwd, "commit", "-q", "-m", "drop lock");
+    const r = spawnSync(process.execPath, [script, "src/lib", "--no-lsp"], {
+      cwd,
+      encoding: "utf8",
+      env: {
+        PATH: NO_TOOLS_PATH,
+        HOME: cwd,
+        INVESTIGATE_BRIEF_CACHE_DIR: join(cwd, ".cache"),
+        INVESTIGATE_BRIEF_C7_URL: "http://127.0.0.1:9/search",
+      },
+    });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(
+      "- context7: skipped (no package-lock.json read)",
+    );
+    expect(r.stdout).toContain("## Third-party surface");
+    expect(r.stdout).toContain("- UNRESOLVED: no package-lock.json was read");
+    expect(r.stdout).not.toContain("nothing to gate");
+    expect(r.stdout).not.toContain("not needed (no third-party imports)");
+  });
+
   it("includes the doc-source section header when docs are not skipped but context7 is unreachable", () => {
     const cwd = makeRepo();
     const r = spawnSync(
@@ -525,6 +555,14 @@ describe("renderTools", () => {
   });
 });
 
+describe("renderDependencies", () => {
+  it("names each unread lockfile as UNRESOLVED", () => {
+    expect(render.renderDependencies([], ["composer.lock"])).toContain(
+      "- UNRESOLVED: no composer.lock was read, so this target's composer imports were not checked. Read the manifest and installed source by hand.",
+    );
+  });
+});
+
 describe("renderDocSources", () => {
   it("renders nothing for --no-docs and a no-imports line without the fetch block", () => {
     expect(render.renderDocSources(null, render.DOCS_SKIPPED)).toEqual([]);
@@ -536,6 +574,12 @@ describe("renderDocSources", () => {
       "",
     ]);
     expect(lines.join("\n")).not.toContain("UNAVAILABLE");
+    expect(render.renderDocSources(null, render.DOCS_NO_LOCKFILE)).toEqual([
+      "## Doc sources (context7 version gate)",
+      "",
+      "- not run: no lockfile was read, so third-party imports are UNRESOLVED (see Third-party surface)",
+      "",
+    ]);
   });
 });
 
