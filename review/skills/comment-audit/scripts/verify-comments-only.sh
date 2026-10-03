@@ -3,10 +3,10 @@
 # Prints every changed line between FROM and TO (two-dot diff) that is not a comment,
 # a comment terminator, or blank. Markdown files are excluded because README sections
 # are an expected part of a comment trim. Exit 1 when any line is printed.
-# Python files are checked against python-comment-lines.py on each side, so every
-# docstring line but a doctest counts as a comment and a changed tool directive is
-# a hit. Without python3, or for a file that already does not parse at FROM,
-# Python uses the regex filter.
+# Python files are checked against python-comment-lines.py, run once per side
+# over every changed Python file, so every docstring line but a doctest counts
+# as a comment and a changed tool directive is a hit. Without python3, or for a
+# file that already does not parse at FROM, Python uses the regex filter.
 set -euo pipefail
 
 lib="$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -18,61 +18,39 @@ from=$1
 to=$2
 shift 2
 
-filter_by_regex() {
-  grep -E '^[-+]' \
-    | grep -vE '^(\+\+\+|---) ' \
-    | grep -vE '^[-+][[:space:]]*(//|#[^[]|#$|\*|/\*|"""|\{/\*|<!--|-->|$)' \
-    || true
-}
+read_changes < <(git_diff --name-status -z "$from" "$to" -- "$@")
 
-# Changed lines of one Python file that are not blank and not a comment line on
-# their own side: FROM for a removed line, TO for an added one.
-# A file that parses at FROM and not at TO was broken by the change, so that is
-# a hit. One that already failed at FROM falls back to the regex filter.
-python_hits() {
-  local status=$1 path=$2 old=$3 before="" after="" error
-
-  if [[ $status != A ]] && ! before=$("$python" "$helper" "$from" "${old:-$path}" 2>/dev/null); then
-    error=$("$python" "$helper" "$from" "${old:-$path}" 2>&1 >/dev/null | head -n 1) || true
-    echo "verify-comments-only.sh: ${error:-$path does not parse as Python}; checked with the regex" >&2
-    git diff --no-relative "$from" "$to" -- ${old:+":(top,literal)$old"} ":(top,literal)$path" | filter_by_regex
-    return
-  fi
-
-  if [[ $status != D ]] && ! after=$("$python" "$helper" "$to" "$path" 2>/dev/null); then
-    echo "$path: does not parse as Python at $to"
-    return
-  fi
-
-  git diff --no-relative "$from" "$to" -- ${old:+":(top,literal)$old"} ":(top,literal)$path" \
-    | mark_listed_lines "$before" "$after" \
-    | awk '/^0/ && !/^0[-+][[:space:]]*$/ { print substr($0, 2) }'
-}
-
-if command -v "$python" >/dev/null 2>&1; then
-  collect_mixed_renames < <(git diff --no-relative --name-status -z "$from" "$to" -- "$@")
-  hits=$(git diff --no-relative "$from" "$to" -- "$@" ':(top,exclude)*.md' ':(top,exclude)*.py' \
-    ${mixed_excludes[@]+"${mixed_excludes[@]}"} | filter_by_regex)
-
-  # A .py file renamed to another extension, markdown included, is checked with
-  # the regex, paired. Markdown is exempt only when it is markdown on both sides.
-  for ((i = 0; i < ${#mixed[@]}; i += 2)); do
-    if [[ ${mixed[i + 1]} != *.py ]]; then
-      hits+=$'\n'$(git diff --no-relative "$from" "$to" -- ":(top,literal)${mixed[i]}" ":(top,literal)${mixed[i + 1]}" | filter_by_regex)
+# Every changed Python file on each side: at FROM under its old name, at TO
+# under its new one.
+from_paths=()
+to_paths=()
+for ((i = 0; i < ${#paths[@]}; i++)); do
+  if [[ ${paths[i]} == *.py ]]; then
+    if [[ ${statuses[i]} != A ]]; then
+      from_paths+=("${olds[i]:-${paths[i]}}")
     fi
-  done
-
-  while read_change; do
-    if [[ $path == *.py ]]; then
-      hits+=$'\n'$(python_hits "${status:0:1}" "$path" "$old")
+    if [[ ${statuses[i]} != D ]]; then
+      to_paths+=("${paths[i]}")
     fi
-  done < <(git diff --no-relative --name-status -z "$from" "$to" -- "$@")
+  fi
+done
 
-  hits=$(printf '%s\n' "$hits" | sed '/^$/d')
-else
+sides="from to"
+from_out=""
+to_out=""
+if ! command -v "$python" >/dev/null 2>&1; then
   echo "verify-comments-only.sh: $python not found; Python files are checked with the regex" >&2
-  hits=$(git diff --no-relative "$from" "$to" -- "$@" ':(top,exclude)*.md' | filter_by_regex)
+  sides=""
+else
+  if [ "${#from_paths[@]}" -gt 0 ]; then
+    from_out=$(printf '%s\0' "${from_paths[@]}" | "$python" "$helper" "$from" 2>&1) || true
+  fi
+  if [ "${#to_paths[@]}" -gt 0 ]; then
+    to_out=$(printf '%s\0' "${to_paths[@]}" | "$python" "$helper" "$to" 2>&1) || true
+  fi
 fi
+
+hits=$(emit_stream "$sides" "$from" "$to" -- "$@" | route_diff verify "$from" "$to")
 
 if [ -n "$hits" ]; then
   printf '%s\n' "$hits"
