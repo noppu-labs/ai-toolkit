@@ -39,6 +39,7 @@ Thumbs.db
 /.worktrees/
 /.claude/agent-memory/
 /.serena/
+/.codegraph/
 
 # Coverage
 /coverage/
