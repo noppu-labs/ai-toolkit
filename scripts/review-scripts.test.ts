@@ -915,6 +915,22 @@ describe("count-comment-lines.sh", () => {
     ]);
   });
 
+  it("prints no count and exits non-zero when git fails", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/a.py": "# why\nX = 1\n" }, "python");
+
+    const result = run(
+      "count-comment-lines.sh",
+      cwd,
+      "HEAD~1",
+      "HEAD",
+      ":(bogus)app",
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toBe("");
+  });
+
   it("counts a Python file whose path git quotes with the regex, and names it on stderr", () => {
     const cwd = makeRepo();
     git(cwd, "checkout", "-q", "-b", "feature");

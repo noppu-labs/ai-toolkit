@@ -23,12 +23,13 @@ check_refs() {
 
 # Usage: git_diff ARGS... Every diff both scripts read. -M pairs renames and
 # never copies, whatever diff.renames says; --no-relative keeps paths relative
-# to the top from any directory; the rest keep the `diff --git a/OLD b/NEW`
+# to the top from any directory; --no-textconv and --submodule=short keep the
+# patch to the committed lines; the rest keep the `diff --git a/OLD b/NEW`
 # header literal for route_diff under diff.noprefix, color, an external diff
 # tool, and non-ASCII paths.
 git_diff() {
   git -c core.quotePath=false diff -M --no-relative --no-color --no-ext-diff \
-    --src-prefix=a/ --dst-prefix=b/ "$@"
+    --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ "$@"
 }
 
 # Reads one `git diff --name-status -z` entry from stdin into status, old (set

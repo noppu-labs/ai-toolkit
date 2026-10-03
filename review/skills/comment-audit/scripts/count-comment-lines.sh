@@ -36,4 +36,6 @@ elif [ "${#to_paths[@]}" -gt 0 ]; then
   to_out=$(printf '%s\0' "${to_paths[@]}" | "$python" "$helper" "$head" 2>&1) || true
 fi
 
-emit_stream "$sides" "${base}...${head}" -- "$@" | route_diff count "$base" "$head"
+# Captured first, so that a failing git prints no count.
+total=$(emit_stream "$sides" "${base}...${head}" -- "$@" | route_diff count "$base" "$head")
+echo "$total"
