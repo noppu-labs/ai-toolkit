@@ -724,6 +724,7 @@ describe("count-comment-lines.sh", () => {
     expect(fromRoot.stdout).toBe("2");
     expect(fromPkg.status).toBe(0);
     expect(fromPkg.stdout).toBe(fromRoot.stdout);
+    expect(fromPkg.stderr).toBe("");
   });
 
   it("counts a copied Python file as an added file", () => {
@@ -1562,6 +1563,7 @@ describe("verify-comments-only.sh", () => {
     expect(fromRoot.stdout.split("\n")).toEqual(["-X = 1", "+X = 2"]);
     expect(fromPkg.status).toBe(1);
     expect(fromPkg.stdout).toBe(fromRoot.stdout);
+    expect(fromPkg.stderr).toBe("");
   });
 
   it("reports each hit of a copy's source once", () => {
@@ -1821,6 +1823,86 @@ describe("verify-comments-only.sh", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("no-such-ref");
+  });
+
+  it("passes a comment-only Python trim with the regex when python3 is missing", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/a.py": "# old note\nX = 1\n" }, "python base");
+    commitFiles(cwd, { "app/a.py": "# new note\nX = 1\n" }, "trim");
+
+    const result = runWithEnv(
+      NO_PYTHON,
+      "verify-comments-only.sh",
+      cwd,
+      "HEAD~1",
+      "HEAD",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
+  });
+
+  it("counts and checks a docstring trim beside a deleted Python file", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/gone.py": "X = 1\n# note\n" },
+      "python base",
+    );
+    git(cwd, "checkout", "-q", "-b", "feature");
+    git(cwd, "rm", "-q", "app/gone.py");
+    commitFiles(
+      cwd,
+      { "app/a.py": "'''Totals.\n'''\n# why\nTOTAL = 1\n" },
+      "trim",
+    );
+
+    const count = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+    const verify = run(
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("1");
+    expect(count.stderr).toBe("");
+    expect(verify.status).toBe(1);
+    expect(verify.stdout).toBe("-X = 1");
+    expect(verify.stderr).toBe("");
+  });
+
+  it("counts and checks the same with color.ui=always and diff.external set", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/b.js": "x = 1\n" },
+      "base files",
+    );
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "app/a.py": `${TOTALS_PY}# note\n`, "app/b.js": "// why\nx = 2\n" },
+      "feature",
+    );
+
+    const plain = [
+      run("count-comment-lines.sh", cwd, "main", "feature"),
+      run("verify-comments-only.sh", cwd, "main", "feature"),
+    ];
+    git(cwd, "config", "color.ui", "always");
+    git(cwd, "config", "diff.external", "/usr/bin/false");
+    const configured = [
+      run("count-comment-lines.sh", cwd, "main", "feature"),
+      run("verify-comments-only.sh", cwd, "main", "feature"),
+    ];
+
+    expect(plain[0]?.stdout).toBe("2");
+    expect(plain[1]?.stdout.split("\n")).toEqual(["-x = 1", "+x = 2"]);
+    expect(configured).toEqual(plain);
   });
 
   it("skips a markdown file whose path git quotes", () => {
