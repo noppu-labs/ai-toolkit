@@ -19,7 +19,6 @@ shift 2
 
 read_changes < <(git_diff --name-status -z "${base}...${head}" -- "$@")
 
-# Every changed Python file present at HEAD.
 to_paths=()
 for ((i = 0; i < ${#paths[@]}; i++)); do
   if [[ ${statuses[i]} != D && ${paths[i]} == *.py ]]; then

@@ -127,8 +127,6 @@ function countLogged(log: string): number {
   return text === "" ? 0 : text.split("\n").length;
 }
 
-// Runs lib.sh's route_diff over a hand-built stream: registry lines, helper
-// sections, then a patch.
 function routeDiff(mode: string, stream: string): RunResult {
   const result = spawnSync(
     "bash",
@@ -2112,9 +2110,6 @@ describe("lib.sh", () => {
 
     const verify = routeDiff("verify", stream);
 
-    // Both Python files failed at FROM (the interpreter died), so both use
-    // the regex: a.py's comment change is not a hit, b.py's code change is.
-    // The markdown rename is skipped. b.py's TO failure is never reached.
     expect(verify.stdout.split("\n")).toEqual(["-x = 1", "+x = 2"]);
     expect(verify.stderr).toContain(
       "verify-comments-only.sh: boom; checked with the regex",

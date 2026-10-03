@@ -21,9 +21,7 @@ shift 2
 read_changes < <(git_diff --name-status -z "$from" "$to" -- "$@")
 
 # Every changed Python file on each side: at FROM under its old name, at TO
-# under its new one. A file that parses at FROM and not at TO was broken by the
-# change, so route_diff reports that as a hit; one that already fails at FROM
-# falls back to the regex.
+# under its new one.
 from_paths=()
 to_paths=()
 for ((i = 0; i < ${#paths[@]}; i++)); do
