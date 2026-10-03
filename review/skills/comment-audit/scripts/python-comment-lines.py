@@ -9,7 +9,8 @@ one line on stderr when the file cannot be read, tokenized, or parsed. Without
 PATH, reads NUL-separated paths from stdin, fetches every blob with one
 `git cat-file --batch`, and prints `path<TAB>line` records in input order; a
 path that cannot be read or parsed is reported on stderr as `path<TAB>message`,
-skipped, and makes the exit status 1.
+skipped, and makes the exit status 1. The last stdout line is `== done`, so a
+reader can tell a finished batch from an interpreter that died partway.
 
 A comment line holds a `#` comment with nothing before it, or belongs to a
 module, class, or function docstring in any quote style. A docstring line that
@@ -64,9 +65,6 @@ NO_COVER = re.compile(r"pragma[:\s]*no\s*cover", re.IGNORECASE)
 CODING = re.compile(r"^[ \t\f]*#.*?coding[:=]")
 
 DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-
-
-PARSE_ERRORS = (SyntaxError, tokenize.TokenError, UnicodeDecodeError, ValueError)
 
 
 def read_blobs(ref: str, paths: list[str]) -> dict[str, bytes | str]:
@@ -203,7 +201,10 @@ def analyze(source: bytes) -> set[int]:
 def describe(ref: str, path: str, error: object) -> str:
     version = f"{sys.version_info.major}.{sys.version_info.minor}"
 
-    return f"python-comment-lines.py: {path} at {ref}: {error} (under {sys.executable} {version})"
+    # Python 3.9 and earlier quote multi-line source in some SyntaxErrors.
+    message = " ".join(str(error).splitlines())
+
+    return f"python-comment-lines.py: {path} at {ref}: {message} (under {sys.executable} {version})"
 
 
 def comment_lines(
@@ -234,9 +235,11 @@ def comment_lines(
             failures[path] = describe(ref, path, blob)
             continue
 
+        # Not only parse errors: a file too deep for the parser raises
+        # MemoryError or RecursionError, which must fail that file alone.
         try:
             lines[path] = analyze(blob)
-        except PARSE_ERRORS as error:
+        except Exception as error:
             failures[path] = describe(ref, path, error)
 
     return lines, failures
@@ -275,10 +278,14 @@ def main(argv: list[str]) -> int:
         for line in sorted(lines.get(path, ())):
             sys.stdout.buffer.write(os.fsencode(f"{path}\t{line}\n"))
 
+    sys.stdout.buffer.flush()
+
     for path in paths:
         if path in failures:
             sys.stderr.buffer.write(os.fsencode(f"{path}\t{failures[path]}\n"))
 
+    sys.stderr.buffer.flush()
+    sys.stdout.buffer.write(b"== done\n")
     sys.stdout.buffer.flush()
 
     return 1 if failures else 0

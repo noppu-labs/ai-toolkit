@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -237,6 +238,10 @@ const DOCTEST_PY: string = [
 // stderr from Python 3.12.
 const INVALID_ESCAPE_PY: string = 'DIGITS = "\\d+"\n';
 
+// Too deep for the parser's stack: ast.parse raises MemoryError, not a
+// SyntaxError, under Python 3.8 and 3.10 or later. 3.9 parses it.
+const DEEP_PY: string = `x = ${"-".repeat(100_000)}1\n`;
+
 // On a feature branch, adds a `// caf\xe9 comment` line and a code line to
 // app/a.js and adds app/caf\xe9.py holding TOTALS_PY: a Latin-1 byte in
 // a changed line and in a path. The path goes straight into the index,
@@ -266,7 +271,9 @@ function commitLatin1Change(cwd: string): void {
       Buffer.from(".py\n"),
     ]),
   });
-  expect(index.status).toBe(0);
+  if (index.status !== 0) {
+    throw new Error(`git update-index failed: ${index.stderr.toString()}`);
+  }
   git(cwd, "commit", "-q", "-m", "latin-1");
 }
 
@@ -877,6 +884,33 @@ describe("count-comment-lines.sh", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("no-such-ref");
+  });
+
+  it("counts a Python file the parser runs out of stack on with the regex, and the other Python file with the helper", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/deep.py": DEEP_PY },
+      "feature",
+    );
+
+    const result = runWithEnv(
+      { REVIEW_PYTHON: "python3" },
+      "count-comment-lines.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("3");
+    expect(result.stderr.trimEnd().split("\n")).toEqual([
+      expect.stringMatching(
+        /^count-comment-lines\.sh: python-comment-lines\.py: app\/deep\.py at feature: .*; counted by the regex$/,
+      ),
+    ]);
   });
 
   it("counts a comment holding a byte that is not UTF-8, and a Python file whose path holds one, under a UTF-8 locale", () => {
@@ -1852,8 +1886,9 @@ describe("lib.sh", () => {
     const stream = [
       "M\t\tapp/a.py",
       "M\t\tapp/b.php",
-      "== to 0",
+      "== to 2",
       "app/a.py\t2",
+      "== done",
       "== diff",
       "diff --git a/app/a.py b/app/a.py",
       "--- a/app/a.py",
@@ -1885,8 +1920,9 @@ describe("lib.sh", () => {
       "R100\tdocs/old.md\tdocs/new.md",
       "== from 1",
       "boom",
-      "== to 1",
+      "== to 2",
       "app/b.py\tpython-comment-lines.py: app/b.py at TO: bad",
+      "== done",
       "== diff",
       "diff --git a/app/a.py b/app/a.py",
       "--- a/app/a.py",
@@ -1927,6 +1963,41 @@ describe("lib.sh", () => {
     expect(verify.stdout).not.toContain("New prose");
   });
 
+  it("reads a helper section by its length, so a line in it that reads as a marker does not end it", () => {
+    const stream = [
+      "M\t\tapp/a.py",
+      "M\t\tapp/b.py",
+      "== to 4",
+      "app/a.py\t2",
+      "== diff",
+      "app/b.py\tpython-comment-lines.py: app/b.py at TO: bad",
+      "== done",
+      "== diff",
+      "diff --git a/app/a.py b/app/a.py",
+      "--- a/app/a.py",
+      "+++ b/app/a.py",
+      "@@ -1,0 +2,2 @@",
+      '+"""Doc."""',
+      "+# fmt: off",
+      "diff --git a/app/b.py b/app/b.py",
+      "--- a/app/b.py",
+      "+++ b/app/b.py",
+      "@@ -1,0 +2,2 @@",
+      "+# why",
+      "+x = 2",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+
+    expect(count.status).toBe(0);
+    // a.py's listed line 2, and b.py's `# why` by the regex.
+    expect(count.stdout).toBe("2");
+    expect(count.stderr).toBe(
+      "count-comment-lines.sh: python-comment-lines.py: app/b.py at TO: bad; counted by the regex\n",
+    );
+  });
+
   it("makes each script exit 2 and name lib.sh when lib.sh is missing", () => {
     const cwd = makeRepo();
     const bare = mkdtempSync(join(tmpdir(), "review-scripts-no-lib-"));
@@ -1953,8 +2024,19 @@ describe("lib.sh", () => {
 describe("python-comment-lines.py", () => {
   const helper: string = join(scriptsDir, "python-comment-lines.py");
 
-  function runHelper(cwd: string, input: string, ...args: string[]): RunResult {
-    const result = spawnSync("python3", [helper, ...args], {
+  // python3, and macOS's /usr/bin/python3 (3.9), whose SyntaxError messages
+  // can span lines, when it exists.
+  const pythons: readonly string[] = ["python3", "/usr/bin/python3"].filter(
+    (python) => python === "python3" || existsSync(python),
+  );
+
+  function runHelperWith(
+    python: string,
+    cwd: string,
+    input: string,
+    ...args: string[]
+  ): RunResult {
+    const result = spawnSync(python, [helper, ...args], {
       cwd,
       encoding: "utf8",
       input,
@@ -1964,6 +2046,10 @@ describe("python-comment-lines.py", () => {
       stdout: result.stdout,
       stderr: result.stderr,
     };
+  }
+
+  function runHelper(cwd: string, input: string, ...args: string[]): RunResult {
+    return runHelperWith("python3", cwd, input, ...args);
   }
 
   it("prints a path and line record for every path on stdin, and keeps the REF PATH form", () => {
@@ -1980,7 +2066,7 @@ describe("python-comment-lines.py", () => {
     expect(batch.status).toBe(0);
     expect(batch.stderr).toBe("");
     expect(batch.stdout).toBe(
-      "app/a.py\t1\napp/a.py\t3\napp/a.py\t4\napp/b.py\t1\n",
+      "app/a.py\t1\napp/a.py\t3\napp/a.py\t4\napp/b.py\t1\n== done\n",
     );
     expect(single.status).toBe(0);
     expect(single.stdout).toBe("1\n3\n4\n");
@@ -2002,7 +2088,9 @@ describe("python-comment-lines.py", () => {
     const errors = result.stderr.trimEnd().split("\n");
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toBe("app/a.py\t1\napp/a.py\t3\napp/a.py\t4\n");
+    expect(result.stdout).toBe(
+      "app/a.py\t1\napp/a.py\t3\napp/a.py\t4\n== done\n",
+    );
     expect(errors).toHaveLength(2);
     expect(errors[0]).toMatch(
       /^app\/nope\.py\tpython-comment-lines\.py: app\/nope\.py at HEAD: missing/,
@@ -2012,13 +2100,53 @@ describe("python-comment-lines.py", () => {
     );
   });
 
-  it("prints nothing and exits 0 on empty input", () => {
+  it("reports a failure whose message spans lines as one stderr record", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/legacy.py": 'print """Usage\n  -h  help\n"""\n' },
+      "python",
+    );
+
+    for (const python of pythons) {
+      const result = runHelperWith(python, cwd, "app/legacy.py\0", "HEAD");
+
+      expect(result.status).toBe(1);
+      expect(result.stderr.trimEnd().split("\n")).toEqual([
+        expect.stringMatching(/^app\/legacy\.py\tpython-comment-lines\.py: /),
+      ]);
+    }
+  });
+
+  it("fails only the path the parser runs out of stack on, and still ends the batch with == done", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/deep.py": DEEP_PY },
+      "python",
+    );
+
+    const result = runHelper(cwd, "app/a.py\0app/deep.py\0", "HEAD");
+    const records = result.stderr.split("\n").filter((l) => l.includes("\t"));
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe(
+      "app/a.py\t1\napp/a.py\t3\napp/a.py\t4\n== done\n",
+    );
+    expect(records).toEqual([
+      expect.stringMatching(
+        /^app\/deep\.py\tpython-comment-lines\.py: app\/deep\.py at HEAD: /,
+      ),
+    ]);
+  });
+
+  it("prints only == done and exits 0 on empty input", () => {
     const cwd = makeRepo();
 
     const result = runHelper(cwd, "", "HEAD");
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("");
+    expect(result.stdout).toBe("== done\n");
     expect(result.stderr).toBe("");
   });
 

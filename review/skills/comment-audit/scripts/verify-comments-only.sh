@@ -37,36 +37,22 @@ for ((i = 0; i < ${#paths[@]}; i++)); do
   fi
 done
 
-have_python=1
-from_rc=0
+sides="from to"
 from_out=""
-to_rc=0
 to_out=""
 if ! command -v "$python" >/dev/null 2>&1; then
   echo "verify-comments-only.sh: $python not found; Python files are checked with the regex" >&2
-  have_python=0
+  sides=""
 else
   if [ "${#from_paths[@]}" -gt 0 ]; then
-    from_out=$(printf '%s\0' "${from_paths[@]}" | "$python" "$helper" "$from" 2>&1) || from_rc=$?
+    from_out=$(printf '%s\0' "${from_paths[@]}" | "$python" "$helper" "$from" 2>&1) || true
   fi
   if [ "${#to_paths[@]}" -gt 0 ]; then
-    to_out=$(printf '%s\0' "${to_paths[@]}" | "$python" "$helper" "$to" 2>&1) || to_rc=$?
+    to_out=$(printf '%s\0' "${to_paths[@]}" | "$python" "$helper" "$to" 2>&1) || true
   fi
 fi
 
-hits=$({
-  for ((i = 0; i < ${#paths[@]}; i++)); do
-    printf '%s\t%s\t%s\n' "${statuses[i]}" "${olds[i]}" "${paths[i]}"
-  done
-  if [ "$have_python" = 1 ]; then
-    printf '== from %s\n' "$from_rc"
-    [ -z "$from_out" ] || printf '%s\n' "$from_out"
-    printf '== to %s\n' "$to_rc"
-    [ -z "$to_out" ] || printf '%s\n' "$to_out"
-  fi
-  printf '== diff\n'
-  git_diff -U0 "$from" "$to" -- "$@"
-} | route_diff verify "$from" "$to")
+hits=$(emit_stream "$sides" "$from" "$to" -- "$@" | route_diff verify "$from" "$to")
 
 if [ -n "$hits" ]; then
   printf '%s\n' "$hits"

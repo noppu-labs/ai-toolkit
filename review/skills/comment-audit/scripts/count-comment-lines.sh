@@ -27,24 +27,13 @@ for ((i = 0; i < ${#paths[@]}; i++)); do
   fi
 done
 
-have_python=1
-to_rc=0
+sides=to
 to_out=""
 if ! command -v "$python" >/dev/null 2>&1; then
   echo "count-comment-lines.sh: $python not found; Python files are counted by the regex" >&2
-  have_python=0
+  sides=""
 elif [ "${#to_paths[@]}" -gt 0 ]; then
-  to_out=$(printf '%s\0' "${to_paths[@]}" | "$python" "$helper" "$head" 2>&1) || to_rc=$?
+  to_out=$(printf '%s\0' "${to_paths[@]}" | "$python" "$helper" "$head" 2>&1) || true
 fi
 
-{
-  for ((i = 0; i < ${#paths[@]}; i++)); do
-    printf '%s\t%s\t%s\n' "${statuses[i]}" "${olds[i]}" "${paths[i]}"
-  done
-  if [ "$have_python" = 1 ]; then
-    printf '== to %s\n' "$to_rc"
-    [ -z "$to_out" ] || printf '%s\n' "$to_out"
-  fi
-  printf '== diff\n'
-  git_diff -U0 "${base}...${head}" -- "$@"
-} | route_diff count "$base" "$head"
+emit_stream "$sides" "${base}...${head}" -- "$@" | route_diff count "$base" "$head"

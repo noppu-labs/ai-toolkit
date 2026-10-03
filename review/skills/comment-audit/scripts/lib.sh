@@ -65,17 +65,51 @@ read_changes() {
   done
 }
 
+# Prints `== SIDE N` and the N lines of OUTPUT, leaving out empty ones.
+# Splitting into an array keeps N and the lines in step, in linear time where
+# bash 3.2's ${OUTPUT//pattern/} is quadratic.
+emit_section() {
+  local IFS=$'\n' lines
+
+  set -f
+  lines=($2)
+  set +f
+  printf '== %s %s\n' "$1" "${#lines[@]}"
+  [ "${#lines[@]}" -eq 0 ] || printf '%s\n' "${lines[@]}"
+}
+
+# Usage: emit_stream SIDES DIFF_ARGS... Prints route_diff's stream for the
+# changes read_changes read: SIDES lists the helper's sides (`from to`, `to`,
+# or empty without python3), each side's output in $from_out or $to_out.
+emit_stream() {
+  local sides=$1 side out i
+  shift
+
+  for ((i = 0; i < ${#paths[@]}; i++)); do
+    printf '%s\t%s\t%s\n' "${statuses[i]}" "${olds[i]}" "${paths[i]}"
+  done
+
+  for side in $sides; do
+    out=${side}_out
+    emit_section "$side" "${!out}"
+  done
+
+  printf '== diff\n'
+  git_diff -U0 "$@"
+}
+
 # Usage: route_diff MODE FROM TO < stream, MODE count or verify. The stream is
-# one `STATUS<TAB>OLD<TAB>NEW` line per changed file; for each side the helper
-# ran on, `== from RC` or `== to RC` followed by the helper's output; then
-# `== diff` and a -U0 patch from git_diff. Each file section is routed by its
-# header: a Python file the helper listed uses the listed line numbers, one it
-# failed on at FROM (or, in count, at TO) is reported on stderr and uses the
-# regex, and every other file uses the regex. count prints the number of added
-# comment lines; verify prints every changed line that is not a comment or
-# blank, markdown on both sides excluded, and `PATH: does not parse as Python
-# at TO` for a file the helper failed on at TO but not at FROM. awk runs in
-# the C locale because paths and content are bytes, not always UTF-8.
+# one `STATUS<TAB>OLD<TAB>NEW` line per changed file; when python3 is on PATH,
+# `== from N` (verify only) and `== to N`, each followed by exactly N lines of
+# that side's helper output; then `== diff` and a -U0 patch from git_diff.
+# Each file section is routed by its header: a Python file the helper listed
+# uses the listed line numbers, one it failed on at FROM (or, in count, at TO)
+# is reported on stderr and uses the regex, and every other file uses the
+# regex. count prints the number of added comment lines; verify prints every
+# changed line that is not a comment or blank, markdown on both sides
+# excluded, and `PATH: does not parse as Python at TO` for a file the helper
+# failed on at TO but not at FROM. awk runs in the C locale because paths and
+# content are bytes, not always UTF-8.
 route_diff() {
   LC_ALL=C awk -v mode="$1" -v from="$2" -v to="$3" '
     function ends(s, suffix) {
@@ -90,9 +124,14 @@ route_diff() {
         if (side == "to" && status[i] != "D") known[side, news[i]] = 1
       }
     }
-    # `PATH<TAB>N` lists line N of PATH; `PATH<TAB>MESSAGE` for a known PATH
-    # fails it; anything else is the interpreter failing as a whole.
+    # `== done` ends a finished batch; `PATH<TAB>N` lists line N of PATH;
+    # `PATH<TAB>MESSAGE` for a known PATH fails it; anything else is the
+    # interpreter failing as a whole.
     function record(side, line,   p, pos, rest, i) {
+      if (line == "== done") {
+        complete[side] = 1
+        return
+      }
       if (match(line, /\t[0-9]+$/)) {
         listed[side, substr(line, 1, RSTART - 1), substr(line, RSTART + 1) + 0] = 1
         return
@@ -110,15 +149,11 @@ route_diff() {
       }
       if (!(side in crash)) crash[side] = line
     }
-    # A non-zero exit that named no file, or printed a line that is not a
-    # record, fails every file of the side.
-    function close_side(side,   k, parts, named) {
-      if (rc[side] == 0) return
-      for (k in failed) {
-        split(k, parts, SUBSEP)
-        if (parts[1] == side) named = 1
-      }
-      if (named && !(side in crash)) return
+    # A side whose helper never printed `== done` died partway, so every file
+    # of it without a failure record fails, with the first stray line as the
+    # reason when there is one.
+    function close_side(side,   k, parts) {
+      if (side in complete) return
       for (k in known) {
         split(k, parts, SUBSEP)
         if (parts[1] == side && !(k in failed)) failed[k] = crash[side]
@@ -161,10 +196,11 @@ route_diff() {
       ref["from"] = from
       ref["to"] = to
     }
-    !patch && (/^== (from|to) -?[0-9]+$/ || $0 == "== diff") {
+    !patch && remaining > 0 { remaining--; record(side, $0); next }
+    !patch && (/^== (from|to) [0-9]+$/ || $0 == "== diff") {
       if (side != "") close_side(side)
       side = $2
-      rc[side] = $3 + 0
+      remaining = $3 + 0
       if (side == "diff") patch = 1
       else open_side(side)
       next
