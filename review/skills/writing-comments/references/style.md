@@ -22,7 +22,7 @@ Plain, direct, concise. Write for an engineer reading the file cold. Fewest sent
 
 - Drop whole paragraphs before trimming words. Rewrite what survives instead of shaving it.
 - A surviving one-liner may run past the wrap width rather than becoming a block.
-- Type annotations stay (`@param`, `@return`, `@var`, `@phpstan-type`, `@property`, JSDoc types). Only their descriptions are judged.
+- Type annotations stay (`@param`, `@return`, `@var`, `@phpstan-type`, `@property`, JSDoc types, and Python docstring sections such as `Args:` and `Returns:`), and so do Python directive comments (`# noqa`, `# type: ignore[...]`, `# pragma: no cover`). Only their descriptions and reasons are judged.
 
 ## If humanizer is installed
 

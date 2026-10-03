@@ -17,15 +17,24 @@ Comment syntax (`//` versus `/* */`, docblock markers) is the consuming project'
 
 - PHP
 - TypeScript
+- Python: docstrings and `#` comments, under the rules in [Python](#python)
 - JSX, inside `{/* */}`
 - GraphQL schema descriptions, inside `"""`
 - Storybook story names
-- Pest and Vitest test names
+- Pest, Vitest, and pytest test names
 - Markdown READMEs and the topic files they index. The README holds what every reader of the directory needs; narrower or longer rationale goes in a topic file beside it, with one README line saying when to read it.
 
 ## Style
 
 Comments and any report written about them follow [references/style.md](references/style.md).
+
+## Python
+
+- A docstring is runtime data: `help()`, Sphinx, and mkdocs read it. A WRONG docstring reaches users, so it outranks a wrong comment.
+- Docstring sections (`Args:`, `Returns:`, `Raises:`, `Yields:`, and their Sphinx and NumPy spellings) are judged the way `@param` descriptions are: the description is judged, and the section stays when the project's docstring convention requires it. Before ruling, read `select` and `extend-select` under `[tool.ruff.lint]`, minus `ignore` and `per-file-ignores`, and the same keys under a legacy top-level `[tool.ruff]`, in `pyproject.toml`, `ruff.toml`, or `.ruff.toml` (where the tables are `[lint]` and the top level), along with `convention` under `[tool.ruff.lint.pydocstyle]`. When the `D` rules are selected, a one-line docstring on a public symbol is KEEP even when it restates the name, because deleting it fails lint.
+- Directive comments are never judged: `# noqa`, `# type: ignore[...]`, `# pragma: no cover`, `# fmt: off` and `# fmt: on`, `# pyright:`, `# mypy:`, `# ruff:`, `# isort:`, `# nosec`, `# complexipy: ignore`, `# pylint:`, `# ty:`, `# pyrefly:`, `# flake8:`, `# pyre-ignore`, `# pyre-fixme`, `# pytype:`, `# yapf:`, `# nosemgrep`. The helper's `DIRECTIVES` tuple in `comment-audit/scripts/python-comment-lines.py` is the same list; change both together. When a directive carries a reason, as in `# noqa: BLE001 - the handler must not drop the request`, only the reason is judged, and it is KEEP whenever the project requires one, which `CLAUDE.md` says. Bandit reads the words after `nosec` as test ids, so a reason written after `# nosec` is WRONG, with the fix of moving it before the marker.
+- A pytest function name and a `parametrize` `ids=` value are the comment, as Pest and Vitest names are. The `reason=` string of a `pytest.mark.xfail` or `pytest.mark.skip` is a comment and is judged.
+- A type comment (`# type: int`) is an annotation in every Python version and is never removed; the helper treats it as a directive for the same reason.
 
 ## Core Concepts
 

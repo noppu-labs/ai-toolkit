@@ -73,10 +73,10 @@ const BLOCKING = new Set(["🔴", "🟠"]);
 // its own header, a rule id, an audit verdict, or the pass that found it.
 const SCRUB_PATTERNS = [
   /^\p{Extended_Pictographic}\s+\*\*\[[^\]\n]*\]\s*[^*\n]*\*\*\s*/u,
-  /^\*\*[^*\n]*,\s*(?:PHP|TS)-\d\*\*:?\s*/u,
-  /^\*\*(?:PHP|TS)-\d\*\*:?\s*/u,
-  /^(?:PHP|TS)-\d:\s*/u,
-  /^\((?:PHP|TS)-\d\)\s*/u,
+  /^\*\*[^*\n]*,\s*(?:PHP|TS|PY)-\d\*\*:?\s*/u,
+  /^\*\*(?:PHP|TS|PY)-\d\*\*:?\s*/u,
+  /^(?:PHP|TS|PY)-\d:\s*/u,
+  /^\((?:PHP|TS|PY)-\d\)\s*/u,
   /^\*\*(?:DELETE|MOVE|TRIM|UNSURE|WRONG)\*\*:?\s*/u,
   /^(?:DELETE|MOVE|TRIM|UNSURE|WRONG):\s*/u,
   /^\[(?:both passes|code-review only|hand review only)\]\s*/u,

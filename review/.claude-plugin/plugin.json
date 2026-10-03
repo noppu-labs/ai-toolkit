@@ -1,8 +1,8 @@
 {
   "name": "review",
   "displayName": "Review toolkit",
-  "description": "Language-agnostic code review skills: comment audit, type-safety review, and a three-stage PR review orchestrator",
-  "version": "0.3.1",
+  "description": "Code review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, a three-stage PR review orchestrator, and PR comments",
+  "version": "0.4.0",
   "author": {
     "name": "Noppu Labs"
   }

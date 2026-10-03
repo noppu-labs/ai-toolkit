@@ -1,6 +1,6 @@
 ---
 name: comment-audit
-description: Audit every comment, docblock, JSDoc, GraphQL description, and markdown line a branch adds and give each a verdict (DELETE, TRIM, MOVE, KEEP, UNSURE, WRONG). Use before opening a PR, when reviewing a PR's comments, or when asked to trim, audit, or clean up comments. Report only by default; `--apply` edits and commits.
+description: Audit every comment, docblock, JSDoc, Python docstring, GraphQL description, and markdown line a branch adds and give each a verdict (DELETE, TRIM, MOVE, KEEP, UNSURE, WRONG). Use before opening a PR, when reviewing a PR's comments, or when asked to trim, audit, or clean up comments. Report only by default; `--apply` edits and commits.
 ---
 
 # Comment audit
@@ -46,16 +46,27 @@ In this order, stopping at the first source that answers:
 | --- | --- | --- | --- |
 | base | `base=` | `gh pr view --json baseRefName`; else the default branch of `origin` | yes |
 | head | `head=` | `HEAD` | no |
-| dirs | `dirs=` | every path in the diff, minus `vendor/`, `node_modules/`, lockfiles, and paths matching generated-code markers (`generated`, `wayfinder`, `.d.ts` under a generated dir, `*.min.*`) | no, but list the exclusions in the report |
+| dirs | `dirs=` | every path in the diff, minus `vendor/`, `node_modules/`, `.venv/`, `venv/`, `site-packages/`, `__pycache__/`, `*.egg-info/`, `build/` and `dist/` in a Python package, tool caches (`.ruff_cache/`, `.pytest_cache/`, `.mypy_cache/`, `.pyrefly_cache/`, `.complexipy_cache/`), lockfiles (`uv.lock`, `poetry.lock`, and `Pipfile.lock` among them), and paths matching generated-code markers (`generated`, `wayfinder`, `.d.ts` under a generated dir, `_ide_helper`, `*.min.*`, `*_pb2.py`, `*_pb2_grpc.py`, `.pyi` under a generated dir, `migrations/versions/`, `*/migrations/0*.py`) | no, but list the exclusions in the report |
 | readme | `readme=` | nearest `README.md` at or above the directory with the most diffed files | yes, only when a MOVE verdict needs one |
 | ticket | `ticket=` | branch name pattern `[A-Z]+-\d+`; else the PR title | no, fall back to `docs:` prefix |
-| format, lint, test commands | none | the project's `CLAUDE.md` and `.claude/rules/*.md`; else `composer.json` / `package.json` scripts | yes, in `--apply` mode only |
+| format, lint, test commands | none | the project's `CLAUDE.md` and `.claude/rules/*.md`; else `composer.json` / `package.json` scripts; else, for a Python project, the sources under [Python commands](#python-commands) | yes, in `--apply` mode only |
 | sibling checkouts | `sibling=` | none | no; claims about another system become UNSURE with the path that would settle them |
 | out | `out=` | `<scratchpad>/comment-audit-<pr or branch>.md` | no |
 
 Echo the resolved values at the top of the report.
 
 When a row marked `yes` cannot be resolved and no answer is available, stop and report which value is missing. Do not guess a base ref.
+
+### Python commands
+
+When `CLAUDE.md` and `.claude/rules/*.md` name no command, a Python project resolves each of format, lint, type check, and test from the first of these sources that names it:
+
+1. `Makefile` or `justfile` targets named `format`, `lint`, `typecheck`, and `test`, run as `make <target>` or `just <target>`.
+2. `noxfile.py` sessions and `tox.ini` environments with those names, run as `nox -s <name>` or `tox -e <name>`.
+3. `.pre-commit-config.yaml`. When it is the only gate, lint is `pre-commit run --all-files`. Its local hooks name the type checker and any extra gates (`deptry`, `bandit`, `vulture`, `complexipy`, `pylint`), which a stage may also run.
+4. `pyproject.toml` tool tables: `[tool.ruff]` gives `ruff format` and `ruff check`; `[tool.mypy]`, `[tool.pyright]`, `[tool.pyrefly]`, or `[tool.ty]` gives `mypy`, `pyright`, `pyrefly check`, or `ty check`; `[tool.pytest.ini_options]` gives `pytest`.
+
+A command from the tool tables runs as `uv run <command>` when `uv.lock` exists, and as `poetry run <command>` when `poetry.lock` exists. A command `CLAUDE.md` lists wins over all of these, as it does for every other language.
 
 ## Step 1: baseline
 
@@ -64,6 +75,8 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/comment-audit/scripts/count-comment-lines.sh B
 ```
 
 It prints one number: the added lines whose first non-blank characters are `//`, `#`, `*`, `/*`, `/**`, `"""`, `{/*`, or `<!--`. The report opens with it.
+
+A `.py` file is counted by `python-comment-lines.py` beside the script instead: every line of a module, class, or function docstring in any quote style, except a blank line, a doctest example, and a line the docstring shares with code, and every `#` comment with nothing before it on its line. Tool directives (the markers listed under Python in [../writing-comments/SKILL.md](../writing-comments/SKILL.md)), a shebang, and an encoding declaration are not counted, even when a reason follows the marker. Step 3 still rules on that reason, so the findings can hold more entries than the count; when they do, the report says the difference is reasoned directives. Without `python3` on `PATH`, or for a file that does not parse, Python is counted with the regex above and the script prints one line to stderr per file that does not parse, or one line in total when `python3` is missing. Quote that line under the count.
 
 If the command fails, the ref does not exist in this clone. Run `git fetch` and retry, or re-resolve `base`. A count of `0` means the branch adds no comments; write the report saying so and stop.
 
@@ -107,7 +120,7 @@ If no README resolves and a MOVE needs one, ask for `readme=`. With no answer av
 
 ## Step 3: verdicts
 
-Every added comment, docblock, JSDoc, GraphQL description, Storybook description, and markdown line gets exactly one verdict:
+Every added comment, docblock, JSDoc, Python docstring, GraphQL description, Storybook description, and markdown line gets exactly one verdict:
 
 - **DELETE**: restates what the code visibly does, or restates the name, signature, return type, or the guard on the next line.
 - **TRIM**: a non-obvious WHY buried in prose. Give the rewrite. Fewest sentences, keeping the concrete reference (path, symbol, SQL, snippet, ticket).
@@ -131,6 +144,7 @@ Rules for the rewrites:
 - **Type annotations.** `@param`, `@return`, `@var`, `@phpstan-type`, `@property`, and JSDoc types are never removed. Only their descriptions are judged. A description that restates the name is a DELETE of the description, not of the annotation.
 - **GraphQL descriptions.** A `"""` description is a comment and is judged by the same rules. List every one with a verdict in its own report section, because they show up in introspection.
 - **Storybook stories.** A story's name is its comment. Prose that describes the rendered state is a DELETE.
+- **Python.** Docstrings, docstring sections, directive comments, and pytest names follow the Python section of [../writing-comments/SKILL.md](../writing-comments/SKILL.md#python). A directive with no reason after it gets no verdict.
 
 ## Step 4: verify before ruling
 
@@ -159,9 +173,9 @@ The template's two summary requirements are easy to drop and both are mandatory:
   bash ${CLAUDE_PLUGIN_ROOT}/skills/comment-audit/scripts/verify-comments-only.sh FROM TO DIRS
   ```
 
-  `FROM` is the commit before the trim and `TO` is the commit carrying it, so `HEAD~1 HEAD` after the commit. The script prints every changed line that is not a comment or blank and exits `1`. It excludes `*.md` files, so doc edits never appear as hits. Every hit gets a one-line explanation in the report. Two kinds of hit are expected and still get their line:
+  `FROM` is the commit before the trim and `TO` is the commit carrying it, so `HEAD~1 HEAD` after the commit. The script prints every changed line that is not a comment or blank and exits `1`. It excludes `*.md` files, so doc edits never appear as hits. A `.py` file is checked with `python-comment-lines.py` on each side of the diff, so a docstring trim produces no hits, while a changed directive comment (`# type: ignore`, `# noqa`, `# pragma:`) is a hit, because it changes what a tool reports, and a trim that leaves a `.py` file unable to parse is a hit naming the file. Every hit gets a one-line explanation in the report. Two kinds of hit are expected and still get their line:
   - A blank line left where a docblock shrank to nothing.
-  - Interior lines of a block comment that carry no per-line marker: the body of a multi-line `<!-- -->`, or a `/* */` block without a leading `*` on each line.
+  - Interior lines of a block comment that carry no per-line marker: the body of a multi-line `<!-- -->`, a `/* */` block without a leading `*` on each line, or, when the script warned that `python3` is missing or a file does not parse, the inside of a Python docstring.
 
 - Run the project's format, lint, and test commands, in that order, using the commands resolved in step 0. If one of them could not be resolved, skip it and say so in the final message.
 - If the formatter changes a file the audit did not touch, revert that file. Amend the trim commit with formatter changes to files the audit did touch, so the branch still carries one commit.

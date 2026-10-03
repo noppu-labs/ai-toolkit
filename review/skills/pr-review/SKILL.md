@@ -41,7 +41,7 @@ State the resolved pairs before starting, one line per PR: number, title, base, 
 
 One brief per PR, plain text, pasted whole into every subagent prompt for that PR.
 
-If a skill named `investigate` is available, invoke it for that PR's changed paths and use its brief.
+If a skill named `investigate` is available, invoke it for that PR's changed paths and use its brief. When that brief lists no symbols and `git diff --stat` shows most of the changed lines are in `.py` files, build the brief from the commands below instead, and record under `## Not available in this run` that the structural brief came from the fallback commands.
 
 If it is not, build a lighter one from these commands:
 
@@ -49,14 +49,19 @@ If it is not, build a lighter one from these commands:
 git diff --stat <BASE>...<HEAD>
 git diff -U0 <BASE>...<HEAD> | grep -E '^@@'
 git diff <BASE>...<HEAD> | grep -E '^\+(export )?(async )?(function|class|const|interface|type) |^\+[[:space:]]*(public|protected|private) function'
+git diff <BASE>...<HEAD> -- '*.py' | grep -E '^\+[[:space:]]*(async )?def [A-Za-z_]|^\+[[:space:]]*class [A-Za-z_]'
 git grep -nw <symbol> <HEAD>
 ```
 
 `<BASE>` and `<HEAD>` are the two refs resolved in step 1, the same slots step 3 fills.
 
-The first gives the shape of the change. The next two give the added or changed functions, classes, and methods, from the hunk headers and from the added lines. The last runs once per changed symbol and gives its callers on the head ref, which is what tells a stage whether a signature change has call sites the PR missed.
+The first gives the shape of the change. The next three give the added or changed functions, classes, and methods, from the hunk headers and from the added lines. The last runs once per changed symbol and gives its callers on the head ref, which is what tells a stage whether a signature change has call sites the PR missed.
 
-Both anchors in the third command carry a `+`, so it matches added lines and not the context lines around them. Dropping the `+` inverts the result: every unchanged declaration in the hunk matches and every added one does not, and the per-symbol `git grep` then has nothing to run on.
+Every anchor in the third and fourth commands carries a `+`, so it matches added lines and not the context lines around them. Dropping the `+` inverts the result: every unchanged declaration in the hunk matches and every added one does not, and the per-symbol `git grep` then has nothing to run on.
+
+The fourth command is for Python. A Python method is indented under its class, so its anchors allow leading whitespace before `def` and `class`. It reads only `*.py` files, as a separate command, because those indented anchors otherwise match markdown prose and nested TypeScript classes. For a Python symbol, run the caller command as `git grep -nw <symbol> <HEAD> -- '*.py'`. The word match finds a call, a decorator argument, and a reference passed as a value, such as `Depends(get_db)` or `callbacks=[handler]`, and the pathspec keeps a same-named symbol in another language out of the list. Search for the bare name, never a dotted module path: a Python project without a package layout imports a sibling module by bare name and may load a hyphenated script file by path.
+
+An empty caller list for a Python symbol is not evidence of dead code when the symbol is a function a decorator registers (a web route, a CLI command, a pytest fixture), a method a framework calls by name (a pydantic validator, a `__dunder__` method), or a module imported for what it does at import time. None of them has a textual caller. List such a symbol in the brief as `callers unresolved`, not with an empty caller list.
 
 Three dots, so only what the branch adds is in scope.
 
@@ -105,6 +110,19 @@ Review by hand: read the diff and the changed files, and look for behaviour chan
 error handling, boundary conditions, and missing tests. Validate any claim you can by
 running the project's tests or linters; record what you ran.
 
+For a Python project, run `pytest`, `ruff check`, and the configured type checker
+(mypy, pyright, pyrefly, or ty), resolving each command the way step 0 of
+`review:comment-audit` does. When pytest runs with `filterwarnings = ["error"]`, a
+new deprecation warning fails the suite, so a passing run is also evidence that the
+branch adds no warning. Look in particular for a mutable default argument; a bare
+`except:` or an `except Exception: pass`; a coroutine called without `await`; `is`
+compared with a literal; a collection mutated inside the loop that iterates it; a
+`datetime.now()` without a timezone where the stored value has one; an f-string or
+`%` interpolation inside a SQL or shell call; blocking I/O inside an `async def`
+that belongs in `asyncio.to_thread` or an async client; and a module-level
+environment read that raises at import time and so leaves the module untestable.
+These are leads, not rules: each finding still ends with its outcome.
+
 End every finding with its outcome, one of: crash, wrong data shown, wrong data
 persisted, harmless, question. Harmless means no crash, no wrong data shown or
 persisted, and an effect that clears on retry or reload. Question means the diff
@@ -141,8 +159,8 @@ Structural brief:
 
 Invoke `review:type-safety-review base=<BASE> head=<HEAD>`. That skill returns its
 report as its response and writes no file. Relay its findings in the shape below,
-keeping each finding's rule id (`PHP-1` to `PHP-5`, `TS-1` to `TS-4`), its verbatim
-quote, and its proposed shape.
+keeping each finding's rule id (`PHP-1` to `PHP-5`, `TS-1` to `TS-4`, `PY-1` to
+`PY-5`), its verbatim quote, and its proposed shape.
 
 That skill inherits comment-audit's `base=`/`head=` detection and its ask. Both are
 already given above, so if it asks for anything else, you have no one to ask: record

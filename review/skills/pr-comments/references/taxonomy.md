@@ -61,6 +61,12 @@ The stage reports use their own identifiers. Translate each to the closest label
 | `TS-3` (boundary data asserted with a cast instead of validated) | Unchecked cast |
 | `TS-3` (boundary data typed `any` or `unknown` and never narrowed) | Mixed on a boundary |
 | `TS-4` (duplicate type) | Duplicate type |
+| `PY-1` (`Any` where a narrower type is reachable) | Mixed on a boundary |
+| `PY-2` (`dict` with a fixed key set where a dataclass, pydantic model, or `NamedTuple` belongs; the label covers a dict as well as an array) | Unstructured array |
+| `PY-3` (`cast()` with nothing checked, or boundary data asserted instead of validated) | Unchecked cast |
+| `PY-3` (`TypedDict` or `# type: ignore` without a stated reason) | Pseudo-type |
+| `PY-4` (duplicate type) | Duplicate type |
+| `PY-5` (missing return annotation, bare generic, old `typing` spelling, or no type checker) | Missing sanity check |
 
 When the rule id and the finding's text disagree, the text wins: read what the reviewer found and pick the label that names it.
 

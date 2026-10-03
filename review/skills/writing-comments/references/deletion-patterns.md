@@ -1,6 +1,6 @@
 # Deletion Patterns
 
-Nine recurring shapes, every example taken from one cleanup across eight commits, none of which changed a single line of code. Across all twenty-four files, file shrinkage equalled comment shrinkage exactly.
+Nine recurring shapes. Every example but the Python one is taken from one cleanup across eight commits, none of which changed a single line of code. Across all twenty-four files, file shrinkage equalled comment shrinkage exactly.
 
 ## A. Restating the signature
 
@@ -21,6 +21,13 @@ public function contentFor(string $journeyId): ?ConsentContentDto
 /* Above export function ConsentDocument: */
  * The document the account holder is agreeing to, above the signature form.
 ```
+
+```python
+def find_invoice(invoice_id: int) -> Invoice | None:
+    """Find an invoice by its id, or return None when there is no such invoice."""
+```
+
+When the project selects ruff's `D` rules this one-liner is a KEEP instead; see the Python section of SKILL.md.
 
 A nullable return type already announces that null is possible. Spend the comment on *which* null it is, or write nothing.
 
