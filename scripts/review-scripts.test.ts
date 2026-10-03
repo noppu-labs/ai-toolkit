@@ -120,6 +120,24 @@ const RENAMED_BODY: string = [
   "",
 ].join("\n");
 
+// A Python module that git still pairs as a rename when it moves to or from
+// another extension, with or without a one-line change.
+const MIXED_PY: string = `"""Module docstring."""\n# why\nX = 1\n${RENAMED_BODY}`;
+
+// Commits app/<from> with MIXED_PY, moves it to app/<to>, and commits the move
+// with `content` (MIXED_PY when omitted) on a feature branch.
+function renameAcrossExtensions(
+  cwd: string,
+  from: string,
+  to: string,
+  content: string = MIXED_PY,
+): void {
+  commitFiles(cwd, { [`app/${from}`]: MIXED_PY }, "python base");
+  git(cwd, "checkout", "-q", "-b", "feature");
+  git(cwd, "mv", `app/${from}`, `app/${to}`);
+  commitFiles(cwd, { [`app/${to}`]: content }, "rename");
+}
+
 function makeRepo(): string {
   const cwd = mkdtempSync(join(tmpdir(), "review-scripts-"));
   git(cwd, "init", "-q", "-b", "main");
@@ -453,6 +471,41 @@ describe("count-comment-lines.sh", () => {
       cwd,
       { "app/kinds.py": '# Type: the invoice kind\nKIND = "std"\n' },
       "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("1");
+  });
+
+  it("counts nothing for a .py file renamed to .txt with no change", () => {
+    const cwd = makeRepo();
+    renameAcrossExtensions(cwd, "b.py", "b.txt");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("0");
+  });
+
+  it("counts nothing for a .txt file renamed to .py with no change", () => {
+    const cwd = makeRepo();
+    renameAcrossExtensions(cwd, "b.txt", "b.py");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("0");
+  });
+
+  it("counts only the comment a .py to .txt rename adds", () => {
+    const cwd = makeRepo();
+    renameAcrossExtensions(
+      cwd,
+      "b.py",
+      "b.txt",
+      MIXED_PY.replace("X = 1", "# added\nX = 1"),
     );
 
     const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
@@ -879,6 +932,59 @@ describe("verify-comments-only.sh", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout.split("\n")).toEqual(["-TOTAL = 1"]);
+  });
+
+  it("passes a .py file renamed to .txt with no change", () => {
+    const cwd = makeRepo();
+    renameAcrossExtensions(cwd, "b.py", "b.txt");
+
+    const result = run(
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.status).toBe(0);
+  });
+
+  it("passes a .txt file renamed to .py with no change", () => {
+    const cwd = makeRepo();
+    renameAcrossExtensions(cwd, "b.txt", "b.py");
+
+    const result = run(
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.status).toBe(0);
+  });
+
+  it("fails on only the code line a .py to .txt rename changes", () => {
+    const cwd = makeRepo();
+    renameAcrossExtensions(
+      cwd,
+      "b.py",
+      "b.txt",
+      MIXED_PY.replace("X = 1", "X = 2"),
+    );
+
+    const result = run(
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual(["-X = 1", "+X = 2"]);
   });
 
   it("exits 2 and names the ref when a ref does not exist", () => {

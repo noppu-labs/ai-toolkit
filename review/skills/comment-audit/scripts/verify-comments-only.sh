@@ -48,7 +48,17 @@ python_hits() {
 }
 
 if command -v "$python" >/dev/null 2>&1; then
-  hits=$(git diff "$from" "$to" -- "$@" ':(top,exclude)*.md' ':(top,exclude)*.py' | filter_by_regex)
+  collect_mixed_renames < <(git diff --name-status -z "$from" "$to" -- "$@")
+  hits=$(git diff "$from" "$to" -- "$@" ':(top,exclude)*.md' ':(top,exclude)*.py' \
+    ${mixed_excludes[@]+"${mixed_excludes[@]}"} | filter_by_regex)
+
+  # A .py file renamed to another extension is checked with the regex, paired.
+  # One renamed to markdown is skipped, as markdown always is.
+  for ((i = 0; i < ${#mixed[@]}; i += 2)); do
+    if [[ ${mixed[i + 1]} != *.py && ${mixed[i + 1]} != *.md ]]; then
+      hits+=$'\n'$(git diff "$from" "$to" -- ":(top)${mixed[i]}" ":(top)${mixed[i + 1]}" | filter_by_regex)
+    fi
+  done
 
   while read_change; do
     if [[ $path == *.py ]]; then

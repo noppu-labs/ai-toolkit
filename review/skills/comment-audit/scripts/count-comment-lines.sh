@@ -43,7 +43,15 @@ if ! command -v "$python" >/dev/null 2>&1; then
   exit 0
 fi
 
-total=$(count_by_regex "$@" ':(top,exclude)*.py')
+collect_mixed_renames < <(git diff --name-status -z "${base}...${head}" -- "$@")
+total=$(count_by_regex "$@" ':(top,exclude)*.py' ${mixed_excludes[@]+"${mixed_excludes[@]}"})
+
+# A .py file renamed to another extension is counted by the regex, paired.
+for ((i = 0; i < ${#mixed[@]}; i += 2)); do
+  if [[ ${mixed[i + 1]} != *.py ]]; then
+    total=$((total + $(count_by_regex ":(top)${mixed[i]}" ":(top)${mixed[i + 1]}")))
+  fi
+done
 
 while read_change; do
   if [[ $path == *.py && $status != D ]]; then
