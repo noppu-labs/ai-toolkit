@@ -21,4 +21,4 @@ Two dataclasses or models with the same field set, a `TypedDict` mirroring a pyd
 - A return annotation on every `def`, including `-> None` and `-> NoReturn`. Ruff `ANN201`, `ANN202`, `ANN204`, `ANN205`, and `ANN206` report a missing one.
 - Type arguments on every generic: `list[Item]`, `dict[str, int]`, never a bare `list` or `dict`. Mypy `type-arg` and pyright `reportMissingTypeArgument` report a bare one.
 - A type checker configured for the package (`[tool.mypy]`, `[tool.pyright]`, `[tool.pyrefly]`, or `[tool.ty]` in `pyproject.toml`, or the checker's own config file) and passing on the head ref. A project with no checker is one finding, not one per file. A checker at its default strictness is not a finding.
-- No `from typing import List, Dict, Optional` where the 3.10 syntax is available at the project's `requires-python`. Ruff `UP006`, `UP007`, and `UP045` report them.
+- No `from typing import List, Dict, Optional` where the 3.10 syntax is available at the project's `requires-python`. Ruff `UP035` reports the `List` and `Dict` imports, `UP006` their use in annotations, and `UP045` `Optional`.

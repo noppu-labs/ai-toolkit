@@ -59,8 +59,8 @@ The strongest category. Without the comment, the next reader "fixes" it.
 ```
 
 ```python
-# The vendor SDK ships no stubs and builds `session` in __getattr__, so mypy
-# cannot see the attribute. Drop the ignore once the SDK ships a py.typed marker.
+# The vendor SDK sets `session` with setattr after construction, so mypy cannot
+# see the attribute. Drop the ignore once the SDK declares it.
 session = client.session  # type: ignore[attr-defined]
 ```
 
