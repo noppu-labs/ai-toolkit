@@ -6,11 +6,13 @@ Usage: python-comment-lines.py REF PATH
 Prints, one per line and in ascending order, the 1-based number of every line
 that holds a `#` comment with nothing before it, or that belongs to a module,
 class, or function docstring in any quote style. A docstring line that it
-shares with code is not a comment line. Tool directives (a shebang, an encoding
-declaration, `# noqa`, `# type:`, `# fmt:` and the like) are not comment lines:
-changing one changes what a tool does. Exits 1 with one line on stderr when the
-file cannot be read, tokenized, or parsed. Needs Python 3.8 or later for the
-`end_lineno` attribute.
+shares with code, a blank docstring line, and a doctest example (a `>>>` or
+`...` line and every line after it up to a blank one) are not comment lines.
+Tool directives (a shebang, an encoding declaration, `# noqa`, `# type:`,
+`# fmt:` and the like), also after a docstring's closing quotes, are not
+comment lines: changing one changes what a tool does. Exits 1 with one line on
+stderr when the file cannot be read, tokenized, or parsed. Needs Python 3.8 or
+later for the `end_lineno` attribute.
 """
 
 from __future__ import annotations
@@ -44,6 +46,12 @@ DIRECTIVES = (
     "nosemgrep",
 )
 
+# flake8, ruff, and bandit read these in any case.
+ANY_CASE_DIRECTIVES = ("noqa", "nosec")
+
+# Coverage's default exclusion pattern.
+NO_COVER = re.compile(r"pragma[:\s]*no\s*cover", re.IGNORECASE)
+
 # PEP 263: the interpreter reads an encoding declaration on line 1 or 2.
 CODING = re.compile(r"^[ \t\f]*#.*?coding[:=]")
 
@@ -67,7 +75,17 @@ def is_directive(token: tokenize.TokenInfo) -> bool:
     if row <= 2 and CODING.match(token.string):
         return True
 
-    return token.string[1:].strip().startswith(DIRECTIVES)
+    return starts_with_directive(token.string)
+
+
+def starts_with_directive(comment: str) -> bool:
+    text = comment[1:].strip()
+
+    return (
+        text.startswith(DIRECTIVES)
+        or text.lower().startswith(ANY_CASE_DIRECTIVES)
+        or NO_COVER.match(text) is not None
+    )
 
 
 def get_comment_lines(source: bytes) -> set[int]:
@@ -114,7 +132,9 @@ def get_docstring_lines(tree: ast.Module, source: list[bytes]) -> set[int]:
         before = source[start - 1][: first.col_offset].strip()
         after = source[end - 1][first.end_col_offset :].strip()
         opens_alone = before == b""
-        closes_alone = after == b"" or after.startswith(b"#")
+        closes_alone = after == b"" or (
+            after.startswith(b"#") and not starts_with_directive(after.decode("utf-8"))
+        )
 
         if start == end:
             if opens_alone and closes_alone:
@@ -122,7 +142,14 @@ def get_docstring_lines(tree: ast.Module, source: list[bytes]) -> set[int]:
 
             continue
 
-        lines.update(range(start + 1, end))
+        doctest = False
+
+        for row in range(start + 1, end):
+            text = source[row - 1].strip()
+            doctest = text != b"" and (doctest or text.startswith((b">>>", b"...")))
+
+            if text != b"" and not doctest:
+                lines.add(row)
 
         if opens_alone:
             lines.add(start)

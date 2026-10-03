@@ -51,6 +51,14 @@ const NO_PYTHON: Record<string, string> = {
   REVIEW_PYTHON: "python3-not-installed",
 };
 
+// An interpreter that prints `boom` to stderr and exits 1 for every call.
+function makeFailingPython(): string {
+  const dir = mkdtempSync(join(tmpdir(), "review-scripts-python-"));
+  const path = join(dir, "python");
+  writeFileSync(path, "#!/bin/sh\necho boom >&2\nexit 1\n", { mode: 0o755 });
+  return path;
+}
+
 function commitFiles(
   cwd: string,
   files: Record<string, string>,
@@ -63,9 +71,9 @@ function commitFiles(
   git(cwd, "commit", "-q", "-m", message);
 }
 
-// 28 lines. The helper counts 11 of them: the module docstring (2-5), the
-// ''' class docstring (14), the r""" method docstring (17-20), the own-line
-// comment (21), and the function docstring (26). The shebang, both `# fmt:`
+// 28 lines. The helper counts 9 of them: the module docstring (2, 4, 5), the
+// ''' class docstring (14), the r""" method docstring (17, 19, 20), the
+// own-line comment (21), and the function docstring (26). The shebang, both `# fmt:`
 // lines, and the three trailing comments are not counted. The regex alone
 // counts 8: lines 1, 2, 5, 8, 10, 20, 21, and 26.
 const INVOICE_PY: string = [
@@ -124,8 +132,21 @@ const RENAMED_BODY: string = [
 // another extension, with or without a one-line change.
 const MIXED_PY: string = `"""Module docstring."""\n# why\nX = 1\n${RENAMED_BODY}`;
 
-// Commits app/<from> with MIXED_PY, moves it to app/<to>, and commits the move
-// with `content` (MIXED_PY when omitted) on a feature branch.
+// Enough unchanged lines that git still pairs a copy of it with its source.
+const COPIED_PY: string = `"""Mod."""\nx0 = 0\n${RENAMED_BODY}`;
+
+// A docstring with a doctest, which pytest --doctest-modules runs as a test.
+const DOCTEST_PY: string = [
+  "def total(xs: list[int]) -> int:",
+  '    """Sum xs.',
+  "",
+  "    >>> total([1, 2])",
+  "    3",
+  '    """',
+  "    return sum(xs)",
+  "",
+].join("\n");
+
 function renameAcrossExtensions(
   cwd: string,
   from: string,
@@ -256,7 +277,7 @@ describe("count-comment-lines.sh", () => {
     const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("11");
+    expect(result.stdout).toBe("9");
     expect(result.stderr).toBe("");
   });
 
@@ -276,8 +297,8 @@ describe("count-comment-lines.sh", () => {
     const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
 
     expect(result.status).toBe(0);
-    // PHP "// why" is 1. Python is the four docstring lines; the noqa line is a directive.
-    expect(result.stdout).toBe("5");
+    // PHP "// why" is 1. Python is the three docstring lines that are not blank; the noqa line is a directive.
+    expect(result.stdout).toBe("4");
   });
 
   it("counts only the comment lines a renamed Python file adds", () => {
@@ -379,7 +400,7 @@ describe("count-comment-lines.sh", () => {
     const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("9");
+    expect(result.stdout).toBe("7");
     expect(result.stderr).toBe("");
   });
 
@@ -399,7 +420,7 @@ describe("count-comment-lines.sh", () => {
       run("count-comment-lines.sh", cwd, "main", "feature", "app").stdout,
     ).toBe("1");
     expect(run("count-comment-lines.sh", cwd, "main", "feature").stdout).toBe(
-      "5",
+      "4",
     );
   });
 
@@ -428,7 +449,7 @@ describe("count-comment-lines.sh", () => {
       "../lib",
     );
 
-    expect(fromRoot.stdout).toBe("5");
+    expect(fromRoot.stdout).toBe("4");
     expect(fromApp.status).toBe(0);
     expect(fromApp.stdout).toBe(fromRoot.stdout);
     expect(fromAppWithDir.stdout).toBe(fromRoot.stdout);
@@ -460,8 +481,8 @@ describe("count-comment-lines.sh", () => {
     const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
 
     expect(result.status).toBe(0);
-    // The four lines of the second docstring. The first shares its line with code.
-    expect(result.stdout).toBe("4");
+    // The three text lines of the second docstring. The first shares its line with code.
+    expect(result.stdout).toBe("3");
   });
 
   it("counts a prose comment that starts with a capitalised directive word", () => {
@@ -512,6 +533,125 @@ describe("count-comment-lines.sh", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("1");
+  });
+
+  it("counts a file whose name is a glob once, and the file the glob matches once", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "app/test_a.py": "# a\nX = 1\n", "app/test_[ab].py": "# ab\nY = 1\n" },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("2");
+  });
+
+  it("prints the helper's own error line when the helper fails", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, { "app/calc.py": "# why\nX = 1\n" }, "feature");
+
+    const result = runWithEnv(
+      { REVIEW_PYTHON: makeFailingPython() },
+      "count-comment-lines.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("1");
+    expect(result.stderr).toContain(
+      "count-comment-lines.sh: boom; counted by the regex",
+    );
+  });
+
+  it("counts the same from a subdirectory as from the root when diff.relative is set", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, "pkg"));
+    commitFiles(cwd, { "pkg/a.py": "X = 1\n" }, "python base");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, { "pkg/a.py": '"""Doc."""\n# why\nX = 2\n' }, "feature");
+    git(cwd, "config", "diff.relative", "true");
+
+    const fromRoot = run("count-comment-lines.sh", cwd, "main", "feature");
+    const fromPkg = run(
+      "count-comment-lines.sh",
+      join(cwd, "pkg"),
+      "main",
+      "feature",
+    );
+
+    expect(fromRoot.stdout).toBe("2");
+    expect(fromPkg.status).toBe(0);
+    expect(fromPkg.stdout).toBe(fromRoot.stdout);
+  });
+
+  it("counts a copied Python file as an added file", () => {
+    const cwd = makeRepo();
+    git(cwd, "config", "diff.renames", "copies");
+    commitFiles(cwd, { "app/a.py": COPIED_PY }, "python base");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": COPIED_PY.replace("x0 = 0", "# added\nx0 = 0"),
+        "app/b.py": COPIED_PY,
+      },
+      "copy",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    // "# added" in a.py, and the docstring of the new b.py.
+    expect(result.stdout).toBe("2");
+  });
+
+  it("does not count noqa or pragma no cover in another case, and still counts a capitalised prose word", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "app/marks.py":
+          "# NOQA\n# pragma no cover\n# PRAGMA: NO COVER\n# Type: the invoice kind\nKIND = 1\n",
+      },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("1");
+  });
+
+  it("does not count the doctest lines of a docstring", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, { "app/calc.py": DOCTEST_PY }, "feature");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    // The opening and closing lines of the docstring.
+    expect(result.stdout).toBe("2");
+  });
+
+  it("does not count the blank lines inside a docstring", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, { "app/doc.py": '"""Doc.\n\n\nMore."""\n' }, "feature");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("2");
   });
 
   it("exits 2 and names the ref when a ref does not exist", () => {
@@ -799,7 +939,7 @@ describe("verify-comments-only.sh", () => {
       "app",
     );
 
-    // The pre-change behaviour: ''' lines and docstring interiors carry no marker.
+    // The regex filter has no marker for `'''` lines or docstring interiors, so they are hits.
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("-One line of why.");
     expect(result.stderr.trim().split("\n")).toHaveLength(1);
@@ -987,6 +1127,173 @@ describe("verify-comments-only.sh", () => {
     expect(result.stdout.split("\n")).toEqual(["-X = 1", "+X = 2"]);
   });
 
+  it("fails on only the code line a .py to .md rename changes", () => {
+    const cwd = makeRepo();
+    renameAcrossExtensions(
+      cwd,
+      "b.py",
+      "b.md",
+      MIXED_PY.replace("X = 1", "X = 2"),
+    );
+
+    const result = run(
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual(["-X = 1", "+X = 2"]);
+  });
+
+  it("fails on only the code line a .txt to .py rename changes", () => {
+    const cwd = makeRepo();
+    renameAcrossExtensions(
+      cwd,
+      "b.txt",
+      "b.py",
+      MIXED_PY.replace("X = 1", "X = 2"),
+    );
+
+    const result = run(
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual(["-X = 1", "+X = 2"]);
+  });
+
+  it("reports a code change once when another file's name is a glob that matches it", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/test_a.py": "# a\nX = 1\n", "app/test_[ab].py": "# ab\nY = 1\n" },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/test_a.py": "# a\nX = 2\n",
+        "app/test_[ab].py": "# ab, reworded\nY = 1\n",
+      },
+      "code",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual(["-X = 1", "+X = 2"]);
+  });
+
+  it("prints the helper's own error line when the helper fails", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/calc.py": "# why\nX = 1\n" }, "python base");
+    commitFiles(cwd, { "app/calc.py": "# why not\nX = 1\n" }, "note");
+
+    const result = runWithEnv(
+      { REVIEW_PYTHON: makeFailingPython() },
+      "verify-comments-only.sh",
+      cwd,
+      "HEAD~1",
+      "HEAD",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain(
+      "verify-comments-only.sh: boom; checked with the regex",
+    );
+  });
+
+  it("fails when a directive after a docstring's closing quotes changed", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "app/doc.py": 'def f():\n    """Doc."""  # noqa: D400\n    return 1\n',
+      },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/doc.py": 'def f():\n    """Doc."""  # noqa: D401\n    return 1\n',
+      },
+      "directive",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      '-    """Doc."""  # noqa: D400',
+      '+    """Doc."""  # noqa: D401',
+    ]);
+  });
+
+  it("reports the same hits from a subdirectory as from the root when diff.relative is set", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, "pkg"));
+    commitFiles(cwd, { "pkg/a.py": "X = 1\n" }, "python base");
+    commitFiles(cwd, { "pkg/a.py": '"""Doc."""\n# why\nX = 2\n' }, "code");
+    git(cwd, "config", "diff.relative", "true");
+
+    const fromRoot = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+    const fromPkg = run(
+      "verify-comments-only.sh",
+      join(cwd, "pkg"),
+      "HEAD~1",
+      "HEAD",
+    );
+
+    expect(fromRoot.status).toBe(1);
+    expect(fromRoot.stdout.split("\n")).toEqual(["-X = 1", "+X = 2"]);
+    expect(fromPkg.status).toBe(1);
+    expect(fromPkg.stdout).toBe(fromRoot.stdout);
+  });
+
+  it("reports each hit of a copy's source once", () => {
+    const cwd = makeRepo();
+    git(cwd, "config", "diff.renames", "copies");
+    commitFiles(cwd, { "app/a.py": COPIED_PY }, "python base");
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": COPIED_PY.replace("x0 = 0", "# added\nx0 = 99"),
+        "app/b.py": COPIED_PY,
+      },
+      "copy",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+    const lines = result.stdout.split("\n");
+
+    expect(result.status).toBe(1);
+    expect(lines.filter((line) => line === "-x0 = 0")).toHaveLength(1);
+    expect(lines.filter((line) => line === "+x0 = 99")).toHaveLength(1);
+  });
+
+  it("fails when a doctest line in a docstring changed", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/calc.py": DOCTEST_PY }, "python base");
+    commitFiles(
+      cwd,
+      { "app/calc.py": DOCTEST_PY.replace("    3\n", "    4\n") },
+      "doctest",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual(["-    3", "+    4"]);
+  });
+
   it("exits 2 and names the ref when a ref does not exist", () => {
     const cwd = makeRepo();
 
@@ -999,12 +1306,12 @@ describe("verify-comments-only.sh", () => {
 });
 
 describe("lib.sh", () => {
-  it("defines the helper functions both scripts call", () => {
+  it("defines the four helper functions both scripts call", () => {
     const result = spawnSync(
       "bash",
       [
         "-c",
-        'source "$1" && for f in check_refs read_change mark_listed_lines; do echo "$f $(type -t "$f")"; done',
+        'source "$1" && for f in check_refs read_change collect_mixed_renames mark_listed_lines; do echo "$f $(type -t "$f")"; done',
         "lib",
         join(scriptsDir, "lib.sh"),
       ],
@@ -1015,6 +1322,7 @@ describe("lib.sh", () => {
     expect(result.stdout.trim().split("\n")).toEqual([
       "check_refs function",
       "read_change function",
+      "collect_mixed_renames function",
       "mark_listed_lines function",
     ]);
   });

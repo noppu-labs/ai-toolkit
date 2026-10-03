@@ -22,13 +22,18 @@ check_refs() {
 }
 
 # Reads one `git diff --name-status -z` entry from stdin into status, old (set
-# only for a rename or copy), and path. Returns 1 at the end of input.
+# only for a rename), and path. Returns 1 at the end of input. A copy reads as
+# an added file, status A: its source still exists, so a paired diff would also
+# carry the source's changes.
 read_change() {
+  local copied
+
   old=""
   IFS= read -r -d '' status || return 1
 
   case $status in
-    R* | C*) IFS= read -r -d '' old ;;
+    R*) IFS= read -r -d '' old ;;
+    C*) IFS= read -r -d '' copied && status=A ;;
   esac
 
   IFS= read -r -d '' path
@@ -37,8 +42,7 @@ read_change() {
 # Reads `git diff --name-status -z` from stdin and collects each rename where
 # exactly one side ends in .py, which the *.py exclude would split in two. Sets
 # mixed to the old and new path of each, in turn, and mixed_excludes to exclude
-# pathspecs that keep both out of the regex pass. A copy is left alone: its
-# source still exists, so a paired diff would also carry the source's changes.
+# pathspecs that keep both out of the regex pass.
 collect_mixed_renames() {
   mixed=()
   mixed_excludes=()
@@ -46,7 +50,7 @@ collect_mixed_renames() {
   while read_change; do
     if [[ $status == R* && ($old == *.py && $path != *.py || $old != *.py && $path == *.py) ]]; then
       mixed+=("$old" "$path")
-      mixed_excludes+=(":(top,exclude)$old" ":(top,exclude)$path")
+      mixed_excludes+=(":(top,literal,exclude)$old" ":(top,literal,exclude)$path")
     fi
   done
 }
