@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -889,5 +889,49 @@ describe("verify-comments-only.sh", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("no-such-ref");
+  });
+});
+
+describe("lib.sh", () => {
+  it("defines the helper functions both scripts call", () => {
+    const result = spawnSync(
+      "bash",
+      [
+        "-c",
+        'source "$1" && for f in check_refs read_change mark_listed_lines; do echo "$f $(type -t "$f")"; done',
+        "lib",
+        join(scriptsDir, "lib.sh"),
+      ],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim().split("\n")).toEqual([
+      "check_refs function",
+      "read_change function",
+      "mark_listed_lines function",
+    ]);
+  });
+
+  it("makes each script exit 2 and name lib.sh when lib.sh is missing", () => {
+    const cwd = makeRepo();
+    const bare = mkdtempSync(join(tmpdir(), "review-scripts-no-lib-"));
+
+    for (const script of [
+      "count-comment-lines.sh",
+      "verify-comments-only.sh",
+    ]) {
+      copyFileSync(join(scriptsDir, script), join(bare, script));
+
+      const result = spawnSync("bash", [join(bare, script), "main", "main"], {
+        cwd,
+        encoding: "utf8",
+      });
+
+      expect(result.status).toBe(2);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain(`${script}: cannot read`);
+      expect(result.stderr).toContain("lib.sh");
+    }
   });
 });

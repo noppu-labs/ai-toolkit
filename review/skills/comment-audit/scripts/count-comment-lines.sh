@@ -7,24 +7,15 @@
 # that does not parse, Python is counted by the same regex as everything else.
 set -euo pipefail
 
-if [ "$#" -lt 2 ]; then
-  echo "usage: $0 BASE HEAD [DIR...]" >&2
-  exit 2
-fi
+lib="$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+[ -r "$lib" ] || { echo "count-comment-lines.sh: cannot read $lib" >&2; exit 2; }
+source "$lib"
 
+check_refs count-comment-lines.sh 'BASE HEAD' "$@"
 base=$1
 head=$2
 shift 2
 
-for ref in "$base" "$head"; do
-  if ! git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null; then
-    echo "count-comment-lines.sh: $ref is not a commit in this clone" >&2
-    exit 2
-  fi
-done
-
-helper="$(dirname "${BASH_SOURCE[0]}")/python-comment-lines.py"
-python=${REVIEW_PYTHON:-python3}
 comment='^\+[[:space:]]*(//|#[^[]|#$|\*|/\*|"""|\{/\*|<!--)'
 
 count_by_regex() {
@@ -42,13 +33,8 @@ count_python() {
   fi
 
   git diff -U0 "${base}...${head}" -- ${old:+":(top)$old"} ":(top)$path" \
-    | awk -v keep="$(printf '%s ' $lines)" '
-        BEGIN { n = split(keep, k, " "); for (i = 1; i <= n; i++) comment[k[i]] = 1 }
-        /^diff --git / { line = 0; next }
-        /^@@ / { split($3, h, ","); line = substr(h[1], 2) + 0; next }
-        line && /^\+/ { if (line in comment) count++; line++ }
-        END { print count + 0 }
-      '
+    | mark_listed_lines "" "$lines" \
+    | awk '/^1\+/ { count++ } END { print count + 0 }'
 }
 
 if ! command -v "$python" >/dev/null 2>&1; then
@@ -59,15 +45,7 @@ fi
 
 total=$(count_by_regex "$@" ':(top,exclude)*.py')
 
-while IFS= read -r -d '' status; do
-  old=""
-
-  case $status in
-    R* | C*) IFS= read -r -d '' old ;;
-  esac
-
-  IFS= read -r -d '' path
-
+while read_change; do
   if [[ $path == *.py && $status != D ]]; then
     total=$((total + $(count_python "$path" "$old")))
   fi
