@@ -59,6 +59,27 @@ function makeFailingPython(): string {
   return path;
 }
 
+// Runs lib.sh's route_diff over a hand-built stream: registry lines, helper
+// sections, then a patch.
+function routeDiff(mode: string, stream: string): RunResult {
+  const result = spawnSync(
+    "bash",
+    [
+      "-c",
+      'source "$1" && route_diff "$2" FROM TO',
+      "lib",
+      join(scriptsDir, "lib.sh"),
+      mode,
+    ],
+    { encoding: "utf8", input: stream },
+  );
+  return {
+    status: result.status,
+    stdout: result.stdout.trim(),
+    stderr: result.stderr,
+  };
+}
+
 function commitFiles(
   cwd: string,
   files: Record<string, string>,
@@ -1306,12 +1327,12 @@ describe("verify-comments-only.sh", () => {
 });
 
 describe("lib.sh", () => {
-  it("defines the four helper functions both scripts call", () => {
+  it("defines the five helper functions both scripts call", () => {
     const result = spawnSync(
       "bash",
       [
         "-c",
-        'source "$1" && for f in check_refs read_change collect_mixed_renames mark_listed_lines; do echo "$f $(type -t "$f")"; done',
+        'source "$1" && for f in check_refs git_diff read_change read_changes route_diff; do echo "$f $(type -t "$f")"; done',
         "lib",
         join(scriptsDir, "lib.sh"),
       ],
@@ -1321,10 +1342,90 @@ describe("lib.sh", () => {
     expect(result.status).toBe(0);
     expect(result.stdout.trim().split("\n")).toEqual([
       "check_refs function",
+      "git_diff function",
       "read_change function",
-      "collect_mixed_renames function",
-      "mark_listed_lines function",
+      "read_changes function",
+      "route_diff function",
     ]);
+  });
+
+  it("routes a listed Python file by its line numbers and every other file by the regex", () => {
+    const stream = [
+      "M\t\tapp/a.py",
+      "M\t\tapp/b.php",
+      "== to 0",
+      "app/a.py\t2",
+      "== diff",
+      "diff --git a/app/a.py b/app/a.py",
+      "--- a/app/a.py",
+      "+++ b/app/a.py",
+      "@@ -1,0 +2,2 @@",
+      '+"""Doc."""',
+      "+x = 1  # note",
+      "diff --git a/app/b.php b/app/b.php",
+      "--- a/app/b.php",
+      "+++ b/app/b.php",
+      "@@ -1,0 +2,2 @@",
+      "+// why",
+      "+$x = 1;",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("2");
+    expect(verify.stdout.split("\n")).toEqual(["+x = 1  # note", "+$x = 1;"]);
+  });
+
+  it("fails every file of a side whose helper died, skips markdown on both sides, and names a file that broke at TO", () => {
+    const stream = [
+      "M\t\tapp/a.py",
+      "M\t\tapp/b.py",
+      "R100\tdocs/old.md\tdocs/new.md",
+      "== from 1",
+      "boom",
+      "== to 1",
+      "app/b.py\tpython-comment-lines.py: app/b.py at TO: bad",
+      "== diff",
+      "diff --git a/app/a.py b/app/a.py",
+      "--- a/app/a.py",
+      "+++ b/app/a.py",
+      "@@ -1 +1 @@",
+      "-# old",
+      "+# new",
+      "diff --git a/app/b.py b/app/b.py",
+      "--- a/app/b.py",
+      "+++ b/app/b.py",
+      "@@ -1 +1 @@",
+      "-x = 1",
+      "+x = 2",
+      "diff --git a/docs/old.md b/docs/new.md",
+      "similarity index 90%",
+      "rename from docs/old.md",
+      "rename to docs/new.md",
+      "--- a/docs/old.md",
+      "+++ b/docs/new.md",
+      "@@ -1 +1 @@",
+      "-# Old",
+      "+New prose",
+      "",
+    ].join("\n");
+
+    const verify = routeDiff("verify", stream);
+
+    // Both Python files failed at FROM (the interpreter died), so both use
+    // the regex: a.py's comment change is not a hit, b.py's code change is.
+    // The markdown rename is skipped. b.py's TO failure is never reached.
+    expect(verify.stdout.split("\n")).toEqual(["-x = 1", "+x = 2"]);
+    expect(verify.stderr).toContain(
+      "verify-comments-only.sh: boom; checked with the regex",
+    );
+    expect(
+      verify.stderr.split("\n").filter((l) => l.includes("boom")),
+    ).toHaveLength(2);
+    expect(verify.stdout).not.toContain("New prose");
   });
 
   it("makes each script exit 2 and name lib.sh when lib.sh is missing", () => {
