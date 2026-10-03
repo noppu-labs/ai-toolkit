@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -73,6 +79,49 @@ function makeSideFailingPython(ref: string): string {
     { mode: 0o755 },
   );
   return path;
+}
+
+const COUNTED_TOOLS: readonly string[] = [
+  "git",
+  "awk",
+  "grep",
+  "sed",
+  "head",
+  "tr",
+  "cut",
+  "sort",
+  "wc",
+  "cat",
+  "mktemp",
+  "rm",
+  "dirname",
+  "basename",
+  "python3",
+];
+
+// A PATH entry of wrappers that append the tool's name to `log` and exec the
+// real tool, so a test can count the external processes a script starts.
+function makeCountingPath(log: string): string {
+  const dir = mkdtempSync(join(tmpdir(), "review-scripts-path-"));
+  for (const tool of COUNTED_TOOLS) {
+    const real = spawnSync("sh", ["-c", `command -v ${tool}`], {
+      encoding: "utf8",
+    }).stdout.trim();
+    if (real === "") {
+      continue;
+    }
+    writeFileSync(
+      join(dir, tool),
+      `#!/bin/sh\necho ${tool} >> "${log}"\nexec "${real}" "$@"\n`,
+      { mode: 0o755 },
+    );
+  }
+  return dir;
+}
+
+function countLogged(log: string): number {
+  const text = readFileSync(log, "utf8").trim();
+  return text === "" ? 0 : text.split("\n").length;
 }
 
 // Runs lib.sh's route_diff over a hand-built stream: registry lines, helper
@@ -1536,6 +1585,62 @@ describe("verify-comments-only.sh", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("no-such-ref");
+  });
+});
+
+describe("process budget", () => {
+  it("runs count and verify over 200 Python files in fewer than 20 processes each", () => {
+    const cwd = makeRepo();
+    const base: Record<string, string> = {};
+    const changed: Record<string, string> = {};
+    for (let i = 0; i < 200; i++) {
+      base[`app/m${i}.py`] = TOTALS_PY;
+      changed[`app/m${i}.py`] = `${TOTALS_PY}# note ${i}\n`;
+    }
+    for (let i = 0; i < 20; i++) {
+      base[`app/C${i}.php`] = `<?php\nclass C${i}\n{\n}\n`;
+      changed[`app/C${i}.php`] = `<?php\n// why\nclass C${i}\n{\n}\n`;
+    }
+    commitFiles(cwd, base, "base files");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, changed, "notes");
+    const log = join(
+      mkdtempSync(join(tmpdir(), "review-scripts-log-")),
+      "processes",
+    );
+    const shims = makeCountingPath(log);
+    const env: Record<string, string> = {
+      PATH: `${shims}:${process.env.PATH ?? ""}`,
+      REVIEW_PYTHON: join(shims, "python3"),
+    };
+
+    writeFileSync(log, "");
+    const count = runWithEnv(
+      env,
+      "count-comment-lines.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+    const countProcesses = countLogged(log);
+    writeFileSync(log, "");
+    const verify = runWithEnv(
+      env,
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+    const verifyProcesses = countLogged(log);
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("220");
+    expect(countProcesses).toBeLessThan(20);
+    expect(verify.status).toBe(0);
+    expect(verify.stdout).toBe("only comment lines changed");
+    expect(verifyProcesses).toBeLessThan(20);
   });
 });
 
