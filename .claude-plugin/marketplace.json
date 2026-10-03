@@ -18,7 +18,7 @@
     {
       "name": "review",
       "source": "./review",
-      "description": "Code review skills for PHP, TypeScript, and Python: comment audit, type-safety review, and a three-stage PR review orchestrator"
+      "description": "Code review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, a three-stage PR review orchestrator, and PR comments"
     }
   ]
 }
