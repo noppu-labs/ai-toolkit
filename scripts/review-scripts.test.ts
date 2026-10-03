@@ -1807,7 +1807,7 @@ describe("lib.sh", () => {
     expect(verify.stdout.split("\n")).toEqual(["+x = 1  # note", "+$x = 1;"]);
   });
 
-  it("fails every file of a side whose helper died, skips markdown on both sides, and names a file that broke at TO", () => {
+  it("fails every file of a side whose helper died, skips markdown on both sides, and does not reach a TO failure once FROM failed", () => {
     const stream = [
       "M\t\tapp/a.py",
       "M\t\tapp/b.py",

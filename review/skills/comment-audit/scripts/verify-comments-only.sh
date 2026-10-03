@@ -4,9 +4,9 @@
 # a comment terminator, or blank. Markdown files are excluded because README sections
 # are an expected part of a comment trim. Exit 1 when any line is printed.
 # Python files are checked against python-comment-lines.py, run once per side
-# over every Python file, so every docstring line but a doctest counts as a
-# comment and a changed tool directive is a hit. Without python3, or for a file
-# that already does not parse at FROM, Python uses the regex filter.
+# over every changed Python file, so every docstring line but a doctest counts
+# as a comment and a changed tool directive is a hit. Without python3, or for a
+# file that already does not parse at FROM, Python uses the regex filter.
 set -euo pipefail
 
 lib="$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -20,10 +20,10 @@ shift 2
 
 read_changes < <(git_diff --name-status -z "$from" "$to" -- "$@")
 
-# Every Python file on each side: at FROM under its old name, at TO under its
-# new one. A file that parses at FROM and not at TO was broken by the change,
-# so route_diff reports that as a hit; one that already fails at FROM falls
-# back to the regex.
+# Every changed Python file on each side: at FROM under its old name, at TO
+# under its new one. A file that parses at FROM and not at TO was broken by the
+# change, so route_diff reports that as a hit; one that already fails at FROM
+# falls back to the regex.
 from_paths=()
 to_paths=()
 for ((i = 0; i < ${#paths[@]}; i++)); do

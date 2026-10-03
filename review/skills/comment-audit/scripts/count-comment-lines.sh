@@ -3,9 +3,9 @@
 # Prints the number of comment lines added between BASE and HEAD (three-dot diff),
 # limited to DIR paths when given. Recognises //, #, *, /*, /**, """, {/* and <!--.
 # Python files are counted by python-comment-lines.py instead, which knows every
-# line of a docstring and skips tool directives; it reads every Python file at
-# HEAD in one call. Without python3, or for a file that does not parse, Python
-# is counted by the same regex as everything else.
+# line of a docstring and skips tool directives; it reads every changed Python
+# file at HEAD in one call. Without python3, or for a file that does not parse,
+# Python is counted by the same regex as everything else.
 set -euo pipefail
 
 lib="$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -19,7 +19,7 @@ shift 2
 
 read_changes < <(git_diff --name-status -z "${base}...${head}" -- "$@")
 
-# Every Python file present at HEAD.
+# Every changed Python file present at HEAD.
 to_paths=()
 for ((i = 0; i < ${#paths[@]}; i++)); do
   if [[ ${statuses[i]} != D && ${paths[i]} == *.py ]]; then

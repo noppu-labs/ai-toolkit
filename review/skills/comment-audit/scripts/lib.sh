@@ -32,7 +32,8 @@ git_diff() {
 }
 
 # Reads one `git diff --name-status -z` entry from stdin into status, old (set
-# only for a rename), and path. Returns 1 at the end of input.
+# only for a rename), and path. Returns 1 at the end of input. It relies on
+# git_diff's -M, which reports no copies: a C entry carries two paths too.
 read_change() {
   old=""
   IFS= read -r -d '' status || return 1
@@ -69,17 +70,18 @@ read_changes() {
 # ran on, `== from RC` or `== to RC` followed by the helper's output; then
 # `== diff` and a -U0 patch from git_diff. Each file section is routed by its
 # header: a Python file the helper listed uses the listed line numbers, one it
-# failed on is reported on stderr and uses the regex, and every other file uses
-# the regex. count prints the number of added comment lines; verify prints
-# every changed line that is not a comment or blank, markdown on both sides
-# excluded, and `PATH: does not parse as Python at TO` for a file that parsed
-# at FROM only.
+# failed on at FROM (or, in count, at TO) is reported on stderr and uses the
+# regex, and every other file uses the regex. count prints the number of added
+# comment lines; verify prints every changed line that is not a comment or
+# blank, markdown on both sides excluded, and `PATH: does not parse as Python
+# at TO` for a file the helper failed on at TO but not at FROM.
 route_diff() {
   awk -v mode="$1" -v from="$2" -v to="$3" '
     function ends(s, suffix) {
       return (substr(s, length(s) - length(suffix) + 1) == suffix)
     }
-    # The paths a side was sent: every Python file present on that side.
+    # The paths a side was sent: every changed file whose new name ends in
+    # .py and that exists on that side, under its name there.
     function open_side(side,   i) {
       for (i = 1; i <= n; i++) {
         if (!ends(news[i], ".py")) continue
