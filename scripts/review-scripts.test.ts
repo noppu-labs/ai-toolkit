@@ -59,6 +59,22 @@ function makeFailingPython(): string {
   return path;
 }
 
+// An interpreter that fails only when asked about `ref` (the helper's first
+// argument after the script) and otherwise defers to python3.
+function makeSideFailingPython(ref: string): string {
+  const real = spawnSync("sh", ["-c", "command -v python3"], {
+    encoding: "utf8",
+  }).stdout.trim();
+  const dir = mkdtempSync(join(tmpdir(), "review-scripts-python-"));
+  const path = join(dir, "python");
+  writeFileSync(
+    path,
+    `#!/bin/sh\nif [ "$2" = "${ref}" ]; then echo boom >&2; exit 1; fi\nexec "${real}" "$@"\n`,
+    { mode: 0o755 },
+  );
+  return path;
+}
+
 // Runs lib.sh's route_diff over a hand-built stream: registry lines, helper
 // sections, then a patch.
 function routeDiff(mode: string, stream: string): RunResult {
@@ -1403,6 +1419,113 @@ describe("verify-comments-only.sh", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout.split("\n")).toEqual(["-    3", "+    4"]);
+  });
+
+  it("checks only the Python file that does not parse at FROM with the regex, in a batch", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "app/good.py": TOTALS_PY,
+        "app/broken.py": "def broken(:\n# note\n",
+      },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/good.py": "'''Totals.'''\nTOTAL = 1\n",
+        "app/broken.py": "def broken(:\n# other note\n",
+      },
+      "trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.stderr).toContain("app/broken.py");
+    expect(result.stderr).not.toContain("app/good.py");
+  });
+
+  it("fails and names every Python file when the helper fails at TO only", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/b.py": TOTALS_PY },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": "'''Totals.'''\nTOTAL = 1\n",
+        "app/b.py": "'''Totals.'''\nTOTAL = 1\n",
+      },
+      "trim",
+    );
+
+    const result = runWithEnv(
+      { REVIEW_PYTHON: makeSideFailingPython("HEAD") },
+      "verify-comments-only.sh",
+      cwd,
+      "HEAD~1",
+      "HEAD",
+      "app",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "app/a.py: does not parse as Python at HEAD",
+      "app/b.py: does not parse as Python at HEAD",
+    ]);
+  });
+
+  it("pairs a rename and does not pair a copy inside one batched diff", () => {
+    const cwd = makeRepo();
+    git(cwd, "config", "diff.renames", "copies");
+    commitFiles(
+      cwd,
+      { "app/a.py": COPIED_PY, "app/m.py": MIXED_PY },
+      "python base",
+    );
+    git(cwd, "mv", "app/m.py", "app/n.py");
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": COPIED_PY.replace("x0 = 0", "# added\nx0 = 0"),
+        "app/b.py": COPIED_PY,
+        "app/n.py": MIXED_PY.replace("# why\n", ""),
+      },
+      "copy and rename",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+    const lines = result.stdout.split("\n");
+
+    expect(result.status).toBe(1);
+    // b.py is an added file, so its code is a hit once; a paired copy would
+    // show no x0 line at all.
+    expect(lines.filter((line) => line === "+x0 = 0")).toHaveLength(1);
+    // n.py is paired with m.py, so its unchanged code is not a hit. The one
+    // added "def first" line is b.py's; an unpaired n.py would make it two.
+    expect(lines).not.toContain("-def first() -> int:");
+    expect(
+      lines.filter((line) => line === "+def first() -> int:"),
+    ).toHaveLength(1);
+    expect(lines).not.toContain("-# why");
+  });
+
+  it("pairs a renamed Python file when diff.renames is false", () => {
+    const cwd = makeRepo();
+    git(cwd, "config", "diff.renames", "false");
+    commitFiles(cwd, { "app/m.py": MIXED_PY }, "python base");
+    git(cwd, "mv", "app/m.py", "app/n.py");
+    commitFiles(cwd, { "app/n.py": MIXED_PY.replace("# why\n", "") }, "rename");
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
   });
 
   it("exits 2 and names the ref when a ref does not exist", () => {
