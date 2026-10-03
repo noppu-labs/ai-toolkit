@@ -1349,3 +1349,87 @@ describe("lib.sh", () => {
     }
   });
 });
+
+describe("python-comment-lines.py", () => {
+  const helper: string = join(scriptsDir, "python-comment-lines.py");
+
+  function runHelper(cwd: string, input: string, ...args: string[]): RunResult {
+    const result = spawnSync("python3", [helper, ...args], {
+      cwd,
+      encoding: "utf8",
+      input,
+    });
+    return {
+      status: result.status,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    };
+  }
+
+  it("prints a path and line record for every path on stdin, and keeps the REF PATH form", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/b.py": "# why\nX = 1\n" },
+      "python",
+    );
+
+    const batch = runHelper(cwd, "app/a.py\0app/b.py\0", "HEAD");
+    const single = runHelper(cwd, "", "HEAD", "app/a.py");
+
+    expect(batch.status).toBe(0);
+    expect(batch.stderr).toBe("");
+    expect(batch.stdout).toBe(
+      "app/a.py\t1\napp/a.py\t3\napp/a.py\t4\napp/b.py\t1\n",
+    );
+    expect(single.status).toBe(0);
+    expect(single.stdout).toBe("1\n3\n4\n");
+  });
+
+  it("reports a missing path and one that does not parse on stderr, skips them, and exits 1", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/broken.py": "def broken(:\n# note\n" },
+      "python",
+    );
+
+    const result = runHelper(
+      cwd,
+      "app/a.py\0app/nope.py\0app/broken.py\0",
+      "HEAD",
+    );
+    const errors = result.stderr.trimEnd().split("\n");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("app/a.py\t1\napp/a.py\t3\napp/a.py\t4\n");
+    expect(errors).toHaveLength(2);
+    expect(errors[0]).toMatch(
+      /^app\/nope\.py\tpython-comment-lines\.py: app\/nope\.py at HEAD: missing/,
+    );
+    expect(errors[1]).toMatch(
+      /^app\/broken\.py\tpython-comment-lines\.py: app\/broken\.py at HEAD: /,
+    );
+  });
+
+  it("prints nothing and exits 0 on empty input", () => {
+    const cwd = makeRepo();
+
+    const result = runHelper(cwd, "", "HEAD");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+  });
+
+  it("exits 2 on a usage error", () => {
+    const cwd = makeRepo();
+
+    const result = runHelper(cwd, "", "HEAD", "a.py", "b.py");
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(
+      "usage: python-comment-lines.py REF [PATH]",
+    );
+  });
+});
