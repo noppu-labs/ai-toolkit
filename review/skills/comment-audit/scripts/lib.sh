@@ -74,9 +74,10 @@ read_changes() {
 # regex, and every other file uses the regex. count prints the number of added
 # comment lines; verify prints every changed line that is not a comment or
 # blank, markdown on both sides excluded, and `PATH: does not parse as Python
-# at TO` for a file the helper failed on at TO but not at FROM.
+# at TO` for a file the helper failed on at TO but not at FROM. awk runs in
+# the C locale because paths and content are bytes, not always UTF-8.
 route_diff() {
-  awk -v mode="$1" -v from="$2" -v to="$3" '
+  LC_ALL=C awk -v mode="$1" -v from="$2" -v to="$3" '
     function ends(s, suffix) {
       return (substr(s, length(s) - length(suffix) + 1) == suffix)
     }

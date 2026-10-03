@@ -237,6 +237,41 @@ const DOCTEST_PY: string = [
 // stderr from Python 3.12.
 const INVALID_ESCAPE_PY: string = 'DIGITS = "\\d+"\n';
 
+// On a feature branch, adds a `// caf\xe9 comment` line and a code line to
+// app/a.js and adds app/caf\xe9.py holding TOTALS_PY: a Latin-1 byte in
+// a changed line and in a path. The path goes straight into the index,
+// because APFS refuses a file name that is not UTF-8.
+function commitLatin1Change(cwd: string): void {
+  commitFiles(cwd, { "app/a.js": "x = 1\n" }, "js base");
+  git(cwd, "checkout", "-q", "-b", "feature");
+  writeFileSync(
+    join(cwd, "app", "a.js"),
+    Buffer.concat([
+      Buffer.from("// caf"),
+      Buffer.from([0xe9]),
+      Buffer.from(" comment\nx = 1\nx = 2\n"),
+    ]),
+  );
+  git(cwd, "add", "app/a.js");
+  const sha = spawnSync("git", ["hash-object", "-w", "--stdin"], {
+    cwd,
+    encoding: "utf8",
+    input: TOTALS_PY,
+  }).stdout.trim();
+  const index = spawnSync("git", ["update-index", "--add", "--index-info"], {
+    cwd,
+    input: Buffer.concat([
+      Buffer.from(`100644 ${sha}\tapp/caf`),
+      Buffer.from([0xe9]),
+      Buffer.from(".py\n"),
+    ]),
+  });
+  expect(index.status).toBe(0);
+  git(cwd, "commit", "-q", "-m", "latin-1");
+}
+
+const UTF8_LOCALE: Record<string, string> = { LC_ALL: "en_US.UTF-8" };
+
 function renameAcrossExtensions(
   cwd: string,
   from: string,
@@ -842,6 +877,24 @@ describe("count-comment-lines.sh", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("no-such-ref");
+  });
+
+  it("counts a comment holding a byte that is not UTF-8, and a Python file whose path holds one, under a UTF-8 locale", () => {
+    const cwd = makeRepo();
+    commitLatin1Change(cwd);
+
+    const result = runWithEnv(
+      UTF8_LOCALE,
+      "count-comment-lines.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("4");
+    expect(result.stderr).toBe("");
   });
 });
 
@@ -1695,6 +1748,24 @@ describe("verify-comments-only.sh", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("no-such-ref");
+  });
+
+  it("fails on a code change beside a comment holding a byte that is not UTF-8 and a Python file whose path holds one, under a UTF-8 locale", () => {
+    const cwd = makeRepo();
+    commitLatin1Change(cwd);
+
+    const result = runWithEnv(
+      UTF8_LOCALE,
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual(["+x = 2", "+TOTAL = 1"]);
+    expect(result.stderr).toBe("");
   });
 });
 
