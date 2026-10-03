@@ -47,9 +47,9 @@ read_change() {
 
 # Reads every `git diff --name-status -z` entry from stdin into the parallel
 # arrays statuses, olds, and paths, leaving out an entry whose old or new path
-# holds a newline or a tab: it would break the line and tab framing of
-# route_diff's stream, so it is never sent to the helper and route_diff
-# routes it to the regex.
+# holds a control character, `"` or `\`: these are the characters git quotes
+# in a `diff --git` header, so route_diff could not match the header. They are
+# never sent to the helper, and route_diff reports them.
 read_changes() {
   statuses=()
   olds=()
@@ -57,7 +57,7 @@ read_changes() {
 
   while read_change; do
     case $old$path in
-      *$'\n'* | *$'\t'*) continue ;;
+      *[[:cntrl:]]* | *[\"\\]*) continue ;;
     esac
     statuses+=("$status")
     olds+=("$old")
@@ -164,8 +164,30 @@ route_diff() {
       if (m != "") return m
       return (mode == "count" ? p " does not parse as Python at " ref[side] : p " does not parse as Python")
     }
-    function classify(header,   i, old, new, start) {
-      if (!(header in entry)) return "regex"
+    # A header with no registry line names a path read_changes left out
+    # because git quotes it. One path on both sides that is markdown stays
+    # skipped in verify; a Python path is named on stderr and uses the regex.
+    function unregistered(header, seen,   r, p, same) {
+      r = substr(header, length("diff --git ") + 1)
+      if (substr(r, 1, 1) == "\"") {
+        p = substr(r, 4, (length(r) - 9) / 2)
+        same = (r == "\"a/" p "\" \"b/" p "\"")
+      } else {
+        p = substr(r, 3, (length(r) - 5) / 2)
+        same = (r == "a/" p " b/" p)
+      }
+      if (same && mode == "verify" && ends(p, ".md")) return "skip"
+      if (same ? ends(p, ".py") : (ends(r, ".py\"") || ends(r, ".py"))) {
+        if (!seen) print script ": " r " is a path git quotes; " fallback > "/dev/stderr"
+      }
+      return "regex"
+    }
+    # A typechange has two sections under one header, so seen keeps each
+    # message to one print.
+    function classify(header,   i, old, new, start, seen) {
+      seen = (header in reported)
+      reported[header] = 1
+      if (!(header in entry)) return unregistered(header, seen)
       i = entry[header]
       old = olds[i]
       new = news[i]
@@ -175,15 +197,15 @@ route_diff() {
       if (mode == "verify" && ends(new, ".md") && (old == "" || ends(old, ".md"))) return "skip"
       if (!(("from", start) in known) && !(("to", new) in known)) return "regex"
       if (("from", start) in failed) {
-        print script ": " reason("from", start) "; " fallback > "/dev/stderr"
+        if (!seen) print script ": " reason("from", start) "; " fallback > "/dev/stderr"
         return "regex"
       }
       if (("to", new) in failed) {
         if (mode == "count") {
-          print script ": " reason("to", new) "; " fallback > "/dev/stderr"
+          if (!seen) print script ": " reason("to", new) "; " fallback > "/dev/stderr"
           return "regex"
         }
-        print new ": does not parse as Python at " to
+        if (!seen) print new ": does not parse as Python at " to
         return "skip"
       }
       return "py"

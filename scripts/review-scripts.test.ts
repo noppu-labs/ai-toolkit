@@ -5,6 +5,8 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -913,6 +915,27 @@ describe("count-comment-lines.sh", () => {
     ]);
   });
 
+  it("counts a Python file whose path git quotes with the regex, and names it on stderr", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "plain.py": TOTALS_PY, 'q"uote.py': TOTALS_PY, "ta\tb.py": TOTALS_PY },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature");
+
+    // The helper counts plain.py's three docstring lines; the regex counts
+    // none of the ''' lines in the other two.
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("3");
+    expect(result.stderr.trimEnd().split("\n")).toEqual([
+      'count-comment-lines.sh: "a/q\\"uote.py" "b/q\\"uote.py" is a path git quotes; counted by the regex',
+      'count-comment-lines.sh: "a/ta\\tb.py" "b/ta\\tb.py" is a path git quotes; counted by the regex',
+    ]);
+  });
+
   it("counts a comment holding a byte that is not UTF-8, and a Python file whose path holds one, under a UTF-8 locale", () => {
     const cwd = makeRepo();
     commitLatin1Change(cwd);
@@ -1782,6 +1805,47 @@ describe("verify-comments-only.sh", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("no-such-ref");
+  });
+
+  it("skips a markdown file whose path git quotes", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { 'q"uote.md': "line one\n", "back\\slash.md": "line one\n" },
+      "docs",
+    );
+    commitFiles(
+      cwd,
+      {
+        'q"uote.md': "line one\nprose added\n",
+        "back\\slash.md": "line one\nprose added\n",
+      },
+      "prose",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.stderr).toBe("");
+  });
+
+  it("names a Python file replaced by a symlink that does not parse once", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/a.py": "X = 1\n" }, "python base");
+    rmSync(join(cwd, "app", "a.py"));
+    symlinkSync("../README.md", join(cwd, "app", "a.py"));
+    git(cwd, "add", "-A");
+    git(cwd, "commit", "-q", "-m", "symlink");
+
+    const verify = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+    const count = run("count-comment-lines.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(verify.status).toBe(1);
+    expect(verify.stdout).toBe("app/a.py: does not parse as Python at HEAD");
+    expect(count.stderr.trimEnd().split("\n")).toEqual([
+      expect.stringContaining("app/a.py at HEAD"),
+    ]);
   });
 
   it("fails on a code change beside a comment holding a byte that is not UTF-8 and a Python file whose path holds one, under a UTF-8 locale", () => {
