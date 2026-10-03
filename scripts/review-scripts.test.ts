@@ -675,6 +675,96 @@ describe("count-comment-lines.sh", () => {
     expect(result.stdout).toBe("2");
   });
 
+  it("counts several Python files with the helper and only the one that does not parse with the regex", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": TOTALS_PY,
+        "app/broken.py":
+          'def broken(:\n    """Doc.\n\n    More.\n    """\n# note\n',
+        "app/c.py": "# why\nX = 1\n",
+      },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    // a.py 3 by the helper, broken.py 3 by the regex, c.py 1 by the helper.
+    expect(result.stdout).toBe("7");
+    expect(result.stderr).toContain("app/broken.py");
+    expect(result.stderr).not.toContain("app/a.py");
+    expect(result.stderr).not.toContain("app/c.py");
+  });
+
+  it("counts a Python file whose path has non-ASCII characters with the helper", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, { "app/café.py": TOTALS_PY }, "feature");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    // The regex would see 0 (it only matches """ quotes); the helper sees the docstring.
+    expect(result.stdout).toBe("3");
+  });
+
+  it("counts the same when diff.noprefix is set", () => {
+    const cwd = makeRepo();
+    git(cwd, "config", "diff.noprefix", "true");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, { "app/a.py": TOTALS_PY }, "feature");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("3");
+  });
+
+  it("counts 0 for a Python file with no comment lines beside one that has them", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "app/a.py": "X = 1\nY = 2\n", "app/b.py": TOTALS_PY },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("3");
+  });
+
+  it("warns about every Python file when the helper dies, and counts them with the regex", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "app/a.py": "# why\nX = 1\n", "app/b.py": "# why not\nY = 1\n" },
+      "feature",
+    );
+
+    const result = runWithEnv(
+      { REVIEW_PYTHON: makeFailingPython() },
+      "count-comment-lines.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("2");
+    expect(
+      result.stderr.split("\n").filter((line) => line.includes("boom")),
+    ).toHaveLength(2);
+  });
+
   it("exits 2 and names the ref when a ref does not exist", () => {
     const cwd = makeRepo();
 
