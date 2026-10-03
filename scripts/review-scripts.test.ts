@@ -233,6 +233,10 @@ const DOCTEST_PY: string = [
   "",
 ].join("\n");
 
+// A plain string with an invalid escape, which ast.parse warns about on
+// stderr from Python 3.12.
+const INVALID_ESCAPE_PY: string = 'DIGITS = "\\d+"\n';
+
 function renameAcrossExtensions(
   cwd: string,
   from: string,
@@ -1575,6 +1579,112 @@ describe("verify-comments-only.sh", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("only comment lines changed");
+  });
+
+  it("fails on a code change when another file's name holds a newline that reads as a helper section", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "evil.py": "def f():\n    return 1\n" }, "python base");
+    commitFiles(
+      cwd,
+      {
+        "evil.py": "def f():\n    import os\n    return 1\n",
+        "zzz\n== to 0\nevil.py\t2\nq": "# hi\n",
+      },
+      "change",
+    );
+
+    for (const env of [{}, NO_PYTHON]) {
+      const result = runWithEnv(
+        env,
+        "verify-comments-only.sh",
+        cwd,
+        "HEAD~1",
+        "HEAD",
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("+    import os");
+    }
+  });
+
+  it("fails on a changed directive when another file's name holds a tab and does not parse at FROM", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "app/evil.py": "# type: ignore\nimport os\n",
+        "app/evil.py\tx.py": "def b(:\n# a\n",
+      },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/evil.py": "# pyright: basic\nimport os\n",
+        "app/evil.py\tx.py": "def b(:\n# b\n",
+      },
+      "trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "-# type: ignore",
+      "+# pyright: basic",
+    ]);
+  });
+
+  it("fails on a code change beside a Python file in a directory named like a helper section", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, "== to 0"));
+    commitFiles(
+      cwd,
+      { "== to 0/x.py": "# one\nX = 1\n", "p.py": "# c\nX = 1\n" },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      { "== to 0/x.py": "# one\n\nX = 1\n", "p.py": "import os\n# c\nX = 1\n" },
+      "change",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("+import os");
+  });
+
+  it("fails on a changed directive when another file warns while parsing and a third does not parse at FROM", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": `# Digits, as a long note.\n${INVALID_ESCAPE_PY}`,
+        "app/legacy.py": 'print "legacy"\n# note\n',
+        "app/c.py": "# type: ignore\nimport os\n",
+      },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": `# Digits.\n${INVALID_ESCAPE_PY}`,
+        "app/legacy.py": 'print "legacy"\n# note trimmed\n',
+        "app/c.py": "# pyright: basic\nimport os\n",
+      },
+      "trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "-# type: ignore",
+      "+# pyright: basic",
+    ]);
+    expect(result.stderr).toContain("app/legacy.py");
+    expect(result.stderr).not.toContain("SyntaxWarning");
   });
 
   it("exits 2 and names the ref when a ref does not exist", () => {

@@ -30,6 +30,7 @@ import re
 import subprocess
 import sys
 import tokenize
+import warnings
 
 DIRECTIVES = (
     "noqa",
@@ -242,6 +243,10 @@ def comment_lines(
 
 
 def main(argv: list[str]) -> int:
+    # The scripts read stderr as failure records, so a SyntaxWarning from
+    # ast.parse must not reach it.
+    warnings.simplefilter("ignore")
+
     if len(argv) not in (2, 3):
         print("usage: python-comment-lines.py REF [PATH]", file=sys.stderr)
 

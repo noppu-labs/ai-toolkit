@@ -45,13 +45,19 @@ read_change() {
 }
 
 # Reads every `git diff --name-status -z` entry from stdin into the parallel
-# arrays statuses, olds, and paths.
+# arrays statuses, olds, and paths, leaving out an entry whose old or new path
+# holds a newline or a tab: it would break the line and tab framing of
+# route_diff's stream, so it is never sent to the helper and route_diff
+# routes it to the regex.
 read_changes() {
   statuses=()
   olds=()
   paths=()
 
   while read_change; do
+    case $old$path in
+      *$'\n'* | *$'\t'*) continue ;;
+    esac
     statuses+=("$status")
     olds+=("$old")
     paths+=("$path")
@@ -152,7 +158,7 @@ route_diff() {
       ref["from"] = from
       ref["to"] = to
     }
-    !patch && /^== / {
+    !patch && (/^== (from|to) -?[0-9]+$/ || $0 == "== diff") {
       if (side != "") close_side(side)
       side = $2
       rc[side] = $3 + 0
