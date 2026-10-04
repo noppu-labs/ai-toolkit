@@ -54,6 +54,8 @@ __screenshots__/
 
 # Python
 __pycache__/
+/.venv/
+.ruff_cache/
 
 # Site (generated at build time)
 /site/dist/

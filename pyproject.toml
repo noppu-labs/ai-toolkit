@@ -1,0 +1,97 @@
+# Nothing here is packaged or installed. This repo is an npm workspace; the one Python source
+# is review/skills/comment-audit/scripts/python-comment-lines.py, a stdlib-only helper that
+# runs on consumers' machines under whatever python3 they have, floor Python 3.8. Every tool
+# section below is scoped to that directory: a second Python location must be added to each.
+#
+#   uv sync --frozen            # create .venv with the pinned tools
+#   npm run lint:python         # every check CI runs (scripts/python-checks.sh)
+#   uv run pre-commit install   # optional: run them on commit too
+#
+# A [project] table is required for `uv sync` to work at all. `package = false` under
+# [tool.uv] stops uv from ever building or installing this directory as a package.
+[project]
+name = "ai-toolkit"
+version = "0"
+# The floor for the *tooling* venv, not for the helper: the helper's floor (3.8) is enforced
+# by ruff's target-version and pyright's pythonVersion below, and by the tests.yml 3.8 run.
+requires-python = ">=3.12"
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16",
+    "pyright>=1.1.414",
+    "codespell>=2.4",
+    "bandit>=1.9",
+    "complexipy>=8.0",
+    "pre-commit>=4.6",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+include = ["review/skills/comment-audit/scripts/*.py"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # import sorting
+    "UP",   # pyupgrade (at py38, so it never suggests a newer-only idiom)
+    "B",    # bugbear
+    "C4",   # comprehensions
+    "SIM",  # simplify
+    "BLE",  # blind except: every `except Exception` carries a `# noqa: BLE001 reason`
+    "RUF",  # ruff-specific
+    "C90",  # mccabe complexity (C901)
+    "SLF",  # private member access
+    "A",    # shadowing a builtin
+    "PERF", # avoidable performance anti-patterns
+    "ARG",  # unused arguments
+    "RET",  # return mistakes, e.g. a path that falls off the end and returns None by accident
+    "TRY",  # exception handling: bare Exception, error-vs-exception logging, try/else placement
+    "FURB", # modern idioms
+    "PTH",  # pathlib over os.path / open()
+]
+# Left out of agent-memory's list on purpose: ASYNC, DTZ, LOG and G (no async, datetimes or
+# logging in a stdlib CLI helper), PT (no pytest; the suite is vitest), and PLR6301 (no
+# classes, and it is a preview rule, so `preview` stays off).
+# Two complexity limits on purpose. C901 is McCabe cyclomatic complexity (branch count);
+# complexipy ([tool.complexipy]) is SonarSource cognitive complexity, which weights nesting.
+# Ruff has no cognitive-complexity rule.
+mccabe.max-complexity = 10
+
+[tool.ruff.format]
+quote-style = "double"
+skip-magic-trailing-comma = false
+
+# Type check at the floor. pyrefly 1.3.2 was tried first (agent-memory uses it) and rejected:
+# with python-version = "3.8" it reports 0 errors whether or not the helper has
+# `from __future__ import annotations`, so it cannot catch the regression this exists for.
+# Pyright strict at 3.8 reports 15 reportIndexIssue errors without that import.
+[tool.pyright]
+include = ["review/skills/comment-audit/scripts"]
+pythonVersion = "3.8"
+typeCheckingMode = "strict"
+
+# Cognitive complexity. 15 is the SonarSource and complexipy default; agent-memory settled on
+# 14 and this mirrors it. A deliberate exception is `# complexipy: ignore (reason)` on the def.
+[tool.complexipy]
+paths = ["review/skills/comment-audit/scripts"]
+max-complexity-allowed = 14
+
+# Spell check. uv.lock is hashes and package names.
+[tool.codespell]
+skip = "uv.lock,node_modules,.venv"
+# `froms` is an awk array in lib.sh (the rename sources), not a misspelling of "forms".
+ignore-words-list = "froms"
+
+# Security lint (bandit, run with `-c pyproject.toml`). Each accepted finding is a
+# `# <reason>  # nosec <ids>` on its line (bandit reads every word after `nosec` as a test id,
+# so the reason goes before it).
+[tool.bandit]
+# B404 flags any `import subprocess`; the calls themselves are still checked (B603/B607).
+skips = ["B404"]

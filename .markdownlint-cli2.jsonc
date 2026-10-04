@@ -5,6 +5,7 @@
   "globs": ["**/*.md"],
   "ignores": [
     "**/node_modules/**",
+    "**/.venv/**",
     "laravel/skills/**",
     "inertia-react/skills/**",
     "docs/superpowers/**",
