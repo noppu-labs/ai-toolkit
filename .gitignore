@@ -56,6 +56,7 @@ __screenshots__/
 __pycache__/
 /.venv/
 .ruff_cache/
+.complexipy_cache/
 
 # Site (generated at build time)
 /site/dist/

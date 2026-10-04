@@ -6,6 +6,7 @@
   "ignores": [
     "**/node_modules/**",
     "**/.venv/**",
+    "**/.complexipy_cache/**",
     "laravel/skills/**",
     "inertia-react/skills/**",
     "docs/superpowers/**",

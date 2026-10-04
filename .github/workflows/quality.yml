@@ -54,6 +54,6 @@ jobs:
         with:
           enable-cache: true
       - name: Install Python tooling
-        run: uv sync --frozen
+        run: uv sync --locked
       - name: Python checks (ruff, ruff format, pyright at 3.8, codespell, bandit, complexipy)
         run: scripts/python-checks.sh

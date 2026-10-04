@@ -4,7 +4,7 @@
 # section below is scoped to that directory: a second Python location must be added to each.
 #
 #   uv sync --frozen            # create .venv with the pinned tools
-#   npm run lint:python         # every check CI runs (scripts/python-checks.sh)
+#   npm run lint:python         # the static checks CI runs (scripts/python-checks.sh)
 #   uv run pre-commit install   # optional: run them on commit too
 #
 # A [project] table is required for `uv sync` to work at all. `package = false` under
@@ -71,7 +71,7 @@ skip-magic-trailing-comma = false
 # Type check at the floor. pyrefly 1.3.2 was tried first (agent-memory uses it) and rejected:
 # with python-version = "3.8" it reports 0 errors whether or not the helper has
 # `from __future__ import annotations`, so it cannot catch the regression this exists for.
-# Pyright strict at 3.8 reports 15 reportIndexIssue errors without that import.
+# Pyright strict at 3.8 reports errors without it (subscripted builtins such as list[str], and X | Y unions).
 [tool.pyright]
 include = ["review/skills/comment-audit/scripts"]
 pythonVersion = "3.8"

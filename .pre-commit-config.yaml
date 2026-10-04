@@ -5,6 +5,8 @@
 # Tool settings live in pyproject.toml; this file only wires them to the commit.
 # Dependabot updates uv.lock but not the `rev:` pins below; after a tooling bump run
 # `uv run pre-commit autoupdate` so the hook and `uv run <tool>` agree.
+# language: unsupported (the pyright hook) needs 4.4.0.
+minimum_pre_commit_version: "4.4.0"
 repos:
   # File hygiene.
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -13,7 +15,7 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: trailing-whitespace
-        # Vendored upstream content, hashed in <plugin>/skills-lock.json; edit upstream instead.
+        # Vendored upstream content; fix it upstream, not here.
         exclude: ^(laravel|inertia-react)/
       - id: end-of-file-fixer
         exclude: ^(laravel|inertia-react)/

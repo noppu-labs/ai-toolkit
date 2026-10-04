@@ -28,6 +28,8 @@ jobs:
         with:
           name: "scripts coverage"
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
       - name: Comment-audit suite with the helper under Python 3.8 (its documented floor)
         # The helper's own tests call `python3` by name and lib.sh honours REVIEW_PYTHON, so a
         # python3 shim first on PATH puts every case on 3.8. The version check stops the step
@@ -36,7 +38,7 @@ jobs:
           set -euo pipefail
           uv python install 3.8
           mkdir -p "$RUNNER_TEMP/py38"
-          ln -s "$(uv python find 3.8)" "$RUNNER_TEMP/py38/python3"
+          ln -s "$(uv python find --no-project 3.8)" "$RUNNER_TEMP/py38/python3"
           export PATH="$RUNNER_TEMP/py38:$PATH"
           python3 --version
           python3 --version | grep -q '^Python 3\.8\.'
