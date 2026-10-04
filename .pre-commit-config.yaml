@@ -1,21 +1,17 @@
-# Optional. CI (.github/workflows/quality.yml, job `python`) is the gate; this runs the same
-# tools on commit for anyone who wants the feedback earlier.
-#   uv sync --frozen && uv run pre-commit install     # once per clone
-#   uv run pre-commit run --all-files                 # everything by hand
-# Tool settings live in pyproject.toml; this file only wires them to the commit.
-# Dependabot updates uv.lock but not the `rev:` pins below; after a tooling bump run
-# `uv run pre-commit autoupdate` so the hook and `uv run <tool>` agree.
-# language: unsupported (the pyright hook) needs 4.4.0.
+# Optional local hooks. See CONTRIBUTING.md, "Before opening a pull request".
+# The file-hygiene hooks run only here. CI (the `python` job in .github/workflows/quality.yml)
+# runs only the Python tools, through scripts/python-checks.sh.
+# language: unsupported (the local hooks) needs 4.4.0.
 minimum_pre_commit_version: "4.4.0"
 repos:
-  # File hygiene.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: check-yaml
       - id: check-toml
       - id: trailing-whitespace
-        # Vendored upstream content; fix it upstream, not here.
+        # Holds skills vendored from upstream (`sourceType: "github"` in each skills-lock.json);
+        # fix those upstream, not here.
         exclude: ^(laravel|inertia-react)/
       - id: end-of-file-fixer
         exclude: ^(laravel|inertia-react)/
@@ -23,40 +19,45 @@ repos:
         # TypeScript and .mjs entry points run through tsx/node, never directly.
         exclude: \.(ts|mjs)$
 
-  # Keep rev in step with ruff in uv.lock, so the hook and `uv run ruff` agree.
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.10
-    hooks:
-      - id: ruff-check
-        args: [--fix]  # before the formatter: fixes can need reformatting
-      - id: ruff-format
-
-  - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.3
-    hooks:
-      - id: codespell
-        files: ^review/skills/comment-audit/scripts/
-        additional_dependencies: [tomli]  # reads [tool.codespell] on Pythons before 3.11
-
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.9.4
-    hooks:
-      - id: bandit
-        args: [-c, pyproject.toml]
-        files: ^review/skills/comment-audit/scripts/
-        additional_dependencies: ["bandit[toml]"]
-
-  - repo: https://github.com/rohaquinlop/complexipy-pre-commit
-    rev: v8.0.1
-    hooks:
-      - id: complexipy  # threshold in [tool.complexipy]
-        files: ^review/skills/comment-audit/scripts/
-
-  # `language: unsupported` is pre-commit's name (since 4.4.0) for what was `language: system`:
-  # run `entry` as a command on PATH, with no hook environment built for it. Pyright needs the
-  # version pinned in uv.lock, so it runs in the uv venv and checks the whole include each time.
+  # `language: unsupported` is pre-commit's new name for `language: system`. The Python tools
+  # run from the uv venv, so uv.lock is their only pin. Pyright checks the whole `include` each time.
   - repo: local
     hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --force-exclude
+        args: [--fix]  # before the formatter: fixes can need reformatting
+        language: unsupported
+        types_or: [python, pyi]
+        files: ^review/skills/comment-audit/scripts/
+        require_serial: true
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format --force-exclude
+        language: unsupported
+        types_or: [python, pyi]
+        files: ^review/skills/comment-audit/scripts/
+        require_serial: true
+      - id: codespell
+        name: codespell
+        entry: uv run --frozen codespell
+        language: unsupported
+        types: [text]
+        files: ^review/skills/comment-audit/scripts/
+      - id: bandit
+        name: bandit
+        entry: uv run --frozen bandit -c pyproject.toml
+        language: unsupported
+        types: [python]
+        files: ^review/skills/comment-audit/scripts/
+        require_serial: true
+      - id: complexipy  # threshold in [tool.complexipy]
+        name: complexipy
+        entry: uv run --frozen complexipy
+        language: unsupported
+        types_or: [python, pyi]
+        files: ^review/skills/comment-audit/scripts/
+        require_serial: true
       - id: pyright
         name: pyright (strict, pythonVersion 3.8)
         entry: uv run --frozen pyright
