@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Every Python check CI runs (the `python` job in .github/workflows/quality.yml), in the same
-# order, so `npm run lint:python` and CI cannot drift. Tool settings live in pyproject.toml.
-# Needs uv (https://docs.astral.sh/uv/) and a prior `uv sync --frozen`.
+# CI's `python` job (.github/workflows/quality.yml) runs this script: add a Python check here,
+# not to the workflow.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -12,15 +11,18 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 scripts=review/skills/comment-audit/scripts
+status=0
 
 run() {
   echo "== $*"
   "$@"
 }
 
-run uv run --frozen ruff check
-run uv run --frozen ruff format --check
-run uv run --frozen pyright
-run uv run --frozen codespell "$scripts"
-run uv run --frozen bandit -c pyproject.toml -q -r "$scripts"
-run uv run --frozen complexipy "$scripts"
+run uv run --frozen ruff check || status=1
+run uv run --frozen ruff format --check || status=1
+run uv run --frozen pyright || status=1
+run uv run --frozen codespell "$scripts" || status=1
+run uv run --frozen bandit -c pyproject.toml -q -r "$scripts" || status=1
+run uv run --frozen complexipy "$scripts" || status=1
+
+exit "$status"
