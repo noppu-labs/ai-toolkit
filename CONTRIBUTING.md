@@ -7,25 +7,35 @@ skills in sync with their upstreams.
 ## Prerequisites
 
 - Node.js >= 20 (CI runs on 24)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/), needed only for the Python
+  checks on the comment-audit helper
 - An authenticated [`gh` CLI](https://cli.github.com/), needed only for the skill sync
   commands, which fetch upstream skill repos through the GitHub API
 
 ```sh
 npm ci
+uv sync --frozen   # Python tooling venv (ruff, pyright, codespell, bandit, complexipy)
 ```
 
 ## Before opening a pull request
 
-Run the same checks CI runs (`.github/workflows/validate.yml`):
+Run the same checks CI runs (`.github/workflows/quality.yml` and `tests.yml`):
 
 ```sh
 npm run lint          # biome + markdownlint
+npm run lint:python   # ruff, ruff format, pyright strict at Python 3.8, codespell, bandit, complexipy
 npm run typecheck     # tsc --noEmit
 npm test              # vitest (includes fast-check property tests)
 npm run sync -- verify # lock ↔ disk consistency
 ```
 
-`npm run lint:fix` auto-fixes most lint findings.
+`npm run lint:fix` auto-fixes most lint findings; `uv run ruff check --fix && uv run ruff format`
+does the same for the Python helper. The helper must keep working on Python 3.8, which CI
+proves by rerunning the comment-audit suite with the helper under a 3.8 interpreter
+(`uv python install 3.8` gets you one locally). Tool settings live in `pyproject.toml`.
+
+Optionally, `uv run pre-commit install` runs the Python checks and a few file-hygiene hooks on
+every commit (`.pre-commit-config.yaml`); CI is the gate either way.
 
 ## Editing skills
 
