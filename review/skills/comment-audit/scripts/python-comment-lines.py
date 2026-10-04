@@ -140,7 +140,6 @@ def get_source_lines(source: bytes) -> list[bytes]:
 
 
 def get_docstring(node: ast.AST) -> ast.Expr | None:
-    """The docstring expression of a module, class, or function, or None."""
     if not isinstance(node, DOCSTRING_OWNERS) or not node.body:
         return None
 
@@ -153,8 +152,7 @@ def get_docstring(node: ast.AST) -> ast.Expr | None:
 
 
 def get_body_lines(source: list[bytes], start: int, end: int) -> set[int]:
-    """The non-blank lines strictly between start and end, minus doctest examples
-    (a `>>>` or `...` line and every line after it up to a blank one)."""
+    """The non-blank lines strictly between start and end, minus doctest examples."""
     lines: set[int] = set()
     doctest = False
 
