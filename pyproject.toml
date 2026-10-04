@@ -1,19 +1,19 @@
 # Nothing here is packaged or installed. This repo is an npm workspace; the one Python source
 # is review/skills/comment-audit/scripts/python-comment-lines.py, a stdlib-only helper that
-# runs on consumers' machines under whatever python3 they have, floor Python 3.8. Every tool
-# section below is scoped to that directory: a second Python location must be added to each.
+# runs on consumers' machines under whatever python3 they have, floor Python 3.8. A second
+# Python location must be added to `include`/`paths` below, to `scripts=` in
+# scripts/python-checks.sh, and to the `files:` patterns in .pre-commit-config.yaml.
+# See CONTRIBUTING.md, "Before opening a pull request".
 #
-#   uv sync --frozen            # create .venv with the pinned tools
-#   npm run lint:python         # the static checks CI runs (scripts/python-checks.sh)
-#   uv run pre-commit install   # optional: run them on commit too
-#
-# A [project] table is required for `uv sync` to work at all. `package = false` under
-# [tool.uv] stops uv from ever building or installing this directory as a package.
+# `[project]` carries requires-python for the tooling venv; `package = false` keeps uv from
+# building this directory.
 [project]
 name = "ai-toolkit"
 version = "0"
-# The floor for the *tooling* venv, not for the helper: the helper's floor (3.8) is enforced
-# by ruff's target-version and pyright's pythonVersion below, and by the tests.yml 3.8 run.
+# The floor for the *tooling* venv, not for the helper. For the helper's 3.8 floor, pyright at
+# pythonVersion 3.8 catches annotations evaluated at runtime and syntax newer than 3.8; the
+# tests.yml 3.8 run is the only guard for stdlib APIs. Ruff's target-version only stops
+# pyupgrade from suggesting post-3.8 idioms.
 requires-python = ">=3.12"
 
 [tool.uv]
@@ -51,47 +51,41 @@ select = [
     "A",    # shadowing a builtin
     "PERF", # avoidable performance anti-patterns
     "ARG",  # unused arguments
-    "RET",  # return mistakes, e.g. a path that falls off the end and returns None by accident
-    "TRY",  # exception handling: bare Exception, error-vs-exception logging, try/else placement
+    "RET",  # return mistakes
+    "TRY",  # exception handling
     "FURB", # modern idioms
     "PTH",  # pathlib over os.path / open()
 ]
-# Left out of agent-memory's list on purpose: ASYNC, DTZ, LOG and G (no async, datetimes or
-# logging in a stdlib CLI helper), PT (no pytest; the suite is vitest), and PLR6301 (no
-# classes, and it is a preview rule, so `preview` stays off).
-# Two complexity limits on purpose. C901 is McCabe cyclomatic complexity (branch count);
-# complexipy ([tool.complexipy]) is SonarSource cognitive complexity, which weights nesting.
-# Ruff has no cognitive-complexity rule.
+# ASYNC, DTZ, LOG, G and PT are left out: the helper has no async code, datetimes, logging or
+# pytest tests.
+# Two complexity limits on purpose: C901 counts branches, complexipy ([tool.complexipy]) weights
+# nesting, and ruff has no cognitive-complexity rule.
 mccabe.max-complexity = 10
 
 [tool.ruff.format]
 quote-style = "double"
 skip-magic-trailing-comma = false
 
-# Type check at the floor. pyrefly 1.3.2 was tried first (agent-memory uses it) and rejected:
-# with python-version = "3.8" it reports 0 errors whether or not the helper has
-# `from __future__ import annotations`, so it cannot catch the regression this exists for.
-# Pyright strict at 3.8 reports errors without it (subscripted builtins such as list[str], and X | Y unions).
+# Pyright, not pyrefly: pyrefly 1.3.2 at python-version 3.8 reports nothing when
+# `from __future__ import annotations` is removed, while pyright strict at 3.8 flags every
+# `list[str]` and `X | Y` annotation that breaks the helper on 3.8.
 [tool.pyright]
 include = ["review/skills/comment-audit/scripts"]
 pythonVersion = "3.8"
 typeCheckingMode = "strict"
 
-# Cognitive complexity. 15 is the SonarSource and complexipy default; agent-memory settled on
-# 14 and this mirrors it. A deliberate exception is `# complexipy: ignore (reason)` on the def.
+# Cognitive complexity. 15 is the SonarSource and complexipy default; 14 leaves one step of
+# headroom. A deliberate exception is `# complexipy: ignore (reason)` on the def.
 [tool.complexipy]
 paths = ["review/skills/comment-audit/scripts"]
 max-complexity-allowed = 14
 
-# Spell check. uv.lock is hashes and package names.
 [tool.codespell]
-skip = "uv.lock,node_modules,.venv"
 # `froms` is an awk array in lib.sh (the rename sources), not a misspelling of "forms".
 ignore-words-list = "froms"
 
-# Security lint (bandit, run with `-c pyproject.toml`). Each accepted finding is a
-# `# <reason>  # nosec <ids>` on its line (bandit reads every word after `nosec` as a test id,
-# so the reason goes before it).
+# Read only under `bandit -c pyproject.toml`. An accepted finding is `# <reason>  # nosec <ids>`:
+# bandit reads every word after `nosec` as a test id.
 [tool.bandit]
 # B404 flags any `import subprocess`; the calls themselves are still checked (B603/B607).
 skips = ["B404"]
