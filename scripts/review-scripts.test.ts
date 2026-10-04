@@ -968,6 +968,34 @@ describe("count-comment-lines.sh", () => {
     expect(result.stdout).toBe("4");
     expect(result.stderr).toBe("");
   });
+
+  it("counts an added -- comment and not a YAML document marker or a --flag line", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "q.sql": "-- old note\nSELECT 1;\n",
+        "c.yml": "a: 1\n",
+        "run.sh": "run\n",
+      },
+      "dash base",
+    );
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "q.sql": "-- new note\nSELECT 1;\n",
+        "c.yml": "---\na: 1\n",
+        "run.sh": "run --flag\n--flag\n",
+      },
+      "dash",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("1");
+  });
 });
 
 describe("verify-comments-only.sh", () => {
@@ -1961,6 +1989,76 @@ describe("verify-comments-only.sh", () => {
     expect(result.stdout.split("\n")).toEqual(["+x = 2", "+TOTAL = 1"]);
     expect(result.stderr).toBe("");
   });
+
+  it("passes when a -- comment is replaced and a --> close moves", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "q.sql": "-- old note\nSELECT 1;\n",
+        "h.html": "<!-- open\n--> close\n",
+        "m.hs": "main = pure ()\n  -- why\n",
+      },
+      "dash base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "q.sql": "-- new note\nSELECT 1;\n",
+        "h.html": "<!-- open\n--> still a close\n",
+        "m.hs": "main = pure ()\n\t--\n",
+      },
+      "dash trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
+  });
+
+  it("reports an added line that starts with ++ and a YAML document marker", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "c.yml": "a: 1\n", "d.txt": "x\n" }, "yaml base");
+    commitFiles(
+      cwd,
+      { "c.yml": "---\na: 1\n", "d.txt": "x\n++ y\n" },
+      "yaml marker",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual(["+---", "+++ y"]);
+  });
+
+  it("reports a removed YAML list item, a --flag line and the text of a patch", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "l.yml": "items:\n  - keep\n- drop\n", "run.sh": "run\n" },
+      "list base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "l.yml": "items:\n  - keep\n",
+        "run.sh": "run\n--flag\n",
+        "fix.patch": "--- a/x\n+++ b/x\n",
+      },
+      "list trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "+--- a/x",
+      "++++ b/x",
+      "-- drop",
+      "+--flag",
+    ]);
+  });
 });
 
 describe("process budget", () => {
@@ -2153,6 +2251,32 @@ describe("lib.sh", () => {
     expect(count.stderr).toBe(
       "count-comment-lines.sh: python-comment-lines.py: app/b.py at TO: bad; counted by the regex\n",
     );
+  });
+
+  it("keeps -- comments quiet inside a hunk, counts them, and reports a Lua block opener", () => {
+    const stream = [
+      "M\t\tapp/q.sql",
+      "== diff",
+      "diff --git a/app/q.sql b/app/q.sql",
+      "--- a/app/q.sql",
+      "+++ b/app/q.sql",
+      "@@ -1,3 +1,4 @@",
+      "--- old note",
+      "---",
+      "--->",
+      "+-- new note",
+      "+--",
+      "+--[[ block",
+      "+SELECT 1;",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("2");
+    expect(verify.stdout.split("\n")).toEqual(["+--[[ block", "+SELECT 1;"]);
   });
 
   it("makes each script exit 2 and name lib.sh when lib.sh is missing", () => {

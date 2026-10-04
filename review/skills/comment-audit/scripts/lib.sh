@@ -212,8 +212,8 @@ route_diff() {
       return "py"
     }
     BEGIN {
-      comment = "^[+][[:space:]]*(//|#[^[]|#$|[*]|/[*]|\"\"\"|[{]/[*]|<!--)"
-      quiet = "^[-+][[:space:]]*(//|#[^[]|#$|[*]|/[*]|\"\"\"|[{]/[*]|<!--|-->|$)"
+      comment = "^[+][[:space:]]*(//|#[^[]|#$|[*]|/[*]|\"\"\"|[{]/[*]|<!--|--[[:space:]]|--$)"
+      quiet = "^[-+][[:space:]]*(//|#[^[]|#$|[*]|/[*]|\"\"\"|[{]/[*]|<!--|-->|--[[:space:]]|--$|$)"
       script = mode == "count" ? "count-comment-lines.sh" : "verify-comments-only.sh"
       fallback = mode == "count" ? "counted by the regex" : "checked with the regex"
       ref["from"] = from
@@ -246,7 +246,7 @@ route_diff() {
     }
     !hunk { next }
     /^-/ {
-      if (mode == "verify" && kind == "regex" && $0 !~ /^--- / && $0 !~ quiet) print
+      if (mode == "verify" && kind == "regex" && $0 !~ quiet) print
       else if (mode == "verify" && kind == "py" && !(("from", cur_from, left) in listed) && $0 !~ /^-[[:space:]]*$/) print
       left++
       next
@@ -254,7 +254,7 @@ route_diff() {
     /^\+/ {
       if (mode == "count" && kind == "py") { if (("to", cur_new, right) in listed) total++ }
       else if (mode == "count") { if (kind == "regex" && $0 ~ comment) total++ }
-      else if (kind == "regex" && $0 !~ /^[+][+][+] / && $0 !~ quiet) print
+      else if (kind == "regex" && $0 !~ quiet) print
       else if (kind == "py" && !(("to", cur_new, right) in listed) && $0 !~ /^[+][[:space:]]*$/) print
       right++
       next
