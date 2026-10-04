@@ -27,6 +27,22 @@ jobs:
         uses: davelosert/vitest-coverage-report-action@c4bbc33a89b7ace0e63d35f1f7d4bcee31155a73 # v2.13.0
         with:
           name: "scripts coverage"
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      - name: Comment-audit suite with the helper under Python 3.8 (its documented floor)
+        # The helper's own tests call `python3` by name and lib.sh honours REVIEW_PYTHON, so a
+        # python3 shim first on PATH puts every case on 3.8. The version check stops the step
+        # from passing vacuously on the runner's default interpreter.
+        run: |
+          set -euo pipefail
+          uv python install 3.8
+          mkdir -p "$RUNNER_TEMP/py38"
+          ln -s "$(uv python find --no-project 3.8)" "$RUNNER_TEMP/py38/python3"
+          export PATH="$RUNNER_TEMP/py38:$PATH"
+          python3 --version
+          python3 --version | grep -q '^Python 3\.8\.'
+          REVIEW_PYTHON="$RUNNER_TEMP/py38/python3" npx vitest run scripts/review-scripts.test.ts
       - name: Install Playwright chromium
         run: npx playwright install chromium --with-deps
       - name: Site tests

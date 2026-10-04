@@ -7,25 +7,45 @@ skills in sync with their upstreams.
 ## Prerequisites
 
 - Node.js >= 20 (CI runs on 24)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/), needed only for the Python
+  checks on the comment-audit helper
 - An authenticated [`gh` CLI](https://cli.github.com/), needed only for the skill sync
   commands, which fetch upstream skill repos through the GitHub API
 
 ```sh
 npm ci
+uv sync --frozen   # Python tooling venv
 ```
 
 ## Before opening a pull request
 
-Run the same checks CI runs (`.github/workflows/validate.yml`):
+Run the same checks CI runs (`.github/workflows/quality.yml` and `tests.yml`):
 
 ```sh
 npm run lint          # biome + markdownlint
+npm run lint:python   # ruff, ruff format, pyright strict, codespell, bandit, complexipy
 npm run typecheck     # tsc --noEmit
 npm test              # vitest (includes fast-check property tests)
 npm run sync -- verify # lock ↔ disk consistency
 ```
 
-`npm run lint:fix` auto-fixes most lint findings.
+`npm run lint:fix` auto-fixes most lint findings; `uv run ruff check --fix && uv run ruff format`
+does the same for the Python helper. Tool settings live in `pyproject.toml`.
+
+The helper must keep working on Python 3.8. Pyright at `pythonVersion` 3.8 catches annotations
+evaluated at runtime and syntax newer than 3.8, but not stdlib APIs newer than 3.8: only the
+`tests.yml` rerun of the comment-audit suite under 3.8 guards those, and only on paths the
+suite runs. To run the suite on 3.8 locally, follow that step: put a `python3` shim for
+`uv python find --no-project 3.8` first on `PATH` and set `REVIEW_PYTHON` to it.
+
+```sh
+uv python install 3.8
+mkdir -p /tmp/py38 && ln -sf "$(uv python find --no-project 3.8)" /tmp/py38/python3
+PATH="/tmp/py38:$PATH" REVIEW_PYTHON=/tmp/py38/python3 npx vitest run scripts/review-scripts.test.ts
+```
+
+Optionally, `uv run pre-commit install` runs the Python checks on every commit, plus a few
+file-hygiene hooks that CI does not run (`.pre-commit-config.yaml`).
 
 ## Editing skills
 

@@ -14,3 +14,11 @@ updates:
           - vitest
           - "@vitest/*"
           - vitest-browser-*
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python-tooling:
+        patterns:
+          - "*"

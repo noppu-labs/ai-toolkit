@@ -1,0 +1,66 @@
+# Optional local hooks. See CONTRIBUTING.md, "Before opening a pull request".
+# The file-hygiene hooks run only here. CI (the `python` job in .github/workflows/quality.yml)
+# runs only the Python tools, through scripts/python-checks.sh.
+# language: unsupported (the local hooks) needs 4.4.0.
+minimum_pre_commit_version: "4.4.0"
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: trailing-whitespace
+        # Holds skills vendored from upstream (`sourceType: "github"` in each skills-lock.json);
+        # fix those upstream, not here.
+        exclude: ^(laravel|inertia-react)/
+      - id: end-of-file-fixer
+        exclude: ^(laravel|inertia-react)/
+      - id: check-shebang-scripts-are-executable
+        # TypeScript and .mjs entry points run through tsx/node, never directly.
+        exclude: \.(ts|mjs)$
+
+  # `language: unsupported` is pre-commit's new name for `language: system`. The Python tools
+  # run from the uv venv, so uv.lock is their only pin. Pyright checks the whole `include` each time.
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --force-exclude
+        args: [--fix]  # before the formatter: fixes can need reformatting
+        language: unsupported
+        types_or: [python, pyi]
+        files: ^review/skills/comment-audit/scripts/
+        require_serial: true
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format --force-exclude
+        language: unsupported
+        types_or: [python, pyi]
+        files: ^review/skills/comment-audit/scripts/
+        require_serial: true
+      - id: codespell
+        name: codespell
+        entry: uv run --frozen codespell
+        language: unsupported
+        types: [text]
+        files: ^review/skills/comment-audit/scripts/
+      - id: bandit
+        name: bandit
+        entry: uv run --frozen bandit -c pyproject.toml
+        language: unsupported
+        types: [python]
+        files: ^review/skills/comment-audit/scripts/
+        require_serial: true
+      - id: complexipy  # threshold in [tool.complexipy]
+        name: complexipy
+        entry: uv run --frozen complexipy
+        language: unsupported
+        types_or: [python, pyi]
+        files: ^review/skills/comment-audit/scripts/
+        require_serial: true
+      - id: pyright
+        name: pyright (strict, pythonVersion 3.8)
+        entry: uv run --frozen pyright
+        language: unsupported
+        types: [python]
+        pass_filenames: false

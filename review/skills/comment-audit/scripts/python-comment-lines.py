@@ -69,7 +69,7 @@ def read_blobs(ref: str, paths: list[str]) -> dict[str, bytes | str]:
     """Map each path to its content at ref, or to the reason it has none, with
     one git process for the whole list."""
     queries = "".join(f"{ref}:{path}\n" for path in paths)
-    output = subprocess.run(
+    output = subprocess.run(  # fixed argv, no shell; git is meant to come from PATH  # nosec B603 B607
         ["git", "cat-file", "--batch"],
         input=os.fsencode(queries),
         capture_output=True,
@@ -112,9 +112,7 @@ def starts_with_directive(comment: str) -> bool:
     text = comment[1:].strip()
 
     return (
-        text.startswith(DIRECTIVES)
-        or text.lower().startswith(ANY_CASE_DIRECTIVES)
-        or NO_COVER.match(text) is not None
+        text.startswith(DIRECTIVES) or text.lower().startswith(ANY_CASE_DIRECTIVES) or NO_COVER.match(text) is not None
     )
 
 
@@ -141,59 +139,69 @@ def get_source_lines(source: bytes) -> list[bytes]:
     return [line.encode("utf-8") for line in text.split("\n")]
 
 
+def get_docstring(node: ast.AST) -> ast.Expr | None:
+    if not isinstance(node, DOCSTRING_OWNERS) or not node.body:
+        return None
+
+    first = node.body[0]
+
+    if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
+        return first
+
+    return None
+
+
+def get_body_lines(source: list[bytes], start: int, end: int) -> set[int]:
+    """The non-blank lines strictly between start and end, minus doctest examples."""
+    lines: set[int] = set()
+    doctest = False
+
+    for row in range(start + 1, end):
+        text = source[row - 1].strip()
+        doctest = text != b"" and (doctest or text.startswith((b">>>", b"...")))
+
+        if text != b"" and not doctest:
+            lines.add(row)
+
+    return lines
+
+
+def get_lines_of_docstring(docstring: ast.Expr, source: list[bytes]) -> set[int]:
+    start = docstring.lineno
+    end = docstring.end_lineno or start
+    before = source[start - 1][: docstring.col_offset].strip()
+    after = source[end - 1][docstring.end_col_offset :].strip()
+    opens_alone = before == b""
+    closes_alone = after == b"" or (after.startswith(b"#") and not starts_with_directive(after.decode("utf-8")))
+
+    if start == end:
+        return {start} if opens_alone and closes_alone else set()
+
+    lines = get_body_lines(source, start, end)
+
+    if opens_alone:
+        lines.add(start)
+
+    if closes_alone:
+        lines.add(end)
+
+    return lines
+
+
 def get_docstring_lines(tree: ast.Module, source: list[bytes]) -> set[int]:
     lines: set[int] = set()
 
     for node in ast.walk(tree):
-        if not isinstance(node, DOCSTRING_OWNERS) or not node.body:
-            continue
+        docstring = get_docstring(node)
 
-        first = node.body[0]
-
-        if not (
-            isinstance(first, ast.Expr)
-            and isinstance(first.value, ast.Constant)
-            and isinstance(first.value.value, str)
-        ):
-            continue
-
-        start = first.lineno
-        end = first.end_lineno or start
-        before = source[start - 1][: first.col_offset].strip()
-        after = source[end - 1][first.end_col_offset :].strip()
-        opens_alone = before == b""
-        closes_alone = after == b"" or (
-            after.startswith(b"#") and not starts_with_directive(after.decode("utf-8"))
-        )
-
-        if start == end:
-            if opens_alone and closes_alone:
-                lines.add(start)
-
-            continue
-
-        doctest = False
-
-        for row in range(start + 1, end):
-            text = source[row - 1].strip()
-            doctest = text != b"" and (doctest or text.startswith((b">>>", b"...")))
-
-            if text != b"" and not doctest:
-                lines.add(row)
-
-        if opens_alone:
-            lines.add(start)
-
-        if closes_alone:
-            lines.add(end)
+        if docstring is not None:
+            lines |= get_lines_of_docstring(docstring, source)
 
     return lines
 
 
 def analyze(source: bytes) -> set[int]:
-    return get_docstring_lines(ast.parse(source), get_source_lines(source)) | get_comment_lines(
-        source
-    )
+    return get_docstring_lines(ast.parse(source), get_source_lines(source)) | get_comment_lines(source)
 
 
 def describe(ref: str, path: str, error: object) -> str:
@@ -205,9 +213,7 @@ def describe(ref: str, path: str, error: object) -> str:
     return f"python-comment-lines.py: {path} at {ref}: {message} (under {sys.executable} {version})"
 
 
-def comment_lines(
-    ref: str, paths: list[str]
-) -> tuple[dict[str, set[int]], dict[str, str]]:
+def comment_lines(ref: str, paths: list[str]) -> tuple[dict[str, set[int]], dict[str, str]]:
     """The comment lines of every path that could be read and parsed at ref, and
     a message for every path that could not."""
     lines: dict[str, set[int]] = {}
@@ -237,7 +243,7 @@ def comment_lines(
         # MemoryError or RecursionError, which must fail that file alone.
         try:
             lines[path] = analyze(blob)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 see the comment above
             failures[path] = describe(ref, path, error)
 
     return lines, failures
