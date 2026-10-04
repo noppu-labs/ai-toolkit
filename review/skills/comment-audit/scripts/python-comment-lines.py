@@ -112,9 +112,7 @@ def starts_with_directive(comment: str) -> bool:
     text = comment[1:].strip()
 
     return (
-        text.startswith(DIRECTIVES)
-        or text.lower().startswith(ANY_CASE_DIRECTIVES)
-        or NO_COVER.match(text) is not None
+        text.startswith(DIRECTIVES) or text.lower().startswith(ANY_CASE_DIRECTIVES) or NO_COVER.match(text) is not None
     )
 
 
@@ -151,9 +149,7 @@ def get_docstring_lines(tree: ast.Module, source: list[bytes]) -> set[int]:
         first = node.body[0]
 
         if not (
-            isinstance(first, ast.Expr)
-            and isinstance(first.value, ast.Constant)
-            and isinstance(first.value.value, str)
+            isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str)
         ):
             continue
 
@@ -162,9 +158,7 @@ def get_docstring_lines(tree: ast.Module, source: list[bytes]) -> set[int]:
         before = source[start - 1][: first.col_offset].strip()
         after = source[end - 1][first.end_col_offset :].strip()
         opens_alone = before == b""
-        closes_alone = after == b"" or (
-            after.startswith(b"#") and not starts_with_directive(after.decode("utf-8"))
-        )
+        closes_alone = after == b"" or (after.startswith(b"#") and not starts_with_directive(after.decode("utf-8")))
 
         if start == end:
             if opens_alone and closes_alone:
@@ -191,9 +185,7 @@ def get_docstring_lines(tree: ast.Module, source: list[bytes]) -> set[int]:
 
 
 def analyze(source: bytes) -> set[int]:
-    return get_docstring_lines(ast.parse(source), get_source_lines(source)) | get_comment_lines(
-        source
-    )
+    return get_docstring_lines(ast.parse(source), get_source_lines(source)) | get_comment_lines(source)
 
 
 def describe(ref: str, path: str, error: object) -> str:
@@ -205,9 +197,7 @@ def describe(ref: str, path: str, error: object) -> str:
     return f"python-comment-lines.py: {path} at {ref}: {message} (under {sys.executable} {version})"
 
 
-def comment_lines(
-    ref: str, paths: list[str]
-) -> tuple[dict[str, set[int]], dict[str, str]]:
+def comment_lines(ref: str, paths: list[str]) -> tuple[dict[str, set[int]], dict[str, str]]:
     """The comment lines of every path that could be read and parsed at ref, and
     a message for every path that could not."""
     lines: dict[str, set[int]] = {}
