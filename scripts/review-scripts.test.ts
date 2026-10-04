@@ -2209,7 +2209,7 @@ describe("python-comment-lines.py", () => {
     return runHelperWith("python3", cwd, input, ...args);
   }
 
-  it("prints a path and line record for every path on stdin, and keeps the REF PATH form", () => {
+  it("prints a path and line record for every path on stdin, then the sentinel", () => {
     const cwd = makeRepo();
     commitFiles(
       cwd,
@@ -2218,15 +2218,12 @@ describe("python-comment-lines.py", () => {
     );
 
     const batch = runHelper(cwd, "app/a.py\0app/b.py\0", "HEAD");
-    const single = runHelper(cwd, "", "HEAD", "app/a.py");
 
     expect(batch.status).toBe(0);
     expect(batch.stderr).toBe("");
     expect(batch.stdout).toBe(
       "app/a.py\t1\napp/a.py\t3\napp/a.py\t4\napp/b.py\t1\n== done\n",
     );
-    expect(single.status).toBe(0);
-    expect(single.stdout).toBe("1\n3\n4\n");
   });
 
   it("reports a missing path and one that does not parse on stderr, skips them, and exits 1", () => {
@@ -2307,14 +2304,15 @@ describe("python-comment-lines.py", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("exits 2 on a usage error", () => {
+  it("exits 2 with a usage line when given a path argument", () => {
     const cwd = makeRepo();
 
-    const result = runHelper(cwd, "", "HEAD", "a.py", "b.py");
+    const result = runHelper(cwd, "", "HEAD", "a.py");
 
     expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
     expect(result.stderr).toContain(
-      "usage: python-comment-lines.py REF [PATH]",
+      "usage: python-comment-lines.py REF < NUL-separated paths",
     );
   });
 });

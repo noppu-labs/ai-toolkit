@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """Print the comment line numbers of Python files at a git ref.
 
-Usage: python-comment-lines.py REF PATH
-       python-comment-lines.py REF < NUL-separated paths
+Usage: python-comment-lines.py REF < NUL-separated paths
 
-With PATH, prints one 1-based line number per line, ascending, and exits 1 with
-one line on stderr when the file cannot be read, tokenized, or parsed. Without
-PATH, reads NUL-separated paths from stdin, fetches every blob with one
-`git cat-file --batch`, and prints `path<TAB>line` records in input order; a
-path that cannot be read or parsed is reported on stderr as `path<TAB>message`,
-skipped, and makes the exit status 1. The last stdout line is `== done`, so a
-reader can tell a finished batch from an interpreter that died partway.
+Reads NUL-separated paths from stdin, fetches every blob at REF with one
+`git cat-file --batch`, and prints `path<TAB>line` records in input order, each
+line number 1-based and ascending within its path. A path that cannot be read
+or parsed is reported on stderr as `path<TAB>message`, skipped, and makes the
+exit status 1. The last stdout line is `== done`, so a reader can tell a
+finished batch from an interpreter that died partway.
 
 A comment line holds a `#` comment with nothing before it, or belongs to a
 module, class, or function docstring in any quote style. A docstring line that
@@ -250,27 +248,12 @@ def main(argv: list[str]) -> int:
     # ast.parse must not reach it.
     warnings.simplefilter("ignore")
 
-    if len(argv) not in (2, 3):
-        print("usage: python-comment-lines.py REF [PATH]", file=sys.stderr)
+    if len(argv) != 2:
+        print("usage: python-comment-lines.py REF < NUL-separated paths", file=sys.stderr)
 
         return 2
 
     ref = argv[1]
-
-    if len(argv) == 3:
-        path = argv[2]
-        lines, failures = comment_lines(ref, [path])
-
-        if path in failures:
-            print(failures[path], file=sys.stderr)
-
-            return 1
-
-        for line in sorted(lines[path]):
-            print(line)
-
-        return 0
-
     paths = [os.fsdecode(path) for path in sys.stdin.buffer.read().split(b"\0") if path]
     lines, failures = comment_lines(ref, paths)
 
