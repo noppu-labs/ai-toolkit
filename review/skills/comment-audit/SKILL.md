@@ -74,7 +74,7 @@ A command from the tool tables runs as `uv run <command>` when `uv.lock` exists,
 bash ${CLAUDE_PLUGIN_ROOT}/skills/comment-audit/scripts/count-comment-lines.sh BASE HEAD DIRS
 ```
 
-It prints one number: the added lines whose first non-blank characters are `//`, `#`, `*`, `/*`, `/**`, `"""`, `{/*`, or `<!--`. The report opens with it.
+It prints one number: the added lines whose first non-blank characters are `//`, `#`, `*`, `/*`, `/**`, `"""`, `{/*`, `<!--`, or `--` followed by whitespace or the end of the line (SQL, Lua, Haskell, Ada, VHDL, Elm). The report opens with it.
 
 A `.py` file is counted by `python-comment-lines.py` beside the script instead: every line of a module, class, or function docstring in any quote style, except a blank line, a doctest example, and a line the docstring shares with code, and every `#` comment with nothing before it on its line. Tool directives (the markers listed under Python in [../writing-comments/SKILL.md](../writing-comments/SKILL.md)), a shebang, and an encoding declaration are not counted, even when a reason follows the marker. Step 3 still rules on that reason, so the findings can hold more entries than the count; when they do, the report says the difference is reasoned directives. Without `python3` on `PATH`, or for a file that does not parse, or for a path git quotes in a diff header (one holding `"`, `\`, or a control character), Python is counted with the regex above and the script prints one line to stderr per file that does not parse, or one line in total when `python3` is missing. Quote that line under the count.
 

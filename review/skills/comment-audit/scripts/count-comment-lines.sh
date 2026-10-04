@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Usage: count-comment-lines.sh BASE HEAD [DIR...]
 # Prints the number of comment lines added between BASE and HEAD (three-dot diff),
-# limited to DIR paths when given. Recognises //, #, *, /*, /**, """, {/* and <!--.
+# limited to DIR paths when given. Recognises //, #, *, /*, /**, """, {/*, <!--, and
+# -- followed by whitespace or the end of the line.
 # Python files are counted by python-comment-lines.py instead, which knows every
 # line of a docstring and skips tool directives; it reads every changed Python
 # file at HEAD in one call. Without python3, or for a file that does not parse,
