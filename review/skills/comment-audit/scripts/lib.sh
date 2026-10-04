@@ -212,8 +212,12 @@ route_diff() {
       return "py"
     }
     BEGIN {
-      comment = "^[+][[:space:]]*(//|#[^[]|#$|[*]|/[*]|\"\"\"|[{]/[*]|<!--)"
-      quiet = "^[-+][[:space:]]*(//|#[^[]|#$|[*]|/[*]|\"\"\"|[{]/[*]|<!--|-->|$)"
+      markers = "//|#[^[]|#$|[*]|/[*]|\"\"\"|[{]/[*]|<!--"
+      dash = "--[[:space:]]|--$"
+      comment["code"] = "^[+][[:space:]]*(" markers ")"
+      comment["dash"] = "^[+][[:space:]]*(" markers "|" dash ")"
+      quiet["code"] = "^[-+][[:space:]]*(" markers "|-->|$)"
+      quiet["dash"] = "^[-+][[:space:]]*(" markers "|-->|" dash "|$)"
       script = mode == "count" ? "count-comment-lines.sh" : "verify-comments-only.sh"
       fallback = mode == "count" ? "counted by the regex" : "checked with the regex"
       ref["from"] = from
@@ -239,22 +243,28 @@ route_diff() {
       next
     }
     !patch { record(side, $0); next }
-    /^diff --git / { hunk = 0; kind = classify($0); next }
+    # `--` is a comment only where the language says so; the new name of the
+    # section, the last path of the header, picks the regex pair.
+    /^diff --git / {
+      hunk = 0; kind = classify($0)
+      lang = ($0 ~ /[.](sql|psql|pgsql|mysql|lua|hs|lhs|elm|ada|adb|ads|vhd|vhdl)"?$/) ? "dash" : "code"
+      next
+    }
     /^@@ / {
       split($2, o, ","); split($3, h, ","); hunk = 1
       left = substr(o[1], 2) + 0; right = substr(h[1], 2) + 0; next
     }
     !hunk { next }
     /^-/ {
-      if (mode == "verify" && kind == "regex" && $0 !~ /^--- / && $0 !~ quiet) print
+      if (mode == "verify" && kind == "regex" && $0 !~ quiet[lang]) print
       else if (mode == "verify" && kind == "py" && !(("from", cur_from, left) in listed) && $0 !~ /^-[[:space:]]*$/) print
       left++
       next
     }
     /^\+/ {
       if (mode == "count" && kind == "py") { if (("to", cur_new, right) in listed) total++ }
-      else if (mode == "count") { if (kind == "regex" && $0 ~ comment) total++ }
-      else if (kind == "regex" && $0 !~ /^[+][+][+] / && $0 !~ quiet) print
+      else if (mode == "count") { if (kind == "regex" && $0 ~ comment[lang]) total++ }
+      else if (kind == "regex" && $0 !~ quiet[lang]) print
       else if (kind == "py" && !(("to", cur_new, right) in listed) && $0 !~ /^[+][[:space:]]*$/) print
       right++
       next
