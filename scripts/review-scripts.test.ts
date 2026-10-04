@@ -996,6 +996,30 @@ describe("count-comment-lines.sh", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("1");
   });
+
+  it("does not count a -- line outside the dash-comment file types", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "run.sh": "run\n", "n.md": "text\n", "lib.lua": "x = 1\n" },
+      "dash scope base",
+    );
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "run.sh": 'run \\\n  -- "$@"\n',
+        "n.md": "text\n-- x\n",
+        "lib.lua": "x = 1\n-- why\n",
+      },
+      "dash scope",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("1");
+  });
 });
 
 describe("verify-comments-only.sh", () => {
@@ -2059,6 +2083,47 @@ describe("verify-comments-only.sh", () => {
       "+--flag",
     ]);
   });
+
+  it("reports a -- code line in a shell script, a YAML run block, a patch and a Python fallback file", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "run.sh": 'printf "%s\\n" \\\n  -- "a"\n',
+        "ci.yml": 'steps:\n  - run: |\n      cmd \\\n        -- "a"\n',
+        "fix.patch": "-- keep-me\n",
+        "bad.py": "def f(:\n    pass\n-- note\n",
+        "q.sql": "-- old\nSELECT 1;\n",
+      },
+      "dash code base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "run.sh": 'printf "%s\\n" \\\n  -- "b"\n',
+        "ci.yml": 'steps:\n  - run: |\n      cmd \\\n        -- "b"\n',
+        "fix.patch": "-- drop-me\n",
+        "bad.py": "def f(:\n    pass\n-- other\n",
+        "q.sql": "-- new\nSELECT 1;\n",
+      },
+      "dash code",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "--- note",
+      "+-- other",
+      '-        -- "a"',
+      '+        -- "b"',
+      "--- keep-me",
+      "+-- drop-me",
+      '-  -- "a"',
+      '+  -- "b"',
+    ]);
+    expect(result.stderr).toContain("checked with the regex");
+  });
 });
 
 describe("process budget", () => {
@@ -2253,9 +2318,12 @@ describe("lib.sh", () => {
     );
   });
 
-  it("keeps -- comments quiet inside a hunk, counts them, and reports a Lua block opener", () => {
+  it("applies the -- marker by the section's new file name and reports it elsewhere", () => {
     const stream = [
       "M\t\tapp/q.sql",
+      "M\t\tapp/n.txt",
+      "R100\tapp/old.txt\tapp/new.sql",
+      "M\t\tapp/Q.SQL",
       "== diff",
       "diff --git a/app/q.sql b/app/q.sql",
       "--- a/app/q.sql",
@@ -2268,6 +2336,29 @@ describe("lib.sh", () => {
       "+--",
       "+--[[ block",
       "+SELECT 1;",
+      "diff --git a/app/n.txt b/app/n.txt",
+      "--- a/app/n.txt",
+      "+++ b/app/n.txt",
+      "@@ -1,1 +1,2 @@",
+      "--- x",
+      "+-- y",
+      "+++ y",
+      "diff --git a/app/old.txt b/app/new.sql",
+      "--- a/app/old.txt",
+      "+++ b/app/new.sql",
+      "@@ -1,1 +1,1 @@",
+      "--- moved",
+      "+-- moved",
+      'diff --git "a/app/caf\\303\\251.sql" "b/app/caf\\303\\251.sql"',
+      '--- "a/app/caf\\303\\251.sql"',
+      '+++ "b/app/caf\\303\\251.sql"',
+      "@@ -1,0 +2,1 @@",
+      "+-- quoted path",
+      "diff --git a/app/Q.SQL b/app/Q.SQL",
+      "--- a/app/Q.SQL",
+      "+++ b/app/Q.SQL",
+      "@@ -1,0 +2,1 @@",
+      "+-- upper",
       "",
     ].join("\n");
 
@@ -2275,8 +2366,15 @@ describe("lib.sh", () => {
     const verify = routeDiff("verify", stream);
 
     expect(count.status).toBe(0);
-    expect(count.stdout).toBe("2");
-    expect(verify.stdout.split("\n")).toEqual(["+--[[ block", "+SELECT 1;"]);
+    expect(count.stdout).toBe("4");
+    expect(verify.stdout.split("\n")).toEqual([
+      "+--[[ block",
+      "+SELECT 1;",
+      "--- x",
+      "+-- y",
+      "+++ y",
+      "+-- upper",
+    ]);
   });
 
   it("makes each script exit 2 and name lib.sh when lib.sh is missing", () => {
