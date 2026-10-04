@@ -69,7 +69,7 @@ def read_blobs(ref: str, paths: list[str]) -> dict[str, bytes | str]:
     """Map each path to its content at ref, or to the reason it has none, with
     one git process for the whole list."""
     queries = "".join(f"{ref}:{path}\n" for path in paths)
-    output = subprocess.run(
+    output = subprocess.run(  # fixed argv, no shell; git is meant to come from PATH  # nosec B603 B607
         ["git", "cat-file", "--batch"],
         input=os.fsencode(queries),
         capture_output=True,
@@ -227,7 +227,7 @@ def comment_lines(ref: str, paths: list[str]) -> tuple[dict[str, set[int]], dict
         # MemoryError or RecursionError, which must fail that file alone.
         try:
             lines[path] = analyze(blob)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 see the comment above
             failures[path] = describe(ref, path, error)
 
     return lines, failures
