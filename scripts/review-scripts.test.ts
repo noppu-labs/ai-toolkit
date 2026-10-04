@@ -1,5 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -57,6 +66,84 @@ function makeFailingPython(): string {
   const path = join(dir, "python");
   writeFileSync(path, "#!/bin/sh\necho boom >&2\nexit 1\n", { mode: 0o755 });
   return path;
+}
+
+// An interpreter that fails only when asked about `ref` (the helper's first
+// argument after the script) and otherwise defers to python3.
+function makeSideFailingPython(ref: string): string {
+  const real = spawnSync("sh", ["-c", "command -v python3"], {
+    encoding: "utf8",
+  }).stdout.trim();
+  const dir = mkdtempSync(join(tmpdir(), "review-scripts-python-"));
+  const path = join(dir, "python");
+  writeFileSync(
+    path,
+    `#!/bin/sh\nif [ "$2" = "${ref}" ]; then echo boom >&2; exit 1; fi\nexec "${real}" "$@"\n`,
+    { mode: 0o755 },
+  );
+  return path;
+}
+
+const COUNTED_TOOLS: readonly string[] = [
+  "git",
+  "awk",
+  "grep",
+  "sed",
+  "head",
+  "tr",
+  "cut",
+  "sort",
+  "wc",
+  "cat",
+  "mktemp",
+  "rm",
+  "dirname",
+  "basename",
+  "python3",
+];
+
+// A PATH entry of wrappers that append the tool's name to `log` and exec the
+// real tool, so a test can count the external processes a script starts.
+function makeCountingPath(log: string): string {
+  const dir = mkdtempSync(join(tmpdir(), "review-scripts-path-"));
+  for (const tool of COUNTED_TOOLS) {
+    const real = spawnSync("sh", ["-c", `command -v ${tool}`], {
+      encoding: "utf8",
+    }).stdout.trim();
+    if (real === "") {
+      continue;
+    }
+    writeFileSync(
+      join(dir, tool),
+      `#!/bin/sh\necho ${tool} >> "${log}"\nexec "${real}" "$@"\n`,
+      { mode: 0o755 },
+    );
+  }
+  return dir;
+}
+
+function countLogged(log: string): number {
+  const text = readFileSync(log, "utf8").trim();
+  return text === "" ? 0 : text.split("\n").length;
+}
+
+function routeDiff(mode: string, stream: string): RunResult {
+  const result = spawnSync(
+    "bash",
+    [
+      "-c",
+      'source "$1" && route_diff "$2" FROM TO',
+      "lib",
+      join(scriptsDir, "lib.sh"),
+      mode,
+    ],
+    { encoding: "utf8", input: stream },
+  );
+  return {
+    status: result.status,
+    stdout: result.stdout.trim(),
+    stderr: result.stderr,
+  };
 }
 
 function commitFiles(
@@ -146,6 +233,51 @@ const DOCTEST_PY: string = [
   "    return sum(xs)",
   "",
 ].join("\n");
+
+// A plain string with an invalid escape, which ast.parse warns about on
+// stderr from Python 3.12.
+const INVALID_ESCAPE_PY: string = 'DIGITS = "\\d+"\n';
+
+// Too deep for the parser's stack: ast.parse raises MemoryError, not a
+// SyntaxError, under Python 3.8 and 3.10 or later. 3.9 parses it.
+const DEEP_PY: string = `x = ${"-".repeat(100_000)}1\n`;
+
+// On a feature branch, adds a `// caf\xe9 comment` line and a code line to
+// app/a.js and adds app/caf\xe9.py holding TOTALS_PY: a Latin-1 byte in
+// a changed line and in a path. The path goes straight into the index,
+// because APFS refuses a file name that is not UTF-8.
+function commitLatin1Change(cwd: string): void {
+  commitFiles(cwd, { "app/a.js": "x = 1\n" }, "js base");
+  git(cwd, "checkout", "-q", "-b", "feature");
+  writeFileSync(
+    join(cwd, "app", "a.js"),
+    Buffer.concat([
+      Buffer.from("// caf"),
+      Buffer.from([0xe9]),
+      Buffer.from(" comment\nx = 1\nx = 2\n"),
+    ]),
+  );
+  git(cwd, "add", "app/a.js");
+  const sha = spawnSync("git", ["hash-object", "-w", "--stdin"], {
+    cwd,
+    encoding: "utf8",
+    input: TOTALS_PY,
+  }).stdout.trim();
+  const index = spawnSync("git", ["update-index", "--add", "--index-info"], {
+    cwd,
+    input: Buffer.concat([
+      Buffer.from(`100644 ${sha}\tapp/caf`),
+      Buffer.from([0xe9]),
+      Buffer.from(".py\n"),
+    ]),
+  });
+  if (index.status !== 0) {
+    throw new Error(`git update-index failed: ${index.stderr.toString()}`);
+  }
+  git(cwd, "commit", "-q", "-m", "latin-1");
+}
+
+const UTF8_LOCALE: Record<string, string> = { LC_ALL: "en_US.UTF-8" };
 
 function renameAcrossExtensions(
   cwd: string,
@@ -590,6 +722,7 @@ describe("count-comment-lines.sh", () => {
     expect(fromRoot.stdout).toBe("2");
     expect(fromPkg.status).toBe(0);
     expect(fromPkg.stdout).toBe(fromRoot.stdout);
+    expect(fromPkg.stderr).toBe("");
   });
 
   it("counts a copied Python file as an added file", () => {
@@ -654,6 +787,96 @@ describe("count-comment-lines.sh", () => {
     expect(result.stdout).toBe("2");
   });
 
+  it("counts several Python files with the helper and only the one that does not parse with the regex", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": TOTALS_PY,
+        "app/broken.py":
+          'def broken(:\n    """Doc.\n\n    More.\n    """\n# note\n',
+        "app/c.py": "# why\nX = 1\n",
+      },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    // a.py 3 by the helper, broken.py 3 by the regex, c.py 1 by the helper.
+    expect(result.stdout).toBe("7");
+    expect(result.stderr).toContain("app/broken.py");
+    expect(result.stderr).not.toContain("app/a.py");
+    expect(result.stderr).not.toContain("app/c.py");
+  });
+
+  it("counts a Python file whose path has non-ASCII characters with the helper", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, { "app/café.py": TOTALS_PY }, "feature");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    // The regex would see 0 (it only matches """ quotes); the helper sees the docstring.
+    expect(result.stdout).toBe("3");
+  });
+
+  it("counts the same when diff.noprefix is set", () => {
+    const cwd = makeRepo();
+    git(cwd, "config", "diff.noprefix", "true");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, { "app/a.py": TOTALS_PY }, "feature");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("3");
+  });
+
+  it("counts 0 for a Python file with no comment lines beside one that has them", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "app/a.py": "X = 1\nY = 2\n", "app/b.py": TOTALS_PY },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("3");
+  });
+
+  it("warns about every Python file when the helper dies, and counts them with the regex", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "app/a.py": "# why\nX = 1\n", "app/b.py": "# why not\nY = 1\n" },
+      "feature",
+    );
+
+    const result = runWithEnv(
+      { REVIEW_PYTHON: makeFailingPython() },
+      "count-comment-lines.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("2");
+    expect(
+      result.stderr.split("\n").filter((line) => line.includes("boom")),
+    ).toHaveLength(2);
+  });
+
   it("exits 2 and names the ref when a ref does not exist", () => {
     const cwd = makeRepo();
 
@@ -662,6 +885,88 @@ describe("count-comment-lines.sh", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("no-such-ref");
+  });
+
+  it("counts a Python file the parser runs out of stack on with the regex, and the other Python file with the helper", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/deep.py": DEEP_PY },
+      "feature",
+    );
+
+    const result = runWithEnv(
+      { REVIEW_PYTHON: "python3" },
+      "count-comment-lines.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("3");
+    expect(result.stderr.trimEnd().split("\n")).toEqual([
+      expect.stringMatching(
+        /^count-comment-lines\.sh: python-comment-lines\.py: app\/deep\.py at feature: .*; counted by the regex$/,
+      ),
+    ]);
+  });
+
+  it("prints no count and exits non-zero when git fails", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/a.py": "# why\nX = 1\n" }, "python");
+
+    const result = run(
+      "count-comment-lines.sh",
+      cwd,
+      "HEAD~1",
+      "HEAD",
+      ":(bogus)app",
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toBe("");
+  });
+
+  it("counts a Python file whose path git quotes with the regex, and names it on stderr", () => {
+    const cwd = makeRepo();
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "plain.py": TOTALS_PY, 'q"uote.py': TOTALS_PY, "ta\tb.py": TOTALS_PY },
+      "feature",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature");
+
+    // The helper counts plain.py's three docstring lines; the regex counts
+    // none of the ''' lines in the other two.
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("3");
+    expect(result.stderr.trimEnd().split("\n")).toEqual([
+      'count-comment-lines.sh: "a/q\\"uote.py" "b/q\\"uote.py" is a path git quotes; counted by the regex',
+      'count-comment-lines.sh: "a/ta\\tb.py" "b/ta\\tb.py" is a path git quotes; counted by the regex',
+    ]);
+  });
+
+  it("counts a comment holding a byte that is not UTF-8, and a Python file whose path holds one, under a UTF-8 locale", () => {
+    const cwd = makeRepo();
+    commitLatin1Change(cwd);
+
+    const result = runWithEnv(
+      UTF8_LOCALE,
+      "count-comment-lines.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("4");
+    expect(result.stderr).toBe("");
   });
 });
 
@@ -1256,6 +1561,7 @@ describe("verify-comments-only.sh", () => {
     expect(fromRoot.stdout.split("\n")).toEqual(["-X = 1", "+X = 2"]);
     expect(fromPkg.status).toBe(1);
     expect(fromPkg.stdout).toBe(fromRoot.stdout);
+    expect(fromPkg.stderr).toBe("");
   });
 
   it("reports each hit of a copy's source once", () => {
@@ -1294,6 +1600,219 @@ describe("verify-comments-only.sh", () => {
     expect(result.stdout.split("\n")).toEqual(["-    3", "+    4"]);
   });
 
+  it("checks only the Python file that does not parse at FROM with the regex, in a batch", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "app/good.py": TOTALS_PY,
+        "app/broken.py": "def broken(:\n# note\n",
+      },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/good.py": "'''Totals.'''\nTOTAL = 1\n",
+        "app/broken.py": "def broken(:\n# other note\n",
+      },
+      "trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.stderr).toContain("app/broken.py");
+    expect(result.stderr).not.toContain("app/good.py");
+  });
+
+  it("fails and names every Python file when the helper fails at TO only", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/b.py": TOTALS_PY },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": "'''Totals.'''\nTOTAL = 1\n",
+        "app/b.py": "'''Totals.'''\nTOTAL = 1\n",
+      },
+      "trim",
+    );
+
+    const result = runWithEnv(
+      { REVIEW_PYTHON: makeSideFailingPython("HEAD") },
+      "verify-comments-only.sh",
+      cwd,
+      "HEAD~1",
+      "HEAD",
+      "app",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "app/a.py: does not parse as Python at HEAD",
+      "app/b.py: does not parse as Python at HEAD",
+    ]);
+  });
+
+  it("pairs a rename and does not pair a copy inside one batched diff", () => {
+    const cwd = makeRepo();
+    git(cwd, "config", "diff.renames", "copies");
+    commitFiles(
+      cwd,
+      { "app/a.py": COPIED_PY, "app/m.py": MIXED_PY },
+      "python base",
+    );
+    git(cwd, "mv", "app/m.py", "app/n.py");
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": COPIED_PY.replace("x0 = 0", "# added\nx0 = 0"),
+        "app/b.py": COPIED_PY,
+        "app/n.py": MIXED_PY.replace("# why\n", ""),
+      },
+      "copy and rename",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+    const lines = result.stdout.split("\n");
+
+    expect(result.status).toBe(1);
+    // b.py is an added file, so its code is a hit once; a paired copy would
+    // show no x0 line at all.
+    expect(lines.filter((line) => line === "+x0 = 0")).toHaveLength(1);
+    // n.py is paired with m.py, so its unchanged code is not a hit. The one
+    // added "def first" line is b.py's; an unpaired n.py would make it two.
+    expect(lines).not.toContain("-def first() -> int:");
+    expect(
+      lines.filter((line) => line === "+def first() -> int:"),
+    ).toHaveLength(1);
+    expect(lines).not.toContain("-# why");
+  });
+
+  it("pairs a renamed Python file when diff.renames is false", () => {
+    const cwd = makeRepo();
+    git(cwd, "config", "diff.renames", "false");
+    commitFiles(cwd, { "app/m.py": MIXED_PY }, "python base");
+    git(cwd, "mv", "app/m.py", "app/n.py");
+    commitFiles(cwd, { "app/n.py": MIXED_PY.replace("# why\n", "") }, "rename");
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
+  });
+
+  it("fails on a code change when another file's name holds a newline that reads as a helper section", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "evil.py": "def f():\n    return 1\n" }, "python base");
+    commitFiles(
+      cwd,
+      {
+        "evil.py": "def f():\n    import os\n    return 1\n",
+        "zzz\n== to 0\nevil.py\t2\nq": "# hi\n",
+      },
+      "change",
+    );
+
+    for (const env of [{}, NO_PYTHON]) {
+      const result = runWithEnv(
+        env,
+        "verify-comments-only.sh",
+        cwd,
+        "HEAD~1",
+        "HEAD",
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("+    import os");
+    }
+  });
+
+  it("fails on a changed directive when another file's name holds a tab and does not parse at FROM", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "app/evil.py": "# type: ignore\nimport os\n",
+        "app/evil.py\tx.py": "def b(:\n# a\n",
+      },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/evil.py": "# pyright: basic\nimport os\n",
+        "app/evil.py\tx.py": "def b(:\n# b\n",
+      },
+      "trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "-# type: ignore",
+      "+# pyright: basic",
+    ]);
+  });
+
+  it("fails on a code change beside a Python file in a directory named like a helper section", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, "== to 0"));
+    commitFiles(
+      cwd,
+      { "== to 0/x.py": "# one\nX = 1\n", "p.py": "# c\nX = 1\n" },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      { "== to 0/x.py": "# one\n\nX = 1\n", "p.py": "import os\n# c\nX = 1\n" },
+      "change",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("+import os");
+  });
+
+  it("fails on a changed directive when another file warns while parsing and a third does not parse at FROM", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": `# Digits, as a long note.\n${INVALID_ESCAPE_PY}`,
+        "app/legacy.py": 'print "legacy"\n# note\n',
+        "app/c.py": "# type: ignore\nimport os\n",
+      },
+      "python base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "app/a.py": `# Digits.\n${INVALID_ESCAPE_PY}`,
+        "app/legacy.py": 'print "legacy"\n# note trimmed\n',
+        "app/c.py": "# pyright: basic\nimport os\n",
+      },
+      "trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "-# type: ignore",
+      "+# pyright: basic",
+    ]);
+    expect(result.stderr).toContain("app/legacy.py");
+    expect(result.stderr).not.toContain("SyntaxWarning");
+  });
+
   it("exits 2 and names the ref when a ref does not exist", () => {
     const cwd = makeRepo();
 
@@ -1303,15 +1822,210 @@ describe("verify-comments-only.sh", () => {
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("no-such-ref");
   });
+
+  it("passes a comment-only Python trim with the regex when python3 is missing", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/a.py": "# old note\nX = 1\n" }, "python base");
+    commitFiles(cwd, { "app/a.py": "# new note\nX = 1\n" }, "trim");
+
+    const result = runWithEnv(
+      NO_PYTHON,
+      "verify-comments-only.sh",
+      cwd,
+      "HEAD~1",
+      "HEAD",
+      "app",
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
+  });
+
+  it("counts and checks a docstring trim beside a deleted Python file", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/gone.py": "X = 1\n# note\n" },
+      "python base",
+    );
+    git(cwd, "checkout", "-q", "-b", "feature");
+    git(cwd, "rm", "-q", "app/gone.py");
+    commitFiles(
+      cwd,
+      { "app/a.py": "'''Totals.\n'''\n# why\nTOTAL = 1\n" },
+      "trim",
+    );
+
+    const count = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+    const verify = run(
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("1");
+    expect(count.stderr).toBe("");
+    expect(verify.status).toBe(1);
+    expect(verify.stdout).toBe("-X = 1");
+    expect(verify.stderr).toBe("");
+  });
+
+  it("counts and checks the same with color.ui=always and diff.external set", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/b.js": "x = 1\n" },
+      "base files",
+    );
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "app/a.py": `${TOTALS_PY}# note\n`, "app/b.js": "// why\nx = 2\n" },
+      "feature",
+    );
+
+    const plain = [
+      run("count-comment-lines.sh", cwd, "main", "feature"),
+      run("verify-comments-only.sh", cwd, "main", "feature"),
+    ];
+    git(cwd, "config", "color.ui", "always");
+    git(cwd, "config", "diff.external", "/usr/bin/false");
+    const configured = [
+      run("count-comment-lines.sh", cwd, "main", "feature"),
+      run("verify-comments-only.sh", cwd, "main", "feature"),
+    ];
+
+    expect(plain[0]?.stdout).toBe("2");
+    expect(plain[1]?.stdout.split("\n")).toEqual(["-x = 1", "+x = 2"]);
+    expect(configured).toEqual(plain);
+  });
+
+  it("skips a markdown file whose path git quotes", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { 'q"uote.md': "line one\n", "back\\slash.md": "line one\n" },
+      "docs",
+    );
+    commitFiles(
+      cwd,
+      {
+        'q"uote.md': "line one\nprose added\n",
+        "back\\slash.md": "line one\nprose added\n",
+      },
+      "prose",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.stderr).toBe("");
+  });
+
+  it("names a Python file replaced by a symlink that does not parse once", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "app/a.py": "X = 1\n" }, "python base");
+    rmSync(join(cwd, "app", "a.py"));
+    symlinkSync("../README.md", join(cwd, "app", "a.py"));
+    git(cwd, "add", "-A");
+    git(cwd, "commit", "-q", "-m", "symlink");
+
+    const verify = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD", "app");
+    const count = run("count-comment-lines.sh", cwd, "HEAD~1", "HEAD", "app");
+
+    expect(verify.status).toBe(1);
+    expect(verify.stdout).toBe("app/a.py: does not parse as Python at HEAD");
+    expect(count.stderr.trimEnd().split("\n")).toEqual([
+      expect.stringContaining("app/a.py at HEAD"),
+    ]);
+  });
+
+  it("fails on a code change beside a comment holding a byte that is not UTF-8 and a Python file whose path holds one, under a UTF-8 locale", () => {
+    const cwd = makeRepo();
+    commitLatin1Change(cwd);
+
+    const result = runWithEnv(
+      UTF8_LOCALE,
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual(["+x = 2", "+TOTAL = 1"]);
+    expect(result.stderr).toBe("");
+  });
+});
+
+describe("process budget", () => {
+  it("runs count and verify over 200 Python files in fewer than 20 processes each", () => {
+    const cwd = makeRepo();
+    const base: Record<string, string> = {};
+    const changed: Record<string, string> = {};
+    for (let i = 0; i < 200; i++) {
+      base[`app/m${i}.py`] = TOTALS_PY;
+      changed[`app/m${i}.py`] = `${TOTALS_PY}# note ${i}\n`;
+    }
+    for (let i = 0; i < 20; i++) {
+      base[`app/C${i}.php`] = `<?php\nclass C${i}\n{\n}\n`;
+      changed[`app/C${i}.php`] = `<?php\n// why\nclass C${i}\n{\n}\n`;
+    }
+    commitFiles(cwd, base, "base files");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, changed, "notes");
+    const log = join(
+      mkdtempSync(join(tmpdir(), "review-scripts-log-")),
+      "processes",
+    );
+    const shims = makeCountingPath(log);
+    const env: Record<string, string> = {
+      PATH: `${shims}:${process.env.PATH ?? ""}`,
+      REVIEW_PYTHON: join(shims, "python3"),
+    };
+
+    writeFileSync(log, "");
+    const count = runWithEnv(
+      env,
+      "count-comment-lines.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+    const countProcesses = countLogged(log);
+    writeFileSync(log, "");
+    const verify = runWithEnv(
+      env,
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+    const verifyProcesses = countLogged(log);
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("220");
+    expect(countProcesses).toBeLessThan(20);
+    expect(verify.status).toBe(0);
+    expect(verify.stdout).toBe("only comment lines changed");
+    expect(verifyProcesses).toBeLessThan(20);
+  });
 });
 
 describe("lib.sh", () => {
-  it("defines the four helper functions both scripts call", () => {
+  it("defines the five helper functions both scripts call", () => {
     const result = spawnSync(
       "bash",
       [
         "-c",
-        'source "$1" && for f in check_refs read_change collect_mixed_renames mark_listed_lines; do echo "$f $(type -t "$f")"; done',
+        'source "$1" && for f in check_refs git_diff read_change read_changes route_diff; do echo "$f $(type -t "$f")"; done',
         "lib",
         join(scriptsDir, "lib.sh"),
       ],
@@ -1321,10 +2035,124 @@ describe("lib.sh", () => {
     expect(result.status).toBe(0);
     expect(result.stdout.trim().split("\n")).toEqual([
       "check_refs function",
+      "git_diff function",
       "read_change function",
-      "collect_mixed_renames function",
-      "mark_listed_lines function",
+      "read_changes function",
+      "route_diff function",
     ]);
+  });
+
+  it("routes a listed Python file by its line numbers and every other file by the regex", () => {
+    const stream = [
+      "M\t\tapp/a.py",
+      "M\t\tapp/b.php",
+      "== to 2",
+      "app/a.py\t2",
+      "== done",
+      "== diff",
+      "diff --git a/app/a.py b/app/a.py",
+      "--- a/app/a.py",
+      "+++ b/app/a.py",
+      "@@ -1,0 +2,2 @@",
+      '+"""Doc."""',
+      "+x = 1  # note",
+      "diff --git a/app/b.php b/app/b.php",
+      "--- a/app/b.php",
+      "+++ b/app/b.php",
+      "@@ -1,0 +2,2 @@",
+      "+// why",
+      "+$x = 1;",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("2");
+    expect(verify.stdout.split("\n")).toEqual(["+x = 1  # note", "+$x = 1;"]);
+  });
+
+  it("fails every file of a side whose helper died, skips markdown on both sides, and does not reach a TO failure once FROM failed", () => {
+    const stream = [
+      "M\t\tapp/a.py",
+      "M\t\tapp/b.py",
+      "R100\tdocs/old.md\tdocs/new.md",
+      "== from 1",
+      "boom",
+      "== to 2",
+      "app/b.py\tpython-comment-lines.py: app/b.py at TO: bad",
+      "== done",
+      "== diff",
+      "diff --git a/app/a.py b/app/a.py",
+      "--- a/app/a.py",
+      "+++ b/app/a.py",
+      "@@ -1 +1 @@",
+      "-# old",
+      "+# new",
+      "diff --git a/app/b.py b/app/b.py",
+      "--- a/app/b.py",
+      "+++ b/app/b.py",
+      "@@ -1 +1 @@",
+      "-x = 1",
+      "+x = 2",
+      "diff --git a/docs/old.md b/docs/new.md",
+      "similarity index 90%",
+      "rename from docs/old.md",
+      "rename to docs/new.md",
+      "--- a/docs/old.md",
+      "+++ b/docs/new.md",
+      "@@ -1 +1 @@",
+      "-# Old",
+      "+New prose",
+      "",
+    ].join("\n");
+
+    const verify = routeDiff("verify", stream);
+
+    expect(verify.stdout.split("\n")).toEqual(["-x = 1", "+x = 2"]);
+    expect(verify.stderr).toContain(
+      "verify-comments-only.sh: boom; checked with the regex",
+    );
+    expect(
+      verify.stderr.split("\n").filter((l) => l.includes("boom")),
+    ).toHaveLength(2);
+    expect(verify.stdout).not.toContain("New prose");
+  });
+
+  it("reads a helper section by its length, so a line in it that reads as a marker does not end it", () => {
+    const stream = [
+      "M\t\tapp/a.py",
+      "M\t\tapp/b.py",
+      "== to 4",
+      "app/a.py\t2",
+      "== diff",
+      "app/b.py\tpython-comment-lines.py: app/b.py at TO: bad",
+      "== done",
+      "== diff",
+      "diff --git a/app/a.py b/app/a.py",
+      "--- a/app/a.py",
+      "+++ b/app/a.py",
+      "@@ -1,0 +2,2 @@",
+      '+"""Doc."""',
+      "+# fmt: off",
+      "diff --git a/app/b.py b/app/b.py",
+      "--- a/app/b.py",
+      "+++ b/app/b.py",
+      "@@ -1,0 +2,2 @@",
+      "+# why",
+      "+x = 2",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+
+    expect(count.status).toBe(0);
+    // a.py's listed line 2, and b.py's `# why` by the regex.
+    expect(count.stdout).toBe("2");
+    expect(count.stderr).toBe(
+      "count-comment-lines.sh: python-comment-lines.py: app/b.py at TO: bad; counted by the regex\n",
+    );
   });
 
   it("makes each script exit 2 and name lib.sh when lib.sh is missing", () => {
@@ -1347,5 +2175,144 @@ describe("lib.sh", () => {
       expect(result.stderr).toContain(`${script}: cannot read`);
       expect(result.stderr).toContain("lib.sh");
     }
+  });
+});
+
+describe("python-comment-lines.py", () => {
+  const helper: string = join(scriptsDir, "python-comment-lines.py");
+
+  // python3, and macOS's /usr/bin/python3 (3.9), whose SyntaxError messages
+  // can span lines, when it exists.
+  const pythons: readonly string[] = ["python3", "/usr/bin/python3"].filter(
+    (python) => python === "python3" || existsSync(python),
+  );
+
+  function runHelperWith(
+    python: string,
+    cwd: string,
+    input: string,
+    ...args: string[]
+  ): RunResult {
+    const result = spawnSync(python, [helper, ...args], {
+      cwd,
+      encoding: "utf8",
+      input,
+    });
+    return {
+      status: result.status,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    };
+  }
+
+  function runHelper(cwd: string, input: string, ...args: string[]): RunResult {
+    return runHelperWith("python3", cwd, input, ...args);
+  }
+
+  it("prints a path and line record for every path on stdin, then the sentinel", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/b.py": "# why\nX = 1\n" },
+      "python",
+    );
+
+    const batch = runHelper(cwd, "app/a.py\0app/b.py\0", "HEAD");
+
+    expect(batch.status).toBe(0);
+    expect(batch.stderr).toBe("");
+    expect(batch.stdout).toBe(
+      "app/a.py\t1\napp/a.py\t3\napp/a.py\t4\napp/b.py\t1\n== done\n",
+    );
+  });
+
+  it("reports a missing path and one that does not parse on stderr, skips them, and exits 1", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/broken.py": "def broken(:\n# note\n" },
+      "python",
+    );
+
+    const result = runHelper(
+      cwd,
+      "app/a.py\0app/nope.py\0app/broken.py\0",
+      "HEAD",
+    );
+    const errors = result.stderr.trimEnd().split("\n");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe(
+      "app/a.py\t1\napp/a.py\t3\napp/a.py\t4\n== done\n",
+    );
+    expect(errors).toHaveLength(2);
+    expect(errors[0]).toMatch(
+      /^app\/nope\.py\tpython-comment-lines\.py: app\/nope\.py at HEAD: missing/,
+    );
+    expect(errors[1]).toMatch(
+      /^app\/broken\.py\tpython-comment-lines\.py: app\/broken\.py at HEAD: /,
+    );
+  });
+
+  it("reports a failure whose message spans lines as one stderr record", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/legacy.py": 'print """Usage\n  -h  help\n"""\n' },
+      "python",
+    );
+
+    for (const python of pythons) {
+      const result = runHelperWith(python, cwd, "app/legacy.py\0", "HEAD");
+
+      expect(result.status).toBe(1);
+      expect(result.stderr.trimEnd().split("\n")).toEqual([
+        expect.stringMatching(/^app\/legacy\.py\tpython-comment-lines\.py: /),
+      ]);
+    }
+  });
+
+  it("fails only the path the parser runs out of stack on, and still ends the batch with == done", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "app/a.py": TOTALS_PY, "app/deep.py": DEEP_PY },
+      "python",
+    );
+
+    const result = runHelper(cwd, "app/a.py\0app/deep.py\0", "HEAD");
+    const records = result.stderr.split("\n").filter((l) => l.includes("\t"));
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe(
+      "app/a.py\t1\napp/a.py\t3\napp/a.py\t4\n== done\n",
+    );
+    expect(records).toEqual([
+      expect.stringMatching(
+        /^app\/deep\.py\tpython-comment-lines\.py: app\/deep\.py at HEAD: /,
+      ),
+    ]);
+  });
+
+  it("prints only == done and exits 0 on empty input", () => {
+    const cwd = makeRepo();
+
+    const result = runHelper(cwd, "", "HEAD");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("== done\n");
+    expect(result.stderr).toBe("");
+  });
+
+  it("exits 2 with a usage line when given a path argument", () => {
+    const cwd = makeRepo();
+
+    const result = runHelper(cwd, "", "HEAD", "a.py");
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain(
+      "usage: python-comment-lines.py REF < NUL-separated paths",
+    );
   });
 });

@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""Print the comment line numbers of one Python file at a git ref.
+"""Print the comment line numbers of Python files at a git ref.
 
-Usage: python-comment-lines.py REF PATH
+Usage: python-comment-lines.py REF < NUL-separated paths
 
-Prints, one per line and in ascending order, the 1-based number of every line
-that holds a `#` comment with nothing before it, or that belongs to a module,
-class, or function docstring in any quote style. A docstring line that it
-shares with code, a blank docstring line, and a doctest example (a `>>>` or
+Reads NUL-separated paths from stdin, fetches every blob at REF with one
+`git cat-file --batch`, and prints `path<TAB>line` records in input order, each
+line number 1-based and ascending within its path. A path that cannot be read
+or parsed is reported on stderr as `path<TAB>message`, skipped, and makes the
+exit status 1. The last stdout line is `== done`, so a reader can tell a
+finished batch from an interpreter that died partway.
+
+A comment line holds a `#` comment with nothing before it, or belongs to a
+module, class, or function docstring in any quote style. A docstring line that
+it shares with code, a blank docstring line, and a doctest example (a `>>>` or
 `...` line and every line after it up to a blank one) are not comment lines.
 Tool directives (a shebang, an encoding declaration, `# noqa`, `# type:`,
 `# fmt:` and the like), also after a docstring's closing quotes, are not
-comment lines: changing one changes what a tool does. Exits 1 with one line on
-stderr when the file cannot be read, tokenized, or parsed. Needs Python 3.8 or
+comment lines: changing one changes what a tool does. Needs Python 3.8 or
 later for the `end_lineno` attribute.
 """
 
@@ -19,10 +24,12 @@ from __future__ import annotations
 
 import ast
 import io
+import os
 import re
 import subprocess
 import sys
 import tokenize
+import warnings
 
 DIRECTIVES = (
     "noqa",
@@ -58,12 +65,35 @@ CODING = re.compile(r"^[ \t\f]*#.*?coding[:=]")
 DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
 
 
-def read_blob(ref: str, path: str) -> bytes:
-    return subprocess.run(
-        ["git", "show", f"{ref}:{path}"],
+def read_blobs(ref: str, paths: list[str]) -> dict[str, bytes | str]:
+    """Map each path to its content at ref, or to the reason it has none, with
+    one git process for the whole list."""
+    queries = "".join(f"{ref}:{path}\n" for path in paths)
+    output = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        input=os.fsencode(queries),
         capture_output=True,
         check=True,
     ).stdout
+    blobs: dict[str, bytes | str] = {}
+    position = 0
+
+    for path in paths:
+        end = output.index(b"\n", position)
+        fields = os.fsdecode(output[position:end]).rsplit(" ", 2)
+        position = end + 1
+
+        # `<sha> <type> <size>`, or `<query> missing` / `<query> ambiguous`.
+        if len(fields) < 3 or not fields[2].isdigit():
+            blobs[path] = fields[-1]
+            continue
+
+        kind, size = fields[1], int(fields[2])
+        content = output[position : position + size]
+        position += size + 1
+        blobs[path] = content if kind == "blob" else f"is a {kind}, not a file"
+
+    return blobs
 
 
 def is_directive(token: tokenize.TokenInfo) -> bool:
@@ -160,38 +190,88 @@ def get_docstring_lines(tree: ast.Module, source: list[bytes]) -> set[int]:
     return lines
 
 
+def analyze(source: bytes) -> set[int]:
+    return get_docstring_lines(ast.parse(source), get_source_lines(source)) | get_comment_lines(
+        source
+    )
+
+
+def describe(ref: str, path: str, error: object) -> str:
+    version = f"{sys.version_info.major}.{sys.version_info.minor}"
+
+    # Python 3.9 and earlier quote multi-line source in some SyntaxErrors.
+    message = " ".join(str(error).splitlines())
+
+    return f"python-comment-lines.py: {path} at {ref}: {message} (under {sys.executable} {version})"
+
+
+def comment_lines(
+    ref: str, paths: list[str]
+) -> tuple[dict[str, set[int]], dict[str, str]]:
+    """The comment lines of every path that could be read and parsed at ref, and
+    a message for every path that could not."""
+    lines: dict[str, set[int]] = {}
+    failures: dict[str, str] = {}
+    queryable = [path for path in paths if "\n" not in path]
+
+    for path in paths:
+        if "\n" in path:
+            failures[path] = describe(ref, path, "the path contains a newline")
+
+    try:
+        blobs = read_blobs(ref, queryable)
+    except subprocess.CalledProcessError as error:
+        for path in queryable:
+            failures[path] = describe(ref, path, error)
+
+        return lines, failures
+
+    for path in queryable:
+        blob = blobs[path]
+
+        if isinstance(blob, str):
+            failures[path] = describe(ref, path, blob)
+            continue
+
+        # Not only parse errors: a file too deep for the parser raises
+        # MemoryError or RecursionError, which must fail that file alone.
+        try:
+            lines[path] = analyze(blob)
+        except Exception as error:
+            failures[path] = describe(ref, path, error)
+
+    return lines, failures
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) != 3:
-        print("usage: python-comment-lines.py REF PATH", file=sys.stderr)
+    # The scripts read stderr as failure records, so a SyntaxWarning from
+    # ast.parse must not reach it.
+    warnings.simplefilter("ignore")
+
+    if len(argv) != 2:
+        print("usage: python-comment-lines.py REF < NUL-separated paths", file=sys.stderr)
 
         return 2
 
-    ref, path = argv[1], argv[2]
+    ref = argv[1]
+    paths = [os.fsdecode(path) for path in sys.stdin.buffer.read().split(b"\0") if path]
+    lines, failures = comment_lines(ref, paths)
 
-    try:
-        source = read_blob(ref, path)
-        docstrings = get_docstring_lines(ast.parse(source), get_source_lines(source))
-        lines = docstrings | get_comment_lines(source)
-    except (
-        subprocess.CalledProcessError,
-        SyntaxError,
-        tokenize.TokenError,
-        UnicodeDecodeError,
-        ValueError,
-    ) as error:
-        version = f"{sys.version_info.major}.{sys.version_info.minor}"
-        print(
-            f"python-comment-lines.py: {path} at {ref}: {error}"
-            f" (under {sys.executable} {version})",
-            file=sys.stderr,
-        )
+    for path in paths:
+        for line in sorted(lines.get(path, ())):
+            sys.stdout.buffer.write(os.fsencode(f"{path}\t{line}\n"))
 
-        return 1
+    sys.stdout.buffer.flush()
 
-    for line in sorted(lines):
-        print(line)
+    for path in paths:
+        if path in failures:
+            sys.stderr.buffer.write(os.fsencode(f"{path}\t{failures[path]}\n"))
 
-    return 0
+    sys.stderr.buffer.flush()
+    sys.stdout.buffer.write(b"== done\n")
+    sys.stdout.buffer.flush()
+
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
