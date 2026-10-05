@@ -163,3 +163,4 @@ method is unresolved. Recover wiring from the brief's textual buckets.
 
 For reachability claims, see `${CLAUDE_PLUGIN_ROOT}/skills/deep/SKILL.md`, "Step 4: Report".
 For claims about how a third-party package behaves, apply [the evidence ladder](references/evidence-ladder.md).
+For first-party types and call relationships, see [resolving types and callers](references/resolution.md).
