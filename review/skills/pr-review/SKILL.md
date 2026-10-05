@@ -45,7 +45,7 @@ The SHA fallback is also taken when the pull ref cannot be fetched (a remote tha
 git fetch origin <baseRefName> <headRefOid>
 ```
 
-Every consumer of `<HEAD>` takes a commit-ish, so a bare SHA works in the `<BASE>...<HEAD>` diff, in `git rev-parse`, and in `git worktree add`. The SHA pins the review to the commit `gh` reported: even if the branch was force-pushed after the `gh` call, the review stays on that commit and never silently moves to a newer one.
+Every consumer of `<HEAD>` takes a commit-ish, so a bare SHA works in the `<BASE>...<HEAD>` diff, in `git rev-parse`, in `git grep`, and in `git worktree add`. If the branch is force-pushed after the `gh` call, the review stays on the commit `gh` reported.
 
 State the resolved pairs before starting, one line per PR: number, title, base, head, url, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, or `origin/<baseRefName>` still does not resolve, stop and say which number failed. Do not guess a base ref.
 
