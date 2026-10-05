@@ -1044,18 +1044,13 @@ describe("count-comment-lines.sh", () => {
 
   it("counts a Haskell -- comment followed by text or dashes but not an operator line", () => {
     const cwd = makeRepo();
-    commitFiles(
-      cwd,
-      { "m.hs": "main = pure ()\n", "q.mysql": "SELECT 1;\n" },
-      "haskell base",
-    );
+    commitFiles(cwd, { "m.hs": "main = pure ()\n" }, "haskell base");
     git(cwd, "checkout", "-q", "-b", "feature");
     commitFiles(
       cwd,
       {
         "m.hs":
           "main = pure ()\nx --> y\n--|op\n-- | haddock\n---\n--text\n  --> baz\n",
-        "q.mysql": "SELECT 1;\n--text\n",
       },
       "haskell",
     );
@@ -1063,7 +1058,23 @@ describe("count-comment-lines.sh", () => {
     const result = run("count-comment-lines.sh", cwd, "main", "feature");
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("4");
+    expect(result.stdout).toBe("3");
+  });
+
+  it("counts a -- comment in a .mysql file only when whitespace or the end of the line follows", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "q.mysql": "SELECT 1;\n" }, "mysql base");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "q.mysql": "SELECT 1;\n-- spaced\n--text\n--\n" },
+      "mysql",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("2");
   });
 
   it("does not count a --- line in a YAML, Markdown or shell file", () => {
@@ -2249,6 +2260,25 @@ describe("verify-comments-only.sh", () => {
       "+]]",
       "+---",
     ]);
+  });
+
+  it("reports a .mysql line where -- is followed by a digit", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "q.mysql": "UPDATE account SET credit=credit\n-- 1\n;\n" },
+      "mysql base",
+    );
+    commitFiles(
+      cwd,
+      { "q.mysql": "UPDATE account SET credit=credit\n--1\n;\n" },
+      "mysql code",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual(["+--1"]);
   });
 });
 
