@@ -96,8 +96,8 @@ const EMOJI_BY_LABEL: Record<string, string> = {
 const HEADER =
   /^\p{Extended_Pictographic} \*\*\[(COR|TPS|DOC)-\d{2,}\] [^\n]+\*\*\n(?!\n)/u;
 
-// Key order is part of the output contract: the JSON stays identical across
-// script versions, so a diff of two renders shows only real changes.
+// Key order is part of the output contract: it stays fixed across script
+// versions, so a diff of two renders shows only real changes.
 const PLAIN_KEYS: string[] = [
   "path",
   "line",
