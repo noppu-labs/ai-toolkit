@@ -5,7 +5,7 @@ description: Orchestrate a three-stage review (correctness, type safety, comment
 
 # PR review orchestrator
 
-Three reviews of the same diff merged into one report: correctness, type safety, comments. Correctness runs as two independent passes, the harness's `code-review` skill invoked by the orchestrator and a stage subagent reviewing by hand. The orchestrator resolves the refs, builds a structural brief, dispatches everything, and consolidates what comes back.
+Three reviews of the same diff merged into one report: correctness, type safety, comments. Correctness runs as two independent passes, the harness's `code-review` skill invoked by the orchestrator and a stage subagent reviewing by hand. The orchestrator resolves the refs, builds a structural brief, dispatches everything, and consolidates what comes back. On Claude Code with workflows enabled, the brief, the stage dispatch, and the consolidation run as the plugin workflow `review:pr-review-stages` (the workflow path in step 3); elsewhere the orchestrator does them by hand.
 
 The orchestrator keeps its context lean. It reads briefs and subagent reports and nothing else. It never opens a diff, a changed file, or a `git show`, however small the PR looks. Everything that needs the diff happens inside a subagent.
 
@@ -77,6 +77,26 @@ The commands run here produce the brief. Their output goes into the brief, not i
 ## Step 3: run the passes
 
 Per PR: one `code-review` invocation and three stage subagents, all dispatched in the same turn so they run in parallel where the harness allows. A three PR stack is three invocations and nine subagents.
+
+### Workflow path
+
+If a tool named `Workflow` is listed, the brief of step 2, the three stage subagents below, and the consolidation of step 4 run as the plugin workflow `review:pr-review-stages` instead of by hand. Invoke `code-review` first, exactly as the next section says, so both run at once. Then call the Workflow tool with `name` set to `review:pr-review-stages` and `args` set to the list from step 1, in merge order, as a JSON array value (never a JSON-encoded string), one object per PR:
+
+```json
+[
+  {
+    "number": 117,
+    "title": "<title>",
+    "base": "origin/<baseRefName>",
+    "head": "origin/<headRefName>",
+    "url": "<url>"
+  }
+]
+```
+
+The workflow builds each brief in a subagent, runs the three stage prompts below with every return validated against a schema, and returns `{ report, counts }`. `report` is the step 4 report without the `code-review` merge: every correctness finding carries `hand review only`, and the roll-up already names what the brief and the stages skipped. `counts` is one `{ number, correctness, typeSafety, comments }` per PR, a finding count per stage or `null` for a stage that did not report. Skip step 2 and the stage dispatch below, hold the result, and go to step 4 for the merge. The orchestrator still never opens the diff.
+
+The Workflow tool exists only in Claude Code with workflows enabled. When it is not listed (another harness, `disableWorkflows`, a plan without workflows), or the call fails before any agent runs (a syntax error in the script, a refused launch), continue as written: build the briefs, dispatch the stage subagents, and consolidate by hand. Both paths produce the same report shape.
 
 ### Correctness, first pass: `code-review`
 
@@ -250,10 +270,12 @@ Rules for the body:
 
 - One section per PR, in the merge order given as input, holding the three stage sections.
 - Every finding keeps its `path:line` from the HEAD side, so it can be pasted as a PR review comment, and keeps its outcome clause, which decides its label downstream.
-- A finding two stages both reported appears once, under the stage that ruled on it most precisely, labelled with both stage names.
+- A finding two stages both reported stays under each stage that reported it, suffixed `also reported by <stage>`. The orchestrator has not read the diff and does not decide whether two claims at one line are one finding; `review:pr-comments` shows it once (step 5).
 - `### Correctness` merges the two passes. A finding both passes reported appears once, labelled `both passes`. A finding one pass reported keeps its label, `code-review only` or `hand review only`, so the reader knows how much weight it carries. Where the passes disagree, both claims are listed under the finding; the orchestrator does not pick a side, since it has not read the diff.
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
 - `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it. If `code-review` was not listed or returned no report, it is named here with the reason, and the correctness findings carry the `hand review only` label. When every stage had everything, the section says so in one line rather than being dropped.
+
+On the workflow path the script has written everything above except the `code-review` merge, which stays a model step: a finding both passes reported becomes one entry relabelled `both passes`; a finding only `code-review` reported is added under `### Correctness` with `code-review only`; the `hand review only` labels the script wrote stay on the rest; and when `code-review` was not listed or returned no report, add it to `## Not available in this run` with the reason. Do not rewrite the rest of the report. When the finding you add lands under a `### Correctness` that reads `No findings.`, or the `code-review` line you add lands in a roll-up that reads `Every stage had everything it needed.`, replace that line.
 
 ## Step 5: comments for the author
 
