@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import fc from "fast-check";
@@ -340,5 +340,38 @@ describe("diffSkill", () => {
         makeFakeFetcher({ "SKILL.md": "# demo" }),
       ),
     ).toThrow(/ENOENT/);
+  });
+
+  it("throws instead of reporting no differences when git is killed by a signal", (t) => {
+    const root = makeRoot(t);
+
+    addSkill(
+      root,
+      "laravel",
+      "demo",
+      { "SKILL.md": "# demo" },
+      makeGithubEntry(),
+    );
+
+    const fakeBinDir = mkdtempSync(join(tmpdir(), "signal-git-"));
+    const originalPath = process.env.PATH;
+
+    t.onTestFinished(() => {
+      process.env.PATH = originalPath;
+      rmSync(fakeBinDir, { recursive: true, force: true });
+    });
+    writeFileSync(join(fakeBinDir, "git"), "#!/bin/sh\nkill -TERM $$\n", {
+      mode: 0o755,
+    });
+    process.env.PATH = fakeBinDir;
+
+    expect(() =>
+      diffSkill(
+        root,
+        "laravel",
+        "demo",
+        makeFakeFetcher({ "SKILL.md": "# demo" }),
+      ),
+    ).toThrow(/killed by SIGTERM/);
   });
 });
