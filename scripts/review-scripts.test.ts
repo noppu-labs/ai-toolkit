@@ -667,6 +667,30 @@ describe("count-comment-lines.sh", () => {
     expect(result.stdout).toBe("1");
   });
 
+  it("judges the removed side of a .txt to .sql rename as text and the added side as SQL", () => {
+    const cwd = makeRepo();
+    const body = ["line one", "line two", "line three", "line four"].join("\n");
+    commitFiles(cwd, { "app/notes.txt": `${body}\n-- foo\n` }, "base");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    git(cwd, "mv", "app/notes.txt", "app/notes.sql");
+    commitFiles(cwd, { "app/notes.sql": `${body}\n-- bar\n` }, "rename");
+
+    const count = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+    const verify = run(
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("1");
+    // `-- foo` was code in the .txt file; `-- bar` is a comment in the .sql file.
+    expect(verify.status).toBe(1);
+    expect(verify.stdout).toBe("--- foo");
+  });
+
   it("counts a file whose name is a glob once, and the file the glob matches once", () => {
     const cwd = makeRepo();
     git(cwd, "checkout", "-q", "-b", "feature");
@@ -2507,7 +2531,7 @@ describe("lib.sh", () => {
     );
   });
 
-  it("applies the -- marker by the section's new file name and reports it elsewhere", () => {
+  it("applies the -- marker by each side's own file name and reports it elsewhere", () => {
     const stream = [
       "M\t\tapp/q.sql",
       "M\t\tapp/n.txt",
@@ -2579,10 +2603,209 @@ describe("lib.sh", () => {
       "--- x",
       "+-- y",
       "+++ y",
+      "--- moved",
       "+-- upper",
       "--->",
       "+x --> y",
       "+--|",
+    ]);
+  });
+
+  it("judges a removed line by the old path and an added line by the new path across a rename", () => {
+    const stream = [
+      "R90\tapp/old.txt\tapp/new.sql",
+      "R90\tapp/old.sql\tapp/new.txt",
+      "R100\tapp/x.sql\tapp/y.sql",
+      "D\t\tapp/gone.sql",
+      "A\t\tapp/born.sql",
+      "== diff",
+      "diff --git a/app/old.txt b/app/new.sql",
+      "--- a/app/old.txt",
+      "+++ b/app/new.sql",
+      "@@ -1,1 +1,1 @@",
+      "--- foo",
+      "+-- bar",
+      "diff --git a/app/old.sql b/app/new.txt",
+      "--- a/app/old.sql",
+      "+++ b/app/new.txt",
+      "@@ -1,1 +1,2 @@",
+      "--- a",
+      "+-- b",
+      "+-- b2",
+      // A pure rename has no hunks and nothing to judge.
+      "diff --git a/app/x.sql b/app/y.sql",
+      "similarity index 100%",
+      "rename from app/x.sql",
+      "rename to app/y.sql",
+      "diff --git a/app/gone.sql b/app/gone.sql",
+      "--- a/app/gone.sql",
+      "+++ /dev/null",
+      "@@ -1,1 +0,0 @@",
+      "--- bye",
+      "diff --git a/app/born.sql b/app/born.sql",
+      "--- /dev/null",
+      "+++ b/app/born.sql",
+      "@@ -0,0 +1,1 @@",
+      "+-- hi",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    // `+-- bar` in new.sql and `+-- hi` in born.sql; `+-- b` and `+-- b2` land
+    // in a .txt file. Judging added lines by the old side would count 3.
+    expect(count.stdout).toBe("2");
+    expect(count.stderr).toBe("");
+    expect(verify.status).toBe(0);
+    // `--- foo` was code in old.txt; `+-- b` and `+-- b2` are code in new.txt; `--- bye` was a comment in gone.sql.
+    expect(verify.stdout.split("\n")).toEqual(["--- foo", "+-- b", "+-- b2"]);
+    expect(verify.stderr).toBe("");
+  });
+
+  it("routes a quoted rename, which the registry leaves out, by each side's own path", () => {
+    const stream = [
+      "== diff",
+      'diff --git "a/app/caf\\303\\251.txt" "b/app/caf\\303\\251.sql"',
+      '--- "a/app/caf\\303\\251.txt"',
+      '+++ "b/app/caf\\303\\251.sql"',
+      "@@ -1,1 +1,1 @@",
+      "--- foo",
+      "+-- bar",
+      'diff --git "a/app/sp\\303\\244t.sql" "b/app/sp\\303\\244t.txt"',
+      '--- "a/app/sp\\303\\244t.sql"',
+      '+++ "b/app/sp\\303\\244t.txt"',
+      "@@ -1,1 +1,2 @@",
+      "--- a",
+      "+-- b",
+      "+-- b2",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    // +-- bar only; judging added lines by the old path would count +-- b and +-- b2 instead.
+    expect(count.stdout).toBe("1");
+    expect(count.stderr).toBe("");
+    expect(verify.status).toBe(0);
+    expect(verify.stdout.split("\n")).toEqual(["--- foo", "+-- b", "+-- b2"]);
+    expect(verify.stderr).toBe("");
+  });
+
+  it("skips a quoted markdown rename in verify, and keeps a rename out of markdown or with a real escaped quote", () => {
+    const stream = [
+      "== diff",
+      // Both sides markdown: skipped in verify, as the registered rule does.
+      'diff --git "a/app/x\\"y.md" "b/app/x\\"z.md"',
+      '--- "a/app/x\\"y.md"',
+      '+++ "b/app/x\\"z.md"',
+      "@@ -1,1 +1,1 @@",
+      "-old prose",
+      "+new prose",
+      // Markdown on one side only: checked.
+      'diff --git "a/app/n\\"o.md" b/app/n.sql',
+      '--- "a/app/n\\"o.md"',
+      "+++ b/app/n.sql",
+      "@@ -1,1 +1,1 @@",
+      "-prose",
+      "+-- sql note",
+      // The quoting git really emits under core.quotePath=false: an escaped
+      // quote in the old path, the new side unquoted.
+      'diff --git "a/app/q\\"t.sql" b/app/plainq.txt',
+      '--- "a/app/q\\"t.sql"',
+      "+++ b/app/plainq.txt",
+      "@@ -1,1 +1,1 @@",
+      "--- q",
+      "+-- q2",
+      // Markdown on the new side only: checked.
+      'diff --git "a/app/c\\"d.txt" b/app/c.md',
+      '--- "a/app/c\\"d.txt"',
+      "+++ b/app/c.md",
+      "@@ -1,1 +1,1 @@",
+      "-code",
+      "+prose",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    // Only `+-- sql note` lands in a dash file.
+    expect(count.stdout).toBe("1");
+    expect(count.stderr).toBe("");
+    expect(verify.status).toBe(0);
+    expect(verify.stdout.split("\n")).toEqual([
+      "-prose",
+      "+-- q2",
+      "-code",
+      "+prose",
+    ]);
+    expect(verify.stderr).toBe("");
+  });
+
+  it("routes a header that quotes only one side by each side's own path", () => {
+    const stream = [
+      "== diff",
+      'diff --git "a/app/caf\\303\\251.txt" b/app/plain.sql',
+      '--- "a/app/caf\\303\\251.txt"',
+      "+++ b/app/plain.sql",
+      "@@ -1,1 +1,1 @@",
+      "--- foo",
+      "+-- bar",
+      'diff --git a/app/plain.txt "b/app/sp\\303\\244t.sql"',
+      "--- a/app/plain.txt",
+      '+++ "b/app/sp\\303\\244t.sql"',
+      "@@ -1,1 +1,1 @@",
+      "--- c",
+      "+-- d",
+      'diff --git "a/app/sp\\303\\244t.sql" b/app/plain.txt',
+      '--- "a/app/sp\\303\\244t.sql"',
+      "+++ b/app/plain.txt",
+      "@@ -1,1 +1,1 @@",
+      "--- a",
+      "+-- b",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("2");
+    expect(count.stderr).toBe("");
+    expect(verify.status).toBe(0);
+    expect(verify.stdout.split("\n")).toEqual(["--- foo", "--- c", "+-- b"]);
+    expect(verify.stderr).toBe("");
+  });
+
+  it("names a rename to a Python path whose header quotes only the old side, and falls back to the regex", () => {
+    const stream = [
+      "== diff",
+      'diff --git "a/app/caf\\303\\251.txt" b/app/x.py',
+      '--- "a/app/caf\\303\\251.txt"',
+      "+++ b/app/x.py",
+      "@@ -1,1 +1,1 @@",
+      "+# c",
+      "",
+    ].join("\n");
+    const header = '"a/app/caf\\303\\251.txt" b/app/x.py';
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("1");
+    expect(count.stderr.trimEnd().split("\n")).toEqual([
+      `count-comment-lines.sh: ${header} is a path git quotes; counted by the regex`,
+    ]);
+    expect(verify.status).toBe(0);
+    expect(verify.stdout).toBe("");
+    expect(verify.stderr.trimEnd().split("\n")).toEqual([
+      `verify-comments-only.sh: ${header} is a path git quotes; checked with the regex`,
     ]);
   });
 
