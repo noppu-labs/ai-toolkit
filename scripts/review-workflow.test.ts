@@ -3,12 +3,15 @@ import { join } from "node:path";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
+type Instructions = Partial<Record<InstructionKey, string>>;
+
 type Pr = {
   number: number;
   title: string;
   base: string;
   head: string;
   url: string;
+  instructions?: Instructions;
 };
 
 type Skipped = { tool: string; reason: string };
@@ -100,13 +103,36 @@ const WORKFLOW_SCRIPTS: string[] = readdirSync(workflowsDir)
   .filter((name) => name.endsWith(".js"))
   .sort();
 
-const STAGE_KEYS: string[] = ["correctness", "typeSafety", "comments"];
+const STAGE_KEYS = ["correctness", "typeSafety", "comments"] as const;
 
-const STAGE_MARKERS: Record<string, string> = {
+type StageKey = (typeof STAGE_KEYS)[number];
+
+type InstructionKey = StageKey | "brief" | "all";
+
+const STAGE_MARKERS: Record<StageKey, string> = {
   correctness: "Correctness stage, the second pass:",
   typeSafety: "Type safety stage:",
   comments: "Comments stage:",
 };
+
+const INSTRUCTIONS_HEADING: string =
+  "## Additional instructions from the caller";
+
+const BRIEF_TRAILER_START: string =
+  "Return the brief through the structured output";
+
+const STAGE_TRAILER_START: string =
+  "Return the three sections through the structured output";
+
+// Every run executes the whole script through the harness, so 100 runs under
+// coverage instrumentation in CI need more than vitest's default timeout.
+const WHOLE_SCRIPT_TIMEOUT_MS: number = 120_000;
+
+function labelsOf(pr: Pr): Array<[InstructionKey, string]> {
+  return (["brief", ...STAGE_KEYS] as const).map(
+    (key): [InstructionKey, string] => [key, `${key}:${pr.number}`],
+  );
+}
 
 // The runtime wraps the body in an async function, which makes the top-level
 // `return` legal. The test does the same with fake runtime globals, minus the
@@ -287,6 +313,40 @@ function fill(template: string, slots: Record<string, string>): string {
   );
 }
 
+function stageTemplate(key: StageKey, pr: Pr, brief: string): string {
+  return fill(fencedAfter(STAGE_MARKERS[key]), {
+    BRIEF: brief,
+    BASE: pr.base,
+    HEAD: pr.head,
+    PR_TITLE: pr.title,
+    PR_URL: pr.url,
+  });
+}
+
+function briefTemplate(pr: Pr): string {
+  return fill(
+    sectionOf("## Step 2: structural brief", "## Step 3: run the passes"),
+    { BASE: pr.base, HEAD: pr.head },
+  );
+}
+
+function textsOf(instructions: Instructions): Array<[string, string]> {
+  return Object.entries(instructions).flatMap(([name, text]) =>
+    text === undefined ? [] : [[name, text] as [string, string]],
+  );
+}
+
+function expectedCounts(
+  key: InstructionKey,
+  instructions: Instructions,
+): { heading: number; texts: number[] } {
+  const texts = textsOf(instructions).map(([name]) =>
+    name === "all" || name === key ? 1 : 0,
+  );
+
+  return { heading: texts.includes(1) ? 1 : 0, texts };
+}
+
 function makePr(overrides: Partial<Pr> = {}): Pr {
   return {
     number: 117,
@@ -424,10 +484,7 @@ describe("prompts", () => {
   it("builds the brief prompt around step 2 of SKILL.md with the refs filled", async () => {
     const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
     const prompt = findPrompt(run, "brief:117");
-    const step2 = fill(
-      sectionOf("## Step 2: structural brief", "## Step 3: run the passes"),
-      { BASE: EXAMPLE_PR.base, HEAD: EXAMPLE_PR.head },
-    );
+    const step2 = briefTemplate(EXAMPLE_PR);
 
     expect(prompt.phase).toBe("Brief");
     expect(prompt.prompt).toContain(`\n\n${step2}\n\n`);
@@ -444,19 +501,7 @@ describe("prompts", () => {
     async (key) => {
       const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
       const prompt = findPrompt(run, `${key}:117`);
-      const marker = STAGE_MARKERS[key];
-
-      if (marker === undefined) {
-        throw new Error(`no SKILL.md marker for ${key}`);
-      }
-
-      const expected = fill(fencedAfter(marker), {
-        BRIEF: "BRIEF TEXT",
-        BASE: EXAMPLE_PR.base,
-        HEAD: EXAMPLE_PR.head,
-        PR_TITLE: EXAMPLE_PR.title,
-        PR_URL: EXAMPLE_PR.url,
-      });
+      const expected = stageTemplate(key, EXAMPLE_PR, "BRIEF TEXT");
 
       expect(prompt.phase).toBe("Stages");
       expect(prompt.prompt.startsWith(`${expected}\n\n`)).toBe(true);
@@ -494,6 +539,173 @@ describe("prompts", () => {
   });
 });
 
+describe("instructions", () => {
+  it("appends instructions.correctness to the correctness prompt only, between the template and the trailer", async () => {
+    const text =
+      "The PR must deliver the three requirements in the invoking prompt.";
+    const pr = makePr({ instructions: { correctness: text } });
+    const run = await runScript([pr], cleanFixtures(pr));
+    const prompt = findPrompt(run, "correctness:117").prompt;
+    const trailer = prompt.slice(prompt.indexOf(STAGE_TRAILER_START));
+
+    expect(prompt).toBe(
+      `${stageTemplate("correctness", pr, "BRIEF TEXT")}\n\n${INSTRUCTIONS_HEADING}\n\n${text}\n\n${trailer}`,
+    );
+    expect(trailer).not.toContain("\n");
+
+    for (const label of ["brief:117", "typeSafety:117", "comments:117"]) {
+      expect(findPrompt(run, label).prompt).not.toContain(INSTRUCTIONS_HEADING);
+      expect(findPrompt(run, label).prompt).not.toContain(text);
+    }
+  });
+
+  it("sends instructions.all to the brief and every stage, and instructions.brief to the brief alone", async () => {
+    const pr = makePr({
+      instructions: {
+        all: "Pass --repo acme/app to every gh call.",
+        brief: "Only pull/117/head was fetched; origin/feat/dash is absent.",
+      },
+    });
+    const run = await runScript([pr], cleanFixtures(pr));
+    const brief = findPrompt(run, "brief:117").prompt;
+    const trailer = brief.slice(brief.indexOf(BRIEF_TRAILER_START));
+
+    expect(brief).toContain(
+      `\n\n${briefTemplate(pr)}\n\n${INSTRUCTIONS_HEADING}\n\nPass --repo acme/app to every gh call.\n\nOnly pull/117/head was fetched; origin/feat/dash is absent.\n\n${trailer}`,
+    );
+
+    for (const key of STAGE_KEYS) {
+      const prompt = findPrompt(run, `${key}:117`).prompt;
+
+      expect(prompt).toContain(
+        `\n\n${INSTRUCTIONS_HEADING}\n\nPass --repo acme/app to every gh call.\n\n${STAGE_TRAILER_START}`,
+      );
+      expect(prompt).not.toContain("pull/117/head");
+    }
+  });
+
+  it("puts all before the stage's own instructions under one heading", async () => {
+    const pr = makePr({
+      instructions: {
+        comments: "sibling=../app-api out=/tmp/audit.md",
+        all: "Use pnpm.",
+      },
+    });
+    const run = await runScript([pr], cleanFixtures(pr));
+    const prompt = findPrompt(run, "comments:117").prompt;
+
+    expect(prompt).toContain(
+      `\n\n${INSTRUCTIONS_HEADING}\n\nUse pnpm.\n\nsibling=../app-api out=/tmp/audit.md\n\n${STAGE_TRAILER_START}`,
+    );
+    expect(countOccurrences(prompt, INSTRUCTIONS_HEADING)).toBe(1);
+  });
+
+  it("trims the instruction text", async () => {
+    const pr = makePr({
+      instructions: { typeSafety: "  \nStrict mode is on.\n\n" },
+    });
+    const run = await runScript([pr], cleanFixtures(pr));
+
+    expect(findPrompt(run, "typeSafety:117").prompt).toContain(
+      `\n\n${INSTRUCTIONS_HEADING}\n\nStrict mode is on.\n\n${STAGE_TRAILER_START}`,
+    );
+  });
+
+  it("leaves the prompts byte-for-byte unchanged without instructions and with an empty object", async () => {
+    const plain = makePr();
+    const empty = makePr({ instructions: {} });
+    const withoutRun = await runScript([plain], cleanFixtures(plain));
+    const emptyRun = await runScript([empty], cleanFixtures(empty));
+
+    expect(emptyRun.prompts).toEqual(withoutRun.prompts);
+
+    const brief = findPrompt(withoutRun, "brief:117").prompt;
+    const step2 = briefTemplate(plain);
+    const afterBrief = brief.slice(brief.indexOf(step2) + step2.length);
+
+    expect(afterBrief.startsWith(`\n\n${BRIEF_TRAILER_START}`)).toBe(true);
+    expect(afterBrief.slice(2)).not.toContain("\n");
+
+    for (const key of STAGE_KEYS) {
+      const prompt = findPrompt(withoutRun, `${key}:117`).prompt;
+      const template = stageTemplate(key, plain, "BRIEF TEXT");
+      const rest = prompt.slice(template.length);
+
+      expect(prompt.startsWith(template)).toBe(true);
+      expect(rest.startsWith(`\n\n${STAGE_TRAILER_START}`)).toBe(true);
+      expect(rest.slice(2)).not.toContain("\n");
+    }
+
+    for (const run of [withoutRun, emptyRun]) {
+      for (const prompt of run.prompts) {
+        expect(prompt.prompt).not.toContain(INSTRUCTIONS_HEADING);
+      }
+    }
+  });
+
+  it("keeps each PR's instructions out of the other PR's prompts", async () => {
+    const first = makePr({ instructions: { all: "FIRST ONLY" } });
+    const second = makePr({
+      number: 118,
+      title: "feat: second",
+      url: "u118",
+      instructions: { correctness: "SECOND ONLY" },
+    });
+    const run = await runScript([first, second], {
+      ...cleanFixtures(first),
+      ...cleanFixtures(second),
+    });
+
+    for (const [, label] of labelsOf(first)) {
+      expect(findPrompt(run, label).prompt).toContain("FIRST ONLY");
+      expect(findPrompt(run, label).prompt).not.toContain("SECOND ONLY");
+    }
+
+    for (const [key, label] of labelsOf(second)) {
+      expect(findPrompt(run, label).prompt).not.toContain("FIRST ONLY");
+      expect(
+        countOccurrences(findPrompt(run, label).prompt, "SECOND ONLY"),
+      ).toBe(key === "correctness" ? 1 : 0);
+    }
+  });
+
+  it("leaves slot tokens inside instructions alone", async () => {
+    const pr = makePr({
+      instructions: { all: "Compare <BASE>...<HEAD> and cite <PR_URL>." },
+    });
+    const run = await runScript([pr], cleanFixtures(pr));
+
+    expect(findPrompt(run, "correctness:117").prompt).toContain(
+      `${INSTRUCTIONS_HEADING}\n\nCompare <BASE>...<HEAD> and cite <PR_URL>.\n\n`,
+    );
+  });
+
+  it("puts each instruction in exactly the prompts its key names", {
+    timeout: WHOLE_SCRIPT_TIMEOUT_MS,
+  }, async () => {
+    await fc.assert(
+      fc.asyncProperty(makeInstructionsArb(), async (instructions) => {
+        const pr = makePr({ instructions });
+        const run = await runScript([pr], cleanFixtures(pr));
+
+        for (const [key, label] of labelsOf(pr)) {
+          const prompt = findPrompt(run, label).prompt;
+          const expected = expectedCounts(key, instructions);
+
+          expect(countOccurrences(prompt, INSTRUCTIONS_HEADING)).toBe(
+            expected.heading,
+          );
+          expect(
+            textsOf(instructions).map(([, text]) =>
+              countOccurrences(prompt, text),
+            ),
+          ).toEqual(expected.texts);
+        }
+      }),
+    );
+  });
+});
+
 describe("args", () => {
   it.each([
     [undefined, /non-empty array/],
@@ -507,6 +719,30 @@ describe("args", () => {
     [
       [makePr(), { ...makePr(), url: " " }],
       /args\[1\]\.url must be a non-empty string/,
+    ],
+    [
+      [{ ...makePr(), instructions: "be strict" }],
+      /args\[0\]\.instructions must be an object/,
+    ],
+    [
+      [{ ...makePr(), instructions: null }],
+      /args\[0\]\.instructions must be an object/,
+    ],
+    [
+      [{ ...makePr(), instructions: ["be strict"] }],
+      /args\[0\]\.instructions must be an object/,
+    ],
+    [
+      [{ ...makePr(), instructions: { security: "check auth" } }],
+      /args\[0\]\.instructions\.security is not a known key/,
+    ],
+    [
+      [{ ...makePr(), instructions: { correctness: 7 } }],
+      /args\[0\]\.instructions\.correctness must be a non-empty string/,
+    ],
+    [
+      [makePr(), { ...makePr({ number: 118 }), instructions: { all: " " } }],
+      /args\[1\]\.instructions\.all must be a non-empty string/,
     ],
   ])("rejects %j before any agent runs", async (args, message) => {
     await expect(runScript(args, {})).rejects.toThrow(message);
@@ -659,6 +895,26 @@ function makeStageArb(): fc.Arbitrary<StageOutput> {
   });
 }
 
+// Every value names its key, so a text that lands in the wrong prompt is
+// told apart from one that belongs there.
+function makeInstructionsArb(): fc.Arbitrary<Instructions> {
+  const valueFor = (key: InstructionKey): fc.Arbitrary<string> =>
+    fc
+      .stringMatching(/^[a-z]{1,8}( [a-z]{1,8}){0,3}$/)
+      .map((words) => `CALLER ${key}: ${words}`);
+
+  return fc.record(
+    {
+      brief: valueFor("brief"),
+      correctness: valueFor("correctness"),
+      typeSafety: valueFor("typeSafety"),
+      comments: valueFor("comments"),
+      all: valueFor("all"),
+    },
+    { requiredKeys: [] },
+  );
+}
+
 function makePrsArb(): fc.Arbitrary<Pr[]> {
   return fc
     .uniqueArray(fc.integer({ min: 1, max: 999 }), {
@@ -717,10 +973,6 @@ function findingCounts(section: string, stages: StageOutput[]): number[] {
     }),
   );
 }
-
-// Every run executes the whole script through the harness, so 100 runs under
-// coverage instrumentation in CI need more than vitest's default timeout.
-const WHOLE_SCRIPT_TIMEOUT_MS: number = 120_000;
 
 describe("report properties", () => {
   it("lists every finding exactly once, under its PR, in merge order", {

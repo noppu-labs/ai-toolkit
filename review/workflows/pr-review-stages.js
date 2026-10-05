@@ -230,6 +230,30 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
 
+const INSTRUCTION_KEYS = ["brief", ...STAGES.map((stage) => stage.key), "all"];
+
+const INSTRUCTIONS_HEADING = "## Additional instructions from the caller";
+
+function validateInstructions(value, at) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${at} must be an object with any of ${INSTRUCTION_KEYS.join(", ")}`);
+  }
+  const instructions = {};
+  for (const key of Object.keys(value)) {
+    if (!INSTRUCTION_KEYS.includes(key)) {
+      throw new Error(`${at}.${key} is not a known key; the keys are ${INSTRUCTION_KEYS.join(", ")}`);
+    }
+    if (!isNonEmptyString(value[key])) {
+      throw new Error(`${at}.${key} must be a non-empty string`);
+    }
+    instructions[key] = value[key].trim();
+  }
+  return instructions;
+}
+
 function validatePr(item, index) {
   const at = `args[${index}]`;
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
@@ -243,7 +267,8 @@ function validatePr(item, index) {
       throw new Error(`${at}.${field} must be a non-empty string`);
     }
   }
-  return { number: item.number, title: item.title, base: item.base, head: item.head, url: item.url };
+  const instructions = validateInstructions(item.instructions, `${at}.instructions`);
+  return { number: item.number, title: item.title, base: item.base, head: item.head, url: item.url, instructions };
 }
 
 function validateArgs(input) {
@@ -251,7 +276,7 @@ function validateArgs(input) {
     throw new Error("args arrived as a string; pass the PR list as a JSON array value, not a JSON-encoded string");
   }
   if (!Array.isArray(input) || input.length === 0) {
-    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, url }, ...]");
+    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, url, instructions? }, ...]");
   }
   const prs = input.map(validatePr);
   const numbers = new Set();
@@ -264,10 +289,24 @@ function validateArgs(input) {
   return prs;
 }
 
+// Ends in its own blank line, so an empty block leaves the template, a blank
+// line, then the trailer.
+function instructionsBlock(pr, key) {
+  const parts = [];
+  if (pr.instructions) {
+    for (const name of ["all", key]) {
+      if (pr.instructions[name] !== undefined) {
+        parts.push(pr.instructions[name]);
+      }
+    }
+  }
+  return parts.length === 0 ? "" : `${INSTRUCTIONS_HEADING}\n\n${parts.join("\n\n")}\n\n`;
+}
+
 function briefPrompt(pr) {
   const header = `Build the structural brief for PR #${pr.number} "${pr.title}" (${pr.url}). Base ref ${pr.base}, head ref ${pr.head}. Only what the branch adds is in scope: git diff ${pr.base}...${pr.head}, three dots. Do not review the change; the brief is the input every reviewer of this PR gets.`;
   const body = fill(STEP2_TEMPLATE, { BASE: pr.base, HEAD: pr.head });
-  return `${header}\n\n${body}\n\n${BRIEF_TRAILER}`;
+  return `${header}\n\n${body}\n\n${instructionsBlock(pr, "brief")}${BRIEF_TRAILER}`;
 }
 
 function stagePrompt(stage, pr, brief) {
@@ -278,7 +317,7 @@ function stagePrompt(stage, pr, brief) {
     PR_TITLE: pr.title,
     PR_URL: pr.url,
   });
-  return `${body}\n\n${STAGE_TRAILER}`;
+  return `${body}\n\n${instructionsBlock(pr, stage.key)}${STAGE_TRAILER}`;
 }
 
 async function runBrief(pr) {
