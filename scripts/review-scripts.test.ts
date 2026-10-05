@@ -667,6 +667,30 @@ describe("count-comment-lines.sh", () => {
     expect(result.stdout).toBe("1");
   });
 
+  it("judges the removed side of a .txt to .sql rename as text and the added side as SQL", () => {
+    const cwd = makeRepo();
+    const body = ["line one", "line two", "line three", "line four"].join("\n");
+    commitFiles(cwd, { "app/notes.txt": `${body}\n-- foo\n` }, "base");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    git(cwd, "mv", "app/notes.txt", "app/notes.sql");
+    commitFiles(cwd, { "app/notes.sql": `${body}\n-- bar\n` }, "rename");
+
+    const count = run("count-comment-lines.sh", cwd, "main", "feature", "app");
+    const verify = run(
+      "verify-comments-only.sh",
+      cwd,
+      "main",
+      "feature",
+      "app",
+    );
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("1");
+    // `-- foo` was code in the .txt file; `-- bar` is a comment in the .sql file.
+    expect(verify.status).toBe(1);
+    expect(verify.stdout).toBe("--- foo");
+  });
+
   it("counts a file whose name is a glob once, and the file the glob matches once", () => {
     const cwd = makeRepo();
     git(cwd, "checkout", "-q", "-b", "feature");
