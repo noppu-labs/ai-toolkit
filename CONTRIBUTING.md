@@ -62,10 +62,10 @@ upstreams for updates, pulling changes, merging diverged skills, and adding new 
 
 ## Versioning
 
-Consumer-facing changes (skills, rules, agents, commands) must bump the affected plugin's
+Consumer-facing changes (skills, rules, agents, commands, workflows) must bump the affected plugin's
 `version` in `<plugin>/.claude-plugin/plugin.json` **in the same commit**, because installed
 copies only update when that version changes. Use semver: patch for fixes and wording, minor
-for new skills or rules, major for removals or breaking restructures. CI tags and publishes
+for new skills, rules, or workflows, major for removals or breaking restructures. CI tags and publishes
 releases automatically on merge to `main`; the
 [maintenance guide](docs/MAINTENANCE.md#versioning-and-releasing-plugin-changes) has the
 details.

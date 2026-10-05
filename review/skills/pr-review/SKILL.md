@@ -5,7 +5,7 @@ description: Orchestrate a three-stage review (correctness, type safety, comment
 
 # PR review orchestrator
 
-Three reviews of the same diff merged into one report: correctness, type safety, comments. Correctness runs as two independent passes, the harness's `code-review` skill invoked by the orchestrator and a stage subagent reviewing by hand. The orchestrator resolves the refs, builds a structural brief, dispatches everything, and consolidates what comes back.
+Three reviews of the same diff merged into one report: correctness, type safety, comments. Correctness runs as two independent passes, the harness's `code-review` skill invoked by the orchestrator and a stage subagent reviewing by hand. The orchestrator resolves the refs, builds a structural brief, dispatches everything, and consolidates what comes back. On Claude Code with workflows enabled, the brief, the stage dispatch, and the consolidation run as the plugin workflow `review:pr-review-stages` (the workflow path in step 3); elsewhere the orchestrator does them by hand.
 
 The orchestrator keeps its context lean. It reads briefs and subagent reports and nothing else. It never opens a diff, a changed file, or a `git show`, however small the PR looks. Everything that needs the diff happens inside a subagent.
 
@@ -43,7 +43,7 @@ One brief per PR, plain text, pasted whole into every subagent prompt for that P
 
 If the `investigate:brief` skill is available (the `investigate` plugin from this marketplace), invoke the `investigate:brief` skill to get its script path under `${CLAUDE_PLUGIN_ROOT}`, and build the brief from the script's output plus part of the lighter brief below. Paste the outputs concatenated as the brief.
 
-1. Run the script in a checkout or worktree at `<HEAD>`, since it reads the working tree. `git worktree add <dir> origin/<headRefName>` creates one; remove it afterwards with `git worktree remove <dir>`. A fresh worktree has no `node_modules` or `vendor`, so language-server types and callers degrade, and its directory name does not match the gitnexus registry, so the Tools line reads `gitnexus: unavailable (...)` and graph sections are omitted.
+1. Run the script in a checkout at `<HEAD>`, since it reads the working tree. When the current checkout is already there and clean (`git rev-parse HEAD` equals `git rev-parse origin/<headRefName>` and `git status --porcelain` prints nothing), run it in place: that checkout has its `node_modules` or `vendor` and its gitnexus registration, so the brief is richer. Otherwise create a worktree named after the PR in a scratch directory outside the repository, `git worktree add <scratch>/pr-review-<number> origin/<headRefName>`, and remove it afterwards with `git worktree remove <scratch>/pr-review-<number>`. A fresh worktree has no `node_modules` or `vendor`, so language-server types and callers degrade, and its directory name does not match the gitnexus registry, so the Tools line reads `gitnexus: unavailable (...)` and graph sections are omitted.
 2. Pick the targets from the changed source files: PHP, or JS/TS including `.mjs`, `.cjs`, `.mts`, `.cts`, and not named `*.test.*`, `*.spec.*`, or `*.stories.*`, which the script leaves out. Take the directory of each, then drop every directory that is an ancestor of another on the list. A dropped directory's own changed source files, and changed source files at the repo root, are targeted one file at a time instead of by directory, so `.` is never a target. Directories with no changed sources (manifests, docs, workflows) get no run.
 3. Run the script once per target, always with `--no-docs`: a review needs no doc verdicts, and the flag keeps package names from being sent to context7.com. A run that still exits non-zero (a deleted directory, no sources) gets no per-directory fallback; item 4 covers its files.
 4. Run the lighter brief's first three commands as well and keep their output, the stat block and the changed-symbol list, next to the script's output. The script details at most 15 symbols per directory, taken in file path order, so the symbol list is what shows the changes it dropped. Run the fourth command for each changed symbol that has no section in the script's output.
@@ -77,6 +77,28 @@ The commands run here produce the brief. Their output goes into the brief, not i
 ## Step 3: run the passes
 
 Per PR: one `code-review` invocation and three stage subagents, all dispatched in the same turn so they run in parallel where the harness allows. A three PR stack is three invocations and nine subagents.
+
+### Workflow path
+
+If a tool named `Workflow` is listed, the brief of step 2, the three stage subagents below, and the consolidation of step 4 run as the plugin workflow `review:pr-review-stages` instead of by hand. Invoke `code-review` first, exactly as the next section says, so both run at once. Then call the Workflow tool with `name` set to `review:pr-review-stages` and `args` set to the list from step 1, in merge order, as a JSON array value (never a JSON-encoded string), one object per PR:
+
+```json
+[
+  {
+    "number": 117,
+    "title": "<title>",
+    "base": "origin/<baseRefName>",
+    "head": "origin/<headRefName>",
+    "url": "<url>"
+  }
+]
+```
+
+The workflow builds each brief in a subagent, runs the three stage prompts below with every return validated against a schema, and returns `{ report, counts }`. `report` is the step 4 report without the `code-review` merge: every correctness finding carries `hand review only`, and the roll-up already names what the brief and the stages skipped. `counts` is one `{ number, correctness, typeSafety, comments }` per PR, a finding count per stage or `null` for a stage that did not report. Skip step 2 and the stage dispatch below, hold the result, and go to step 4 for the merge. The orchestrator still never opens the diff.
+
+The Workflow tool exists only in Claude Code with workflows enabled. When it is not listed (another harness, `disableWorkflows`, a plan without workflows), or the call fails before any agent runs (a syntax error in the script, a refused launch, or `not found` because only the skill is installed, as after `npx skills add`), continue as written: build the briefs, dispatch the stage subagents, and consolidate by hand. Both paths produce the same report shape.
+
+If the run stops after agents have run (the tool result reports an error, or the run was stopped from `/workflows`), relaunch it once with the `scriptPath` and `resumeFromRunId` from the first result and the same `args`, as the Workflow tool documents: completed agents return their saved results, and the failed agent and those started after it run again. The same relaunch covers a PR where one or two stage sections read `The stage did not report.` (that stage's agent died or exhausted its schema retries): its completed agents return from the saved results and the missing stage runs again. When a stage is still missing after the relaunch, dispatch that stage by hand with the template below and a brief rebuilt per step 2, and replace its roll-up line. A PR whose three stage sections all read `The stage did not report.` did not complete inside the workflow: build its brief and dispatch its three stage subagents by hand, as below, and write that PR's section by the step 4 rules before the `code-review` merge, replacing its roll-up line `PR <n>: the pipeline stopped before consolidation, so no stage reported` with what those stages skipped.
 
 ### Correctness, first pass: `code-review`
 
@@ -250,10 +272,12 @@ Rules for the body:
 
 - One section per PR, in the merge order given as input, holding the three stage sections.
 - Every finding keeps its `path:line` from the HEAD side, so it can be pasted as a PR review comment, and keeps its outcome clause, which decides its label downstream.
-- A finding two stages both reported appears once, under the stage that ruled on it most precisely, labelled with both stage names.
+- A finding two stages both reported stays under each stage that reported it, suffixed `also reported by <stage>`. The orchestrator has not read the diff and does not decide whether two claims at one line are one finding; `review:pr-comments` shows it once (step 5).
 - `### Correctness` merges the two passes. A finding both passes reported appears once, labelled `both passes`. A finding one pass reported keeps its label, `code-review only` or `hand review only`, so the reader knows how much weight it carries. Where the passes disagree, both claims are listed under the finding; the orchestrator does not pick a side, since it has not read the diff.
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
 - `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it. If `code-review` was not listed or returned no report, it is named here with the reason, and the correctness findings carry the `hand review only` label. When every stage had everything, the section says so in one line rather than being dropped.
+
+On the workflow path the script has written everything above except the `code-review` merge, which stays a model step: a finding both passes reported becomes one entry relabelled `both passes`; a finding only `code-review` reported is added under `### Correctness` with `code-review only`; the `hand review only` labels the script wrote stay on the rest; and when `code-review` was not listed or returned no report, add it to `## Not available in this run` with the reason. Do not rewrite the rest of the report. When the finding you add lands under a `### Correctness` that reads `No findings.`, or the `code-review` line you add lands in a roll-up that reads `Every stage had everything it needed.`, replace that line. When `### Correctness` reads `The stage did not report.`, keep that line and add the `code-review only` findings under it.
 
 ## Step 5: comments for the author
 
