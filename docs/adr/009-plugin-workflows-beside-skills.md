@@ -30,8 +30,9 @@ reports to the wrong session.
 
 The stage prompts and the brief instructions are duplicated verbatim into the script, and
 a vitest file compares the script's copies with SKILL.md on every run. The same test
-executes the script through the wrapper the runtime uses, with fake runtime globals, so
-the consolidation is tested as code and the parse is checked there rather than by Biome.
+executes the script through a function wrapper like the runtime's, with fake runtime
+globals, so the consolidation is tested as code and the parse is checked there rather
+than by Biome.
 The `review/workflows` folder is excluded from Biome (ADR-004 records the exclusion).
 
 Workflows that fit this pattern are those where the control flow is the fragile part and
@@ -45,7 +46,9 @@ not get a workflow.
 - The defensive rules become impossibilities: the script has no tool to open a diff with,
   consolidation cannot start before the `await` returns, an empty stage's heading is a
   template, and merge order is the array order.
-- A stack of PRs that dies at the eighth of nine stage agents resumes at the eighth.
+- A stack of PRs whose run stops part way can be relaunched in the same session;
+  completed agents return their saved results and only the failed agent and those
+  after it run again.
 - Consolidation (labels, cross-references, the roll-up) has example and property tests.
 - Consumers on other harnesses see no change; the directory does not reach them.
 
@@ -58,4 +61,5 @@ not get a workflow.
 - One file in the repository is not linted or formatted by Biome.
 - The workflow path needs Claude Code 2.1.248 or later with dynamic workflows enabled,
   and a headless run needs an allow rule.
-- About a thousand words of SKILL.md are duplicated, escaped, inside a JavaScript file.
+- The brief instructions and the three stage prompts of SKILL.md (about 1,650 words at
+  the time of writing) are duplicated, escaped, inside a JavaScript file.
