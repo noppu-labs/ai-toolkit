@@ -78,5 +78,8 @@
         "organizeImports": "on"
       }
     }
+  },
+  "files": {
+    "includes": ["**", "!review/workflows"]
   }
 }
