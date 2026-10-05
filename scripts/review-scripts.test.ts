@@ -2507,7 +2507,7 @@ describe("lib.sh", () => {
     );
   });
 
-  it("applies the -- marker by the section's new file name and reports it elsewhere", () => {
+  it("applies the -- marker by each side's own file name and reports it elsewhere", () => {
     const stream = [
       "M\t\tapp/q.sql",
       "M\t\tapp/n.txt",
@@ -2579,11 +2579,127 @@ describe("lib.sh", () => {
       "--- x",
       "+-- y",
       "+++ y",
+      "--- moved",
       "+-- upper",
       "--->",
       "+x --> y",
       "+--|",
     ]);
+  });
+
+  it("judges a removed line by the old path and an added line by the new path across a rename", () => {
+    const stream = [
+      "R90\tapp/old.txt\tapp/new.sql",
+      "R90\tapp/old.sql\tapp/new.txt",
+      "R100\tapp/x.sql\tapp/y.sql",
+      "D\t\tapp/gone.sql",
+      "A\t\tapp/born.sql",
+      "== diff",
+      "diff --git a/app/old.txt b/app/new.sql",
+      "--- a/app/old.txt",
+      "+++ b/app/new.sql",
+      "@@ -1,1 +1,1 @@",
+      "--- foo",
+      "+-- bar",
+      "diff --git a/app/old.sql b/app/new.txt",
+      "--- a/app/old.sql",
+      "+++ b/app/new.txt",
+      "@@ -1,1 +1,1 @@",
+      "--- a",
+      "+-- b",
+      // A pure rename has no hunks and nothing to judge.
+      "diff --git a/app/x.sql b/app/y.sql",
+      "similarity index 100%",
+      "rename from app/x.sql",
+      "rename to app/y.sql",
+      "diff --git a/app/gone.sql b/app/gone.sql",
+      "--- a/app/gone.sql",
+      "+++ /dev/null",
+      "@@ -1,1 +0,0 @@",
+      "--- bye",
+      "diff --git a/app/born.sql b/app/born.sql",
+      "--- /dev/null",
+      "+++ b/app/born.sql",
+      "@@ -0,0 +1,1 @@",
+      "+-- hi",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    // `+-- bar` in new.sql and `+-- hi` in born.sql; `+-- b` lands in a .txt file.
+    expect(count.stdout).toBe("2");
+    expect(count.stderr).toBe("");
+    expect(verify.status).toBe(0);
+    // `--- foo` was code in old.txt; `+-- b` is code in new.txt; `--- bye` was a comment in gone.sql.
+    expect(verify.stdout.split("\n")).toEqual(["--- foo", "+-- b"]);
+    expect(verify.stderr).toBe("");
+  });
+
+  it("routes a quoted rename, which the registry leaves out, by each side's own path", () => {
+    const stream = [
+      "== diff",
+      'diff --git "a/app/caf\\303\\251.txt" "b/app/caf\\303\\251.sql"',
+      '--- "a/app/caf\\303\\251.txt"',
+      '+++ "b/app/caf\\303\\251.sql"',
+      "@@ -1,1 +1,1 @@",
+      "--- foo",
+      "+-- bar",
+      'diff --git "a/app/sp\\303\\244t.sql" "b/app/sp\\303\\244t.txt"',
+      '--- "a/app/sp\\303\\244t.sql"',
+      '+++ "b/app/sp\\303\\244t.txt"',
+      "@@ -1,1 +1,1 @@",
+      "--- a",
+      "+-- b",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("1");
+    expect(count.stderr).toBe("");
+    expect(verify.status).toBe(0);
+    expect(verify.stdout.split("\n")).toEqual(["--- foo", "+-- b"]);
+    expect(verify.stderr).toBe("");
+  });
+
+  it("routes a header that quotes only one side by each side's own path", () => {
+    const stream = [
+      "== diff",
+      'diff --git "a/app/caf\\303\\251.txt" b/app/plain.sql',
+      '--- "a/app/caf\\303\\251.txt"',
+      "+++ b/app/plain.sql",
+      "@@ -1,1 +1,1 @@",
+      "--- foo",
+      "+-- bar",
+      'diff --git a/app/plain.txt "b/app/sp\\303\\244t.sql"',
+      "--- a/app/plain.txt",
+      '+++ "b/app/sp\\303\\244t.sql"',
+      "@@ -1,1 +1,1 @@",
+      "--- c",
+      "+-- d",
+      'diff --git "a/app/sp\\303\\244t.sql" b/app/plain.txt',
+      '--- "a/app/sp\\303\\244t.sql"',
+      "+++ b/app/plain.txt",
+      "@@ -1,1 +1,1 @@",
+      "--- a",
+      "+-- b",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("2");
+    expect(count.stderr).toBe("");
+    expect(verify.status).toBe(0);
+    expect(verify.stdout.split("\n")).toEqual(["--- foo", "--- c", "+-- b"]);
+    expect(verify.stderr).toBe("");
   });
 
   it("makes each script exit 2 and name lib.sh when lib.sh is missing", () => {

@@ -116,6 +116,14 @@ route_diff() {
     function ends(s, suffix) {
       return (substr(s, length(s) - length(suffix) + 1) == suffix)
     }
+    # The regex pair a path takes, by its extension. The upper-case forms
+    # stay code on purpose.
+    function lang_of(p) {
+      if (p ~ /[.](hs|lhs)$/) return "hs"
+      if (p ~ /[.]mysql$/) return "mysql"
+      if (p ~ /[.](sql|psql|pgsql|lua|elm|ada|adb|ads|vhd|vhdl)$/) return "dash"
+      return "code"
+    }
     # The paths a side was sent: every changed file whose new name ends in
     # .py and that exists on that side, under its name there.
     function open_side(side,   i) {
@@ -165,20 +173,39 @@ route_diff() {
       if (m != "") return m
       return (mode == "count" ? p " does not parse as Python at " ref[side] : p " does not parse as Python")
     }
+    # Splits the rename header r into cur_from and cur_new. git quotes each
+    # side on its own, so oq says whether the old side is quoted and the new
+    # side starts at the first quoted or, failing that, unquoted `b/` after it.
+    function split_sides(r, oq,   o, sep, quoted, i) {
+      o = oq ? "\"" : ""
+      sep = o " \"b/"
+      quoted = (index(r, sep) > 0)
+      if (!quoted) sep = o " b/"
+      i = index(r, sep)
+      cur_from = substr(r, oq ? 4 : 3, i - (oq ? 4 : 3))
+      cur_new = substr(r, i + length(sep))
+      if (quoted) cur_new = substr(cur_new, 1, length(cur_new) - 1)
+    }
     # A header with no registry line names a path read_changes left out
-    # because git quotes it. One path on both sides that is markdown stays
-    # skipped in verify; a Python path is named on stderr and uses the regex.
-    function unregistered(header, seen,   r, p, same) {
+    # because git quotes it. The header is `a/OLD b/NEW`, with either side
+    # quoted on its own; the symmetric test recognises one path on both sides
+    # even when the path holds ` b/`, and a rename is split by split_sides.
+    # One path on both sides that is markdown stays skipped in verify; a
+    # Python path is named on stderr and uses the regex.
+    function unregistered(header, seen,   r, p, same, oq) {
       r = substr(header, length("diff --git ") + 1)
-      if (substr(r, 1, 1) == "\"") {
+      oq = (substr(r, 1, 1) == "\"")
+      if (oq) {
         p = substr(r, 4, (length(r) - 9) / 2)
         same = (r == "\"a/" p "\" \"b/" p "\"")
       } else {
         p = substr(r, 3, (length(r) - 5) / 2)
         same = (r == "a/" p " b/" p)
       }
+      if (same) cur_from = cur_new = p
+      else split_sides(r, oq)
       if (same && mode == "verify" && ends(p, ".md")) return "skip"
-      if (same ? ends(p, ".py") : (ends(r, ".py\"") || ends(r, ".py"))) {
+      if (ends(cur_new, ".py")) {
         if (!seen) print script ": " r " is a path git quotes; " fallback > "/dev/stderr"
       }
       return "regex"
@@ -254,14 +281,14 @@ route_diff() {
       next
     }
     !patch { record(side, $0); next }
-    # `--` is a comment only where the language says so; the new name of the
-    # section, the last path of the header, picks the regex pair.
+    # `--` is a comment only where the language says so. A removed line is
+    # judged by the old path of the section and an added line by the new
+    # one, so a rename across the dash-comment boundary judges each side
+    # by the file it belongs to. classify leaves both paths in cur_from
+    # and cur_new.
     /^diff --git / {
       hunk = 0; kind = classify($0)
-      if ($0 ~ /[.](hs|lhs)"?$/) lang = "hs"
-      else if ($0 ~ /[.]mysql"?$/) lang = "mysql"
-      else if ($0 ~ /[.](sql|psql|pgsql|lua|elm|ada|adb|ads|vhd|vhdl)"?$/) lang = "dash"
-      else lang = "code"
+      lang_from = lang_of(cur_from); lang_to = lang_of(cur_new)
       next
     }
     /^@@ / {
@@ -270,15 +297,15 @@ route_diff() {
     }
     !hunk { next }
     /^-/ {
-      if (mode == "verify" && kind == "regex" && $0 !~ quiet[lang]) print
+      if (mode == "verify" && kind == "regex" && $0 !~ quiet[lang_from]) print
       else if (mode == "verify" && kind == "py" && !(("from", cur_from, left) in listed) && $0 !~ /^-[[:space:]]*$/) print
       left++
       next
     }
     /^\+/ {
       if (mode == "count" && kind == "py") { if (("to", cur_new, right) in listed) total++ }
-      else if (mode == "count") { if (kind == "regex" && $0 ~ comment[lang]) total++ }
-      else if (kind == "regex" && $0 !~ quiet[lang]) print
+      else if (mode == "count") { if (kind == "regex" && $0 ~ comment[lang_to]) total++ }
+      else if (kind == "regex" && $0 !~ quiet[lang_to]) print
       else if (kind == "py" && !(("to", cur_new, right) in listed) && $0 !~ /^[+][[:space:]]*$/) print
       right++
       next
