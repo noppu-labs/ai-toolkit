@@ -3,13 +3,6 @@ import { join } from "node:path";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-type InstructionKey =
-  | "brief"
-  | "correctness"
-  | "typeSafety"
-  | "comments"
-  | "all";
-
 type Instructions = Partial<Record<InstructionKey, string>>;
 
 type Pr = {
@@ -110,9 +103,13 @@ const WORKFLOW_SCRIPTS: string[] = readdirSync(workflowsDir)
   .filter((name) => name.endsWith(".js"))
   .sort();
 
-const STAGE_KEYS: string[] = ["correctness", "typeSafety", "comments"];
+const STAGE_KEYS = ["correctness", "typeSafety", "comments"] as const;
 
-const STAGE_MARKERS: Record<string, string> = {
+type StageKey = (typeof STAGE_KEYS)[number];
+
+type InstructionKey = StageKey | "brief" | "all";
+
+const STAGE_MARKERS: Record<StageKey, string> = {
   correctness: "Correctness stage, the second pass:",
   typeSafety: "Type safety stage:",
   comments: "Comments stage:",
@@ -131,14 +128,10 @@ const STAGE_TRAILER_START: string =
 // coverage instrumentation in CI need more than vitest's default timeout.
 const WHOLE_SCRIPT_TIMEOUT_MS: number = 120_000;
 
-// Every agent label of one PR, paired with the instructions key that reaches it.
 function labelsOf(pr: Pr): Array<[InstructionKey, string]> {
-  return [
-    ["brief", `brief:${pr.number}`],
-    ["correctness", `correctness:${pr.number}`],
-    ["typeSafety", `typeSafety:${pr.number}`],
-    ["comments", `comments:${pr.number}`],
-  ];
+  return (["brief", ...STAGE_KEYS] as const).map(
+    (key): [InstructionKey, string] => [key, `${key}:${pr.number}`],
+  );
 }
 
 // The runtime wraps the body in an async function, which makes the top-level
@@ -320,14 +313,8 @@ function fill(template: string, slots: Record<string, string>): string {
   );
 }
 
-function stageTemplate(key: string, pr: Pr, brief: string): string {
-  const marker = STAGE_MARKERS[key];
-
-  if (marker === undefined) {
-    throw new Error(`no SKILL.md marker for ${key}`);
-  }
-
-  return fill(fencedAfter(marker), {
+function stageTemplate(key: StageKey, pr: Pr, brief: string): string {
+  return fill(fencedAfter(STAGE_MARKERS[key]), {
     BRIEF: brief,
     BASE: pr.base,
     HEAD: pr.head,
@@ -349,8 +336,6 @@ function textsOf(instructions: Instructions): Array<[string, string]> {
   );
 }
 
-// A text reaches a prompt when its key is `all` or the prompt's own key; the
-// heading appears once exactly when some text reaches the prompt.
 function expectedCounts(
   key: InstructionKey,
   instructions: Instructions,
@@ -749,7 +734,7 @@ describe("args", () => {
     ],
     [
       [{ ...makePr(), instructions: { security: "check auth" } }],
-      /args\[0\]\.instructions\.security is not a stage/,
+      /args\[0\]\.instructions\.security is not a known key/,
     ],
     [
       [{ ...makePr(), instructions: { correctness: 7 } }],

@@ -230,12 +230,10 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
 
-const INSTRUCTION_KEYS = ["brief", "correctness", "typeSafety", "comments", "all"];
+const INSTRUCTION_KEYS = ["brief", ...STAGES.map((stage) => stage.key), "all"];
 
 const INSTRUCTIONS_HEADING = "## Additional instructions from the caller";
 
-// `instructions` is optional: absent means none. Anything else must be an
-// object whose keys name an agent (or `all`) and whose values are text.
 function validateInstructions(value, at) {
   if (value === undefined) {
     return undefined;
@@ -246,14 +244,14 @@ function validateInstructions(value, at) {
   const instructions = {};
   for (const key of Object.keys(value)) {
     if (!INSTRUCTION_KEYS.includes(key)) {
-      throw new Error(`${at}.${key} is not a stage; the keys are ${INSTRUCTION_KEYS.join(", ")}`);
+      throw new Error(`${at}.${key} is not a known key; the keys are ${INSTRUCTION_KEYS.join(", ")}`);
     }
     if (!isNonEmptyString(value[key])) {
       throw new Error(`${at}.${key} must be a non-empty string`);
     }
     instructions[key] = value[key].trim();
   }
-  return Object.keys(instructions).length === 0 ? undefined : instructions;
+  return instructions;
 }
 
 function validatePr(item, index) {
@@ -278,7 +276,7 @@ function validateArgs(input) {
     throw new Error("args arrived as a string; pass the PR list as a JSON array value, not a JSON-encoded string");
   }
   if (!Array.isArray(input) || input.length === 0) {
-    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, url }, ...]");
+    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, url, instructions? }, ...]");
   }
   const prs = input.map(validatePr);
   const numbers = new Set();
@@ -291,9 +289,8 @@ function validateArgs(input) {
   return prs;
 }
 
-// The caller's text goes after the filled template and before the trailer,
-// `all` first, then the key for this agent. Without instructions the block is
-// empty, so the trailer follows the template directly.
+// Ends in its own blank line, so an empty block leaves the template, a blank
+// line, then the trailer.
 function instructionsBlock(pr, key) {
   const parts = [];
   if (pr.instructions) {
