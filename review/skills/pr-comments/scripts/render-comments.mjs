@@ -130,6 +130,8 @@ function findFieldProblems(comment) {
 
   if (typeof comment.body !== "string" || comment.body.trim() === "") {
     problems.push("body must be a non-empty string");
+  } else if (scrubBody(comment.body).trim() === "") {
+    problems.push("body is empty once reviewer vocabulary is stripped");
   }
 
   return problems;
@@ -153,6 +155,114 @@ function findLabelProblems(comment) {
   return [];
 }
 
+// Why each label is here: review/skills/pr-comments/SKILL.md, "Suggestions".
+// Type safety is absent because its rule is "none by default", not never.
+const NO_SUGGESTION_LABELS = new Set(["Move", "Wrong", "Question", "Unsure"]);
+
+const MAX_SUGGESTION_LINES = 6;
+
+// Any CommonMark fence line: backticks or tildes, up to three spaces of indent.
+const FENCE_LINE = /^ {0,3}(?:`{3,}|~{3,})/mu;
+
+function isPresent(value) {
+  return value !== undefined && value !== null;
+}
+
+function isLineNumber(value) {
+  return Number.isInteger(value) && value >= 1;
+}
+
+function findSuggestionLineProblems(suggestion) {
+  const { startLine, endLine } = suggestion;
+  const problems = [];
+
+  if (!isLineNumber(startLine)) {
+    problems.push("suggestion.startLine must be an integer of at least 1");
+  }
+
+  if (!isLineNumber(endLine)) {
+    problems.push("suggestion.endLine must be an integer of at least 1");
+  } else if (isLineNumber(startLine) && endLine < startLine) {
+    problems.push(
+      "suggestion.endLine must be an integer of at least startLine",
+    );
+  }
+
+  return problems;
+}
+
+function findSuggestionShapeProblems(suggestion) {
+  const problems = findSuggestionLineProblems(suggestion);
+
+  if (typeof suggestion.replacement !== "string") {
+    problems.push(
+      "suggestion.replacement must be a string; empty deletes the lines",
+    );
+  } else if (suggestion.replacement.endsWith("\n")) {
+    problems.push(
+      "suggestion.replacement must not end with a newline; join lines with \\n",
+    );
+  }
+
+  return problems;
+}
+
+function findSuggestionRangeProblems(suggestion, line) {
+  const { startLine, endLine } = suggestion;
+  const count = endLine - startLine + 1;
+
+  if (count > MAX_SUGGESTION_LINES) {
+    return [
+      `suggestion replaces ${count} lines (${startLine} to ${endLine}); at most six`,
+    ];
+  }
+
+  if (Number.isInteger(line) && (line < startLine || line > endLine)) {
+    return [
+      `suggestion range ${startLine} to ${endLine} does not contain line ${line}`,
+    ];
+  }
+
+  return [];
+}
+
+function findSuggestionProblems(comment) {
+  const { suggestion } = comment;
+
+  if (!isPresent(suggestion)) {
+    return [];
+  }
+
+  if (typeof suggestion !== "object") {
+    return [
+      "suggestion must be an object with startLine, endLine, and replacement",
+    ];
+  }
+
+  const problems = findSuggestionShapeProblems(suggestion);
+
+  if (problems.length === 0) {
+    problems.push(...findSuggestionRangeProblems(suggestion, comment.line));
+  }
+
+  if (NO_SUGGESTION_LABELS.has(comment.label)) {
+    problems.push(
+      `suggestion is not allowed on label ${JSON.stringify(comment.label)}; write the fix as prose`,
+    );
+  }
+
+  if (
+    typeof comment.body === "string" &&
+    FENCE_LINE.test(scrubBody(comment.body))
+  ) {
+    problems.push(
+      "body must not carry a fenced code block when suggestion is present; the suggestion is the code",
+    );
+  }
+
+  return problems;
+}
+
 function findProblems(comment, index) {
   const name = `comments[${index}]`;
 
@@ -163,6 +273,7 @@ function findProblems(comment, index) {
   const problems = [
     ...findFieldProblems(comment),
     ...findLabelProblems(comment),
+    ...findSuggestionProblems(comment),
   ];
 
   return problems.map((problem) => `${name}: ${problem}`);
@@ -228,19 +339,56 @@ function makeCode(category, counters) {
   return `${prefix}-${String(next).padStart(2, "0")}`;
 }
 
+/**
+ * A fence closes on a backtick run at least as long as its opener, and a
+ * rewrite of a markdown file can carry its own fenced example.
+ */
+function makeFence(replacement) {
+  const runs = replacement.match(/`+/gu) ?? [];
+  const longest = Math.max(0, ...runs.map((run) => run.length));
+
+  return "`".repeat(Math.max(3, longest + 1));
+}
+
+function renderSuggestion(replacement) {
+  const fence = makeFence(replacement);
+  const inner = replacement === "" ? "" : `${replacement}\n`;
+
+  return `${fence}suggestion\n${inner}${fence}`;
+}
+
 function renderComment(comment, counters) {
   const code = makeCode(comment.category, counters);
   const header = `${EMOJI[comment.label]} **[${code}] ${comment.label}**`;
-
-  return {
+  const suggestion = isPresent(comment.suggestion) ? comment.suggestion : null;
+  const text = scrubBody(comment.body);
+  // One newline, never a blank one, between the header, the text, and the
+  // suggestion block: a blank line ends the markdown list item this body is
+  // folded into downstream. Blank lines inside the fence are the replacement's.
+  const body =
+    suggestion === null
+      ? `${header}\n${text}`
+      : `${header}\n${text.trimEnd()}\n${renderSuggestion(suggestion.replacement)}`;
+  const rendered = {
     path: comment.path,
     line: comment.line,
     code,
     category: comment.category,
     label: comment.label,
-    // One newline, never a blank one: a blank line ends the markdown list item
-    // this body is folded into downstream.
-    body: `${header}\n${scrubBody(comment.body)}`,
+    body,
+  };
+
+  if (suggestion === null) {
+    return rendered;
+  }
+
+  return {
+    ...rendered,
+    suggestion: {
+      startLine: suggestion.startLine,
+      endLine: suggestion.endLine,
+      replacement: suggestion.replacement,
+    },
   };
 }
 

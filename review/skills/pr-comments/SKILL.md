@@ -29,6 +29,7 @@ This skill changes nothing in the repository and posts nothing. Whoever calls it
 
 Walk every stage section of the report and take one entry per finding. Each entry needs a `path:line` on the head side of the diff; a finding with no anchor is a diagnostics note, not a comment.
 
+- A comment-audit `TRIM` or `DELETE` also needs the span of the comment it rules on, as HEAD lines. The comments stage gives it as `L<start>-L<end>`; when only `L<start>` is given, read the comment in the file at HEAD and take its last line as the end, since an audit report may quote a multi-line comment on one line. That span becomes `suggestion.startLine` and `suggestion.endLine`.
 - A comment-audit `KEEP` that proposes no change is dropped. A `KEEP` that proposes a change is kept and labelled by what it proposes.
 - A finding listed under two stages appears once, under the stage that ruled on it most precisely.
 - At most 20 correctness, 20 type safety, and 40 comment findings. When a cap cuts, the least severe go first, and the cut is recorded in diagnostics.
@@ -45,11 +46,30 @@ Every body is written for an engineer who has never heard of this review and rea
 
 1. The problem, in one or two sentences, naming the symbol or line it is about.
 2. The fix, concrete enough to act on: the call to make, the check to add, the type to declare.
-3. When the report proposed code, that code in a fenced block.
+3. When the report proposed code and the entry carries no `suggestion`, that code in a fenced block. With a `suggestion`, no fenced block: the suggestion is the code.
 
 Nothing else. The header, emoji, and code are added by the script in step 6; a body starts with the problem. The body names only the author's code: what the review could or could not run, and which stage or pass found the finding, go to diagnostics in step 4. Follow `style.md`. The humanizer pass over the bodies is step 5, so write each body in full here and leave the pass to that step.
 
 One body from the report's entry, not the report's entry quoted and then paraphrased.
+
+### Suggestions
+
+An entry may carry `suggestion: { "startLine": n, "endLine": m, "replacement": "..." }`: `replacement` is HEAD lines `startLine` to `endLine` as they should read after the fix, lines joined with `\n` and no trailing newline, or the empty string to delete them. GitHub renders it as a diff the author applies with one click, so fill it only when applying it fixes the finding entirely:
+
+- At most six lines replaced, and the range contains `line`.
+- Every line in the range is in the same diff hunk on the head side. GitHub rejects a multi-line comment that reaches outside it.
+- One location. A fix that also needs a change elsewhere stays prose.
+- Literal file text, never a description of a change. It is not scrubbed or edited.
+- Built from those lines as read from the file at HEAD, not from the report's quote: indentation and comment markers (`//`, ` * `, `#`) stay as the file has them.
+- A comment that shares a line with code, or a description beside a type annotation (`@param`, `@return`, `@var`, and similar), keeps that code or annotation in the replacement, or the finding stays prose. An empty replacement is only for lines that are wholly comment.
+
+By category:
+
+- `comments`: `Trim` and `Delete` carry one when the comment's span is six lines or fewer: the audit's rewrite applied to those HEAD lines (`Delete`: empty string when they are wholly comment); a longer span stays prose. `Move` and `Wrong` never do (a MOVE touches two files, a WRONG needs the author's knowledge); `Unsure` is a question.
+- `correctness`: only when the report proposed code that meets the rules above and the label is not `Question`.
+- `typeSafety`: none by default. A proposed shape almost always needs call-site changes, so it fails the one-location rule.
+
+Body prose stays: the problem, then the fix in one sentence.
 
 ## Step 4: verdict, summary, diagnostics
 
@@ -81,7 +101,8 @@ Write the classified entries to a JSON file in the scratchpad:
   "summary": "...",
   "diagnostics": "",
   "comments": [
-    { "path": "app/Services/DiscountSync.php", "line": 88, "category": "correctness", "label": "Error handling", "body": "..." }
+    { "path": "app/Services/DiscountSync.php", "line": 88, "category": "correctness", "label": "Error handling", "body": "..." },
+    { "path": "app/Services/DiscountSync.php", "line": 40, "category": "comments", "label": "Trim", "body": "...", "suggestion": { "startLine": 40, "endLine": 42, "replacement": "    /** Retried once: the vendor API drops the first call after idle. */" } }
   ]
 }
 ```
@@ -92,13 +113,13 @@ Then run:
 node ${CLAUDE_PLUGIN_ROOT}/skills/pr-comments/scripts/render-comments.mjs --format markdown < findings.json
 ```
 
-The script rejects a label that is not in its category, a missing anchor, or an empty body, naming the comment by index. It also rejects a verdict that disagrees with the severities present: `comment` beside a 🔴 or 🟠, `request_changes` with none, or `approve` with any comment at all. Fix the entry and run it again. It assigns the codes, grades the severity from the label, strips any reviewer vocabulary a body still starts with, and puts the header on its own line above the body. Its output is the result; do not write codes, emoji, or headers by hand, and do not reorder or edit what it prints.
+The script rejects a label that is not in its category, a missing anchor, an empty body (or one that is only reviewer vocabulary), and a `suggestion` that replaces more than six lines, whose range does not contain `line`, that sits on `Move`, `Wrong`, `Question`, or `Unsure`, or beside a body that still carries a fenced block (backticks or tildes), naming the comment by index. It also rejects a verdict that disagrees with the severities present: `comment` beside a 🔴 or 🟠, `request_changes` with none, or `approve` with any comment at all. Fix the entry and run it again. It assigns the codes, grades the severity from the label, strips any reviewer vocabulary a body still starts with, and puts the header on its own line above the body, and renders a `suggestion` as a GitHub suggestion block after the body, widening the fence past any backticks inside the replacement. Its output is the result; do not write codes, emoji, or headers by hand, and do not reorder or edit what it prints.
 
 ## Output
 
 The script's markdown, unchanged:
 
-```text
+````text
 Verdict: request_changes
 
 <summary>
@@ -111,10 +132,17 @@ Verdict: request_changes
 🟠 **[TPS-01] Unstructured array**
 ...
 
-Diagnostics: <text, or the line is absent>
+`app/Services/DiscountSync.php:40`
+🟡 **[DOC-01] Trim**
+The docblock repeats the method name and the retry count the code shows. Keep the one sentence that says why it retries.
+```suggestion
+    /** Retried once: the vendor API drops the first call after idle. */
 ```
 
-With `format=json`, the script's JSON instead. With `out=`, the same content written to that path and a one-line response naming it.
+Diagnostics: <text, or the line is absent>
+````
+
+With `format=json`, the script's JSON instead: each comment keeps the `startLine`, `endLine`, and `replacement` of its `suggestion`, and its `body` already ends with the rendered suggestion block, so a poster sends `body` as-is and never builds a second block from `replacement`. A poster sets `line` to `endLine` and `side` to `RIGHT`; for a range of more than one line it also sets `start_line` to `startLine` and `start_side` to `RIGHT`, both of which GitHub requires on a multi-line comment; a single-line suggestion omits both. With `out=`, the same content written to that path and a one-line response naming it.
 
 ## Common mistakes
 
@@ -123,9 +151,11 @@ With `format=json`, the script's JSON instead. With `out=`, the same content wri
 | Severity chosen by how bad the finding feels | Pick the label. The severity is the label's. |
 | `request_changes` written because the category is correctness, or `comment` because it is not | The verdict follows the severities: 🔴 and 🟠 block in every category, 🟡 and ⚪ never do. |
 | Comments grouped under severity or stage headings | One block per finding, in stage order, each standing alone. |
-| The report entry quoted, then explained underneath | One body: problem, fix, code. |
+| The report entry quoted, then explained underneath | One body: problem, fix, code or a `suggestion`. |
 | A `KEEP` with no proposed change listed as "no action needed" | Dropped. |
 | `PHP-2`, `DELETE`, `both passes`, "the type-safety stage" in a body or the summary | Translated to the label; the pass and stage go nowhere. |
 | A blank line between the header and the body | The script writes the header. Do not edit its output. |
 | A stage absent from the report treated as clean | Named in diagnostics; the verdict is never `approve`. |
 | `humanizer` listed among the skills but the bodies rendered without it, or not listed and diagnostics silent about it | Listed: run it on every body and the summary before the script. Not listed: one sentence in diagnostics says so. |
+| A `suggestion` on a `Move`, `Wrong`, `Question`, or `Unsure`, or for a fix that also needs a change elsewhere | Prose. A suggestion is applied with one click, so it must fix the finding entirely. |
+| A fenced block in the body beside a `suggestion` | Drop the fenced block. The suggestion is the code. |

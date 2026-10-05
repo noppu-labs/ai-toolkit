@@ -7,7 +7,7 @@ noppu-labs/ai-toolkit/review` for other harnesses).
 | Skill | Purpose |
 | --- | --- |
 | `review:pr-review` | Orchestrates a three-stage review (correctness, type safety, comments) of one PR or a stack, with a structural brief per PR, and consolidates one report. |
-| `review:pr-comments` | Turns a review report into graded, coded comments a PR author reads. |
+| `review:pr-comments` | Turns a review report into graded, coded comments a PR author reads, with a GitHub suggestion block where the fix is a few lines of file text. |
 | `review:comment-audit` | Gives every comment, docblock, and docstring a branch adds a verdict. |
 | `review:type-safety-review` | Rules a diff or a path against the type-safety checklists for PHP, TypeScript, and Python. |
 | `review:writing-comments` | What belongs in a comment and what to cut. |

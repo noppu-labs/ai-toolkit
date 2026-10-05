@@ -157,7 +157,7 @@ Rules for the rewrites:
 
 Write the report to `out` in the shape of [references/report-template.md](references/report-template.md).
 
-Line numbers are from the HEAD side of the diff so they can be pasted as PR review comments. Quote every comment verbatim; the reviewer should not need the diff open to follow the report.
+Line numbers are from the HEAD side of the diff, and a comment that spans several lines is listed by its first line, so they can be pasted as PR review comments. Quote every comment verbatim; the reviewer should not need the diff open to follow the report.
 
 The template's two summary requirements are easy to drop and both are mandatory: state the added comment line count **and** an estimate of what remains once every DELETE, TRIM, and MOVE lands, and open the Summary with the three or four findings that matter most, not just a verdict tally. Derive the after-count `M` as `N` minus the lines of every DELETE, minus the lines removed by every TRIM and MOVE, where a MOVE leaves one pointer line per site.
 
