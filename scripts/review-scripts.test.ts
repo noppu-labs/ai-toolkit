@@ -1077,6 +1077,39 @@ describe("count-comment-lines.sh", () => {
     expect(result.stdout).toBe("2");
   });
 
+  it("counts a --text line in every dash-comment file type and not in a .mysql file", () => {
+    const cwd = makeRepo();
+    const extensions: readonly string[] = [
+      "sql",
+      "psql",
+      "pgsql",
+      "lua",
+      "elm",
+      "ada",
+      "adb",
+      "ads",
+      "vhd",
+      "vhdl",
+      "hs",
+      "lhs",
+      "mysql",
+    ];
+    const base: Record<string, string> = {};
+    const changed: Record<string, string> = {};
+    for (const extension of extensions) {
+      base[`f.${extension}`] = "a\n";
+      changed[`f.${extension}`] = "a\n--text\n";
+    }
+    commitFiles(cwd, base, "extensions base");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(cwd, changed, "extensions");
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("12");
+  });
+
   it("does not count a --- line in a YAML, Markdown or shell file", () => {
     const cwd = makeRepo();
     commitFiles(
