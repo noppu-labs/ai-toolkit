@@ -96,6 +96,24 @@ If a tool named `Workflow` is listed, the brief of step 2, the three stage subag
 
 The workflow builds each brief in a subagent, runs the three stage prompts below with every return validated against a schema, and returns `{ report, counts }`. `report` is the step 4 report without the `code-review` merge: every correctness finding carries `hand review only`, and the roll-up already names what the brief and the stages skipped. `counts` is one `{ number, correctness, typeSafety, comments }` per PR, a finding count per stage or `null` for a stage that did not report. Skip step 2 and the stage dispatch below, hold the result, and go to step 4 for the merge. The orchestrator still never opens the diff.
 
+When the prompt that invoked this skill asks for instructions to reach the stages or the brief (the requirements the PR is meant to deliver, which repository files are the review standard, `--repo <owner>/<name>` on every `gh` call, which refs exist in the checkout, `sibling=` and `out=` for comment-audit, the package manager the gate commands use), add an `instructions` object to that PR, with any of `brief`, `correctness`, `typeSafety`, `comments`, and `all`, each a non-empty string:
+
+```json
+{
+  "number": 117,
+  "title": "<title>",
+  "base": "origin/<baseRefName>",
+  "head": "origin/<headRefName>",
+  "url": "<url>",
+  "instructions": {
+    "all": "Pass --repo <owner>/<name> to every gh call.",
+    "correctness": "The PR is meant to deliver: <requirements from the invoking prompt>."
+  }
+}
+```
+
+The script appends them to that agent's prompt after the filled template and before the trailer, under `## Additional instructions from the caller`, `all` first and the agent's own key after it; `all` reaches the brief and all three stages. An instruction that fits no single stage goes under `all`. A PR without `instructions` gets no such section. The script rejects an unknown key, or a value that is not a non-empty string, naming the key. Never rewrite the templates to carry the caller's instructions, and never drop them.
+
 The Workflow tool exists only in Claude Code with workflows enabled. When it is not listed (another harness, `disableWorkflows`, a plan without workflows), or the call fails before any agent runs (a syntax error in the script, a refused launch, or `not found` because only the skill is installed, as after `npx skills add`), continue as written: build the briefs, dispatch the stage subagents, and consolidate by hand. Both paths produce the same report shape.
 
 If the run stops after agents have run (the tool result reports an error, or the run was stopped from `/workflows`), relaunch it once with the `scriptPath` and `resumeFromRunId` from the first result and the same `args`, as the Workflow tool documents: completed agents return their saved results, and the failed agent and those started after it run again. The same relaunch covers a PR where one or two stage sections read `The stage did not report.` (that stage's agent died or exhausted its schema retries): its completed agents return from the saved results and the missing stage runs again. When a stage is still missing after the relaunch, dispatch that stage by hand with the template below and a brief rebuilt per step 2, and replace its roll-up line. A PR whose three stage sections all read `The stage did not report.` did not complete inside the workflow: build its brief and dispatch its three stage subagents by hand, as below, and write that PR's section by the step 4 rules before the `code-review` merge, replacing its roll-up line `PR <n>: the pipeline stopped before consolidation, so no stage reported` with what those stages skipped.
@@ -125,6 +143,8 @@ Each prompt is one of the templates below with these slots filled:
 | `<HEAD>` | `origin/<headRefName>` from step 1 |
 | `<PR_TITLE>` | the PR title |
 | `<PR_URL>` | the PR url |
+
+Instructions the invoking prompt asked to add to a stage, or to every stage, go after the filled template, under `## Additional instructions from the caller`, the same place the workflow puts them, and never inside the template.
 
 Correctness stage, the second pass:
 
