@@ -352,7 +352,7 @@ function makePr(overrides: Partial<Pr> = {}): Pr {
     number: 117,
     title: "fix(review): dash comments",
     base: "origin/main",
-    head: "origin/feat/dash",
+    head: "pr-review/117",
     url: "https://github.com/noppu-labs/ai-toolkit/pull/117",
     ...overrides,
   };
@@ -1145,9 +1145,7 @@ describe("robustness", () => {
       "Structural brief:\nsee git diff <BASE>...<HEAD> and <PR_URL>\n",
     );
     expect(prompt).toContain('Review PR "fix: <HEAD> in titles" (');
-    expect(prompt).toContain(
-      "Base ref origin/main, head ref origin/feat/dash.",
-    );
+    expect(prompt).toContain("Base ref origin/main, head ref pr-review/117.");
   });
 
   it("strips a leading anchor from the text, and only the exact anchor", async () => {
@@ -1228,4 +1226,31 @@ describe("robustness", () => {
       /`text` is the entry without its leading `path:line`\.$/,
     );
   });
+});
+
+describe("PR head resolution", () => {
+  it("names no head ref built from headRefName in the skill or the workflow", () => {
+    expect(skill).not.toMatch(/origin\/<headRefName>/);
+    expect(source).not.toMatch(/origin\/<headRefName>/);
+  });
+
+  it.each([
+    ["a pull ref", "pr-review/117"],
+    // biome-ignore lint/security/noSecrets: a commit SHA fixture, not a secret
+    ["a bare SHA", "59867ee01a72ef9bd06c524fa9650d4cdc74b9ac"],
+  ])(
+    "fills <HEAD> with %s in the brief's in-place check and worktree fallback",
+    async (_label, head) => {
+      const run = await runScript([{ ...EXAMPLE_PR, head }], EXAMPLE_FIXTURES);
+      const prompt = findPrompt(run, "brief:117").prompt;
+
+      expect(prompt).toContain(
+        `\`git rev-parse HEAD\` equals \`git rev-parse ${head}\``,
+      );
+      expect(prompt).toContain(
+        `git worktree add <scratch>/pr-review-<number> ${head}`,
+      );
+      expect(prompt).not.toContain("<HEAD>");
+    },
+  );
 });
