@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "brief": {
+      "sourceType": "local",
+      "vendoredHash": "6fbc1e0cd75764a0397fe3052ca6d71eb99328d959320c40af8e1b6e9b9a1e02"
+    },
+    "deep": {
+      "sourceType": "local",
+      "vendoredHash": "8efe82affd07c3a9f2a0b04a34f22b0f71e1f6d4922b08ced82cd039041a67c2"
+    },
+    "spec": {
+      "sourceType": "local",
+      "vendoredHash": "eee3849971de6d077657b4d0a7cb1e1a926d98d8ffa711a4ebc94c52c978bafa"
+    }
+  }
+}

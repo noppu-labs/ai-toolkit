@@ -1,0 +1,369 @@
+#!/usr/bin/env node
+import { existsSync, realpathSync } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { defaultCacheDir, TtlCache } from "./lib/cache.mjs";
+import { collectDependencies } from "./lib/deps.mjs";
+import { docSources } from "./lib/docs-gate.mjs";
+import { probe } from "./lib/exec.mjs";
+import { indexFreshness } from "./lib/freshness.mjs";
+import { codegraphOverview, graphContext } from "./lib/graph.mjs";
+import { phpantomTypes } from "./lib/phpantom.mjs";
+import * as render from "./lib/render.mjs";
+import {
+  collectFiles,
+  deriveSymbols,
+  resolveRepo,
+  TS_EXT_RE,
+} from "./lib/repo.mjs";
+import { tsLspCallers } from "./lib/ts-lsp.mjs";
+import { astGrepScan, duplicateDefinitions, wiringFor } from "./lib/wiring.mjs";
+
+const MAX_SYMBOLS_DEFAULT = 15;
+const C7_TTL_MS = 6 * 60 * 60 * 1000;
+export const USAGE =
+  "usage: node brief.mjs <target-path> [--max-symbols N] [--no-docs] [--no-lsp] [--help]";
+
+const BOOLEAN_FLAGS = {
+  "--no-docs": "noDocs",
+  "--no-lsp": "noLsp",
+  "--help": "help",
+  "-h": "help",
+};
+
+class UsageError extends Error {}
+
+function maxSymbolsValue(raw) {
+  const n = /^\d+$/.test(raw ?? "") ? Number.parseInt(raw, 10) : 0;
+  if (n < 1) {
+    throw new UsageError(
+      `--max-symbols needs a positive integer, got ${raw ?? "nothing"}`,
+    );
+  }
+  return n;
+}
+
+export function parseArgs(argv) {
+  const out = {
+    target: null,
+    maxSymbols: MAX_SYMBOLS_DEFAULT,
+    noDocs: false,
+    noLsp: false,
+    help: false,
+  };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--max-symbols") {
+      i++;
+      out.maxSymbols = maxSymbolsValue(argv[i]);
+    } else if (Object.hasOwn(BOOLEAN_FLAGS, a)) out[BOOLEAN_FLAGS[a]] = true;
+    else if (a.startsWith("-")) throw new UsageError(`unknown option ${a}`);
+    else if (out.target === null) out.target = a;
+    else throw new UsageError(`unexpected argument ${a}`);
+  }
+  return out;
+}
+
+export function gitnexusStatus(freshness) {
+  if (freshness.ok && !freshness.stale) return "ran (index current)";
+  if (freshness.ok) {
+    return freshness.divergent
+      ? "ran (index STALE, indexed commit is not in HEAD's history)"
+      : `ran (index STALE, ${freshness.commitsBehind} commits behind)`;
+  }
+  if (freshness.absent) return "not on PATH";
+  return freshness.failed
+    ? `FAILED (${freshness.note})`
+    : `unavailable (${freshness.note})`;
+}
+
+// A server that started but failed every file has resolved nothing, so it is
+// FAILED, not "ran (no results)".
+export function lspStatus(outcome) {
+  if (outcome.error) return `FAILED (${outcome.error})`;
+  const failed = outcome.failures.length;
+  if (failed > 0) {
+    const scope = `${failed} of ${outcome.total} files failed: ${outcome.failures[0]}`;
+    return failed === outcome.total
+      ? `FAILED (${scope})`
+      : `partial (${scope})`;
+  }
+  return outcome.results.size === 0 ? "ran (no results)" : "ran";
+}
+
+export function codegraphStatus({ hasIndex, probeOk, lines }) {
+  if (!hasIndex) return "no .codegraph index";
+  if (!probeOk) return "not on PATH";
+  return lines === null
+    ? "FAILED (codegraph explore exited non-zero or timed out)"
+    : "ran";
+}
+
+const AST_GREP_STATUS = {
+  absent: "not on PATH",
+  "not-needed": "not needed (no PHP files)",
+  "no-dirs": "skipped (no PHP scan dirs)",
+  ran: "ran",
+};
+
+export function astGrepStatus(scan) {
+  return scan.state === "failed"
+    ? `FAILED (every pattern errored: ${scan.error})`
+    : AST_GREP_STATUS[scan.state];
+}
+
+// A lookup that errored leaves that package's docs UNRESOLVED, so the status has to say so.
+export function context7Status(gate) {
+  const total = gate.perPackage.length;
+  const failed = gate.perPackage.filter((e) => e.error).length;
+  const anon = gate.anonymous ? ", anonymous — no CONTEXT7_API_KEY" : "";
+  if (total > 0 && failed === total) {
+    return `FAILED (all ${total} lookups failed${anon})`;
+  }
+  if (failed > 0) return `ran (${failed} of ${total} lookups FAILED${anon})`;
+  return gate.anonymous ? "ran anonymously (no CONTEXT7_API_KEY)" : "ran";
+}
+
+async function runServer(ctx, files, server) {
+  if (files.length === 0) return { result: null, status: server.notNeeded };
+  if (!probe(server.cmd, ctx.env)) {
+    return { result: null, status: "not on PATH" };
+  }
+  const outcome = await server.fn(ctx, files);
+  return { result: outcome.results ?? null, status: lspStatus(outcome) };
+}
+
+// Only the files behind rendered symbols: the rest would cost LSP timeouts for
+// detail the brief never prints.
+function symbolFiles(ctx, symbols, test) {
+  const files = symbols
+    .map((s) => path.join(ctx.repoRoot, s.file))
+    .filter((f) => test(f));
+  return [...new Set(files)];
+}
+
+async function runLsp(ctx, symbols, opts, tools) {
+  if (opts.noLsp) {
+    tools.phpantom_lsp = "skipped (--no-lsp)";
+    tools["typescript-language-server"] = "skipped (--no-lsp)";
+    return { lsp: null, tsLsp: null };
+  }
+  const php = await runServer(
+    ctx,
+    symbolFiles(ctx, symbols, (f) => f.endsWith(".php")),
+    {
+      fn: phpantomTypes,
+      cmd: "phpantom_lsp",
+      notNeeded: "not needed (no PHP symbols)",
+    },
+  );
+  const ts = await runServer(
+    ctx,
+    symbolFiles(ctx, symbols, (f) => TS_EXT_RE.test(f)),
+    {
+      fn: tsLspCallers,
+      cmd: "typescript-language-server",
+      notNeeded: "not needed (no TypeScript/JavaScript symbols)",
+    },
+  );
+  tools.phpantom_lsp = php.status;
+  tools["typescript-language-server"] = ts.status;
+  return { lsp: php.result, tsLsp: ts.result };
+}
+
+function unreadNote(unread) {
+  const ecosystems = {
+    "composer.lock": "composer",
+    "package-lock.json": "npm",
+  };
+  return unread
+    .map((f) => `; ${ecosystems[f]} imports UNRESOLVED (no ${f} read)`)
+    .join("");
+}
+
+// Why the gate did not run, or null when it should.
+function docsSkip(deps, opts) {
+  if (opts.noDocs) return ["skipped (--no-docs)", render.DOCS_SKIPPED];
+  if (deps.rows.length === 0 && deps.unread.length > 0) {
+    return [
+      `skipped (no ${deps.unread.join(" or ")} read)`,
+      render.DOCS_NO_LOCKFILE,
+    ];
+  }
+  if (deps.rows.length === 0) {
+    return ["not needed (no third-party imports)", render.DOCS_NO_IMPORTS];
+  }
+  if (deps.rows.every((r) => r.dev)) {
+    return ["not needed (only dev packages imported)", render.DOCS_DEV_ONLY];
+  }
+  if (typeof globalThis.fetch !== "function") {
+    return ["UNAVAILABLE (no global fetch)", render.DOCS_NO_FETCH];
+  }
+  return null;
+}
+
+async function runDocs(ctx, deps, opts, tools) {
+  const skip = docsSkip(deps, opts);
+  if (skip) {
+    tools.context7 = skip[0];
+    return { gate: null, skippedReason: skip[1] };
+  }
+  const gate = await docSources(deps.rows, {
+    fetchImpl: globalThis.fetch,
+    cache: new TtlCache(defaultCacheDir(ctx.env), C7_TTL_MS),
+    apiKey: ctx.env.CONTEXT7_API_KEY,
+    searchUrl: ctx.env.INVESTIGATE_BRIEF_C7_URL,
+  });
+  tools.context7 = `${context7Status(gate)}${unreadNote(deps.unread)}`;
+  return { gate, skippedReason: null };
+}
+
+function runCodegraph(ctx, symbols, tools) {
+  const lines = codegraphOverview(
+    ctx,
+    symbols.map((s) => s.name),
+  );
+  const hasIndex = existsSync(path.join(ctx.repoRoot, ".codegraph"));
+  tools.codegraph = codegraphStatus({
+    hasIndex,
+    probeOk: hasIndex && probe("codegraph", ctx.env),
+    lines,
+  });
+  return lines;
+}
+
+function runAstGrep(ctx, tools) {
+  tools["ast-grep"] = astGrepStatus(astGrepScan(ctx));
+}
+
+// The TS pass computes callers once per file, for the server's primary symbol.
+// Show them once: under that symbol when it is rendered, else under the file's first.
+export function callerOwners(symbols, tsLsp, repoRoot) {
+  const owners = new Map();
+  if (!tsLsp) return owners;
+  for (const sym of symbols) {
+    const entry = tsLsp.get(path.join(repoRoot, sym.file));
+    if (!entry) continue;
+    if (!owners.has(sym.file) || sym.name === entry.symbol) {
+      owners.set(sym.file, sym.name);
+    }
+  }
+  return owners;
+}
+
+function symbolSection(ctx, sym, state) {
+  const abs = path.join(ctx.repoRoot, sym.file);
+  const ownsCallers = state.callerOwners.get(sym.file) === sym.name;
+  return render.renderSymbol(sym, {
+    dupes: duplicateDefinitions(ctx, sym.name, sym.file),
+    typeRows: state.lsp?.get(abs) ?? null,
+    tsCallers: ownsCallers ? (state.tsLsp?.get(abs) ?? null) : null,
+    graph: state.freshness.ok ? graphContext(ctx, sym.name) : null,
+    freshnessOk: state.freshness.ok,
+    wiring: wiringFor(ctx, sym.name, sym.file),
+  });
+}
+
+function loadContext(target, env) {
+  const repo = resolveRepo(target, env);
+  const files = collectFiles(repo.target, env);
+  if (files.length === 0) {
+    throw new Error(`no source files found under ${repo.relTarget}`);
+  }
+  return { ...repo, files, env };
+}
+
+async function buildBrief(opts, io) {
+  const ctx = loadContext(opts.target, io.env);
+  const tools = { git: "ran" };
+  const freshness = indexFreshness(ctx);
+  tools.gitnexus = gitnexusStatus(freshness);
+  const { symbols, truncated } = deriveSymbols(
+    ctx.files,
+    ctx.repoRoot,
+    opts.maxSymbols,
+  );
+  const { lsp, tsLsp } = await runLsp(ctx, symbols, opts, tools);
+  runAstGrep(ctx, tools);
+  const deps = collectDependencies(ctx);
+  const docs = await runDocs(ctx, deps, opts, tools);
+  const cg = runCodegraph(ctx, symbols, tools);
+
+  const state = {
+    lsp,
+    tsLsp,
+    freshness,
+    callerOwners: callerOwners(symbols, tsLsp, ctx.repoRoot),
+  };
+  const lines = [
+    ...render.renderHeader(ctx.relTarget, ctx.repoName),
+    ...render.renderTools(tools),
+    ...render.renderIndex(freshness),
+    ...render.renderFiles(ctx.files, ctx.repoRoot, truncated, opts.maxSymbols, {
+      basenameFiles: new Set(
+        symbols.filter((s) => s.basenameFallback).map((s) => s.file),
+      ),
+    }),
+    ...render.renderDependencies(deps.rows, deps.unread),
+    ...render.renderDocSources(docs.gate, docs.skippedReason),
+    ...render.renderCodegraph(cg),
+    ...symbols.flatMap((sym) => symbolSection(ctx, sym, state)),
+    ...render.renderFooter(),
+  ];
+  await writeAll(io.stdout, `${lines.join("\n")}\n`);
+}
+
+// A pipe write can still be queued when it returns, so wait for the flush callback.
+function writeAll(stream, text) {
+  return new Promise((resolve, reject) => {
+    stream.write(text, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
+function parseOrReport(argv, io) {
+  try {
+    return parseArgs(argv);
+  } catch (e) {
+    if (!(e instanceof UsageError)) throw e;
+    io.stderr.write(`brief.mjs: ${e.message}\n${USAGE}\n`);
+    return null;
+  }
+}
+
+export async function main(argv, io) {
+  const opts = parseOrReport(argv, io);
+  if (opts === null) return 1;
+  if (opts.help) {
+    await writeAll(io.stdout, `${USAGE}\n`);
+    return 0;
+  }
+  if (!opts.target) {
+    io.stderr.write(`${USAGE}\n`);
+    return 1;
+  }
+  try {
+    await buildBrief(opts, io);
+    return 0;
+  } catch (e) {
+    io.stderr.write(`brief.mjs: ${e?.message ?? e}\n`);
+    return 1;
+  }
+}
+
+if (
+  process.argv[1] &&
+  // import.meta.url of the main module is its realpath, so resolve argv[1] the same way.
+  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
+) {
+  // A closed pipe also emits 'error'; without a listener that throws a stack
+  // trace. writeAll's callback already carries the error to main's one-line report.
+  process.stdout.on("error", () => {
+    /* reported through writeAll */
+  });
+  // exitCode, not exit(): exit() drops stdout still queued for a pipe.
+  process.exitCode = await main(process.argv.slice(2), {
+    env: process.env,
+    stdout: process.stdout,
+    stderr: process.stderr,
+  });
+}

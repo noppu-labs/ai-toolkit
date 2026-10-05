@@ -27,6 +27,7 @@ Agents and skills for agentic development in modern Laravel and React applicatio
 | `laravel` | 16 backend skills, `laravel-backend-specialist` agent, 4 path-scoped rules |
 | `inertia-react` | 6 frontend skills, `frontend-developer` agent, 2 path-scoped rules |
 | `review` | 5 review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, PR review orchestrator, PR comments |
+| `investigate` | 3 skills: deterministic structural brief, deep two-pass investigation, spec/ticket review |
 
 ## Install (Claude Code marketplace)
 
@@ -35,12 +36,13 @@ Agents and skills for agentic development in modern Laravel and React applicatio
 /plugin install laravel@ai-toolkit
 /plugin install inertia-react@ai-toolkit
 /plugin install review@ai-toolkit
+/plugin install investigate@ai-toolkit
 /laravel:install-rules
 /inertia-react:install-rules
 ```
 
 Skills are namespaced after install, e.g. `laravel:laravel-dtos`, `inertia-react:shadcn`,
-`review:comment-audit`.
+`review:comment-audit`, `investigate:brief`.
 The `install-rules` commands copy each plugin's path-scoped rules into your project's
 `.claude/rules/`. Review the copied rules afterwards and adjust any project-specific
 commands (formatter invocation, npm script names) to your setup.
@@ -51,7 +53,25 @@ commands (formatter invocation, npm script names) to your setup.
 npx skills add noppu-labs/ai-toolkit/laravel
 npx skills add noppu-labs/ai-toolkit/inertia-react
 npx skills add noppu-labs/ai-toolkit/review
+npx skills add noppu-labs/ai-toolkit/investigate
 ```
+
+`${CLAUDE_PLUGIN_ROOT}` is not set under this install route, so the script and reference
+paths in the `investigate` skills do not resolve. Replace their `${CLAUDE_PLUGIN_ROOT}/skills/`
+prefix by hand with the directory that holds the installed skills.
+
+## Optional tooling for `investigate`
+
+The `investigate:brief` script needs only `git` and Node 20+. It also uses these when they
+are on `PATH`: `gitnexus` (call graph), `codegraph` (blast radius and inheritance), `ast-grep`
+(container and binding patterns), `phpantom_lsp` (PHP types), and `typescript-language-server`
+(verified TypeScript callers). The TypeScript pass needs a tsserver-based TypeScript install
+(TypeScript 6 or earlier) in the target repo; in a TypeScript 7 repo the brief reports
+`typescript-language-server: FAILED (…)` with the server's stated cause. By default it also
+sends the names of up to 12 third-party packages the target imports (devDependencies and
+composer dev packages excluded) to context7.com to find version-matched documentation sources,
+anonymously unless `CONTEXT7_API_KEY` is set; `--no-docs` disables that network call. Every
+missing tool is reported under the brief's `Tools` section rather than failing the run.
 
 ## Verifying releases
 

@@ -51,6 +51,17 @@ then create the directory and fetch the content with
 `npm run sync -- pull <plugin>/<name> --force` (or copy the files in manually and
 run `seed <plugin>/<name>`), and finish with `verify`.
 
+## Adding a new plugin
+
+1. Create `<plugin>/.claude-plugin/plugin.json` (`name` must equal the directory name), copy the
+   root `LICENSE` into the plugin, add `<plugin>/skills-lock.json` with `{"version": 1, "skills": {}}`.
+2. Register it in `.claude-plugin/marketplace.json`, the `PLUGINS` constant in
+   `scripts/skills-sync/types.ts`, the manifest-sanity list in `.github/workflows/quality.yml`,
+   the README table and install blocks, and the install command lists in
+   `site/src/components/sections/Hero.tsx` (with its test and `site/scripts/build-catalog.test.ts`).
+3. Add skills per the section above, `npm run sync -- seed <plugin>/<skill>`, then `verify`.
+4. Run `claude plugin validate <plugin>` and `claude plugin validate .`.
+
 ## Versioning and releasing plugin changes
 
 Each plugin's `.claude-plugin/plugin.json` `version` is what consumers' update checks compare
