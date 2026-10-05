@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -89,6 +89,17 @@ const skillPath: string = join(
 const source: string = readFileSync(scriptPath, "utf8");
 const skill: string = readFileSync(skillPath, "utf8");
 
+const workflowsDir: string = join(
+  import.meta.dirname,
+  "..",
+  "review",
+  "workflows",
+);
+
+const WORKFLOW_SCRIPTS: string[] = readdirSync(workflowsDir)
+  .filter((name) => name.endsWith(".js"))
+  .sort();
+
 const STAGE_KEYS: string[] = ["correctness", "typeSafety", "comments"];
 
 const STAGE_MARKERS: Record<string, string> = {
@@ -97,15 +108,15 @@ const STAGE_MARKERS: Record<string, string> = {
   comments: "Comments stage:",
 };
 
-// The runtime wraps the body in an async function, which is what makes the
-// top-level `return` legal. The test does the same with the runtime globals
-// replaced by fakes, so the script runs exactly as written.
+// The runtime wraps the body in an async function, which makes the top-level
+// `return` legal. The test does the same with fake runtime globals, minus the
+// `export` keyword on `meta`.
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
   ...params: string[]
 ) => ScriptBody;
 
-function compile(): ScriptBody {
-  const body = source.replace(/^export const meta =/, "const meta =");
+function compileSource(text: string): ScriptBody {
+  const body = text.replace(/^export const meta =/, "const meta =");
 
   return new AsyncFunction(
     "agent",
@@ -120,14 +131,42 @@ function compile(): ScriptBody {
   );
 }
 
-function readMeta(): Meta {
-  const match = /^export const meta = (\{[\s\S]*?\n\});/.exec(source);
+function isMeta(value: unknown): value is Meta {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.name === "string" &&
+    typeof record.description === "string" &&
+    Array.isArray(record.phases)
+  );
+}
+
+function readMetaOf(text: string): Meta {
+  const match = /^export const meta = (\{[\s\S]*?\n\});/.exec(text);
 
   if (match?.[1] === undefined) {
     throw new Error("meta literal not found at the top of the script");
   }
 
-  return new Function(`return (${match[1]});`)() as Meta;
+  const parsed: unknown = new Function(`return (${match[1]});`)();
+
+  if (!isMeta(parsed)) {
+    throw new Error("meta literal has an unexpected shape");
+  }
+
+  return parsed;
+}
+
+function compile(): ScriptBody {
+  return compileSource(source);
+}
+
+function readMeta(): Meta {
+  return readMetaOf(source);
 }
 
 async function runItem(
@@ -346,18 +385,38 @@ describe("meta", () => {
   });
 });
 
-describe("script constraints", () => {
-  it("has the meta export as its only export", () => {
-    expect(source.startsWith("export const meta = {")).toBe(true);
-    expect(countOccurrences(source, "\nexport ")).toBe(0);
+describe("every workflow script", () => {
+  it("has at least the pr-review-stages script", () => {
+    expect(WORKFLOW_SCRIPTS).toContain("pr-review-stages.js");
   });
 
-  it("uses nothing the runtime forbids", () => {
-    expect(source).not.toMatch(/\bimport\s*\(/);
-    expect(source).not.toMatch(/Date\.now\s*\(/);
-    expect(source).not.toMatch(/Math\.random\s*\(/);
-    expect(source).not.toMatch(/new Date\s*\(\s*\)/);
-    expect(source).not.toMatch(/\brequire\s*\(/);
+  it.each(WORKFLOW_SCRIPTS)("%s compiles as a function body", (name) => {
+    const text = readFileSync(join(workflowsDir, name), "utf8");
+
+    expect(() => compileSource(text)).not.toThrow();
+  });
+
+  it.each(WORKFLOW_SCRIPTS)(
+    "%s has the meta export as its only export",
+    (name) => {
+      const text = readFileSync(join(workflowsDir, name), "utf8");
+      const meta = readMetaOf(text);
+
+      expect(text.startsWith("export const meta = {")).toBe(true);
+      expect(countOccurrences(text, "\nexport ")).toBe(0);
+      expect(meta.name).toMatch(/^[a-z][a-z0-9-]*$/);
+      expect(meta.name).not.toBe("pr-review");
+    },
+  );
+
+  it.each(WORKFLOW_SCRIPTS)("%s uses nothing the runtime forbids", (name) => {
+    const text = readFileSync(join(workflowsDir, name), "utf8");
+
+    expect(text).not.toMatch(/\bimport\s*\(/);
+    expect(text).not.toMatch(/Date\.now\s*\(/);
+    expect(text).not.toMatch(/Math\.random\s*\(/);
+    expect(text).not.toMatch(/new Date\s*\(\s*\)/);
+    expect(text).not.toMatch(/\brequire\s*\(/);
   });
 });
 
@@ -410,17 +469,14 @@ describe("prompts", () => {
 
   it("passes a schema that requires findings, validated, and skipped", async () => {
     const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
-    const schema = findPrompt(run, "correctness:117").schema as {
-      required: string[];
-      properties: Record<string, { items?: { required?: string[] } }>;
-    };
+    const { schema } = findPrompt(run, "correctness:117");
 
-    expect(schema.required).toEqual(["findings", "validated", "skipped"]);
-    expect(schema.properties.findings?.items?.required).toEqual([
-      "path",
-      "line",
-      "text",
-    ]);
+    expect(schema).toMatchObject({
+      required: ["findings", "validated", "skipped"],
+      properties: {
+        findings: { items: { required: ["path", "line", "text"] } },
+      },
+    });
   });
 
   it("runs the stages with an empty brief when the brief subagent returns nothing", async () => {
