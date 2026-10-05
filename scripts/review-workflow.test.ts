@@ -718,8 +718,14 @@ function findingCounts(section: string, stages: StageOutput[]): number[] {
   );
 }
 
+// Every run executes the whole script through the harness, so 100 runs under
+// coverage instrumentation in CI need more than vitest's default timeout.
+const WHOLE_SCRIPT_TIMEOUT_MS: number = 120_000;
+
 describe("report properties", () => {
-  it("lists every finding exactly once, under its PR, in merge order", async () => {
+  it("lists every finding exactly once, under its PR, in merge order", {
+    timeout: WHOLE_SCRIPT_TIMEOUT_MS,
+  }, async () => {
     await fc.assert(
       fc.asyncProperty(makeCaseArb(), async (testCase) => {
         const { result } = await runScript(testCase.prs, fixturesFor(testCase));
@@ -746,7 +752,9 @@ describe("report properties", () => {
     );
   });
 
-  it("names each skipped tool once, case-insensitively", async () => {
+  it("names each skipped tool once, case-insensitively", {
+    timeout: WHOLE_SCRIPT_TIMEOUT_MS,
+  }, async () => {
     await fc.assert(
       fc.asyncProperty(makeCaseArb(), async (testCase) => {
         const { result } = await runScript(testCase.prs, fixturesFor(testCase));
