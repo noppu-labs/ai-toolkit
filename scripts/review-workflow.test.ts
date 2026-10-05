@@ -352,7 +352,7 @@ function makePr(overrides: Partial<Pr> = {}): Pr {
     number: 117,
     title: "fix(review): dash comments",
     base: "origin/main",
-    head: "origin/pr/117",
+    head: "pr-review/117",
     url: "https://github.com/noppu-labs/ai-toolkit/pull/117",
     ...overrides,
   };
@@ -1145,7 +1145,7 @@ describe("robustness", () => {
       "Structural brief:\nsee git diff <BASE>...<HEAD> and <PR_URL>\n",
     );
     expect(prompt).toContain('Review PR "fix: <HEAD> in titles" (');
-    expect(prompt).toContain("Base ref origin/main, head ref origin/pr/117.");
+    expect(prompt).toContain("Base ref origin/main, head ref pr-review/117.");
   });
 
   it("strips a leading anchor from the text, and only the exact anchor", async () => {
@@ -1235,7 +1235,7 @@ describe("PR head resolution", () => {
   });
 
   it.each([
-    ["a pull ref", "origin/pr/117"],
+    ["a pull ref", "pr-review/117"],
     // biome-ignore lint/security/noSecrets: a commit SHA fixture, not a secret
     ["a bare SHA", "59867ee01a72ef9bd06c524fa9650d4cdc74b9ac"],
   ])(
