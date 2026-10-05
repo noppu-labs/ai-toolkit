@@ -2720,6 +2720,13 @@ describe("lib.sh", () => {
       "@@ -1,1 +1,1 @@",
       "--- q",
       "+-- q2",
+      // Markdown on the new side only: checked.
+      'diff --git "a/app/c\\"d.txt" b/app/c.md',
+      '--- "a/app/c\\"d.txt"',
+      "+++ b/app/c.md",
+      "@@ -1,1 +1,1 @@",
+      "-code",
+      "+prose",
       "",
     ].join("\n");
 
@@ -2731,7 +2738,12 @@ describe("lib.sh", () => {
     expect(count.stdout).toBe("1");
     expect(count.stderr).toBe("");
     expect(verify.status).toBe(0);
-    expect(verify.stdout.split("\n")).toEqual(["-prose", "+-- q2"]);
+    expect(verify.stdout.split("\n")).toEqual([
+      "-prose",
+      "+-- q2",
+      "-code",
+      "+prose",
+    ]);
     expect(verify.stderr).toBe("");
   });
 
