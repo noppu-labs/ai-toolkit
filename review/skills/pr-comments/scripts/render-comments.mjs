@@ -153,6 +153,99 @@ function findLabelProblems(comment) {
   return [];
 }
 
+// Hard rules from the issue: a MOVE touches two files, a WRONG needs the
+// author's knowledge, a Question claims no fix. Type safety is a skill rule
+// ("no suggestion by default"), so it is not rejected here.
+const NO_SUGGESTION_LABELS = new Set(["Move", "Wrong", "Question"]);
+
+const MAX_SUGGESTION_LINES = 6;
+
+const FENCE_LINE = /^```/mu;
+
+function isPresent(value) {
+  return value !== undefined && value !== null;
+}
+
+function findSuggestionShapeProblems(suggestion) {
+  const problems = [];
+
+  if (!Number.isInteger(suggestion.startLine) || suggestion.startLine < 1) {
+    problems.push("suggestion.startLine must be an integer of at least 1");
+  } else if (
+    !Number.isInteger(suggestion.endLine) ||
+    suggestion.endLine < suggestion.startLine
+  ) {
+    problems.push(
+      "suggestion.endLine must be an integer of at least startLine",
+    );
+  }
+
+  if (typeof suggestion.replacement !== "string") {
+    problems.push(
+      "suggestion.replacement must be a string; empty deletes the lines",
+    );
+  } else if (suggestion.replacement.endsWith("\n")) {
+    problems.push(
+      "suggestion.replacement must not end with a newline; join lines with \\n",
+    );
+  }
+
+  return problems;
+}
+
+function findSuggestionRangeProblems(suggestion, line) {
+  const { startLine, endLine } = suggestion;
+  const count = endLine - startLine + 1;
+
+  if (count > MAX_SUGGESTION_LINES) {
+    return [
+      `suggestion replaces ${count} lines (${startLine} to ${endLine}); at most six`,
+    ];
+  }
+
+  if (Number.isInteger(line) && (line < startLine || line > endLine)) {
+    return [
+      `suggestion range ${startLine} to ${endLine} does not contain line ${line}`,
+    ];
+  }
+
+  return [];
+}
+
+function findSuggestionProblems(comment) {
+  const { suggestion } = comment;
+
+  if (!isPresent(suggestion)) {
+    return [];
+  }
+
+  if (typeof suggestion !== "object") {
+    return [
+      "suggestion must be an object with startLine, endLine, and replacement",
+    ];
+  }
+
+  const problems = findSuggestionShapeProblems(suggestion);
+
+  if (problems.length === 0) {
+    problems.push(...findSuggestionRangeProblems(suggestion, comment.line));
+  }
+
+  if (NO_SUGGESTION_LABELS.has(comment.label)) {
+    problems.push(
+      `suggestion is not allowed on label ${JSON.stringify(comment.label)}; write the fix as prose`,
+    );
+  }
+
+  if (typeof comment.body === "string" && FENCE_LINE.test(comment.body)) {
+    problems.push(
+      "body must not carry a fenced code block when suggestion is present; the suggestion is the code",
+    );
+  }
+
+  return problems;
+}
+
 function findProblems(comment, index) {
   const name = `comments[${index}]`;
 
@@ -163,6 +256,7 @@ function findProblems(comment, index) {
   const problems = [
     ...findFieldProblems(comment),
     ...findLabelProblems(comment),
+    ...findSuggestionProblems(comment),
   ];
 
   return problems.map((problem) => `${name}: ${problem}`);
@@ -228,19 +322,56 @@ function makeCode(category, counters) {
   return `${prefix}-${String(next).padStart(2, "0")}`;
 }
 
+/**
+ * A fence closes on a backtick run at least as long as the opener, so the
+ * opener must be longer than any run inside the replacement. A comment-audit
+ * rewrite of a markdown file can carry a fenced example, so this happens.
+ */
+function makeFence(replacement) {
+  const runs = replacement.match(/`+/gu) ?? [];
+  const longest = Math.max(0, ...runs.map((run) => run.length));
+
+  return "`".repeat(Math.max(3, longest + 1));
+}
+
+function renderSuggestion(replacement) {
+  const fence = makeFence(replacement);
+  const inner = replacement === "" ? "" : `${replacement}\n`;
+
+  return `${fence}suggestion\n${inner}${fence}`;
+}
+
 function renderComment(comment, counters) {
   const code = makeCode(comment.category, counters);
   const header = `${EMOJI[comment.label]} **[${code}] ${comment.label}**`;
-
-  return {
+  const suggestion = isPresent(comment.suggestion) ? comment.suggestion : null;
+  // One newline, never a blank one: a blank line ends the markdown list item
+  // this body is folded into downstream. The suggestion block follows the
+  // body on the same rule.
+  const body =
+    suggestion === null
+      ? `${header}\n${scrubBody(comment.body)}`
+      : `${header}\n${scrubBody(comment.body)}\n${renderSuggestion(suggestion.replacement)}`;
+  const rendered = {
     path: comment.path,
     line: comment.line,
     code,
     category: comment.category,
     label: comment.label,
-    // One newline, never a blank one: a blank line ends the markdown list item
-    // this body is folded into downstream.
-    body: `${header}\n${scrubBody(comment.body)}`,
+    body,
+  };
+
+  if (suggestion === null) {
+    return rendered;
+  }
+
+  return {
+    ...rendered,
+    suggestion: {
+      startLine: suggestion.startLine,
+      endLine: suggestion.endLine,
+      replacement: suggestion.replacement,
+    },
   };
 }
 

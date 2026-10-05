@@ -6,15 +6,18 @@ import { describe, expect, it } from "vitest";
 
 type Category = "correctness" | "typeSafety" | "comments";
 
+type Suggestion = { startLine: number; endLine: number; replacement: string };
+
 type InputComment = {
   path: string;
   line: number;
   body: string;
   category: Category;
   label: string;
+  suggestion?: Suggestion | null;
 };
 
-type RenderedComment = InputComment & { code: string };
+type RenderedComment = InputComment & { code: string; suggestion?: Suggestion };
 
 type RenderedInput = Record<string, unknown> & { comments: RenderedComment[] };
 
@@ -53,6 +56,26 @@ const PREFIXES: Record<Category, string> = {
   typeSafety: "TPS",
   comments: "DOC",
 };
+
+const EMOJI_BY_LABEL: Record<string, string> = Object.fromEntries(
+  Object.entries(LABELS).flatMap(([category, labels]) =>
+    labels.map((label) => {
+      const [first] = renderComments({
+        comments: [
+          {
+            path: "p",
+            line: 1,
+            body: "b",
+            category: category as Category,
+            label,
+          },
+        ],
+      }).comments;
+
+      return [label, first?.body.slice(0, first.body.indexOf(" ")) ?? ""];
+    }),
+  ),
+);
 
 const HEADER =
   /^\p{Extended_Pictographic} \*\*\[(COR|TPS|DOC)-\d{2,}\] [^\n]+\*\*\n(?!\n)/u;
@@ -304,6 +327,368 @@ describe("scrubBody", () => {
       fc.property(bodyArb, (body) => {
         return scrubBody(body).length <= body.length;
       }),
+    );
+  });
+});
+
+describe("suggestions", () => {
+  const trim: InputComment = makeComment({
+    path: "app/Sync.php",
+    line: 31,
+    category: "comments",
+    label: "Trim",
+    body: "The docblock repeats the method name. Keep the one sentence on the retry window.",
+    suggestion: {
+      startLine: 30,
+      endLine: 32,
+      replacement:
+        "// Retried once because the vendor API drops the first call after idle.",
+    },
+  });
+
+  it("renders a single-line suggestion block after the body and carries the field through", () => {
+    const comment = getFirst(renderComments({ comments: [trim] }));
+
+    expect(comment.body).toBe(
+      [
+        "🟡 **[DOC-01] Trim**",
+        "The docblock repeats the method name. Keep the one sentence on the retry window.",
+        "```suggestion",
+        "// Retried once because the vendor API drops the first call after idle.",
+        "```",
+      ].join("\n"),
+    );
+    expect(comment.suggestion).toEqual(trim.suggestion);
+    expect(Object.keys(comment)).toEqual([
+      "path",
+      "line",
+      "code",
+      "category",
+      "label",
+      "body",
+      "suggestion",
+    ]);
+  });
+
+  it("renders a multi-line replacement with every line inside one block", () => {
+    const comment = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            line: 10,
+            label: "Bug",
+            body: "The guard reads the wrong key. Read `partner_id` from the route.",
+            suggestion: {
+              startLine: 9,
+              endLine: 11,
+              replacement:
+                "$partner = $request->route('partner');\nabort_unless($partner, 404);\n$tier = $partner->tier;",
+            },
+          }),
+        ],
+      }),
+    );
+
+    expect(
+      comment.body.endsWith(
+        "```suggestion\n$partner = $request->route('partner');\nabort_unless($partner, 404);\n$tier = $partner->tier;\n```",
+      ),
+    ).toBe(true);
+  });
+
+  it("renders an empty replacement as an empty block", () => {
+    const comment = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            category: "comments",
+            label: "Delete",
+            body: "The comment restates the next line. Delete it.",
+            suggestion: { startLine: 31, endLine: 31, replacement: "" },
+          }),
+        ],
+      }),
+    );
+
+    expect(comment.body).toBe(
+      "🟡 **[DOC-01] Delete**\nThe comment restates the next line. Delete it.\n```suggestion\n```",
+    );
+  });
+
+  it("accepts six lines and rejects seven, naming the index and the count", () => {
+    const six = makeComment({
+      line: 31,
+      suggestion: { startLine: 31, endLine: 36, replacement: "x" },
+    });
+    const seven = makeComment({
+      line: 31,
+      suggestion: { startLine: 31, endLine: 37, replacement: "x" },
+    });
+
+    expect(renderComments({ comments: [six] }).comments).toHaveLength(1);
+    expect(getError({ comments: [makeComment(), seven] })).toBe(
+      "comments[1]: suggestion replaces 7 lines (31 to 37); at most six",
+    );
+  });
+
+  it("rejects a range that does not contain the anchor line", () => {
+    const outside = makeComment({
+      line: 31,
+      suggestion: { startLine: 40, endLine: 42, replacement: "x" },
+    });
+
+    expect(getError({ comments: [outside] })).toBe(
+      "comments[0]: suggestion range 40 to 42 does not contain line 31",
+    );
+  });
+
+  it("accepts the anchor on either end of the range", () => {
+    const atStart = makeComment({
+      line: 30,
+      suggestion: { startLine: 30, endLine: 32, replacement: "x" },
+    });
+    const atEnd = makeComment({
+      line: 32,
+      suggestion: { startLine: 30, endLine: 32, replacement: "x" },
+    });
+
+    expect(
+      renderComments({ comments: [atStart, atEnd] }).comments,
+    ).toHaveLength(2);
+  });
+
+  it("rejects a malformed suggestion with one line per problem", () => {
+    expect(
+      getError({
+        comments: [makeComment({ suggestion: "x" as unknown as Suggestion })],
+      }),
+    ).toBe(
+      "comments[0]: suggestion must be an object with startLine, endLine, and replacement",
+    );
+    expect(
+      getError({
+        comments: [
+          makeComment({
+            suggestion: {
+              startLine: 0,
+              endLine: 0,
+              replacement: 1 as unknown as string,
+            },
+          }),
+        ],
+      }),
+    ).toBe(
+      [
+        "comments[0]: suggestion.startLine must be an integer of at least 1",
+        "comments[0]: suggestion.replacement must be a string; empty deletes the lines",
+      ].join("\n"),
+    );
+    expect(
+      getError({
+        comments: [
+          makeComment({
+            line: 31,
+            suggestion: { startLine: 32, endLine: 31, replacement: "x" },
+          }),
+        ],
+      }),
+    ).toBe(
+      "comments[0]: suggestion.endLine must be an integer of at least startLine",
+    );
+  });
+
+  it("rejects a replacement that ends with a newline", () => {
+    const trailing = makeComment({
+      suggestion: { startLine: 31, endLine: 31, replacement: "x\n" },
+    });
+
+    expect(getError({ comments: [trailing] })).toBe(
+      "comments[0]: suggestion.replacement must not end with a newline; join lines with \\n",
+    );
+  });
+
+  it("rejects a suggestion on Move, Wrong, and Question", () => {
+    const cases: Array<[Category, string]> = [
+      ["comments", "Move"],
+      ["comments", "Wrong"],
+      ["correctness", "Question"],
+    ];
+
+    for (const [category, label] of cases) {
+      const comment = makeComment({
+        category,
+        label,
+        suggestion: { startLine: 31, endLine: 31, replacement: "x" },
+      });
+
+      expect(getError({ comments: [comment] })).toBe(
+        `comments[0]: suggestion is not allowed on label ${JSON.stringify(label)}; write the fix as prose`,
+      );
+    }
+  });
+
+  it("rejects a body that carries a fenced block beside a suggestion", () => {
+    const doubled = makeComment({
+      body: "Use the route.\n```php\n$x = 1;\n```",
+      suggestion: { startLine: 31, endLine: 31, replacement: "$x = 1;" },
+    });
+
+    expect(getError({ comments: [doubled] })).toBe(
+      "comments[0]: body must not carry a fenced code block when suggestion is present; the suggestion is the code",
+    );
+  });
+
+  it("lists suggestion problems after field and label problems of the same comment", () => {
+    const comment = makeComment({
+      body: "",
+      label: "Nope",
+      suggestion: { startLine: 40, endLine: 41, replacement: "x" },
+    });
+
+    expect(getError({ comments: [comment] }).split("\n")).toEqual([
+      "comments[0]: body must be a non-empty string",
+      `comments[0]: label "Nope" is not one of correctness: ${LABELS.correctness.join(", ")}`,
+      "comments[0]: suggestion range 40 to 41 does not contain line 31",
+    ]);
+  });
+
+  it("widens the fence past the longest backtick run in the replacement", () => {
+    const three = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            category: "comments",
+            label: "Trim",
+            suggestion: {
+              startLine: 31,
+              endLine: 33,
+              replacement: "Example:\n```sh\nnpm test\n```",
+            },
+          }),
+        ],
+      }),
+    );
+    const four = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            category: "comments",
+            label: "Trim",
+            suggestion: {
+              startLine: 31,
+              endLine: 33,
+              replacement: "````markdown\n```\n````",
+            },
+          }),
+        ],
+      }),
+    );
+
+    expect(
+      three.body.endsWith(
+        "\n````suggestion\nExample:\n```sh\nnpm test\n```\n````",
+      ),
+    ).toBe(true);
+    expect(
+      four.body.endsWith("\n`````suggestion\n````markdown\n```\n````\n`````"),
+    ).toBe(true);
+  });
+
+  it("never scrubs or trims the replacement", () => {
+    const comment = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            suggestion: {
+              startLine: 31,
+              endLine: 31,
+              replacement: "  DELETE: \t keep me  ",
+            },
+          }),
+        ],
+      }),
+    );
+
+    expect(comment.suggestion?.replacement).toBe("  DELETE: \t keep me  ");
+    expect(
+      comment.body.endsWith("```suggestion\n  DELETE: \t keep me  \n```"),
+    ).toBe(true);
+  });
+
+  it("carries a CRLF replacement through unchanged", () => {
+    const comment = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            suggestion: { startLine: 31, endLine: 32, replacement: "a\r\nb" },
+          }),
+        ],
+      }),
+    );
+
+    expect(comment.suggestion?.replacement).toBe("a\r\nb");
+  });
+
+  it("treats a null suggestion as absent", () => {
+    const comment = getFirst(
+      renderComments({ comments: [makeComment({ suggestion: null })] }),
+    );
+
+    expect(comment).not.toHaveProperty("suggestion");
+    expect(comment.body).toBe("🔴 **[COR-01] Bug**\nBody text.");
+  });
+
+  it("renders a comment without a suggestion exactly as before", () => {
+    fc.assert(
+      fc.property(makeCommentListArb(), (comments) => {
+        const rendered = renderComments({ comments });
+
+        for (const [index, comment] of rendered.comments.entries()) {
+          const input = comments[index];
+
+          if (input === undefined) {
+            throw new Error("rendered more comments than given");
+          }
+
+          expect(comment).not.toHaveProperty("suggestion");
+          expect(comment.body).toBe(
+            `${EMOJI_BY_LABEL[comment.label]} **[${comment.code}] ${comment.label}**\n${scrubBody(input.body)}`,
+          );
+        }
+      }),
+    );
+  });
+
+  it("renders any replacement inside a fence longer than its longest backtick run", () => {
+    fc.assert(
+      fc.property(
+        fc.string().filter((text) => !text.endsWith("\n")),
+        (replacement) => {
+          const comment = getFirst(
+            renderComments({
+              comments: [
+                makeComment({
+                  suggestion: { startLine: 31, endLine: 31, replacement },
+                }),
+              ],
+            }),
+          );
+          const block = comment.body.slice(
+            "🔴 **[COR-01] Bug**\nBody text.\n".length,
+          );
+          const fence = block.slice(0, block.indexOf("suggestion"));
+          const longest = Math.max(
+            0,
+            ...(replacement.match(/`+/gu) ?? []).map((run) => run.length),
+          );
+
+          expect(fence.length).toBeGreaterThanOrEqual(3);
+          expect(fence.length).toBeGreaterThan(longest);
+          expect(block).toBe(
+            `${fence}suggestion\n${replacement === "" ? "" : `${replacement}\n`}${fence}`,
+          );
+        },
+      ),
     );
   });
 });
@@ -820,5 +1205,30 @@ describe("render-comments.mjs", () => {
 
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("usage:");
+  });
+
+  it("prints the suggestion block in markdown and the field in JSON", () => {
+    const withSuggestion = JSON.stringify({
+      comments: [
+        makeComment({
+          category: "comments",
+          label: "Delete",
+          body: "Restates the guard. Delete it.",
+          suggestion: { startLine: 31, endLine: 31, replacement: "" },
+        }),
+      ],
+    });
+    const markdown = runCli(withSuggestion, "--format", "markdown");
+    const json = runCli(withSuggestion);
+
+    expect(markdown.status).toBe(0);
+    expect(markdown.stdout).toBe(
+      "`app/Thing.php:31`\n🟡 **[DOC-01] Delete**\nRestates the guard. Delete it.\n```suggestion\n```\n",
+    );
+    expect(JSON.parse(json.stdout).comments[0].suggestion).toEqual({
+      startLine: 31,
+      endLine: 31,
+      replacement: "",
+    });
   });
 });
