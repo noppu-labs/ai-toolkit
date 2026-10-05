@@ -3,11 +3,11 @@
   "skills": {
     "brief": {
       "sourceType": "local",
-      "vendoredHash": "6fbc1e0cd75764a0397fe3052ca6d71eb99328d959320c40af8e1b6e9b9a1e02"
+      "vendoredHash": "454589bd9c602fd0c350bc5c3d016b5153bc4b60ab4feaa681f4d5695caaa1fd"
     },
     "deep": {
       "sourceType": "local",
-      "vendoredHash": "8efe82affd07c3a9f2a0b04a34f22b0f71e1f6d4922b08ced82cd039041a67c2"
+      "vendoredHash": "c3f2a21bcec73cc6160a7e11ec4c1d1538fa5a8554e01eeb8b82a0c599b3af20"
     },
     "spec": {
       "sourceType": "local",

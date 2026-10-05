@@ -25,6 +25,14 @@ RULES
 - Every claim about how a third-party package behaves carries the rung it was resolved at:
   `vendor:<file:line>` or `node_modules:<file:line>`, `docs:<library-id>`, or `INFERRED FROM RECALL`.
   An unlabelled framework claim is treated as recall.
+- Resolve before asserting. Before writing a conclusion that depends on a type, a relation's
+  cardinality, or a call relationship, resolve it with a tool or by reading the definition.
+  Label anything inferred rather than resolved `inferred from naming, not resolved`, so a guess
+  never reads as fact.
+  Which tool resolves what: `${CLAUDE_PLUGIN_ROOT}/skills/brief/references/resolution.md`.
+- Mark unverified conclusions, not only unverified facts. A conclusion that rests on a caller or
+  definition you did not read ("safe because the caller must already have resolved it") carries
+  the same label.
 - Read the body of any function you make a claim about. A name, signature, or grep hit is not evidence.
 - Three outcomes only: Reachable (cite the path), Guarded (cite the guard), Unresolved (say what you
   would need to read). Never convert a failed search into "no callers".
