@@ -130,6 +130,8 @@ function findFieldProblems(comment) {
 
   if (typeof comment.body !== "string" || comment.body.trim() === "") {
     problems.push("body must be a non-empty string");
+  } else if (scrubBody(comment.body).trim() === "") {
+    problems.push("body is empty once reviewer vocabulary is stripped");
   }
 
   return problems;

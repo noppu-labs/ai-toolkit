@@ -103,7 +103,9 @@ function makeCommentArb(): fc.Arbitrary<InputComment> {
     fc.record({
       path: fc.string({ minLength: 1 }),
       line: fc.integer({ min: 1, max: 9999 }),
-      body: fc.string({ minLength: 1 }).filter((text) => text.trim() !== ""),
+      body: fc
+        .string({ minLength: 1 })
+        .filter((text) => scrubBody(text).trim() !== ""),
       category: fc.constant(category as Category),
       label: fc.constantFrom(...labels),
     }),
@@ -623,6 +625,25 @@ describe("suggestions", () => {
     expect(comment.body).toBe(
       "🔴 **[COR-01] Bug**\nFix it.\n```suggestion\n$x = 1;\n```",
     );
+  });
+
+  it("rejects a body that is only reviewer vocabulary, with or without a suggestion", () => {
+    const bare = makeComment({
+      category: "comments",
+      label: "Trim",
+      body: "TRIM:",
+    });
+    const suggested = makeComment({
+      category: "comments",
+      label: "Trim",
+      body: "**TRIM**",
+      suggestion: { startLine: 31, endLine: 31, replacement: "x" },
+    });
+
+    expect(getError({ comments: [bare, suggested] }).split("\n")).toEqual([
+      "comments[0]: body is empty once reviewer vocabulary is stripped",
+      "comments[1]: body is empty once reviewer vocabulary is stripped",
+    ]);
   });
 
   it("lists suggestion problems after field and label problems of the same comment", () => {
