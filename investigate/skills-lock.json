@@ -3,15 +3,15 @@
   "skills": {
     "brief": {
       "sourceType": "local",
-      "vendoredHash": "af7a5d172e829d21499d4340b81890c0de4b61a1a19639b94c2573109aac9eee"
+      "vendoredHash": "6fbc1e0cd75764a0397fe3052ca6d71eb99328d959320c40af8e1b6e9b9a1e02"
     },
-    "module": {
+    "deep": {
       "sourceType": "local",
-      "vendoredHash": "0b341192e0da13287abf8cae9e386864f79070191c25824a586f2753fd10f00e"
+      "vendoredHash": "8efe82affd07c3a9f2a0b04a34f22b0f71e1f6d4922b08ced82cd039041a67c2"
     },
     "spec": {
       "sourceType": "local",
-      "vendoredHash": "d0dabbfb8b5b85363ba4a7315a9b85aa328edd26b454eb9b91b5841e2b53cfb5"
+      "vendoredHash": "eee3849971de6d077657b4d0a7cb1e1a926d98d8ffa711a4ebc94c52c978bafa"
     }
   }
 }

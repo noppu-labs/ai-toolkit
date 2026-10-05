@@ -27,7 +27,7 @@ Agents and skills for agentic development in modern Laravel and React applicatio
 | `laravel` | 16 backend skills, `laravel-backend-specialist` agent, 4 path-scoped rules |
 | `inertia-react` | 6 frontend skills, `frontend-developer` agent, 2 path-scoped rules |
 | `review` | 5 review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, PR review orchestrator, PR comments |
-| `investigate` | 3 skills: deterministic structural brief, two-pass module investigation, spec/ticket review |
+| `investigate` | 3 skills: deterministic structural brief, deep two-pass investigation, spec/ticket review |
 
 ## Install (Claude Code marketplace)
 

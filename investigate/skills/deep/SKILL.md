@@ -1,9 +1,9 @@
 ---
-name: module
-description: Structured investigation of a service, module, or feature with a deterministic brief and two redundant parallel passes synthesised by intersection. Use when asked to investigate, audit, or deeply understand code, or when conclusions about callers, blast radius, or reachability will drive a decision. Accepts a path or a free-text subject. Not for quick single-fact lookups; for a spec or ticket use investigate:spec.
+name: deep
+description: The full investigation of a service, module, or feature, with a deterministic brief and two redundant parallel passes synthesised by intersection. Use when asked to investigate, audit, or deeply understand code, or when conclusions about callers, blast radius, or reachability will drive a decision; this is the default when someone asks for "the investigate skill". Accepts a path or a free-text subject. Not for quick single-fact lookups; for a spec or ticket use investigate:spec; for the brief alone use investigate:brief.
 ---
 
-# Module investigation
+# Deep investigation
 
 A single pass fabricates and omits callers: roughly a third to half of what one run
 surfaces is run-dependent, as measured in the author's controlled runs. Run two passes

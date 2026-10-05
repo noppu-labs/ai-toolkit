@@ -1,6 +1,6 @@
 ---
 name: brief
-description: Generate a deterministic structural brief for a path before anyone reads code, covering callers, wiring, blast radius, installed third-party versions, and version-checked doc sources. Use when asked for a brief, a blast radius, who calls this, or a pre-computation for an investigation or review; the module and spec skills call it first. Not an investigation by itself.
+description: Generate a deterministic structural brief for a path before anyone reads code, covering callers, wiring, blast radius, installed third-party versions, and version-checked doc sources. Use when asked for a brief, a blast radius, who calls this, or a pre-computation for an investigation or review; the deep and spec skills call it first. Not an investigation by itself: for the full two-pass investigation use investigate:deep.
 compatibility: Requires git and Node 20+. Optional on PATH (gitnexus, codegraph, ast-grep, phpantom_lsp, typescript-language-server); the TypeScript pass needs a tsserver-based TypeScript (6 or earlier) in the target repo. By default the doc-source gate sends the names of up to 12 third-party packages the target imports (devDependencies and composer dev packages excluded) to context7.com, anonymously unless CONTEXT7_API_KEY is set; --no-docs disables that network call. Each missing tool degrades its section and is reported under Tools.
 ---
 
@@ -136,7 +136,7 @@ documentation for the wrong major, an agent reports the old idiom with a citatio
 reads as verified.
 
 Condense the verdicts of the packages you hand over into lines like these
-(`investigate:module` Step 2 says which to pick):
+(`investigate:deep` Step 2 says which to pick):
 
 ```text
 DOC SOURCES: pre-resolved and version-checked. Do not resolve your own.
@@ -161,5 +161,5 @@ edges (`resolve(Foo::class)`, `app(Foo::class)`, DI). Graph caller lists are a l
 and often read as misleadingly test-only. An empty caller list on a service or interface
 method is unresolved. Recover wiring from the brief's textual buckets.
 
-For reachability claims, see `${CLAUDE_PLUGIN_ROOT}/skills/module/SKILL.md`, "Step 4: Report".
+For reachability claims, see `${CLAUDE_PLUGIN_ROOT}/skills/deep/SKILL.md`, "Step 4: Report".
 For claims about how a third-party package behaves, apply [the evidence ladder](references/evidence-ladder.md).

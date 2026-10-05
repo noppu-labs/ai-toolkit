@@ -9,7 +9,7 @@ A spec is a set of claims about code. Each claim is CORRECT, WRONG, or UNVERIFIA
 against what the code does today. The brief also exposes the callers the spec never
 mentions, which is where most spec errors hide.
 
-Redundancy and the intersection rule work as in `investigate:module`. Read that skill
+Redundancy and the intersection rule work as in `investigate:deep`. Read that skill
 for the reasoning; this one covers only what differs.
 
 ## Step 0: Obtain the document
@@ -36,26 +36,26 @@ Extract every file, class, and module the document references or proposes to cha
 ## Step 2: Generate the brief
 
 Invoke the `investigate:brief` skill once per module directory and concatenate the
-outputs under per-module headers, as in `investigate:module` Step 1.
+outputs under per-module headers, as in `investigate:deep` Step 1.
 
 If a brief fails, that module's structure is UNRESOLVED. Say so in the report; never
 review silently without the brief.
 
 ## Step 3: Dispatch two agents in parallel
 
-Build one prompt from `${CLAUDE_PLUGIN_ROOT}/skills/module/references/agent-prompt.md`
+Build one prompt from `${CLAUDE_PLUGIN_ROOT}/skills/deep/references/agent-prompt.md`
 using the **Spec review** question.
 
 That question has its own nested slot. Fill `<SPEC TEXT>` with the document text,
 verbatim and unabridged, first. Then paste the completed question into the outer
-prompt's `<QUESTION>` slot. Fill `<BRIEF>` and `<DOC SOURCES>` as `investigate:module`
+prompt's `<QUESTION>` slot. Fill `<BRIEF>` and `<DOC SOURCES>` as `investigate:deep`
 Step 2 describes.
 
 Send one message containing two Agent tool uses with identical prompts.
 
 ## Step 4: Synthesise and report
 
-Apply the intersection rule from `investigate:module` Step 3.
+Apply the intersection rule from `investigate:deep` Step 3.
 
 Organise the report by spec claim, not by agent:
 
