@@ -113,7 +113,7 @@ Then run:
 node ${CLAUDE_PLUGIN_ROOT}/skills/pr-comments/scripts/render-comments.mjs --format markdown < findings.json
 ```
 
-The script rejects a label that is not in its category, a missing anchor, an empty body (or one that is only reviewer vocabulary), and a `suggestion` that replaces more than six lines, whose range does not contain `line`, that sits on `Move`, `Wrong`, `Question`, or `Unsure`, or beside a body that still carries a fenced block (backticks or tildes), naming the comment by index. It also rejects a verdict that disagrees with the severities present: `comment` beside a 🔴 or 🟠, `request_changes` with none, or `approve` with any comment at all. Fix the entry and run it again. It assigns the codes, grades the severity from the label, strips any reviewer vocabulary a body still starts with, and puts the header on its own line above the body, and renders a `suggestion` as a GitHub suggestion block after the body, widening the fence past any backticks inside the replacement. Its output is the result; do not write codes, emoji, or headers by hand, and do not reorder or edit what it prints.
+The script rejects a label that is not in its category, a missing `path` or `line`, an empty body (or one that is only reviewer vocabulary), and a `suggestion` that replaces more than six lines, whose range does not contain `line`, that sits on `Move`, `Wrong`, `Question`, or `Unsure`, or beside a body that still carries a fenced block (backticks or tildes), naming the comment by index. It also rejects a verdict that disagrees with the severities present: `comment` beside a 🔴 or 🟠, `request_changes` with none, or `approve` with any comment at all. Fix the entry and run it again. It assigns the codes, grades the severity from the label, strips any reviewer vocabulary a body still starts with, and puts the header on its own line above the body, and renders a `suggestion` as a GitHub suggestion block after the body, widening the fence past any backticks inside the replacement. With a `suggestion` it also sets the review-comment fields from the range: `line` to its last line, `side` to `RIGHT`, and for more than one line `start_line` to its first and `start_side` to `RIGHT`. The JSON keeps the finding's own line as `anchor`; the markdown prints `path:start-end` for more than one line and `path:line` otherwise. Its output is the result; do not write codes, emoji, or headers by hand, and do not reorder or edit what it prints.
 
 ## Output
 
@@ -132,7 +132,7 @@ Verdict: request_changes
 🟠 **[TPS-01] Unstructured array**
 ...
 
-`app/Services/DiscountSync.php:40`
+`app/Services/DiscountSync.php:40-42`
 🟡 **[DOC-01] Trim**
 The docblock repeats the method name and the retry count the code shows. Keep the one sentence that says why it retries.
 ```suggestion
@@ -142,7 +142,7 @@ The docblock repeats the method name and the retry count the code shows. Keep th
 Diagnostics: <text, or the line is absent>
 ````
 
-With `format=json`, the script's JSON instead: each comment keeps the `startLine`, `endLine`, and `replacement` of its `suggestion`, and its `body` already ends with the rendered suggestion block, so a poster sends `body` as-is and never builds a second block from `replacement`. A poster sets `line` to `endLine` and `side` to `RIGHT`; for a range of more than one line it also sets `start_line` to `startLine` and `start_side` to `RIGHT`, both of which GitHub requires on a multi-line comment; a single-line suggestion omits both. With `out=`, the same content written to that path and a one-line response naming it.
+With `format=json`, the script's JSON instead: each comment keeps the `startLine`, `endLine`, and `replacement` of its `suggestion`, and its `body` already ends with the rendered suggestion block, so a poster sends `body` as-is and never builds a second block from `replacement`. A comment with a `suggestion` also carries `line`, `side`, and for a range of more than one line `start_line` and `start_side`, already set from the range, with the finding's own line as `anchor`: a poster sends `path`, `body`, `line`, `side`, and, when present, `start_line` and `start_side` as they are, and nothing else: GitHub rejects the whole review with a 422 that names each key it does not know, so `anchor`, `code`, `category`, `label`, and `suggestion` never go in the request. A comment without a `suggestion` carries no `side`, `start_line`, `start_side`, or `anchor`, and its `line` is the finding's, so the finding's line of any comment is `anchor ?? line`. With `out=`, the same content written to that path and a one-line response naming it.
 
 ## Common mistakes
 
@@ -159,3 +159,4 @@ With `format=json`, the script's JSON instead: each comment keeps the `startLine
 | `humanizer` listed among the skills but the bodies rendered without it, or not listed and diagnostics silent about it | Listed: run it on every body and the summary before the script. Not listed: one sentence in diagnostics says so. |
 | A `suggestion` on a `Move`, `Wrong`, `Question`, or `Unsure`, or for a fix that also needs a change elsewhere | Prose. A suggestion is applied with one click, so it must fix the finding entirely. |
 | A fenced block in the body beside a `suggestion` | Drop the fenced block. The suggestion is the code. |
+| `line` moved back to the finding's line, `start_line` added by hand, or `anchor` and `code` sent to the API | Send `path`, `body`, `line`, `side`, `start_line`, and `start_side` as rendered and nothing else. The script set them from the range; the finding's line is `anchor`. |

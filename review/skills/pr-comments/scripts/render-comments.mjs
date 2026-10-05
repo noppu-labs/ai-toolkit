@@ -357,6 +357,28 @@ function renderSuggestion(replacement) {
   return `${fence}suggestion\n${inner}${fence}`;
 }
 
+const HEAD_SIDE = "RIGHT";
+
+/**
+ * GitHub applies a suggestion to every line the review comment covers, so a
+ * comment carrying one is posted over the range. The finding's own line stays
+ * as `anchor` for a consumer that matches comments back to findings.
+ */
+function makeApiFields(suggestion, anchor) {
+  const { startLine, endLine } = suggestion;
+  const range =
+    startLine === endLine
+      ? { line: endLine, side: HEAD_SIDE }
+      : {
+          line: endLine,
+          side: HEAD_SIDE,
+          start_line: startLine,
+          start_side: HEAD_SIDE,
+        };
+
+  return { ...range, anchor };
+}
+
 function renderComment(comment, counters) {
   const code = makeCode(comment.category, counters);
   const header = `${EMOJI[comment.label]} **[${code}] ${comment.label}**`;
@@ -369,9 +391,7 @@ function renderComment(comment, counters) {
     suggestion === null
       ? `${header}\n${text}`
       : `${header}\n${text.trimEnd()}\n${renderSuggestion(suggestion.replacement)}`;
-  const rendered = {
-    path: comment.path,
-    line: comment.line,
+  const tail = {
     code,
     category: comment.category,
     label: comment.label,
@@ -379,11 +399,13 @@ function renderComment(comment, counters) {
   };
 
   if (suggestion === null) {
-    return rendered;
+    return { path: comment.path, line: comment.line, ...tail };
   }
 
   return {
-    ...rendered,
+    path: comment.path,
+    ...makeApiFields(suggestion, comment.line),
+    ...tail,
     suggestion: {
       startLine: suggestion.startLine,
       endLine: suggestion.endLine,
@@ -414,6 +436,15 @@ export function renderComments(input) {
   };
 }
 
+// The lines the comment is posted over, never the finding's `anchor`.
+function formatLocation(comment) {
+  const range = Number.isInteger(comment.start_line)
+    ? `${comment.start_line}-${comment.line}`
+    : `${comment.line}`;
+
+  return `\`${comment.path}:${range}\``;
+}
+
 export function formatMarkdown(rendered) {
   const sections = [];
 
@@ -426,7 +457,7 @@ export function formatMarkdown(rendered) {
   }
 
   for (const comment of rendered.comments) {
-    sections.push(`\`${comment.path}:${comment.line}\`\n${comment.body}`);
+    sections.push(`${formatLocation(comment)}\n${comment.body}`);
   }
 
   if (isNonEmptyString(rendered.diagnostics)) {

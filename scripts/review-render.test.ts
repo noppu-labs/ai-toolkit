@@ -17,7 +17,16 @@ type InputComment = {
   suggestion?: Suggestion | null;
 };
 
-type RenderedComment = InputComment & { code: string; suggestion?: Suggestion };
+type Side = "RIGHT";
+
+type RenderedComment = InputComment & {
+  code: string;
+  suggestion?: Suggestion;
+  side?: Side;
+  start_line?: number;
+  start_side?: Side;
+  anchor?: number;
+};
 
 type RenderedInput = Record<string, unknown> & { comments: RenderedComment[] };
 
@@ -87,6 +96,51 @@ const EMOJI_BY_LABEL: Record<string, string> = {
 const HEADER =
   /^\p{Extended_Pictographic} \*\*\[(COR|TPS|DOC)-\d{2,}\] [^\n]+\*\*\n(?!\n)/u;
 
+// Key order is part of the output contract: it stays fixed across script
+// versions, so a diff of two renders shows only real changes.
+const PLAIN_KEYS: string[] = [
+  "path",
+  "line",
+  "code",
+  "category",
+  "label",
+  "body",
+];
+
+const SINGLE_LINE_KEYS: string[] = [
+  "path",
+  "line",
+  "side",
+  "anchor",
+  "code",
+  "category",
+  "label",
+  "body",
+  "suggestion",
+];
+
+const MULTI_LINE_KEYS: string[] = [
+  "path",
+  "line",
+  "side",
+  "start_line",
+  "start_side",
+  "anchor",
+  "code",
+  "category",
+  "label",
+  "body",
+  "suggestion",
+];
+
+// Mirrors NO_SUGGESTION_LABELS in render-comments.mjs, which does not export it.
+const NO_SUGGESTION_LABELS: Set<string> = new Set([
+  "Move",
+  "Wrong",
+  "Question",
+  "Unsure",
+]);
+
 function makeComment(overrides: Partial<InputComment> = {}): InputComment {
   return {
     path: "app/Thing.php",
@@ -118,6 +172,32 @@ function makeCommentListArb(max = 12): fc.Arbitrary<InputComment[]> {
   return fc.array(makeCommentArb(), { maxLength: max });
 }
 
+// A valid suggestion around the anchor: at most six lines, containing `line`,
+// on a label that allows one, with a body no fence check can reject.
+function makeSuggestedCommentArb(): fc.Arbitrary<InputComment> {
+  return fc
+    .tuple(
+      makeCommentArb().filter(
+        (comment) => !NO_SUGGESTION_LABELS.has(comment.label),
+      ),
+      fc.integer({ min: 1, max: 9999 }),
+      fc.integer({ min: 0, max: 5 }),
+      fc.integer({ min: 0, max: 5 }),
+      fc.string().filter((text) => !text.endsWith("\n")),
+    )
+    .map(([comment, anchor, before, after, replacement]) => {
+      const startLine = Math.max(1, anchor - before);
+      const endLine = Math.min(anchor + after, startLine + 5);
+
+      return {
+        ...comment,
+        line: anchor,
+        body: "Body text.",
+        suggestion: { startLine, endLine, replacement },
+      };
+    });
+}
+
 function makeExpectedCodes(comments: InputComment[]): string[] {
   const counters = new Map<string, number>();
 
@@ -139,6 +219,12 @@ function getFirst(rendered: RenderedInput): RenderedComment {
   }
 
   return comment;
+}
+
+function getRangeText(suggestion: Suggestion): string {
+  return suggestion.startLine < suggestion.endLine
+    ? `${suggestion.startLine}-${suggestion.endLine}`
+    : `${suggestion.endLine}`;
 }
 
 function getError(input: unknown): string {
@@ -355,7 +441,7 @@ describe("suggestions", () => {
     },
   });
 
-  it("renders a single-line suggestion block after the body and carries the field through", () => {
+  it("renders the suggestion block after the body and carries the field through", () => {
     const comment = getFirst(renderComments({ comments: [trim] }));
 
     expect(comment.body).toBe(
@@ -368,15 +454,86 @@ describe("suggestions", () => {
       ].join("\n"),
     );
     expect(comment.suggestion).toEqual(trim.suggestion);
-    expect(Object.keys(comment)).toEqual([
-      "path",
-      "line",
-      "code",
-      "category",
-      "label",
-      "body",
-      "suggestion",
-    ]);
+    expect(Object.keys(comment)).toEqual(MULTI_LINE_KEYS);
+  });
+
+  it("moves line to the end of the range and keeps the finding's line as anchor", () => {
+    const comment = getFirst(renderComments({ comments: [trim] }));
+
+    expect(comment.line).toBe(32);
+    expect(comment.side).toBe("RIGHT");
+    expect(comment.start_line).toBe(30);
+    expect(comment.start_side).toBe("RIGHT");
+    expect(comment.anchor).toBe(31);
+  });
+
+  it("emits no start_line or start_side for a single-line suggestion", () => {
+    const comment = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            line: 31,
+            suggestion: { startLine: 31, endLine: 31, replacement: "$x = 1;" },
+          }),
+        ],
+      }),
+    );
+
+    expect(Object.keys(comment)).toEqual(SINGLE_LINE_KEYS);
+    expect(comment.line).toBe(31);
+    expect(comment.side).toBe("RIGHT");
+    expect(comment.anchor).toBe(31);
+    expect(comment).not.toHaveProperty("start_line");
+    expect(comment).not.toHaveProperty("start_side");
+  });
+
+  it("keeps anchor at the end of the range when the finding sits there", () => {
+    const comment = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            line: 32,
+            suggestion: { startLine: 30, endLine: 32, replacement: "x" },
+          }),
+        ],
+      }),
+    );
+
+    expect(comment.line).toBe(32);
+    expect(comment.anchor).toBe(32);
+    expect(comment.start_line).toBe(30);
+  });
+
+  it("drops API fields the model wrote and sets its own", () => {
+    const plain = getFirst(
+      renderComments({
+        comments: [
+          { ...makeComment(), side: "LEFT", start_line: 1, anchor: 999 },
+        ],
+      }),
+    );
+    const suggested = getFirst(
+      renderComments({
+        comments: [
+          {
+            ...makeComment({
+              line: 31,
+              suggestion: { startLine: 30, endLine: 31, replacement: "x" },
+            }),
+            side: "LEFT",
+            start_line: 1,
+            start_side: "LEFT",
+            anchor: 999,
+          },
+        ],
+      }),
+    );
+
+    expect(Object.keys(plain)).toEqual(PLAIN_KEYS);
+    expect(suggested.side).toBe("RIGHT");
+    expect(suggested.start_line).toBe(30);
+    expect(suggested.start_side).toBe("RIGHT");
+    expect(suggested.anchor).toBe(31);
   });
 
   it("renders a multi-line replacement with every line inside one block", () => {
@@ -743,6 +900,7 @@ describe("suggestions", () => {
     );
 
     expect(comment).not.toHaveProperty("suggestion");
+    expect(Object.keys(comment)).toEqual(PLAIN_KEYS);
     expect(comment.body).toBe("🔴 **[COR-01] Bug**\nBody text.");
   });
 
@@ -750,6 +908,7 @@ describe("suggestions", () => {
     fc.assert(
       fc.property(makeCommentListArb(), (comments) => {
         const rendered = renderComments({ comments });
+        const markdown = formatMarkdown(rendered);
 
         for (const [index, comment] of rendered.comments.entries()) {
           const input = comments[index];
@@ -759,10 +918,49 @@ describe("suggestions", () => {
           }
 
           expect(comment).not.toHaveProperty("suggestion");
+          expect(Object.keys(comment)).toEqual(PLAIN_KEYS);
+          expect(comment.line).toBe(input.line);
           expect(comment.body).toBe(
             `${EMOJI_BY_LABEL[comment.label]} **[${comment.code}] ${comment.label}**\n${scrubBody(input.body)}`,
           );
+          expect(markdown).toContain(
+            `\`${input.path}:${input.line}\`\n${comment.body}`,
+          );
         }
+      }),
+    );
+  });
+
+  it("posts every suggestion over its range and keeps the finding's line as anchor", () => {
+    fc.assert(
+      fc.property(makeSuggestedCommentArb(), (input) => {
+        const comment = getFirst(renderComments({ comments: [input] }));
+        const suggestion = input.suggestion;
+
+        if (suggestion == null) {
+          throw new Error("the arbitrary always carries a suggestion");
+        }
+
+        const multi = suggestion.startLine < suggestion.endLine;
+
+        expect(comment.line).toBe(suggestion.endLine);
+        expect(comment.side).toBe("RIGHT");
+        expect(comment.anchor).toBe(input.line);
+        expect(comment.suggestion).toEqual(suggestion);
+        expect(Object.keys(comment)).toEqual(
+          multi ? MULTI_LINE_KEYS : SINGLE_LINE_KEYS,
+        );
+
+        if (multi) {
+          expect(comment.start_line).toBe(suggestion.startLine);
+          expect(comment.start_side).toBe("RIGHT");
+        }
+
+        expect(
+          formatMarkdown({ comments: [comment] }).startsWith(
+            `\`${input.path}:${getRangeText(suggestion)}\`\n`,
+          ),
+        ).toBe(true);
       }),
     );
   });
@@ -1223,6 +1421,51 @@ describe("formatMarkdown", () => {
     );
   });
 
+  it("prints the range for a multi-line suggestion and the line otherwise", () => {
+    const multi = renderComments({
+      comments: [
+        makeComment({
+          line: 31,
+          category: "comments",
+          label: "Trim",
+          body: "Keep the sentence that says why.",
+          suggestion: { startLine: 30, endLine: 32, replacement: "// why" },
+        }),
+      ],
+    });
+    const single = renderComments({
+      comments: [
+        makeComment({
+          line: 31,
+          suggestion: { startLine: 31, endLine: 31, replacement: "$x = 1;" },
+        }),
+      ],
+    });
+
+    expect(formatMarkdown(multi)).toBe(
+      [
+        "`app/Thing.php:30-32`",
+        "🟡 **[DOC-01] Trim**",
+        "Keep the sentence that says why.",
+        "```suggestion",
+        "// why",
+        "```",
+        "",
+      ].join("\n"),
+    );
+    expect(formatMarkdown(single)).toBe(
+      [
+        "`app/Thing.php:31`",
+        "🔴 **[COR-01] Bug**",
+        "Body text.",
+        "```suggestion",
+        "$x = 1;",
+        "```",
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("ends with exactly one newline", () => {
     const markdown = formatMarkdown(rendered);
 
@@ -1308,8 +1551,8 @@ describe("render-comments.mjs", () => {
     expect(result.stderr).toContain("usage:");
   });
 
-  it("prints the suggestion block in markdown and the field in JSON", () => {
-    const withSuggestion = JSON.stringify({
+  it("prints the suggestion block in markdown and the API fields in JSON", () => {
+    const single = JSON.stringify({
       comments: [
         makeComment({
           category: "comments",
@@ -1319,17 +1562,49 @@ describe("render-comments.mjs", () => {
         }),
       ],
     });
-    const markdown = runCli(withSuggestion, "--format", "markdown");
-    const json = runCli(withSuggestion);
+    const multi = JSON.stringify({
+      comments: [
+        makeComment({
+          category: "comments",
+          label: "Trim",
+          body: "Keep the why.",
+          suggestion: { startLine: 30, endLine: 32, replacement: "// why" },
+        }),
+      ],
+    });
+    const singleMarkdown = runCli(single, "--format", "markdown");
+    const multiMarkdown = runCli(multi, "--format", "markdown");
 
-    expect(markdown.status).toBe(0);
-    expect(markdown.stdout).toBe(
+    expect(singleMarkdown.status).toBe(0);
+    expect(singleMarkdown.stdout).toBe(
       "`app/Thing.php:31`\n🟡 **[DOC-01] Delete**\nRestates the guard. Delete it.\n```suggestion\n```\n",
     );
-    expect(JSON.parse(json.stdout).comments[0].suggestion).toEqual({
-      startLine: 31,
-      endLine: 31,
-      replacement: "",
+    expect(multiMarkdown.stdout).toBe(
+      "`app/Thing.php:30-32`\n🟡 **[DOC-01] Trim**\nKeep the why.\n```suggestion\n// why\n```\n",
+    );
+    expect(JSON.parse(runCli(single).stdout).comments[0]).toEqual({
+      path: "app/Thing.php",
+      line: 31,
+      side: "RIGHT",
+      anchor: 31,
+      code: "DOC-01",
+      category: "comments",
+      label: "Delete",
+      body: "🟡 **[DOC-01] Delete**\nRestates the guard. Delete it.\n```suggestion\n```",
+      suggestion: { startLine: 31, endLine: 31, replacement: "" },
+    });
+    expect(JSON.parse(runCli(multi).stdout).comments[0]).toEqual({
+      path: "app/Thing.php",
+      line: 32,
+      side: "RIGHT",
+      start_line: 30,
+      start_side: "RIGHT",
+      anchor: 31,
+      code: "DOC-01",
+      category: "comments",
+      label: "Trim",
+      body: "🟡 **[DOC-01] Trim**\nKeep the why.\n```suggestion\n// why\n```",
+      suggestion: { startLine: 30, endLine: 32, replacement: "// why" },
     });
   });
 });
