@@ -191,7 +191,7 @@ route_diff() {
     # because git quotes it. The header is `a/OLD b/NEW`, with either side
     # quoted on its own; the symmetric test recognises one path on both sides
     # even when the path holds ` b/`, and a rename is split by split_sides.
-    # One path on both sides that is markdown stays skipped in verify; a
+    # Markdown on both sides stays skipped in verify; a
     # Python path is named on stderr and uses the regex.
     function unregistered(header, seen,   r, p, same, oq) {
       r = substr(header, length("diff --git ") + 1)
@@ -205,7 +205,7 @@ route_diff() {
       }
       if (same) cur_from = cur_new = p
       else split_sides(r, oq)
-      if (same && mode == "verify" && ends(p, ".md")) return "skip"
+      if (mode == "verify" && ends(cur_from, ".md") && ends(cur_new, ".md")) return "skip"
       if (ends(cur_new, ".py")) {
         if (!seen) print script ": " r " is a path git quotes; " fallback > "/dev/stderr"
       }

@@ -2671,6 +2671,46 @@ describe("lib.sh", () => {
     expect(verify.stderr).toBe("");
   });
 
+  it("skips a quoted markdown rename in verify, and keeps a rename out of markdown or with a real escaped quote", () => {
+    const stream = [
+      "== diff",
+      // Both sides markdown: skipped in verify, as the registered rule does.
+      'diff --git "a/app/x\\"y.md" "b/app/x\\"z.md"',
+      '--- "a/app/x\\"y.md"',
+      '+++ "b/app/x\\"z.md"',
+      "@@ -1,1 +1,1 @@",
+      "-old prose",
+      "+new prose",
+      // Markdown on one side only: checked.
+      'diff --git "a/app/n\\"o.md" b/app/n.sql',
+      '--- "a/app/n\\"o.md"',
+      "+++ b/app/n.sql",
+      "@@ -1,1 +1,1 @@",
+      "-prose",
+      "+-- sql note",
+      // The quoting git really emits under core.quotePath=false: an escaped
+      // quote in the old path, the new side unquoted.
+      'diff --git "a/app/q\\"t.sql" b/app/plainq.txt',
+      '--- "a/app/q\\"t.sql"',
+      "+++ b/app/plainq.txt",
+      "@@ -1,1 +1,1 @@",
+      "--- q",
+      "+-- q2",
+      "",
+    ].join("\n");
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    // Only `+-- sql note` lands in a dash file.
+    expect(count.stdout).toBe("1");
+    expect(count.stderr).toBe("");
+    expect(verify.status).toBe(0);
+    expect(verify.stdout.split("\n")).toEqual(["-prose", "+-- q2"]);
+    expect(verify.stderr).toBe("");
+  });
+
   it("routes a header that quotes only one side by each side's own path", () => {
     const stream = [
       "== diff",
