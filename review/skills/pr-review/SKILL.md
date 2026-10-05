@@ -237,9 +237,10 @@ prefix each one you relay with the path from its file heading, so it reads
 `path:line`. One entry per finding, each starting with `path:line` on the HEAD side,
 then the verdict (DELETE, TRIM, MOVE, KEEP, UNSURE, WRONG), the verbatim comment,
 and the rewrite or pointer where the verdict has one. For a DELETE or TRIM, also give
-the comment's first and last HEAD line as `L<start>-L<end>` (the audit's `L123` plus
-the comment's length), so the span the rewrite replaces is explicit. KEEP verdicts may
-be one line each.
+the comment's first and last HEAD line as `L<start>-L<end>`: the start is the audit's
+`L123`, and the end is the start plus the comment's line count at HEAD minus one, so
+a three-line comment at `L123` is `L123-L125` and the span the rewrite replaces is
+explicit. KEEP verdicts may be one line each.
 
 ## Validated
 Every check you ran, with the command and its result. Include the report file path

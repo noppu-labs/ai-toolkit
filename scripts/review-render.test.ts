@@ -538,6 +538,72 @@ describe("suggestions", () => {
     );
   });
 
+  it("rejects a tilde fence or a fence indented up to three spaces beside a suggestion", () => {
+    const bodies: string[] = [
+      "Use the route.\n~~~php\n$x = 1;",
+      "Use the route.\n   ```php\n$x = 1;",
+      "Use the route.\n  ~~~~\n$x = 1;",
+    ];
+
+    for (const body of bodies) {
+      const doubled = makeComment({
+        body,
+        suggestion: { startLine: 31, endLine: 31, replacement: "$x = 1;" },
+      });
+
+      expect(getError({ comments: [doubled] })).toBe(
+        "comments[0]: body must not carry a fenced code block when suggestion is present; the suggestion is the code",
+      );
+    }
+  });
+
+  it("rejects a fence that only opens a line once the body is scrubbed", () => {
+    const doubled = makeComment({
+      category: "comments",
+      label: "Trim",
+      body: "TRIM: ~~~php\n$x = 1;",
+      suggestion: { startLine: 31, endLine: 31, replacement: "$x = 1;" },
+    });
+
+    expect(getError({ comments: [doubled] })).toBe(
+      "comments[0]: body must not carry a fenced code block when suggestion is present; the suggestion is the code",
+    );
+  });
+
+  it("accepts inline backticks and a fence indented four spaces beside a suggestion", () => {
+    const comment = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            body: "Read `partner_id` from the route, not ```the query```.\n    ```",
+            suggestion: { startLine: 31, endLine: 31, replacement: "$x = 1;" },
+          }),
+        ],
+      }),
+    );
+
+    expect(comment.body).toBe(
+      "🔴 **[COR-01] Bug**\nRead `partner_id` from the route, not ```the query```.\n    ```\n```suggestion\n$x = 1;\n```",
+    );
+  });
+
+  it("puts the suggestion block on the line after the body's last non-blank text", () => {
+    const comment = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            body: "Fix it.  \n\n",
+            suggestion: { startLine: 31, endLine: 31, replacement: "$x = 1;" },
+          }),
+        ],
+      }),
+    );
+
+    expect(comment.body).toBe(
+      "🔴 **[COR-01] Bug**\nFix it.\n```suggestion\n$x = 1;\n```",
+    );
+  });
+
   it("lists suggestion problems after field and label problems of the same comment", () => {
     const comment = makeComment({
       body: "",

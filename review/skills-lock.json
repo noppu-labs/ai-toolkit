@@ -7,11 +7,11 @@
     },
     "pr-comments": {
       "sourceType": "local",
-      "vendoredHash": "b16dcaf7278f54303a31bfc8b36649e16211216215c47582cb5a04707302fc92"
+      "vendoredHash": "32281c0cf19546742e203098968f9f349d16082d52a755bb6520f03a699adc6d"
     },
     "pr-review": {
       "sourceType": "local",
-      "vendoredHash": "c3089959dd5876901355cf0c16e6280dcff7ea861e18ae4193688c681ded7793"
+      "vendoredHash": "533d754adea18ab042efaa8196d1221789174564c809a9896972edaac27f7426"
     },
     "type-safety-review": {
       "sourceType": "local",

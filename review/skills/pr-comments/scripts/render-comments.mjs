@@ -153,14 +153,16 @@ function findLabelProblems(comment) {
   return [];
 }
 
-// Hard rules from the issue: a MOVE touches two files, a WRONG needs the
-// author's knowledge, a Question claims no fix. Type safety is a skill rule
-// ("no suggestion by default"), so it is not rejected here.
+// A MOVE touches two files, a WRONG needs the author's knowledge, and a
+// Question claims no fix. Type safety is a skill rule ("no suggestion by
+// default"), so it is not rejected here.
 const NO_SUGGESTION_LABELS = new Set(["Move", "Wrong", "Question"]);
 
 const MAX_SUGGESTION_LINES = 6;
 
-const FENCE_LINE = /^```/mu;
+// CommonMark opens a fence with three or more backticks or tildes, indented by
+// at most three spaces; any of them left in the body would swallow the block.
+const FENCE_LINE = /^ {0,3}(?:`{3,}|~{3,})/mu;
 
 function isPresent(value) {
   return value !== undefined && value !== null;
@@ -237,7 +239,10 @@ function findSuggestionProblems(comment) {
     );
   }
 
-  if (typeof comment.body === "string" && FENCE_LINE.test(comment.body)) {
+  if (
+    typeof comment.body === "string" &&
+    FENCE_LINE.test(scrubBody(comment.body))
+  ) {
     problems.push(
       "body must not carry a fenced code block when suggestion is present; the suggestion is the code",
     );
@@ -345,13 +350,14 @@ function renderComment(comment, counters) {
   const code = makeCode(comment.category, counters);
   const header = `${EMOJI[comment.label]} **[${code}] ${comment.label}**`;
   const suggestion = isPresent(comment.suggestion) ? comment.suggestion : null;
+  const text = scrubBody(comment.body);
   // One newline, never a blank one: a blank line ends the markdown list item
   // this body is folded into downstream. The suggestion block follows the
-  // body on the same rule.
+  // body on the same rule, so the body's trailing blank lines go first.
   const body =
     suggestion === null
-      ? `${header}\n${scrubBody(comment.body)}`
-      : `${header}\n${scrubBody(comment.body)}\n${renderSuggestion(suggestion.replacement)}`;
+      ? `${header}\n${text}`
+      : `${header}\n${text.trimEnd()}\n${renderSuggestion(suggestion.replacement)}`;
   const rendered = {
     path: comment.path,
     line: comment.line,
