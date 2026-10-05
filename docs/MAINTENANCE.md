@@ -70,10 +70,10 @@ marketplace entry, then the commit SHA. With an explicit version set, **installe
 update when that version changes**: a content change without a bump never reaches consumers.
 
 Releases are automated by `.github/workflows/release.yml`. For any consumer-facing change
-(skills, rules, agents, commands):
+(skills, rules, agents, commands, workflows):
 
 1. Bump the plugin's `version` in `<plugin>/.claude-plugin/plugin.json` **in the same commit**
-   as the change. Use semver: patch for fixes/wording, minor for new skills or rules, major for
+   as the change. Use semver: patch for fixes/wording, minor for new skills, rules, or workflows, major for
    removals or breaking restructures.
 2. Push (or merge) to `main`. CI detects that the bumped version has no matching tag and, after
    re-running validation, does the rest:

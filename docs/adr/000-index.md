@@ -18,6 +18,7 @@ describe the repo as it is, so if the code and an ADR disagree, fix one of them.
 | [006](006-release-automation-and-provenance.md)    | Automated releases with build provenance             | Accepted |
 | [007](007-supply-chain-hardening.md)               | Supply-chain hardening along OpenSSF guidelines      | Accepted |
 | [008](008-project-website-on-github-pages.md)      | Project website generated from repo content          | Accepted |
+| [009](009-plugin-workflows-beside-skills.md)       | Plugin workflows beside prose skills                 | Accepted |
 
 ## How the pieces fit together
 
