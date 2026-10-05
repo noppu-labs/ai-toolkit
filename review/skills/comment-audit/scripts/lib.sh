@@ -174,8 +174,9 @@ route_diff() {
       return (mode == "count" ? p " does not parse as Python at " ref[side] : p " does not parse as Python")
     }
     # Splits the rename header r into cur_from and cur_new. git quotes each
-    # side on its own, so oq says whether the old side is quoted and the new
-    # side starts at the first quoted or, failing that, unquoted `b/` after it.
+    # side on its own, so oq says whether the old side is quoted. The new side
+    # starts at the first ` "b/` in the header (preceded by the closing quote
+    # of the old side when oq), else at the first ` b/` (same rule).
     function split_sides(r, oq,   o, sep, quoted, i) {
       o = oq ? "\"" : ""
       sep = o " \"b/"

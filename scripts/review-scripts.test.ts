@@ -2604,9 +2604,10 @@ describe("lib.sh", () => {
       "diff --git a/app/old.sql b/app/new.txt",
       "--- a/app/old.sql",
       "+++ b/app/new.txt",
-      "@@ -1,1 +1,1 @@",
+      "@@ -1,1 +1,2 @@",
       "--- a",
       "+-- b",
+      "+-- b2",
       // A pure rename has no hunks and nothing to judge.
       "diff --git a/app/x.sql b/app/y.sql",
       "similarity index 100%",
@@ -2629,12 +2630,13 @@ describe("lib.sh", () => {
     const verify = routeDiff("verify", stream);
 
     expect(count.status).toBe(0);
-    // `+-- bar` in new.sql and `+-- hi` in born.sql; `+-- b` lands in a .txt file.
+    // `+-- bar` in new.sql and `+-- hi` in born.sql; `+-- b` and `+-- b2` land
+    // in a .txt file. Judging added lines by the old side would count 3.
     expect(count.stdout).toBe("2");
     expect(count.stderr).toBe("");
     expect(verify.status).toBe(0);
-    // `--- foo` was code in old.txt; `+-- b` is code in new.txt; `--- bye` was a comment in gone.sql.
-    expect(verify.stdout.split("\n")).toEqual(["--- foo", "+-- b"]);
+    // `--- foo` was code in old.txt; `+-- b` and `+-- b2` are code in new.txt; `--- bye` was a comment in gone.sql.
+    expect(verify.stdout.split("\n")).toEqual(["--- foo", "+-- b", "+-- b2"]);
     expect(verify.stderr).toBe("");
   });
 
@@ -2650,9 +2652,10 @@ describe("lib.sh", () => {
       'diff --git "a/app/sp\\303\\244t.sql" "b/app/sp\\303\\244t.txt"',
       '--- "a/app/sp\\303\\244t.sql"',
       '+++ "b/app/sp\\303\\244t.txt"',
-      "@@ -1,1 +1,1 @@",
+      "@@ -1,1 +1,2 @@",
       "--- a",
       "+-- b",
+      "+-- b2",
       "",
     ].join("\n");
 
@@ -2661,9 +2664,10 @@ describe("lib.sh", () => {
 
     expect(count.status).toBe(0);
     expect(count.stdout).toBe("1");
+    // Judging added lines by the old side would count 2.
     expect(count.stderr).toBe("");
     expect(verify.status).toBe(0);
-    expect(verify.stdout.split("\n")).toEqual(["--- foo", "+-- b"]);
+    expect(verify.stdout.split("\n")).toEqual(["--- foo", "+-- b", "+-- b2"]);
     expect(verify.stderr).toBe("");
   });
 
@@ -2700,6 +2704,33 @@ describe("lib.sh", () => {
     expect(verify.status).toBe(0);
     expect(verify.stdout.split("\n")).toEqual(["--- foo", "--- c", "+-- b"]);
     expect(verify.stderr).toBe("");
+  });
+
+  it("names a rename to a Python path whose header quotes only the old side, and falls back to the regex", () => {
+    const stream = [
+      "== diff",
+      'diff --git "a/app/caf\\303\\251.txt" b/app/x.py',
+      '--- "a/app/caf\\303\\251.txt"',
+      "+++ b/app/x.py",
+      "@@ -1,1 +1,1 @@",
+      "+# c",
+      "",
+    ].join("\n");
+    const header = '"a/app/caf\\303\\251.txt" b/app/x.py';
+
+    const count = routeDiff("count", stream);
+    const verify = routeDiff("verify", stream);
+
+    expect(count.status).toBe(0);
+    expect(count.stdout).toBe("1");
+    expect(count.stderr.trimEnd().split("\n")).toEqual([
+      `count-comment-lines.sh: ${header} is a path git quotes; counted by the regex`,
+    ]);
+    expect(verify.status).toBe(0);
+    expect(verify.stdout).toBe("");
+    expect(verify.stderr.trimEnd().split("\n")).toEqual([
+      `verify-comments-only.sh: ${header} is a path git quotes; checked with the regex`,
+    ]);
   });
 
   it("makes each script exit 2 and name lib.sh when lib.sh is missing", () => {
