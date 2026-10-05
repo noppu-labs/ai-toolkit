@@ -165,7 +165,7 @@ Every skill, tool, or check you could not use, with the reason.`;
 
 const BRIEF_TRAILER = `Return the brief through the structured output, not as text: the whole brief as \`brief\`; \`source\` set to \`investigate\` when the brief was built from the \`investigate:brief\` script's output and to \`fallback\` when it came only from the lighter brief's commands; and under \`skipped\` every skill, tool, or check you could not use, each with the \`tool\` it names and the \`reason\`, or an empty list. Anything the instructions above say to record under \`## Not available in this run\`, such as a brief built from the fallback commands after the script's output listed no symbols, also goes under \`skipped\`, with the \`tool\` it concerns and the \`reason\`.`;
 
-const STAGE_TRAILER = `Return the three sections through the structured output, not as text: each \`## Findings\` entry as one \`findings\` item, with its \`path\` and \`line\` on the HEAD side and the rest of the entry as \`text\`; each \`## Validated\` line as one \`validated\` item; and each \`## Skipped\` entry as one \`skipped\` item, with the \`tool\` it names and the \`reason\`.`;
+const STAGE_TRAILER = `Return the three sections through the structured output, not as text: each \`## Findings\` entry as one \`findings\` item, with its \`path\` and \`line\` on the HEAD side and the rest of the entry as \`text\`; each \`## Validated\` line as one \`validated\` item; and each \`## Skipped\` entry as one \`skipped\` item, with the \`tool\` it names and the \`reason\`. \`text\` is the entry without its leading \`path:line\`.`;
 
 const SKIPPED_ITEMS = {
   type: "array",
@@ -215,12 +215,12 @@ const STAGES = [
 
 const PASS_LABEL = "hand review only";
 
+// One pass over the template, so a slot value that itself contains a slot
+// token (a brief quoting `git diff <BASE>...<HEAD>`, a title) is left alone.
 function fill(template, slots) {
-  let text = template;
-  for (const [slot, value] of Object.entries(slots)) {
-    text = text.split(`<${slot}>`).join(value);
-  }
-  return text;
+  return template.replace(/<(BRIEF|BASE|HEAD|PR_TITLE|PR_URL)>/g, (token, slot) =>
+    slot in slots ? slots[slot] : token,
+  );
 }
 
 function isNonEmptyString(value) {
@@ -279,17 +279,24 @@ function stagePrompt(stage, pr, brief) {
 }
 
 async function runBrief(pr) {
-  const output = await agent(briefPrompt(pr), {
-    label: `brief:${pr.number}`,
-    phase: "Brief",
-    schema: BRIEF_SCHEMA,
-  });
+  let output = null;
+  try {
+    output = await agent(briefPrompt(pr), {
+      label: `brief:${pr.number}`,
+      phase: "Brief",
+      schema: BRIEF_SCHEMA,
+    });
+  } catch (error) {
+    // Schema retries exhausted or the budget ceiling: the stages still run,
+    // without a brief, and the roll-up records the gap.
+    log(`PR ${pr.number}: brief agent failed (${error instanceof Error ? error.message : String(error)})`);
+  }
   log(`PR ${pr.number}: brief ${output ? `ready (${output.source})` : "missing"}`);
   return { brief: output };
 }
 
 async function runStages({ brief }, pr) {
-  const text = brief ? brief.brief : "";
+  const text = brief ? brief.brief.trim() : "";
   const outputs = await parallel(
     STAGES.map((stage) => () =>
       agent(stagePrompt(stage, pr, text), {
@@ -306,17 +313,29 @@ function anchorOf(finding) {
   return `${finding.path}:${finding.line}`;
 }
 
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// A stage that followed the template literally starts `text` with the anchor
+// the schema already carries. Only the exact anchor is stripped: `a.php:10`
+// is not a prefix of `a.php:100`.
+function stripAnchor(text, anchor) {
+  const lead = new RegExp(`^\`?${escapeRegExp(anchor)}\`?(?![0-9]|[-:][0-9])[\\s,:;-]*`);
+  return text.replace(lead, "");
+}
+
 // A multi-line finding (a proposed shape, a quoted block) stays one list
 // item: every line after the first is indented under the anchor.
 function entryText(finding) {
-  return finding.text.trim().split("\n").join("\n  ");
+  const text = stripAnchor(finding.text.trim(), anchorOf(finding));
+  return text.split("\n").join("\n  ");
 }
 
-// The same anchor and text twice in one stage is one finding.
 function dedupe(findings) {
   const seen = new Set();
   return findings.filter((finding) => {
-    const key = `${anchorOf(finding)}\n${finding.text}`;
+    const key = `${anchorOf(finding)}\n${entryText(finding)}`;
     if (seen.has(key)) {
       return false;
     }
@@ -380,7 +399,10 @@ function renderStage(result, results) {
 function renderPr(pr, item) {
   const lines = [`## ${pr.number} ${pr.title}`, pr.url, ""];
   if (!item) {
-    lines.push("The review of this PR did not complete; see `## Not available in this run`.");
+    for (const stage of STAGES) {
+      lines.push(stage.heading, "The stage did not report.", "");
+    }
+    lines.pop();
     return lines;
   }
   const results = STAGES.map((stage, index) => readStage(stage, item.outputs[index]));
@@ -401,7 +423,8 @@ function collectMisses(pr, item) {
     for (const skip of item.brief.skipped) {
       misses.tools.push({ ...skip, wantedBy: `structural brief (PR ${pr.number})` });
     }
-  } else {
+  }
+  if (!item.brief || item.brief.brief.trim() === "") {
     misses.lines.push(`structural brief for PR ${pr.number}: the brief subagent returned nothing, so the stages ran without one`);
   }
   STAGES.forEach((stage, index) => {
@@ -427,16 +450,20 @@ function renderNotAvailable(prs, items) {
       const tool = miss.tool.trim() === "" ? "unnamed tool" : miss.tool.trim();
       const key = tool.toLowerCase();
       const group = groups.get(key) ?? { tool, wantedBy: [], reasons: [] };
-      group.wantedBy.push(miss.wantedBy);
-      if (!group.reasons.includes(miss.reason.trim())) {
-        group.reasons.push(miss.reason.trim());
+      if (!group.wantedBy.includes(miss.wantedBy)) {
+        group.wantedBy.push(miss.wantedBy);
+      }
+      const reason = miss.reason.trim().split("\n").join("\n  ");
+      if (reason !== "" && !group.reasons.includes(reason)) {
+        group.reasons.push(reason);
       }
       groups.set(key, group);
     }
   });
-  const toolLines = [...groups.values()].map(
-    (group) => `- \`${group.tool}\`: wanted by ${group.wantedBy.join(", ")}. ${group.reasons.join("; ")}`,
-  );
+  const toolLines = [...groups.values()].map((group) => {
+    const reasons = group.reasons.length === 0 ? "" : ` ${group.reasons.join("; ")}`;
+    return `- \`${group.tool}\`: wanted by ${group.wantedBy.join(", ")}.${reasons}`;
+  });
   const all = [...toolLines, ...lines.map((line) => `- ${line}`)];
   return all.length === 0 ? ["Every stage had everything it needed."] : all;
 }
