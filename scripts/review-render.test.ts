@@ -96,8 +96,8 @@ const EMOJI_BY_LABEL: Record<string, string> = {
 const HEADER =
   /^\p{Extended_Pictographic} \*\*\[(COR|TPS|DOC)-\d{2,}\] [^\n]+\*\*\n(?!\n)/u;
 
-// Key order is part of the output contract: a poster reads the fields in order
-// and a JSON diff of two runs over the same findings must be empty.
+// Key order is part of the output contract: the JSON stays identical across
+// script versions, so a diff of two renders shows only real changes.
 const PLAIN_KEYS: string[] = [
   "path",
   "line",
@@ -133,8 +133,7 @@ const MULTI_LINE_KEYS: string[] = [
   "suggestion",
 ];
 
-// Mirrors NO_SUGGESTION_LABELS in the script; a suggested-comment arbitrary
-// must not draw these labels.
+// Mirrors NO_SUGGESTION_LABELS in render-comments.mjs, which does not export it.
 const NO_SUGGESTION_LABELS: Set<string> = new Set([
   "Move",
   "Wrong",
@@ -468,7 +467,7 @@ describe("suggestions", () => {
     expect(comment.anchor).toBe(31);
   });
 
-  it("emits side and anchor only for a single-line suggestion", () => {
+  it("emits no start_line or start_side for a single-line suggestion", () => {
     const comment = getFirst(
       renderComments({
         comments: [

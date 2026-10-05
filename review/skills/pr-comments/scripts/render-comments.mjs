@@ -360,11 +360,9 @@ function renderSuggestion(replacement) {
 const HEAD_SIDE = "RIGHT";
 
 /**
- * GitHub applies a suggestion to the lines the review comment covers, not to
- * the lines the block was written for, so a comment carrying one is posted
- * over the range: `line` is its last line and, for more than one line,
- * `start_line` its first. The finding's own line survives as `anchor` for a
- * consumer that does not post suggestions.
+ * GitHub applies a suggestion to every line the review comment covers, so a
+ * comment carrying one is posted over the range. The finding's own line stays
+ * as `anchor` for a consumer that matches comments back to findings.
  */
 function makeApiFields(suggestion, anchor) {
   const { startLine, endLine } = suggestion;
@@ -438,11 +436,8 @@ export function renderComments(input) {
   };
 }
 
-/**
- * A multi-line suggestion is posted over its whole range, so the anchor line
- * shows it, `path:30-32`; every other comment keeps `path:line`.
- */
-function formatAnchor(comment) {
+// The lines the comment is posted over, never the finding's `anchor`.
+function formatLocation(comment) {
   const range = Number.isInteger(comment.start_line)
     ? `${comment.start_line}-${comment.line}`
     : `${comment.line}`;
@@ -462,7 +457,7 @@ export function formatMarkdown(rendered) {
   }
 
   for (const comment of rendered.comments) {
-    sections.push(`${formatAnchor(comment)}\n${comment.body}`);
+    sections.push(`${formatLocation(comment)}\n${comment.body}`);
   }
 
   if (isNonEmptyString(rendered.diagnostics)) {
