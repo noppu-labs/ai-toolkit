@@ -116,8 +116,7 @@ route_diff() {
     function ends(s, suffix) {
       return (substr(s, length(s) - length(suffix) + 1) == suffix)
     }
-    # The regex pair a path takes, by its extension. The upper-case forms
-    # stay code on purpose.
+    # Case-sensitive on purpose: .SQL stays code (the -- marker test expects it).
     function lang_of(p) {
       if (p ~ /[.](hs|lhs)$/) return "hs"
       if (p ~ /[.]mysql$/) return "mysql"
@@ -173,10 +172,9 @@ route_diff() {
       if (m != "") return m
       return (mode == "count" ? p " does not parse as Python at " ref[side] : p " does not parse as Python")
     }
-    # Splits the rename header r into cur_from and cur_new. git quotes each
-    # side on its own, so oq says whether the old side is quoted. The new side
-    # starts at the first ` "b/` in the header (preceded by the closing quote
-    # of the old side when oq), else at the first ` b/` (same rule).
+    # Sets cur_from and cur_new from the rename header r. git quotes each side on
+    # its own, so oq says whether the old side is quoted. The new side starts at
+    # the first ` "b/`, else the first ` b/`, each preceded by `"` when oq.
     function split_sides(r, oq,   o, sep, quoted, i) {
       o = oq ? "\"" : ""
       sep = o " \"b/"
@@ -187,12 +185,11 @@ route_diff() {
       cur_new = substr(r, i + length(sep))
       if (quoted) cur_new = substr(cur_new, 1, length(cur_new) - 1)
     }
-    # A header with no registry line names a path read_changes left out
-    # because git quotes it. The header is `a/OLD b/NEW`, with either side
-    # quoted on its own; the symmetric test recognises one path on both sides
-    # even when the path holds ` b/`, and a rename is split by split_sides.
-    # Markdown on both sides stays skipped in verify; a
-    # Python path is named on stderr and uses the regex.
+    # A header with no registry line names a path read_changes left out because
+    # git quotes it. The symmetric test recognises one path on both sides even
+    # when the path holds ` b/`, which a first-match split would cut short.
+    # Markdown on both sides stays skipped in verify; a new path ending in .py
+    # is named on stderr and uses the regex.
     function unregistered(header, seen,   r, p, same, oq) {
       r = substr(header, length("diff --git ") + 1)
       oq = (substr(r, 1, 1) == "\"")
@@ -282,11 +279,9 @@ route_diff() {
       next
     }
     !patch { record(side, $0); next }
-    # `--` is a comment only where the language says so. A removed line is
-    # judged by the old path of the section and an added line by the new
-    # one, so a rename across the dash-comment boundary judges each side
-    # by the file it belongs to. classify leaves both paths in cur_from
-    # and cur_new.
+    # `--` is a comment only where the language says so: a removed line takes the
+    # regex pair of the old path, an added line that of the new path. classify
+    # sets cur_from and cur_new on every return.
     /^diff --git / {
       hunk = 0; kind = classify($0)
       lang_from = lang_of(cur_from); lang_to = lang_of(cur_new)

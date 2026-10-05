@@ -2687,8 +2687,8 @@ describe("lib.sh", () => {
     const verify = routeDiff("verify", stream);
 
     expect(count.status).toBe(0);
+    // +-- bar only; judging added lines by the old path would count +-- b and +-- b2 instead.
     expect(count.stdout).toBe("1");
-    // Judging added lines by the old side would count 2.
     expect(count.stderr).toBe("");
     expect(verify.status).toBe(0);
     expect(verify.stdout.split("\n")).toEqual(["--- foo", "+-- b", "+-- b2"]);
