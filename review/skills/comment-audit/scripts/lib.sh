@@ -213,11 +213,22 @@ route_diff() {
     }
     BEGIN {
       markers = "//|#[^[]|#$|[*]|/[*]|\"\"\"|[{]/[*]|<!--"
-      dash = "--[[:space:]]|--$"
+      # dash: -- then anything (so ---, --!, --[[ and --text). mysql: MySQL
+      # reads --1 as code, so -- needs whitespace or the end of the line after
+      # it. hs: two or more dashes then a character outside the ASCII Haskell
+      # symbol set, or the end of the line, so --> and --| stay operators;
+      # \\\\ is one literal backslash.
+      dash = "--"
+      mysql = "--[[:space:]]|--$"
+      hs = "--+([^!#$%&*+./<=>?@^|~:\\\\-]|$)"
       comment["code"] = "^[+][[:space:]]*(" markers ")"
       comment["dash"] = "^[+][[:space:]]*(" markers "|" dash ")"
+      comment["mysql"] = "^[+][[:space:]]*(" markers "|" mysql ")"
+      comment["hs"] = "^[+][[:space:]]*(" markers "|" hs ")"
       quiet["code"] = "^[-+][[:space:]]*(" markers "|-->|$)"
-      quiet["dash"] = "^[-+][[:space:]]*(" markers "|-->|" dash "|$)"
+      quiet["dash"] = "^[-+][[:space:]]*(" markers "|" dash "|$)"
+      quiet["mysql"] = "^[-+][[:space:]]*(" markers "|-->|" mysql "|$)"
+      quiet["hs"] = "^[-+][[:space:]]*(" markers "|" hs "|$)"
       script = mode == "count" ? "count-comment-lines.sh" : "verify-comments-only.sh"
       fallback = mode == "count" ? "counted by the regex" : "checked with the regex"
       ref["from"] = from
@@ -247,7 +258,10 @@ route_diff() {
     # section, the last path of the header, picks the regex pair.
     /^diff --git / {
       hunk = 0; kind = classify($0)
-      lang = ($0 ~ /[.](sql|psql|pgsql|mysql|lua|hs|lhs|elm|ada|adb|ads|vhd|vhdl)"?$/) ? "dash" : "code"
+      if ($0 ~ /[.](hs|lhs)"?$/) lang = "hs"
+      else if ($0 ~ /[.]mysql"?$/) lang = "mysql"
+      else if ($0 ~ /[.](sql|psql|pgsql|lua|elm|ada|adb|ads|vhd|vhdl)"?$/) lang = "dash"
+      else lang = "code"
       next
     }
     /^@@ / {

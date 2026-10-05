@@ -2,8 +2,11 @@
 # Usage: count-comment-lines.sh BASE HEAD [DIR...]
 # Prints the number of comment lines added between BASE and HEAD (three-dot diff),
 # limited to DIR paths when given. Recognises //, #, *, /*, /**, """, {/* and <!--, plus
-# -- followed by whitespace or the end of the line in .sql, .psql, .pgsql, .mysql, .lua,
-# .hs, .lhs, .elm, .ada, .adb, .ads, .vhd and .vhdl files.
+# -- followed by anything in .sql, .psql, .pgsql, .lua, .elm, .ada, .adb, .ads, .vhd and
+# .vhdl files, -- followed by whitespace or the end of the line in .mysql files (MySQL
+# reads --1 as code), and in .hs and .lhs files two or more dashes followed by a character
+# that is not an ASCII Haskell symbol, or by the end of the line (so -- |, --- and --text
+# count; ---> and --| are operators).
 # Python files are counted by python-comment-lines.py instead, which knows every
 # line of a docstring and skips tool directives; it reads every changed Python
 # file at HEAD in one call. Without python3, or for a file that does not parse,
