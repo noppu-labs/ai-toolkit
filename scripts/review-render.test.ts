@@ -222,6 +222,12 @@ function getFirst(rendered: RenderedInput): RenderedComment {
   return comment;
 }
 
+function getRangeText(suggestion: Suggestion): string {
+  return suggestion.startLine < suggestion.endLine
+    ? `${suggestion.startLine}-${suggestion.endLine}`
+    : `${suggestion.endLine}`;
+}
+
 function getError(input: unknown): string {
   try {
     renderComments(input);
@@ -903,6 +909,7 @@ describe("suggestions", () => {
     fc.assert(
       fc.property(makeCommentListArb(), (comments) => {
         const rendered = renderComments({ comments });
+        const markdown = formatMarkdown(rendered);
 
         for (const [index, comment] of rendered.comments.entries()) {
           const input = comments[index];
@@ -916,6 +923,9 @@ describe("suggestions", () => {
           expect(comment.line).toBe(input.line);
           expect(comment.body).toBe(
             `${EMOJI_BY_LABEL[comment.label]} **[${comment.code}] ${comment.label}**\n${scrubBody(input.body)}`,
+          );
+          expect(markdown).toContain(
+            `\`${input.path}:${input.line}\`\n${comment.body}`,
           );
         }
       }),
@@ -946,6 +956,12 @@ describe("suggestions", () => {
           expect(comment.start_line).toBe(suggestion.startLine);
           expect(comment.start_side).toBe("RIGHT");
         }
+
+        expect(
+          formatMarkdown({ comments: [comment] }).startsWith(
+            `\`${input.path}:${getRangeText(suggestion)}\`\n`,
+          ),
+        ).toBe(true);
       }),
     );
   });
@@ -1406,6 +1422,51 @@ describe("formatMarkdown", () => {
     );
   });
 
+  it("prints the range for a multi-line suggestion and the line otherwise", () => {
+    const multi = renderComments({
+      comments: [
+        makeComment({
+          line: 31,
+          category: "comments",
+          label: "Trim",
+          body: "Keep the sentence that says why.",
+          suggestion: { startLine: 30, endLine: 32, replacement: "// why" },
+        }),
+      ],
+    });
+    const single = renderComments({
+      comments: [
+        makeComment({
+          line: 31,
+          suggestion: { startLine: 31, endLine: 31, replacement: "$x = 1;" },
+        }),
+      ],
+    });
+
+    expect(formatMarkdown(multi)).toBe(
+      [
+        "`app/Thing.php:30-32`",
+        "🟡 **[DOC-01] Trim**",
+        "Keep the sentence that says why.",
+        "```suggestion",
+        "// why",
+        "```",
+        "",
+      ].join("\n"),
+    );
+    expect(formatMarkdown(single)).toBe(
+      [
+        "`app/Thing.php:31`",
+        "🔴 **[COR-01] Bug**",
+        "Body text.",
+        "```suggestion",
+        "$x = 1;",
+        "```",
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("ends with exactly one newline", () => {
     const markdown = formatMarkdown(rendered);
 
@@ -1491,8 +1552,8 @@ describe("render-comments.mjs", () => {
     expect(result.stderr).toContain("usage:");
   });
 
-  it("prints the suggestion block in markdown and the field in JSON", () => {
-    const withSuggestion = JSON.stringify({
+  it("prints the suggestion block in markdown and the API fields in JSON", () => {
+    const single = JSON.stringify({
       comments: [
         makeComment({
           category: "comments",
@@ -1502,17 +1563,49 @@ describe("render-comments.mjs", () => {
         }),
       ],
     });
-    const markdown = runCli(withSuggestion, "--format", "markdown");
-    const json = runCli(withSuggestion);
+    const multi = JSON.stringify({
+      comments: [
+        makeComment({
+          category: "comments",
+          label: "Trim",
+          body: "Keep the why.",
+          suggestion: { startLine: 30, endLine: 32, replacement: "// why" },
+        }),
+      ],
+    });
+    const singleMarkdown = runCli(single, "--format", "markdown");
+    const multiMarkdown = runCli(multi, "--format", "markdown");
 
-    expect(markdown.status).toBe(0);
-    expect(markdown.stdout).toBe(
+    expect(singleMarkdown.status).toBe(0);
+    expect(singleMarkdown.stdout).toBe(
       "`app/Thing.php:31`\n🟡 **[DOC-01] Delete**\nRestates the guard. Delete it.\n```suggestion\n```\n",
     );
-    expect(JSON.parse(json.stdout).comments[0].suggestion).toEqual({
-      startLine: 31,
-      endLine: 31,
-      replacement: "",
+    expect(multiMarkdown.stdout).toBe(
+      "`app/Thing.php:30-32`\n🟡 **[DOC-01] Trim**\nKeep the why.\n```suggestion\n// why\n```\n",
+    );
+    expect(JSON.parse(runCli(single).stdout).comments[0]).toEqual({
+      path: "app/Thing.php",
+      line: 31,
+      side: "RIGHT",
+      anchor: 31,
+      code: "DOC-01",
+      category: "comments",
+      label: "Delete",
+      body: "🟡 **[DOC-01] Delete**\nRestates the guard. Delete it.\n```suggestion\n```",
+      suggestion: { startLine: 31, endLine: 31, replacement: "" },
+    });
+    expect(JSON.parse(runCli(multi).stdout).comments[0]).toEqual({
+      path: "app/Thing.php",
+      line: 32,
+      side: "RIGHT",
+      start_line: 30,
+      start_side: "RIGHT",
+      anchor: 31,
+      code: "DOC-01",
+      category: "comments",
+      label: "Trim",
+      body: "🟡 **[DOC-01] Trim**\nKeep the why.\n```suggestion\n// why\n```",
+      suggestion: { startLine: 30, endLine: 32, replacement: "// why" },
     });
   });
 });

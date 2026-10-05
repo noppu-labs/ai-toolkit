@@ -438,6 +438,18 @@ export function renderComments(input) {
   };
 }
 
+/**
+ * A multi-line suggestion is posted over its whole range, so the anchor line
+ * shows it, `path:30-32`; every other comment keeps `path:line`.
+ */
+function formatAnchor(comment) {
+  const range = Number.isInteger(comment.start_line)
+    ? `${comment.start_line}-${comment.line}`
+    : `${comment.line}`;
+
+  return `\`${comment.path}:${range}\``;
+}
+
 export function formatMarkdown(rendered) {
   const sections = [];
 
@@ -450,7 +462,7 @@ export function formatMarkdown(rendered) {
   }
 
   for (const comment of rendered.comments) {
-    sections.push(`\`${comment.path}:${comment.line}\`\n${comment.body}`);
+    sections.push(`${formatAnchor(comment)}\n${comment.body}`);
   }
 
   if (isNonEmptyString(rendered.diagnostics)) {
