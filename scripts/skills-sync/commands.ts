@@ -206,7 +206,11 @@ export function diffSkill(
       throw result.error;
     }
 
-    return result.status ?? 0;
+    if (result.status === null) {
+      throw new Error(`git diff was killed by ${result.signal}`);
+    }
+
+    return result.status;
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
