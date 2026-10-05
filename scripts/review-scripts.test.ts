@@ -1020,6 +1020,71 @@ describe("count-comment-lines.sh", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("1");
   });
+
+  it("counts --text, ---, --[[ and --! lines in Lua and VHDL files", () => {
+    const cwd = makeRepo();
+    commitFiles(cwd, { "m.lua": "x = 1\n", "e.vhd": "a\n" }, "dash forms base");
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "m.lua":
+          "x = 1\n--- LDoc summary\n--TODO tighten\n------------\n--[[ block\n-- spaced\n",
+        "e.vhd": "a\n--! doxygen\n",
+      },
+      "dash forms",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("6");
+    expect(result.stderr).toBe("");
+  });
+
+  it("counts a Haskell -- comment followed by text or dashes but not an operator line", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "m.hs": "main = pure ()\n", "q.mysql": "SELECT 1;\n" },
+      "haskell base",
+    );
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      {
+        "m.hs":
+          "main = pure ()\nx --> y\n--|op\n-- | haddock\n---\n--text\n  --> baz\n",
+        "q.mysql": "SELECT 1;\n--text\n",
+      },
+      "haskell",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("4");
+  });
+
+  it("does not count a --- line in a YAML, Markdown or shell file", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "c.yml": "a: 1\n", "n.md": "text\n", "run.sh": "run\n" },
+      "banner base",
+    );
+    git(cwd, "checkout", "-q", "-b", "feature");
+    commitFiles(
+      cwd,
+      { "c.yml": "---\na: 1\n", "n.md": "text\n---\n", "run.sh": "run\n---\n" },
+      "banner",
+    );
+
+    const result = run("count-comment-lines.sh", cwd, "main", "feature");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("0");
+  });
 });
 
 describe("verify-comments-only.sh", () => {
@@ -2124,6 +2189,67 @@ describe("verify-comments-only.sh", () => {
     ]);
     expect(result.stderr).toContain("checked with the regex");
   });
+
+  it("passes when --text, ---, --[[, --! and Haskell -- comments are the only changes", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      {
+        "m.lua": "x = 1\n-- spaced\n",
+        "e.vhd": "a\n",
+        "m.hs": "main = pure ()\n-- | haddock\n",
+        "q.sql": "SELECT 1;\n--old\n",
+      },
+      "dash forms base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "m.lua":
+          "x = 1\n--- LDoc summary\n--TODO tighten\n------------\n--[[ block\n",
+        "e.vhd": "a\n--! doxygen\n",
+        "m.hs": "main = pure ()\n---\n--text\n",
+        "q.sql": "SELECT 1;\n--new\n",
+      },
+      "dash forms trim",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("only comment lines changed");
+    expect(result.stderr).toBe("");
+  });
+
+  it("reports a Haskell operator line, the inside of a Lua block comment and a --- line in a shell script", () => {
+    const cwd = makeRepo();
+    commitFiles(
+      cwd,
+      { "m.hs": "main = pure ()\n", "m.lua": "x = 1\n", "run.sh": "run\n" },
+      "operator base",
+    );
+    commitFiles(
+      cwd,
+      {
+        "m.hs": "main = pure ()\nx --> y\n--|op\n  --> baz\n",
+        "m.lua": "x = 1\n--[[\nbody\n]]\n",
+        "run.sh": "run\n---\n",
+      },
+      "operator",
+    );
+
+    const result = run("verify-comments-only.sh", cwd, "HEAD~1", "HEAD");
+
+    expect(result.status).toBe(1);
+    expect(result.stdout.split("\n")).toEqual([
+      "+x --> y",
+      "+--|op",
+      "+  --> baz",
+      "+body",
+      "+]]",
+      "+---",
+    ]);
+  });
 });
 
 describe("process budget", () => {
@@ -2324,6 +2450,8 @@ describe("lib.sh", () => {
       "M\t\tapp/n.txt",
       "R100\tapp/old.txt\tapp/new.sql",
       "M\t\tapp/Q.SQL",
+      "M\t\tapp/m.hs",
+      "M\t\tapp/l.lhs",
       "== diff",
       "diff --git a/app/q.sql b/app/q.sql",
       "--- a/app/q.sql",
@@ -2359,6 +2487,22 @@ describe("lib.sh", () => {
       "+++ b/app/Q.SQL",
       "@@ -1,0 +2,1 @@",
       "+-- upper",
+      // Haskell: dashes then a non-symbol are a comment; -->, --| are operators.
+      "diff --git a/app/m.hs b/app/m.hs",
+      "--- a/app/m.hs",
+      "+++ b/app/m.hs",
+      "@@ -1,2 +1,4 @@",
+      "--- | haddock",
+      "--->",
+      "+--text",
+      "+---",
+      "+x --> y",
+      "+--|",
+      "diff --git a/app/l.lhs b/app/l.lhs",
+      "--- a/app/l.lhs",
+      "+++ b/app/l.lhs",
+      "@@ -1,0 +2,1 @@",
+      "+--text",
       "",
     ].join("\n");
 
@@ -2366,14 +2510,16 @@ describe("lib.sh", () => {
     const verify = routeDiff("verify", stream);
 
     expect(count.status).toBe(0);
-    expect(count.stdout).toBe("4");
+    expect(count.stdout).toBe("8");
     expect(verify.stdout.split("\n")).toEqual([
-      "+--[[ block",
       "+SELECT 1;",
       "--- x",
       "+-- y",
       "+++ y",
       "+-- upper",
+      "--->",
+      "+x --> y",
+      "+--|",
     ]);
   });
 

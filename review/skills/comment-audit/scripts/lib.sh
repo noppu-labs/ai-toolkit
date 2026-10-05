@@ -213,11 +213,17 @@ route_diff() {
     }
     BEGIN {
       markers = "//|#[^[]|#$|[*]|/[*]|\"\"\"|[{]/[*]|<!--"
-      dash = "--[[:space:]]|--$"
+      # dash: -- then anything (so ---, --!, --[[ and --text). hs: two or more
+      # dashes then a character outside the Haskell symbol set, or the end of
+      # the line, so --> and --| stay operators; \\\\ is one literal backslash.
+      dash = "--"
+      hs = "--+([^!#$%&*+./<=>?@^|~:\\\\-]|$)"
       comment["code"] = "^[+][[:space:]]*(" markers ")"
       comment["dash"] = "^[+][[:space:]]*(" markers "|" dash ")"
+      comment["hs"] = "^[+][[:space:]]*(" markers "|" hs ")"
       quiet["code"] = "^[-+][[:space:]]*(" markers "|-->|$)"
-      quiet["dash"] = "^[-+][[:space:]]*(" markers "|-->|" dash "|$)"
+      quiet["dash"] = "^[-+][[:space:]]*(" markers "|" dash "|$)"
+      quiet["hs"] = "^[-+][[:space:]]*(" markers "|" hs "|$)"
       script = mode == "count" ? "count-comment-lines.sh" : "verify-comments-only.sh"
       fallback = mode == "count" ? "counted by the regex" : "checked with the regex"
       ref["from"] = from
@@ -247,7 +253,9 @@ route_diff() {
     # section, the last path of the header, picks the regex pair.
     /^diff --git / {
       hunk = 0; kind = classify($0)
-      lang = ($0 ~ /[.](sql|psql|pgsql|mysql|lua|hs|lhs|elm|ada|adb|ads|vhd|vhdl)"?$/) ? "dash" : "code"
+      if ($0 ~ /[.](hs|lhs)"?$/) lang = "hs"
+      else if ($0 ~ /[.](sql|psql|pgsql|mysql|lua|elm|ada|adb|ads|vhd|vhdl)"?$/) lang = "dash"
+      else lang = "code"
       next
     }
     /^@@ / {
