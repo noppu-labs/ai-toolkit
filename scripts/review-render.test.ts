@@ -17,7 +17,16 @@ type InputComment = {
   suggestion?: Suggestion | null;
 };
 
-type RenderedComment = InputComment & { code: string; suggestion?: Suggestion };
+type Side = "RIGHT";
+
+type RenderedComment = InputComment & {
+  code: string;
+  suggestion?: Suggestion;
+  side?: Side;
+  start_line?: number;
+  start_side?: Side;
+  anchor?: number;
+};
 
 type RenderedInput = Record<string, unknown> & { comments: RenderedComment[] };
 
@@ -87,6 +96,52 @@ const EMOJI_BY_LABEL: Record<string, string> = {
 const HEADER =
   /^\p{Extended_Pictographic} \*\*\[(COR|TPS|DOC)-\d{2,}\] [^\n]+\*\*\n(?!\n)/u;
 
+// Key order is part of the output contract: a poster reads the fields in order
+// and a JSON diff of two runs over the same findings must be empty.
+const PLAIN_KEYS: string[] = [
+  "path",
+  "line",
+  "code",
+  "category",
+  "label",
+  "body",
+];
+
+const SINGLE_LINE_KEYS: string[] = [
+  "path",
+  "line",
+  "side",
+  "anchor",
+  "code",
+  "category",
+  "label",
+  "body",
+  "suggestion",
+];
+
+const MULTI_LINE_KEYS: string[] = [
+  "path",
+  "line",
+  "side",
+  "start_line",
+  "start_side",
+  "anchor",
+  "code",
+  "category",
+  "label",
+  "body",
+  "suggestion",
+];
+
+// Mirrors NO_SUGGESTION_LABELS in the script; a suggested-comment arbitrary
+// must not draw these labels.
+const NO_SUGGESTION_LABELS: Set<string> = new Set([
+  "Move",
+  "Wrong",
+  "Question",
+  "Unsure",
+]);
+
 function makeComment(overrides: Partial<InputComment> = {}): InputComment {
   return {
     path: "app/Thing.php",
@@ -116,6 +171,32 @@ function makeCommentArb(): fc.Arbitrary<InputComment> {
 
 function makeCommentListArb(max = 12): fc.Arbitrary<InputComment[]> {
   return fc.array(makeCommentArb(), { maxLength: max });
+}
+
+// A valid suggestion around the anchor: at most six lines, containing `line`,
+// on a label that allows one, with a body no fence check can reject.
+function makeSuggestedCommentArb(): fc.Arbitrary<InputComment> {
+  return fc
+    .tuple(
+      makeCommentArb().filter(
+        (comment) => !NO_SUGGESTION_LABELS.has(comment.label),
+      ),
+      fc.integer({ min: 1, max: 9999 }),
+      fc.integer({ min: 0, max: 5 }),
+      fc.integer({ min: 0, max: 5 }),
+      fc.string().filter((text) => !text.endsWith("\n")),
+    )
+    .map(([comment, anchor, before, after, replacement]) => {
+      const startLine = Math.max(1, anchor - before);
+      const endLine = Math.min(anchor + after, startLine + 5);
+
+      return {
+        ...comment,
+        line: anchor,
+        body: "Body text.",
+        suggestion: { startLine, endLine, replacement },
+      };
+    });
 }
 
 function makeExpectedCodes(comments: InputComment[]): string[] {
@@ -355,7 +436,7 @@ describe("suggestions", () => {
     },
   });
 
-  it("renders a single-line suggestion block after the body and carries the field through", () => {
+  it("renders the suggestion block after the body and carries the field through", () => {
     const comment = getFirst(renderComments({ comments: [trim] }));
 
     expect(comment.body).toBe(
@@ -368,15 +449,86 @@ describe("suggestions", () => {
       ].join("\n"),
     );
     expect(comment.suggestion).toEqual(trim.suggestion);
-    expect(Object.keys(comment)).toEqual([
-      "path",
-      "line",
-      "code",
-      "category",
-      "label",
-      "body",
-      "suggestion",
-    ]);
+    expect(Object.keys(comment)).toEqual(MULTI_LINE_KEYS);
+  });
+
+  it("moves line to the end of the range and keeps the finding's line as anchor", () => {
+    const comment = getFirst(renderComments({ comments: [trim] }));
+
+    expect(comment.line).toBe(32);
+    expect(comment.side).toBe("RIGHT");
+    expect(comment.start_line).toBe(30);
+    expect(comment.start_side).toBe("RIGHT");
+    expect(comment.anchor).toBe(31);
+  });
+
+  it("emits side and anchor only for a single-line suggestion", () => {
+    const comment = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            line: 31,
+            suggestion: { startLine: 31, endLine: 31, replacement: "$x = 1;" },
+          }),
+        ],
+      }),
+    );
+
+    expect(Object.keys(comment)).toEqual(SINGLE_LINE_KEYS);
+    expect(comment.line).toBe(31);
+    expect(comment.side).toBe("RIGHT");
+    expect(comment.anchor).toBe(31);
+    expect(comment).not.toHaveProperty("start_line");
+    expect(comment).not.toHaveProperty("start_side");
+  });
+
+  it("keeps anchor at the end of the range when the finding sits there", () => {
+    const comment = getFirst(
+      renderComments({
+        comments: [
+          makeComment({
+            line: 32,
+            suggestion: { startLine: 30, endLine: 32, replacement: "x" },
+          }),
+        ],
+      }),
+    );
+
+    expect(comment.line).toBe(32);
+    expect(comment.anchor).toBe(32);
+    expect(comment.start_line).toBe(30);
+  });
+
+  it("drops API fields the model wrote and sets its own", () => {
+    const plain = getFirst(
+      renderComments({
+        comments: [
+          { ...makeComment(), side: "LEFT", start_line: 1, anchor: 999 },
+        ],
+      }),
+    );
+    const suggested = getFirst(
+      renderComments({
+        comments: [
+          {
+            ...makeComment({
+              line: 31,
+              suggestion: { startLine: 30, endLine: 31, replacement: "x" },
+            }),
+            side: "LEFT",
+            start_line: 1,
+            start_side: "LEFT",
+            anchor: 999,
+          },
+        ],
+      }),
+    );
+
+    expect(Object.keys(plain)).toEqual(PLAIN_KEYS);
+    expect(suggested.side).toBe("RIGHT");
+    expect(suggested.start_line).toBe(30);
+    expect(suggested.start_side).toBe("RIGHT");
+    expect(suggested.anchor).toBe(31);
   });
 
   it("renders a multi-line replacement with every line inside one block", () => {
@@ -743,6 +895,7 @@ describe("suggestions", () => {
     );
 
     expect(comment).not.toHaveProperty("suggestion");
+    expect(Object.keys(comment)).toEqual(PLAIN_KEYS);
     expect(comment.body).toBe("🔴 **[COR-01] Bug**\nBody text.");
   });
 
@@ -759,9 +912,39 @@ describe("suggestions", () => {
           }
 
           expect(comment).not.toHaveProperty("suggestion");
+          expect(Object.keys(comment)).toEqual(PLAIN_KEYS);
+          expect(comment.line).toBe(input.line);
           expect(comment.body).toBe(
             `${EMOJI_BY_LABEL[comment.label]} **[${comment.code}] ${comment.label}**\n${scrubBody(input.body)}`,
           );
+        }
+      }),
+    );
+  });
+
+  it("posts every suggestion over its range and keeps the finding's line as anchor", () => {
+    fc.assert(
+      fc.property(makeSuggestedCommentArb(), (input) => {
+        const comment = getFirst(renderComments({ comments: [input] }));
+        const suggestion = input.suggestion;
+
+        if (suggestion == null) {
+          throw new Error("the arbitrary always carries a suggestion");
+        }
+
+        const multi = suggestion.startLine < suggestion.endLine;
+
+        expect(comment.line).toBe(suggestion.endLine);
+        expect(comment.side).toBe("RIGHT");
+        expect(comment.anchor).toBe(input.line);
+        expect(comment.suggestion).toEqual(suggestion);
+        expect(Object.keys(comment)).toEqual(
+          multi ? MULTI_LINE_KEYS : SINGLE_LINE_KEYS,
+        );
+
+        if (multi) {
+          expect(comment.start_line).toBe(suggestion.startLine);
+          expect(comment.start_side).toBe("RIGHT");
         }
       }),
     );

@@ -357,6 +357,30 @@ function renderSuggestion(replacement) {
   return `${fence}suggestion\n${inner}${fence}`;
 }
 
+const HEAD_SIDE = "RIGHT";
+
+/**
+ * GitHub applies a suggestion to the lines the review comment covers, not to
+ * the lines the block was written for, so a comment carrying one is posted
+ * over the range: `line` is its last line and, for more than one line,
+ * `start_line` its first. The finding's own line survives as `anchor` for a
+ * consumer that does not post suggestions.
+ */
+function makeApiFields(suggestion, anchor) {
+  const { startLine, endLine } = suggestion;
+  const range =
+    startLine === endLine
+      ? { line: endLine, side: HEAD_SIDE }
+      : {
+          line: endLine,
+          side: HEAD_SIDE,
+          start_line: startLine,
+          start_side: HEAD_SIDE,
+        };
+
+  return { ...range, anchor };
+}
+
 function renderComment(comment, counters) {
   const code = makeCode(comment.category, counters);
   const header = `${EMOJI[comment.label]} **[${code}] ${comment.label}**`;
@@ -369,9 +393,7 @@ function renderComment(comment, counters) {
     suggestion === null
       ? `${header}\n${text}`
       : `${header}\n${text.trimEnd()}\n${renderSuggestion(suggestion.replacement)}`;
-  const rendered = {
-    path: comment.path,
-    line: comment.line,
+  const tail = {
     code,
     category: comment.category,
     label: comment.label,
@@ -379,11 +401,13 @@ function renderComment(comment, counters) {
   };
 
   if (suggestion === null) {
-    return rendered;
+    return { path: comment.path, line: comment.line, ...tail };
   }
 
   return {
-    ...rendered,
+    path: comment.path,
+    ...makeApiFields(suggestion, comment.line),
+    ...tail,
     suggestion: {
       startLine: suggestion.startLine,
       endLine: suggestion.endLine,
