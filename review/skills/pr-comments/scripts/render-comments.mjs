@@ -153,34 +153,44 @@ function findLabelProblems(comment) {
   return [];
 }
 
-// A MOVE touches two files, a WRONG needs the author's knowledge, and a
-// Question claims no fix. Type safety is a skill rule ("no suggestion by
-// default"), so it is not rejected here.
-const NO_SUGGESTION_LABELS = new Set(["Move", "Wrong", "Question"]);
+// Why each label is here: review/skills/pr-comments/SKILL.md, "Suggestions".
+// Type safety is absent because its rule is "none by default", not never.
+const NO_SUGGESTION_LABELS = new Set(["Move", "Wrong", "Question", "Unsure"]);
 
 const MAX_SUGGESTION_LINES = 6;
 
-// CommonMark opens a fence with three or more backticks or tildes, indented by
-// at most three spaces; any of them left in the body would swallow the block.
+// Any CommonMark fence line: backticks or tildes, up to three spaces of indent.
 const FENCE_LINE = /^ {0,3}(?:`{3,}|~{3,})/mu;
 
 function isPresent(value) {
   return value !== undefined && value !== null;
 }
 
-function findSuggestionShapeProblems(suggestion) {
+function isLineNumber(value) {
+  return Number.isInteger(value) && value >= 1;
+}
+
+function findSuggestionLineProblems(suggestion) {
+  const { startLine, endLine } = suggestion;
   const problems = [];
 
-  if (!Number.isInteger(suggestion.startLine) || suggestion.startLine < 1) {
+  if (!isLineNumber(startLine)) {
     problems.push("suggestion.startLine must be an integer of at least 1");
-  } else if (
-    !Number.isInteger(suggestion.endLine) ||
-    suggestion.endLine < suggestion.startLine
-  ) {
+  }
+
+  if (!isLineNumber(endLine)) {
+    problems.push("suggestion.endLine must be an integer of at least 1");
+  } else if (isLineNumber(startLine) && endLine < startLine) {
     problems.push(
       "suggestion.endLine must be an integer of at least startLine",
     );
   }
+
+  return problems;
+}
+
+function findSuggestionShapeProblems(suggestion) {
+  const problems = findSuggestionLineProblems(suggestion);
 
   if (typeof suggestion.replacement !== "string") {
     problems.push(
@@ -328,9 +338,8 @@ function makeCode(category, counters) {
 }
 
 /**
- * A fence closes on a backtick run at least as long as the opener, so the
- * opener must be longer than any run inside the replacement. A comment-audit
- * rewrite of a markdown file can carry a fenced example, so this happens.
+ * A fence closes on a backtick run at least as long as its opener, and a
+ * rewrite of a markdown file can carry its own fenced example.
  */
 function makeFence(replacement) {
   const runs = replacement.match(/`+/gu) ?? [];
@@ -351,9 +360,9 @@ function renderComment(comment, counters) {
   const header = `${EMOJI[comment.label]} **[${code}] ${comment.label}**`;
   const suggestion = isPresent(comment.suggestion) ? comment.suggestion : null;
   const text = scrubBody(comment.body);
-  // One newline, never a blank one: a blank line ends the markdown list item
-  // this body is folded into downstream. The suggestion block follows the
-  // body on the same rule, so the body's trailing blank lines go first.
+  // One newline, never a blank one, between the header, the text, and the
+  // suggestion block: a blank line ends the markdown list item this body is
+  // folded into downstream. Blank lines inside the fence are the replacement's.
   const body =
     suggestion === null
       ? `${header}\n${text}`

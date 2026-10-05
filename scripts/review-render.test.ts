@@ -57,25 +57,32 @@ const PREFIXES: Record<Category, string> = {
   comments: "DOC",
 };
 
-const EMOJI_BY_LABEL: Record<string, string> = Object.fromEntries(
-  Object.entries(LABELS).flatMap(([category, labels]) =>
-    labels.map((label) => {
-      const [first] = renderComments({
-        comments: [
-          {
-            path: "p",
-            line: 1,
-            body: "b",
-            category: category as Category,
-            label,
-          },
-        ],
-      }).comments;
-
-      return [label, first?.body.slice(0, first.body.indexOf(" ")) ?? ""];
-    }),
-  ),
-);
+const EMOJI_BY_LABEL: Record<string, string> = {
+  Bug: "🔴",
+  Security: "🔴",
+  Accessibility: "🟠",
+  "Error handling": "🟠",
+  "Missing test": "🟠",
+  Performance: "🟠",
+  "Separation of concerns": "🟠",
+  Validation: "🟠",
+  Convention: "🟡",
+  "Dead code": "🟡",
+  Duplication: "🟡",
+  "Edge case": "🟡",
+  Question: "⚪",
+  "Mixed on a boundary": "🟠",
+  "Unchecked cast": "🟠",
+  "Unstructured array": "🟠",
+  "Duplicate type": "🟡",
+  "Missing sanity check": "🟡",
+  "Pseudo-type": "🟡",
+  Delete: "🟡",
+  Move: "🟡",
+  Trim: "🟡",
+  Unsure: "⚪",
+  Wrong: "🔴",
+};
 
 const HEADER =
   /^\p{Extended_Pictographic} \*\*\[(COR|TPS|DOC)-\d{2,}\] [^\n]+\*\*\n(?!\n)/u;
@@ -460,7 +467,7 @@ describe("suggestions", () => {
   it("rejects a malformed suggestion with one line per problem", () => {
     expect(
       getError({
-        comments: [makeComment({ suggestion: "x" as unknown as Suggestion })],
+        comments: [{ ...makeComment(), suggestion: "x" }],
       }),
     ).toBe(
       "comments[0]: suggestion must be an object with startLine, endLine, and replacement",
@@ -468,19 +475,32 @@ describe("suggestions", () => {
     expect(
       getError({
         comments: [
-          makeComment({
-            suggestion: {
-              startLine: 0,
-              endLine: 0,
-              replacement: 1 as unknown as string,
-            },
-          }),
+          {
+            ...makeComment(),
+            suggestion: { startLine: 0, endLine: 0, replacement: 1 },
+          },
         ],
       }),
     ).toBe(
       [
         "comments[0]: suggestion.startLine must be an integer of at least 1",
+        "comments[0]: suggestion.endLine must be an integer of at least 1",
         "comments[0]: suggestion.replacement must be a string; empty deletes the lines",
+      ].join("\n"),
+    );
+    expect(
+      getError({
+        comments: [
+          {
+            ...makeComment(),
+            suggestion: { startLine: 0, endLine: "x", replacement: "x" },
+          },
+        ],
+      }),
+    ).toBe(
+      [
+        "comments[0]: suggestion.startLine must be an integer of at least 1",
+        "comments[0]: suggestion.endLine must be an integer of at least 1",
       ].join("\n"),
     );
     expect(
@@ -507,11 +527,12 @@ describe("suggestions", () => {
     );
   });
 
-  it("rejects a suggestion on Move, Wrong, and Question", () => {
+  it("rejects a suggestion on Move, Wrong, Question, and Unsure", () => {
     const cases: Array<[Category, string]> = [
       ["comments", "Move"],
       ["comments", "Wrong"],
       ["correctness", "Question"],
+      ["comments", "Unsure"],
     ];
 
     for (const [category, label] of cases) {
@@ -792,26 +813,19 @@ describe("renderComments", () => {
     expect(Object.keys(comment)).not.toContain("severity");
   });
 
-  const emojiCases: Array<{
-    category: Category;
-    label: string;
-    emoji: string;
-  }> = [
-    { category: "correctness", label: "Bug", emoji: "🔴" },
-    { category: "correctness", label: "Security", emoji: "🔴" },
-    { category: "correctness", label: "Error handling", emoji: "🟠" },
-    { category: "correctness", label: "Accessibility", emoji: "🟠" },
-    { category: "correctness", label: "Edge case", emoji: "🟡" },
-    { category: "correctness", label: "Dead code", emoji: "🟡" },
-    { category: "correctness", label: "Duplication", emoji: "🟡" },
-    { category: "correctness", label: "Convention", emoji: "🟡" },
-    { category: "correctness", label: "Question", emoji: "⚪" },
-    { category: "typeSafety", label: "Mixed on a boundary", emoji: "🟠" },
-    { category: "typeSafety", label: "Duplicate type", emoji: "🟡" },
-    { category: "comments", label: "Wrong", emoji: "🔴" },
-    { category: "comments", label: "Trim", emoji: "🟡" },
-    { category: "comments", label: "Unsure", emoji: "⚪" },
-  ];
+  it("has an emoji for every label and no other", () => {
+    expect(Object.keys(EMOJI_BY_LABEL).toSorted()).toEqual(
+      Object.values(LABELS).flat().toSorted(),
+    );
+  });
+
+  const emojiCases = Object.entries(LABELS).flatMap(([category, labels]) =>
+    labels.map((label) => ({
+      category: category as Category,
+      label,
+      emoji: EMOJI_BY_LABEL[label],
+    })),
+  );
 
   for (const emojiCase of emojiCases) {
     it(`grades ${emojiCase.label} as ${emojiCase.emoji}`, () => {
