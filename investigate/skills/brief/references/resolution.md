@@ -14,8 +14,8 @@ the definition and label the claim as the agent prompt's rules require.
 | Does it actually behave this way? | Tests, or a REPL against the real code. |
 
 Pick the tool the question calls for. Running every tool as a fixed pipeline costs a lot
-and does not target the failure mode. The method rules (resolve before asserting, read the
-body, three outcomes) change answers far more than tool choice does.
+and does not catch fabricated or missed callers. The method rules (resolve before asserting,
+read the body, three outcomes) change answers more than tool choice does.
 
 ## PHP
 
@@ -23,12 +23,12 @@ body, three outcomes) change answers far more than tool choice does.
   IDE-generated stub or helper file, the language server wins. Stubs are inferred, and
   regenerating them does not fix a wrong inference. When the type matters, check the
   relation or method definition itself.
-- PHPantom has no call hierarchy for PHP: `prepareCallHierarchy` fails. Use
+- PHPantom has no call hierarchy: `prepareCallHierarchy` returns `Method not found`. Use
   `findReferences` and accept the extra noise.
 - The gitnexus graph has no inheritance or interface edges for PHP, and no
   container-resolution edges in any language. Graph caller lists are a lower bound, and an
   empty list on a service or interface method is unresolved, not "no callers". The brief's
-  banner and its "Unresolved by construction" section state these limits, and its wiring
+  banner and its "Unresolved by construction" section state the PHP limits, and its wiring
   scan recovers container wiring textually.
 
 ## TypeScript and JavaScript
@@ -52,4 +52,5 @@ Order of attack:
 | Name-addressed | Code graphs (gitnexus, codegraph), symbol search | Work cold, with no prior read. |
 
 A resolved caller list still ends in the three-outcome rule (Reachable, Guarded,
-Unresolved); see [the brief skill](../SKILL.md), "Limits of the graph".
+Unresolved); see [the deep skill](../../deep/SKILL.md), "Step 4: Report", where
+[the brief skill](../SKILL.md), "Limits of the graph", also points.

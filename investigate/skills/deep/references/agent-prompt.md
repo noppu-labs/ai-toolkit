@@ -28,7 +28,8 @@ RULES
 - Resolve before asserting. Before writing a conclusion that depends on a type, a relation's
   cardinality, or a call relationship, resolve it with a tool or by reading the definition.
   Label anything inferred rather than resolved `inferred from naming, not resolved`, so a guess
-  never reads as fact. Which tool resolves what: `${CLAUDE_PLUGIN_ROOT}/skills/brief/references/resolution.md`.
+  never reads as fact.
+  Which tool resolves what: `${CLAUDE_PLUGIN_ROOT}/skills/brief/references/resolution.md`.
 - Mark unverified conclusions, not only unverified facts. A conclusion that rests on a caller or
   definition you did not read ("safe because the caller must already have resolved it") carries
   the same label.
