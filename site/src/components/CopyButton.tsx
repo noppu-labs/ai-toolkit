@@ -40,21 +40,25 @@ export function CopyButton({
   size,
   ...props
 }: CopyButtonProps): ReactElement {
-  const [copied, setCopied] = useState(false);
+  // A stamp per copy rather than a boolean, so a second copy restarts the timer.
+  const [copiedAt, setCopiedAt] = useState<number | null>(null);
+  const copied = copiedAt !== null;
 
   useEffect(() => {
-    if (!copied) {
+    if (copiedAt === null) {
       return;
     }
-    const timer = window.setTimeout(() => setCopied(false), resetAfter);
+    const timer = window.setTimeout(() => setCopiedAt(null), resetAfter);
     return (): void => window.clearTimeout(timer);
-  }, [copied, resetAfter]);
+  }, [copiedAt, resetAfter]);
 
   const handleClick = useCallback((): void => {
-    navigator.clipboard
-      .writeText(content)
+    // `navigator.clipboard` is undefined outside secure contexts; starting from a
+    // resolved promise routes that TypeError into the same `.catch`.
+    Promise.resolve()
+      .then(() => navigator.clipboard.writeText(content))
       .then(() => {
-        setCopied(true);
+        setCopiedAt(performance.now());
         onCopied?.(content);
       })
       .catch((error: unknown) => {
