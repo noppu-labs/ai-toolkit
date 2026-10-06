@@ -48,6 +48,16 @@ describe("SiteHeader", () => {
       .toHaveAttribute("href", "https://github.com/noppu-labs/ai-toolkit");
   });
 
+  it("gives the GitHub link the 3px main-colour shadow", async () => {
+    renderHeader();
+
+    const link = page.getByRole("link", { name: "GitHub" });
+    await expect.element(link).toBeVisible();
+    const shadow = getComputedStyle(link.element()).boxShadow;
+    expect(shadow).toContain("3px 3px 0px 0px");
+    expect(shadow).not.toContain("4px 4px");
+  });
+
   it("toggles the theme", async () => {
     window.localStorage.setItem("theme", "light");
     renderHeader();

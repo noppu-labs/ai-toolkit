@@ -60,7 +60,7 @@ export function SiteHeader(): ReactElement {
           <ThemeToggle className="ml-2 size-11 shadow-shadow-md [&_svg]:size-5" />
           <a
             className={cn(
-              buttonVariants({ size: "default" }),
+              buttonVariants({ variant: "noShadow", size: "default" }),
               "ml-2 h-11 border-border bg-ink px-4 font-heading text-base text-white shadow-[3px_3px_0_0_var(--color-main)] hover:translate-x-boxShadowX hover:translate-y-boxShadowY hover:shadow-none",
             )}
             href={REPO_URL}
