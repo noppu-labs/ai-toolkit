@@ -8,9 +8,6 @@ const SIZES = {
   lg: "size-18 rounded-[10px] border-border shadow-shadow",
 } as const;
 
-// On the dark footer the black border and shadow would vanish, so they turn
-// white. A separate class set, because tailwind-merge cannot tell the theme
-// shadow utilities from an arbitrary one and would keep both.
 const INVERSE_SIZES = {
   sm: "size-12 rounded-[8px] border-white shadow-[3px_3px_0px_0px_var(--color-white)]",
   lg: "size-18 rounded-[10px] border-white shadow-[4px_4px_0px_0px_var(--color-white)]",
