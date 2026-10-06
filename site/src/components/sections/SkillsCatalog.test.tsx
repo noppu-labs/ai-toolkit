@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import type { PluginEntry } from "../../catalog-types.ts";
@@ -27,7 +27,67 @@ function skillNames(): string[] {
     .map((heading) => heading.textContent ?? "");
 }
 
+// Paints the colours bottom-up on a 1px canvas and reads back the composite sRGB.
+function paint(...colors: string[]): number[] {
+  const context = document.createElement("canvas").getContext("2d");
+  if (context === null) {
+    throw new Error("No 2D canvas context");
+  }
+  for (const color of colors) {
+    context.fillStyle = color;
+    context.fillRect(0, 0, 1, 1);
+  }
+
+  return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+}
+
+function luminance(rgb: number[]): number {
+  const [r = 0, g = 0, b = 0] = rgb.map((value) => {
+    const channel = value / 255;
+
+    return channel <= 0.04045
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(a: number[], b: number[]): number {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+
+  return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05);
+}
+
+// WCAG 1.4.11 asks 3:1 of a control's boundary against the section behind it.
+function borderContrast(element: Element): number {
+  const section = element.closest("section");
+  if (section === null) {
+    throw new Error("No enclosing section");
+  }
+  const outer = getComputedStyle(section).backgroundColor;
+  const style = getComputedStyle(element);
+
+  return contrast(
+    paint(outer, style.backgroundColor, style.borderTopColor),
+    paint(outer),
+  );
+}
+
+afterEach(() => {
+  document.documentElement.classList.remove("dark");
+});
+
 describe("SkillsCatalog", () => {
+  it("keeps the search box and unpressed chip borders at 3:1 in dark mode", async () => {
+    document.documentElement.classList.add("dark");
+    render(<SkillsCatalog plugins={PLUGINS} />);
+    await expect.element(search).toBeVisible();
+
+    expect(borderContrast(search.element())).toBeGreaterThanOrEqual(3);
+    expect(borderContrast(chip("laravel").element())).toBeGreaterThanOrEqual(3);
+  });
+
   it("renders every skill in the site order with source links", async () => {
     render(<SkillsCatalog plugins={PLUGINS} />);
 

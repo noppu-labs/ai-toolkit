@@ -142,7 +142,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
                 strokeWidth={2.5}
               />
               <Input
-                className="h-12 bg-background pr-3.5 pl-10.5 text-base shadow-shadow"
+                className="h-12 bg-background pr-3.5 pl-10.5 text-base shadow-shadow dark:border-foreground/60"
                 id={inputId}
                 onChange={handleQueryChange}
                 placeholder="e.g. review, brief, testing…"
@@ -163,7 +163,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
           {chips.map(({ name, count }) => (
             <ToggleGroupItem
               className={cn(
-                "h-11 rounded-full bg-background px-4 font-bold font-mono text-foreground text-sm focus-visible:ring-offset-secondary-background data-pressed:-translate-x-px data-pressed:-translate-y-px data-pressed:shadow-shadow-md",
+                "h-11 rounded-full bg-background px-4 font-bold font-mono text-foreground text-sm focus-visible:ring-offset-secondary-background data-pressed:-translate-x-px data-pressed:-translate-y-px data-pressed:shadow-shadow-md dark:not-data-pressed:border-foreground/60",
                 // "all" is no plugin, so it falls back to the main colour.
                 pluginPressedColorClass(name),
               )}
