@@ -1,4 +1,4 @@
-import type { Catalog } from "../catalog-types.ts";
+import type { Catalog, PluginEntry } from "../catalog-types.ts";
 
 export const FIXTURE_CATALOG: Catalog = {
   marketplaceName: "ai-toolkit",
@@ -39,6 +39,27 @@ export const FIXTURE_CATALOG: Catalog = {
             "https://github.com/noppu-labs/ai-toolkit/blob/main/inertia-react/skills/shadcn/SKILL.md",
         },
       ],
+    },
+  ],
+};
+
+/**
+ * A language-agnostic plugin with no agents or rules. Not part of
+ * FIXTURE_CATALOG; tests that need the site's plugin order or the
+ * "any language" chip add it themselves.
+ */
+export const FIXTURE_REVIEW_PLUGIN: PluginEntry = {
+  name: "review",
+  description: "Code review skills for any language",
+  version: "0.8.1",
+  agentCount: 0,
+  ruleCount: 0,
+  skills: [
+    {
+      name: "comment-audit",
+      description: "Give every comment a branch adds a verdict.",
+      sourceUrl:
+        "https://github.com/noppu-labs/ai-toolkit/blob/main/review/skills/comment-audit/SKILL.md",
     },
   ],
 };

@@ -4,8 +4,16 @@ import { cn } from "@/lib/utils";
 const LOGO_SRC = `${import.meta.env.BASE_URL}logo.png`;
 
 const SIZES = {
-  sm: "size-12 shadow-shadow-md",
-  lg: "size-18 shadow-shadow",
+  sm: "size-12 rounded-[8px] border-border shadow-shadow-md",
+  lg: "size-18 rounded-[10px] border-border shadow-shadow",
+} as const;
+
+// On the dark footer the black border and shadow would vanish, so they turn
+// white. A separate class set, because tailwind-merge cannot tell the theme
+// shadow utilities from an arbitrary one and would keep both.
+const INVERSE_SIZES = {
+  sm: "size-12 rounded-[8px] border-white shadow-[3px_3px_0px_0px_var(--color-white)]",
+  lg: "size-18 rounded-[10px] border-white shadow-[4px_4px_0px_0px_var(--color-white)]",
 } as const;
 
 type LogoProps = {
@@ -16,6 +24,8 @@ type LogoProps = {
    * text that already names the site, so the image is decorative.
    */
   label?: string;
+  /** White border and shadow, for dark surfaces such as the footer. */
+  inverse?: boolean;
   className?: string;
 };
 
@@ -23,13 +33,14 @@ type LogoProps = {
 export function Logo({
   size = "sm",
   label,
+  inverse = false,
   className,
 }: LogoProps): ReactElement {
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden rounded-[8px] border-2 border-border bg-main",
-        SIZES[size],
+        "flex shrink-0 items-center justify-center overflow-hidden border-2 bg-main",
+        (inverse ? INVERSE_SIZES : SIZES)[size],
         className,
       )}
     >
