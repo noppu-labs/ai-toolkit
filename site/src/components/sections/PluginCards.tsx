@@ -7,12 +7,9 @@ import {
   pluginColorClass,
   sortPlugins,
 } from "@/lib/plugins";
+import { pluralize } from "@/lib/pluralize";
 import { cn } from "@/lib/utils";
 import type { PluginEntry } from "../../catalog-types.ts";
-
-function pluralize(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
 
 /** The chips under a plugin's description: non-zero counts, then reach. */
 function chipLabels(plugin: PluginEntry): string[] {

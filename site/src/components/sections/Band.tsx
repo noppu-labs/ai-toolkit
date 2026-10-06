@@ -1,4 +1,5 @@
 import { Fragment, type ReactElement } from "react";
+import { pluralize } from "@/lib/pluralize";
 
 interface BandProps {
   skillCount: number;
@@ -18,7 +19,7 @@ export function Band({ skillCount }: BandProps): ReactElement {
     "3-stage PR review",
     "deterministic briefs",
     "PHP · TypeScript · Python",
-    `${skillCount} skills`,
+    pluralize(skillCount, "skill"),
     "attested releases",
   ];
 

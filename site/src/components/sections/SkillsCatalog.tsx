@@ -16,6 +16,7 @@ import {
   pluginPressedColorClass,
   sortPlugins,
 } from "@/lib/plugins";
+import { pluralize } from "@/lib/pluralize";
 import { cn } from "@/lib/utils";
 import type { PluginEntry, SkillEntry } from "../../catalog-types.ts";
 
@@ -176,9 +177,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
         </ToggleGroup>
 
         <output aria-live="polite" className="sr-only">
-          {visible.length === 1
-            ? "1 skill shown"
-            : `${visible.length} skills shown`}
+          {`${pluralize(visible.length, "skill")} shown`}
         </output>
 
         {visible.length === 0 ? (

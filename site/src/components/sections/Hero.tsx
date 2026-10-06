@@ -2,6 +2,7 @@ import { ArrowDown } from "lucide-react";
 import { type ReactElement, useId } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { LOGO_SRC } from "@/lib/assets";
+import { pluralize } from "@/lib/pluralize";
 import { REPO_SLUG } from "@/lib/repo";
 import { cn } from "@/lib/utils";
 
@@ -62,7 +63,7 @@ export function Hero({
             className={cn(buttonVariants({ variant: "neutral" }), CTA_CLASSES)}
             href="#skills"
           >
-            Browse {skillCount} skills
+            Browse {pluralize(skillCount, "skill")}
           </a>
         </div>
       </div>
@@ -85,7 +86,7 @@ export function Hero({
             <figcaption className="mt-2 flex items-center justify-between gap-2 font-bold font-mono text-sm">
               <span>{REPO_SLUG}</span>
               <span className="rounded-base border-2 border-border bg-white px-2.5 py-1">
-                {pluginCount} plugins
+                {pluralize(pluginCount, "plugin")}
               </span>
             </figcaption>
           </figure>
