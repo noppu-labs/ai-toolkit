@@ -15,7 +15,6 @@ const NAV_LINKS = [
 const FOCUS_RING =
   "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-/** The sticky top bar: brand, section links, theme toggle and GitHub. */
 export function SiteHeader(): ReactElement {
   return (
     <header className="sticky top-0 z-10 border-border border-b-2 bg-background">

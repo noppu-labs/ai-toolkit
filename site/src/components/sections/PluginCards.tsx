@@ -11,7 +11,6 @@ import { pluralize } from "@/lib/pluralize";
 import { cn } from "@/lib/utils";
 import type { PluginEntry } from "../../catalog-types.ts";
 
-/** The chips under a plugin's description: non-zero counts, then reach. */
 function chipLabels(plugin: PluginEntry): string[] {
   const counts: [number, string][] = [
     [plugin.skills.length, "skill"],

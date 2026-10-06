@@ -43,11 +43,7 @@ export const FIXTURE_CATALOG: Catalog = {
   ],
 };
 
-/**
- * A language-agnostic plugin with no agents or rules. Not part of
- * FIXTURE_CATALOG; tests that need the site's plugin order or the
- * "any language" chip add it themselves.
- */
+/** Not in `FIXTURE_CATALOG`: tests that need the site's plugin order or the "any language" chip add it themselves. */
 export const FIXTURE_REVIEW_PLUGIN: PluginEntry = {
   name: "review",
   description: "Code review skills for any language",

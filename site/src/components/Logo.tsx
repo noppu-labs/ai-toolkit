@@ -13,19 +13,15 @@ const INVERSE_SIZES = {
 } as const;
 
 type LogoProps = {
-  /** `sm` is the 48px nav mark, `lg` the 72px footer mark. */
+  /** `sm` is 48px, `lg` 72px. */
   size?: keyof typeof SIZES;
-  /**
-   * The accessible name. Leave it unset when the mark sits next to visible
-   * text that already names the site, so the image is decorative.
-   */
+  /** The image's `alt` text. Leave unset when visible text beside the mark already names the site, so screen readers skip the image. */
   label?: string;
-  /** White border and shadow, for dark surfaces such as the footer. */
+  /** White border and shadow, for dark backgrounds such as the footer. */
   inverse?: boolean;
   className?: string;
 };
 
-/** The axolotl mark on a pink, bordered tile with a hard shadow. */
 export function Logo({
   size = "sm",
   label,

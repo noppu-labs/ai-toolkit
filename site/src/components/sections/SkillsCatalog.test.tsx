@@ -151,7 +151,6 @@ describe("SkillsCatalog", () => {
     await expect.element(chip("all")).toHaveAttribute("aria-pressed", "false");
     expect(skillNames()).toEqual(["shadcn"]);
 
-    // Pressing the active chip again must not leave the group empty.
     await chip("inertia-react").click();
     await expect
       .element(chip("inertia-react"))

@@ -3,7 +3,6 @@ import { useTheme } from "next-themes";
 import { type ReactElement, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 
-/** Switches between the light and dark themes (persisted by next-themes). */
 export function ThemeToggle({
   className,
 }: {

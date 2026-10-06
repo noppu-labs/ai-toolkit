@@ -1,7 +1,6 @@
-/* Theme — Light. The only place light-mode "what looks like what"
-   is decided. To re-skin light mode, edit only this file. The
-   mode-independent neobrutalism geometry (borders, shadows,
-   radius, weights) also lives here, on :root. */
+/* Light theme: the `:root` values of the semantic tokens, plus the
+   neobrutalism geometry (borders, shadows, radius, weights) that
+   both modes share. Plugin accents are mapped in `semantic.css`. */
 
 :root {
   color-scheme: light;

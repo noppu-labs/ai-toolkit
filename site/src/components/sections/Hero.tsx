@@ -10,7 +10,6 @@ const CTA_CLASSES =
   "h-14 px-6 font-heading text-lg focus-visible:ring-offset-background";
 
 interface HeroProps {
-  /** The marketplace description from the catalog. */
   description: string;
   skillCount: number;
   pluginCount: number;

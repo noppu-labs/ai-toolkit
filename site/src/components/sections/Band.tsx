@@ -13,7 +13,6 @@ const SPARK_COLORS = [
   "text-main",
 ] as const;
 
-/** The rotated ink strip between the hero and the install section. */
 export function Band({ skillCount }: BandProps): ReactElement {
   const phrases = [
     "3-stage PR review",

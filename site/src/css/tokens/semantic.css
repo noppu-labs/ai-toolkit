@@ -1,12 +1,10 @@
 /* ============================================================
    Layer 2 — Semantic token mapping
-   Maps the theme-aware variables (values live in themes/) onto
-   Tailwind utility names. The first block is the neobrutalism
-   token model, exactly as neobrutalism.dev's globals.css maps it
-   (`bg-main`, `bg-secondary-background`, `shadow-shadow`,
-   `rounded-base`, `translate-x-boxShadowX`, `font-heading`, …).
-   The second block holds this site's brand tokens. The last
-   block derives Tailwind's radius scale from the base radius.
+   Maps the theme variables, and the plugin accents from the
+   palette, onto Tailwind utility names. The `neobrutalism` block
+   keeps neobrutalism.dev's token names (`bg-main`,
+   `shadow-shadow`, `translate-x-boxShadowX`, …), which the
+   components from the `@neobrutalism` registry expect.
    ============================================================ */
 
 @theme inline {

@@ -15,9 +15,9 @@ type CopyButtonProps = Omit<
 > & {
   /** The text written to the clipboard. */
   content: string;
-  /** The accessible name; it stays the same in the copied state. */
+  /** Unchanged in the copied state; the change is announced through the live region. */
   "aria-label": string;
-  /** An optional visible label next to the icon. */
+  /** Visible text beside the icon; without it the button is icon-only. */
   label?: ReactNode;
   /** The visible label while copied (only shown when `label` is set). */
   copiedLabel?: ReactNode;
@@ -26,7 +26,6 @@ type CopyButtonProps = Omit<
   onCopied?: (content: string) => void;
 };
 
-/** A neobrutalism button that copies `content` to the clipboard. */
 export function CopyButton({
   content,
   label,

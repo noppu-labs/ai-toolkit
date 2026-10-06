@@ -21,9 +21,8 @@ The site lives in `site/` as an npm workspace: Vite 8, React 19, TypeScript, and
 CSS 4, with Base UI primitives through components vendored from neobrutalism-components
 for the interactive bits. It is fully static and deploys to GitHub Pages.
 
-The site first used Radix UI primitives and Motion animations. The neobrutalism redesign
-moved it to Base UI: the neobrutalism components are built on it, and the static look
-needs no animation library, so `radix-ui` and `motion` were dropped.
+Base UI is the primitive layer the neobrutalism components are built on, and the static
+design needs no animation library.
 
 The content pipeline is the important part. A build-time script,
 `site/scripts/build-catalog.ts`, walks the repository and generates

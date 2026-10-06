@@ -3,14 +3,17 @@
    Intentionally thin. To change the design system, edit the
    files this imports — not this file.
 
-     tokens/primitives.css   Layer 1 — raw oklch palette
-     tokens/typography.css   Font families
-     tokens/semantic.css     Layer 2 — Tailwind utility mapping
+     tokens/primitives.css   Layer 1: raw oklch palette
+     tokens/typography.css   Font families and tracking
+     tokens/semantic.css     Layer 2: Tailwind utility mapping
      themes/light.css        :root values (light + geometry)
      themes/dark.css         .dark values (dark)
 
-   Components only ever consume Layer 2 tokens via utilities
-   like `bg-main`, `bg-secondary-background`, `shadow-shadow`.
+   Components consume Layer 2 tokens through utilities like
+   `bg-main`, `bg-secondary-background` and `shadow-shadow`.
+   Elements on backgrounds that stay light or dark in both
+   themes (`bg-main`, the plugin accents, `bg-ink`) use
+   Tailwind's `white` and `black` colours directly.
    ============================================================ */
 
 @import "tailwindcss";
@@ -26,7 +29,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* The 48px squared-paper background behind the page. */
 @utility bg-grid {
   background-color: var(--background);
   background-image:
