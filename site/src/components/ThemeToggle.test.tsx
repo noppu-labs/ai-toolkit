@@ -19,12 +19,6 @@ afterEach(() => {
 
 describe("ThemeToggle", () => {
   it("toggles from light to dark and persists", async () => {
-    // The vendored toggler defers `setTheme` (and thus the localStorage
-    // write) until the View Transitions API animation finishes (~700ms
-    // after the DOM class flips). Stub it out so the toggle falls back to
-    // a direct, synchronous theme change and both settle together.
-    document.startViewTransition = undefined as never;
-
     window.localStorage.setItem("theme", "light");
     renderToggle("light");
 
@@ -39,8 +33,6 @@ describe("ThemeToggle", () => {
   });
 
   it("toggles from dark back to light", async () => {
-    document.startViewTransition = undefined as never;
-
     window.localStorage.setItem("theme", "dark");
     document.documentElement.classList.add("dark");
     renderToggle("dark");

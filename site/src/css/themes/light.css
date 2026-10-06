@@ -1,39 +1,37 @@
-/* Theme — Light. The only place light-mode "what looks like what"
-   is decided. To re-skin light mode, edit only this file. */
+/* Light theme: the `:root` values of the semantic tokens, plus the
+   neobrutalism geometry (borders, shadows, radius, weights) that
+   both modes share. Plugin accents are mapped in `semantic.css`. */
 
 :root {
   color-scheme: light;
-  --radius: 0.625rem;
 
-  --background: var(--color-ink-50);
-  --foreground: var(--color-ink-900);
+  /* neobrutalism geometry (both modes) */
+  --border-radius: 6px;
+  --box-shadow-x: 4px;
+  --box-shadow-y: 4px;
+  --reverse-box-shadow-x: -4px;
+  --reverse-box-shadow-y: -4px;
+  --heading-font-weight: 700;
+  --base-font-weight: 500;
 
-  --card: var(--color-white);
-  --card-foreground: var(--color-ink-900);
+  /* Borders and hard shadows are black in both modes. */
+  --border: var(--palette-black);
+  --shadow-color: var(--palette-black);
+  --shadow: var(--box-shadow-x) var(--box-shadow-y) 0px 0px var(--shadow-color);
+  --overlay: oklch(0 0 0 / 0.8);
 
-  --popover: var(--color-white);
-  --popover-foreground: var(--color-ink-900);
+  /* neobrutalism colours */
+  --main: var(--palette-pink);
+  --main-foreground: var(--palette-black);
+  --background: var(--palette-shell);
+  --secondary-background: var(--palette-white);
+  --foreground: var(--palette-ink);
+  --ring: var(--palette-black);
 
-  --primary: var(--color-iris-600);
-  --primary-foreground: var(--color-ink-50);
-
-  --secondary: var(--color-ink-100);
-  --secondary-foreground: var(--color-ink-900);
-
-  --muted: var(--color-ink-100);
-  --muted-foreground: var(--color-ink-600);
-
-  --accent: var(--color-ink-100);
-  --accent-foreground: var(--color-ink-900);
-
-  --destructive: var(--color-crimson-600);
-  --destructive-foreground: var(--color-ink-50);
-
-  --border: var(--color-ink-200);
-  --input: var(--color-ink-200);
-  --ring: var(--color-iris-500);
-
-  /* Hero brand gradient (consumed by GradientText) */
-  --hero-gradient-from: var(--color-iris-500);
-  --hero-gradient-to: var(--color-iris-700);
+  /* brand */
+  --muted-foreground: var(--palette-plum-700);
+  --terminal: var(--palette-terminal);
+  --terminal-foreground: var(--palette-terminal-text);
+  --ink: var(--palette-ink);
+  --grid-line: oklch(0 0 0 / 0.05);
 }

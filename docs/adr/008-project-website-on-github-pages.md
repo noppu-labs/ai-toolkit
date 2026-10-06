@@ -18,8 +18,11 @@ content from the same files consumers install.
 ## Decision
 
 The site lives in `site/` as an npm workspace: Vite 8, React 19, TypeScript, and Tailwind
-CSS 4, with Radix UI primitives and Motion for the interactive bits. It is fully static
-and deploys to GitHub Pages.
+CSS 4, with Base UI primitives through components vendored from neobrutalism-components
+for the interactive bits. It is fully static and deploys to GitHub Pages.
+
+Base UI is the primitive layer the neobrutalism components are built on, and the static
+design needs no animation library.
 
 The content pipeline is the important part. A build-time script,
 `site/scripts/build-catalog.ts`, walks the repository and generates

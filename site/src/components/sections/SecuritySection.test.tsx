@@ -43,4 +43,46 @@ describe("SecuritySection", () => {
         "https://github.com/noppu-labs/ai-toolkit/attestations",
       );
   });
+
+  it("is a section labelled by its heading", async () => {
+    render(<SecuritySection />);
+
+    await expect
+      .element(page.getByRole("region", { name: "Every release is attested." }))
+      .toHaveAttribute("id", "security");
+  });
+
+  it("links the project health chips", async () => {
+    render(<SecuritySection />);
+
+    const health = page.getByRole("list", { name: "Project health" });
+    await expect.element(health).toBeVisible();
+    const links = health
+      .getByRole("link")
+      .elements()
+      .map((link) => [link.textContent, link.getAttribute("href")]);
+    expect(links).toEqual([
+      [
+        "tests",
+        "https://github.com/noppu-labs/ai-toolkit/actions/workflows/tests.yml",
+      ],
+      [
+        "fuzz",
+        "https://github.com/noppu-labs/ai-toolkit/actions/workflows/fuzz.yml",
+      ],
+      [
+        "build",
+        "https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml",
+      ],
+      [
+        "OpenSSF Best Practices",
+        "https://www.bestpractices.dev/projects/13473",
+      ],
+      [
+        "OpenSSF Baseline",
+        "https://www.bestpractices.dev/projects/13473/baseline-1",
+      ],
+      ["Snyk", "https://snyk.io/test/github/noppu-labs/ai-toolkit"],
+    ]);
+  });
 });

@@ -5,7 +5,7 @@
 [![build](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml)
 [![attestations](https://img.shields.io/badge/releases-attested-blue?logo=github)](https://github.com/noppu-labs/ai-toolkit/attestations)
 
-Agents and skills for agentic development in modern Laravel and React applications.
+Agent skills for deep code review and grounded investigation in PHP, TypeScript, Python and beyond, plus dedicated Laravel and React packs.
 
 **Website:** <https://noppu-labs.github.io/ai-toolkit/>
 
@@ -13,7 +13,7 @@ Agents and skills for agentic development in modern Laravel and React applicatio
 
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/noppu-labs/ai-toolkit/badge)](https://scorecard.dev/viewer/?uri=github.com/noppu-labs/ai-toolkit)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13473/badge)](https://www.bestpractices.dev/projects/13473)
-[![OpenSSF Baseline](https://www.bestpractices.dev/projects/13473/baseline)](https://www.bestpractices.dev/projects/13473)
+[![OpenSSF Baseline](https://www.bestpractices.dev/projects/13473/baseline)](https://www.bestpractices.dev/projects/13473/baseline-1)
 [![Known Vulnerabilities](https://snyk.io/test/github/noppu-labs/ai-toolkit/badge.svg)](https://snyk.io/test/github/noppu-labs/ai-toolkit)
 
 > We try to bring you quality tooling but also **transparency** on what we offer and how secure it is.

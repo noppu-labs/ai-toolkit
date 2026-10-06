@@ -1,13 +1,29 @@
-import type { ReactElement } from "react";
-import { ThemeTogglerButton } from "@/components/animate-ui/components/buttons/theme-toggler";
+import { Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import { type ReactElement, useCallback } from "react";
+import { Button } from "@/components/ui/button";
 
-export function ThemeToggle(): ReactElement {
+export function ThemeToggle({
+  className,
+}: {
+  className?: string;
+}): ReactElement {
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  const toggle = useCallback(
+    (): void => setTheme(isDark ? "light" : "dark"),
+    [isDark, setTheme],
+  );
+
   return (
-    <ThemeTogglerButton
+    <Button
       aria-label="Toggle theme"
-      modes={["light", "dark"]}
-      size="sm"
-      variant="outline"
-    />
+      className={className}
+      onClick={toggle}
+      size="icon"
+      variant="neutral"
+    >
+      {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+    </Button>
   );
 }

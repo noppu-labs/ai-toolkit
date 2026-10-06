@@ -1,5 +1,5 @@
+import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import type { VariantProps } from "class-variance-authority";
-import { Slot } from "radix-ui";
 import type * as React from "react";
 
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -7,21 +7,16 @@ import { cn } from "@/lib/utils";
 
 function Button({
   className,
-  variant = "default",
-  size = "default",
-  asChild = false,
+  variant,
+  size,
   ...props
-}: React.ComponentProps<"button"> &
+}: Omit<React.ComponentProps<typeof ButtonPrimitive>, "className"> &
   VariantProps<typeof buttonVariants> & {
-    asChild?: boolean;
+    className?: string | undefined;
   }): React.JSX.Element {
-  const Comp = asChild ? Slot.Root : "button";
-
   return (
-    <Comp
+    <ButtonPrimitive
       data-slot="button"
-      data-variant={variant}
-      data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

@@ -1,39 +1,35 @@
 /* ============================================================
-   Layer 1 — Primitive tokens (palette + scales)
-   Raw values; the single source of truth for the design system.
-   Components NEVER consume these directly — they consume the
-   semantic tokens mapped in themes/light.css and themes/dark.css.
+   Layer 1: primitive tokens (raw palette), in oklch because
+   Biome's `noHexColors` forbids hex. Plain custom properties,
+   not `@theme`, so they never become utilities; components
+   reach them through the semantic tokens.
    ============================================================ */
 
-@theme {
-  /* Ink — cool neutral scale (surfaces, text, borders) */
-  --color-ink-50: oklch(0.984 0.003 260);
-  --color-ink-100: oklch(0.962 0.004 260);
-  --color-ink-200: oklch(0.907 0.006 260);
-  --color-ink-300: oklch(0.83 0.009 260);
-  --color-ink-400: oklch(0.702 0.012 260);
-  --color-ink-500: oklch(0.552 0.014 260);
-  --color-ink-600: oklch(0.442 0.014 260);
-  --color-ink-700: oklch(0.37 0.012 260);
-  --color-ink-800: oklch(0.276 0.01 260);
-  --color-ink-900: oklch(0.208 0.008 260);
-  --color-ink-950: oklch(0.145 0.006 260);
+:root {
+  /* Brand pink (the `main` colour in both modes) */
+  --palette-pink: oklch(0.7862 0.1495 349.25);
 
-  /* Iris — indigo/violet accent (primary actions, links, focus) */
-  --color-iris-50: oklch(0.969 0.016 285);
-  --color-iris-100: oklch(0.936 0.032 285);
-  --color-iris-200: oklch(0.87 0.06 286);
-  --color-iris-300: oklch(0.785 0.1 287);
-  --color-iris-400: oklch(0.69 0.15 288);
-  --color-iris-500: oklch(0.6 0.19 289);
-  --color-iris-600: oklch(0.53 0.2 290);
-  --color-iris-700: oklch(0.457 0.18 291);
-  --color-iris-800: oklch(0.385 0.14 291);
-  --color-iris-900: oklch(0.32 0.11 292);
-  --color-iris-950: oklch(0.23 0.08 293);
+  /* Light-mode neutrals; shell and plum are pink-tinted */
+  --palette-shell: oklch(0.9771 0.0134 347.94);
+  --palette-white: oklch(1 0 0);
+  --palette-ink: oklch(0.1776 0 0);
+  --palette-plum-700: oklch(0.3313 0.0186 344.18);
+  --palette-terminal: oklch(0.1921 0.0176 312.7);
 
-  /* Crimson — destructive intent (required by shadcn variants) */
-  --color-crimson-400: oklch(0.704 0.191 22);
-  --color-crimson-500: oklch(0.637 0.237 25);
-  --color-crimson-600: oklch(0.577 0.245 27);
+  /* Dark-mode neutrals, and black for borders and shadows in both modes */
+  --palette-plum-850: oklch(0.264 0.0174 330.17);
+  --palette-plum-900: oklch(0.2123 0.011 332.75);
+  --palette-plum-50: oklch(0.9573 0.011 348.43);
+  --palette-plum-200: oklch(0.8369 0.0183 345.7);
+  --palette-terminal-dark: oklch(0.1548 0.008 325.96);
+  --palette-black: oklch(0 0 0);
+
+  /* Text on the terminal background (both modes) */
+  --palette-terminal-text: oklch(0.9535 0.0101 345.42);
+
+  /* Plugin accents (identical in both modes) */
+  --palette-yellow: oklch(0.8789 0.1617 90.94);
+  --palette-lime: oklch(0.8494 0.2069 128.89);
+  --palette-coral: oklch(0.7318 0.165 28.31);
+  --palette-periwinkle: oklch(0.7395 0.106 263.6);
 }
