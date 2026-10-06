@@ -23,7 +23,7 @@ export function Footer(): ReactElement {
     <footer className="border-border border-t-3 bg-ink text-white">
       <div className="mx-auto flex max-w-300 flex-wrap items-center justify-between gap-8 px-4 py-14 sm:px-6">
         <div className="flex items-center gap-4">
-          <Logo inverse size="lg" />
+          <Logo inverse mark="face" size="lg" />
           <p className="flex flex-col gap-1">
             <span className="font-heading text-2xl tracking-[-0.02em]">
               Noppu Labs — AI Toolkit
