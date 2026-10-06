@@ -4,13 +4,17 @@ import { cn } from "@/lib/utils";
 
 function Card({
   className,
+  size = "default",
   ...props
-}: React.ComponentProps<"div">): React.JSX.Element {
+}: React.ComponentProps<"div"> & {
+  size?: "default" | "sm";
+}): React.JSX.Element {
   return (
     <div
       data-slot="card"
+      data-size={size}
       className={cn(
-        "flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground shadow-sm",
+        "group/card flex flex-col gap-(--card-spacing) rounded-base border-2 border-border bg-background py-(--card-spacing) font-base text-foreground shadow-shadow [--card-spacing:--spacing(6)] data-[size=sm]:[--card-spacing:--spacing(4)]",
         className,
       )}
       {...props}
@@ -26,7 +30,7 @@ function CardHeader({
     <div
       data-slot="card-header"
       className={cn(
-        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6",
+        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-(--card-spacing) has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-(--card-spacing)",
         className,
       )}
       {...props}
@@ -41,7 +45,7 @@ function CardTitle({
   return (
     <div
       data-slot="card-title"
-      className={cn("font-semibold leading-none", className)}
+      className={cn("font-heading leading-none", className)}
       {...props}
     />
   );
@@ -54,7 +58,7 @@ function CardDescription({
   return (
     <div
       data-slot="card-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("font-base text-sm", className)}
       {...props}
     />
   );
@@ -83,7 +87,7 @@ function CardContent({
   return (
     <div
       data-slot="card-content"
-      className={cn("px-6", className)}
+      className={cn("px-(--card-spacing)", className)}
       {...props}
     />
   );
@@ -96,7 +100,10 @@ function CardFooter({
   return (
     <div
       data-slot="card-footer"
-      className={cn("flex items-center px-6 [.border-t]:pt-6", className)}
+      className={cn(
+        "flex items-center px-(--card-spacing) [.border-t]:pt-(--card-spacing)",
+        className,
+      )}
       {...props}
     />
   );

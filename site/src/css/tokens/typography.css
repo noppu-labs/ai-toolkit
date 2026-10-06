@@ -1,8 +1,12 @@
-/* Type primitives. System stacks only — no webfonts, no external requests. */
+/* Type primitives. Self-hosted variable fonts (@fontsource-variable,
+   imported in app.css), so there are no third-party font requests. */
 
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans:
+    "Space Grotesk Variable", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
   --font-mono:
-    ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    "JetBrains Mono Variable", ui-monospace, "SF Mono", "Cascadia Code", Menlo,
+    Consolas, monospace;
   --tracking-tight: -0.02em;
 }

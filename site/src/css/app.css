@@ -3,18 +3,20 @@
    Intentionally thin. To change the design system, edit the
    files this imports — not this file.
 
-     tokens/primitives.css   Layer 1 — raw palette + scales
-     tokens/typography.css   Type primitives
+     tokens/primitives.css   Layer 1 — raw oklch palette
+     tokens/typography.css   Font families
      tokens/semantic.css     Layer 2 — Tailwind utility mapping
-     themes/light.css        :root semantic values (light)
-     themes/dark.css         .dark semantic values (dark)
+     themes/light.css        :root values (light + geometry)
+     themes/dark.css         .dark values (dark)
 
    Components only ever consume Layer 2 tokens via utilities
-   like `bg-background`, `text-foreground`, `bg-primary`.
+   like `bg-main`, `bg-secondary-background`, `shadow-shadow`.
    ============================================================ */
 
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/jetbrains-mono";
 
 @import "./tokens/primitives.css";
 @import "./tokens/typography.css";
@@ -24,6 +26,15 @@
 @import "./themes/dark.css";
 
 @custom-variant dark (&:is(.dark *));
+
+/* The 48px squared-paper background behind the page. */
+@utility bg-grid {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
 
 @layer base {
   *,
@@ -40,7 +51,17 @@
     @apply font-sans antialiased;
   }
 
+  /* Base UI portals and popups need a stacking context on the app root. */
   body {
-    @apply bg-background text-foreground;
+    @apply relative isolate bg-background font-base text-foreground;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading;
   }
 }
