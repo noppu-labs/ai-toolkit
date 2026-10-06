@@ -2,6 +2,7 @@ import { ThemeProvider } from "next-themes";
 import { afterEach, describe, expect, it } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import { LOGO_FACE_SRC } from "@/lib/assets";
 import { SiteHeader } from "./SiteHeader.tsx";
 
 function renderHeader(): void {
@@ -24,6 +25,17 @@ describe("SiteHeader", () => {
     await expect
       .element(page.getByRole("link", { name: "AI Toolkit by Noppu Labs" }))
       .toHaveAttribute("href", "#top");
+  });
+
+  it("shows the face mark in the brand link", async () => {
+    renderHeader();
+
+    const brand = page.getByRole("link", { name: "AI Toolkit by Noppu Labs" });
+    await expect.element(brand).toBeVisible();
+    expect(brand.element().querySelector("img")).toHaveAttribute(
+      "src",
+      LOGO_FACE_SRC,
+    );
   });
 
   it("links to each section in the main navigation", async () => {

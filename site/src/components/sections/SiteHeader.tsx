@@ -29,7 +29,7 @@ export function SiteHeader(): ReactElement {
           )}
           href="#top"
         >
-          <Logo size="sm" />
+          <Logo mark="face" size="sm" />
           <span className="flex flex-col leading-[1.05]">
             <span className="font-heading text-xl tracking-tight">
               AI Toolkit
