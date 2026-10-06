@@ -26,15 +26,17 @@ function ToggleGroup({
   orientation = "horizontal",
   children,
   ...props
-}: ToggleGroupPrimitive.Props &
-  VariantProps<typeof toggleVariants> & {
-    spacing?: number;
-    orientation?: "horizontal" | "vertical";
+}: Omit<ToggleGroupPrimitive.Props, "className"> &
+  ToggleGroupContextValue & {
+    className?: string | undefined;
   }): React.JSX.Element {
   const context = React.useMemo(
     () => ({ variant, size, spacing, orientation }),
     [variant, size, spacing, orientation],
   );
+  const style: React.CSSProperties & Record<"--gap", number> = {
+    "--gap": spacing,
+  };
   return (
     <ToggleGroupPrimitive
       data-slot="toggle-group"
@@ -43,7 +45,7 @@ function ToggleGroup({
       data-spacing={spacing}
       data-orientation={orientation}
       orientation={orientation}
-      style={{ "--gap": spacing } as React.CSSProperties}
+      style={style}
       className={cn(
         "group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] rounded-base data-[orientation=vertical]:flex-col data-[orientation=vertical]:items-stretch",
         className,
@@ -63,8 +65,10 @@ function ToggleGroupItem({
   variant = "default",
   size = "default",
   ...props
-}: TogglePrimitive.Props &
-  VariantProps<typeof toggleVariants>): React.JSX.Element {
+}: Omit<TogglePrimitive.Props, "className"> &
+  VariantProps<typeof toggleVariants> & {
+    className?: string | undefined;
+  }): React.JSX.Element {
   const context = React.useContext(ToggleGroupContext);
 
   return (

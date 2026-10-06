@@ -10,8 +10,10 @@ function Button({
   variant,
   size,
   ...props
-}: React.ComponentProps<typeof ButtonPrimitive> &
-  VariantProps<typeof buttonVariants>): React.JSX.Element {
+}: Omit<React.ComponentProps<typeof ButtonPrimitive>, "className"> &
+  VariantProps<typeof buttonVariants> & {
+    className?: string | undefined;
+  }): React.JSX.Element {
   return (
     <ButtonPrimitive
       data-slot="button"

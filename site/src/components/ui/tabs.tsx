@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
 function Tabs({
   className,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Root>): React.JSX.Element {
+}: Omit<React.ComponentProps<typeof TabsPrimitive.Root>, "className"> & {
+  className?: string | undefined;
+}): React.JSX.Element {
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
@@ -25,8 +27,10 @@ function TabsList({
   className,
   variant = "default",
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.List> &
-  VariantProps<typeof tabsListVariants>): React.JSX.Element {
+}: Omit<React.ComponentProps<typeof TabsPrimitive.List>, "className"> &
+  VariantProps<typeof tabsListVariants> & {
+    className?: string | undefined;
+  }): React.JSX.Element {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
@@ -40,7 +44,9 @@ function TabsList({
 function TabsTrigger({
   className,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Tab>): React.JSX.Element {
+}: Omit<React.ComponentProps<typeof TabsPrimitive.Tab>, "className"> & {
+  className?: string | undefined;
+}): React.JSX.Element {
   return (
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
@@ -58,7 +64,9 @@ function TabsTrigger({
 function TabsContent({
   className,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Panel>): React.JSX.Element {
+}: Omit<React.ComponentProps<typeof TabsPrimitive.Panel>, "className"> & {
+  className?: string | undefined;
+}): React.JSX.Element {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-content"

@@ -1,4 +1,3 @@
-import type { VariantProps } from "class-variance-authority";
 import { Check, Copy } from "lucide-react";
 import {
   type ComponentProps,
@@ -9,25 +8,23 @@ import {
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
-import type { buttonVariants } from "@/components/ui/button-variants";
 
 type CopyButtonProps = Omit<
   ComponentProps<typeof Button>,
   "aria-label" | "children" | "onClick" | "content"
-> &
-  VariantProps<typeof buttonVariants> & {
-    /** The text written to the clipboard. */
-    content: string;
-    /** The accessible name; it stays the same in the copied state. */
-    "aria-label": string;
-    /** An optional visible label next to the icon. */
-    label?: ReactNode;
-    /** The visible label while copied (only shown when `label` is set). */
-    copiedLabel?: ReactNode;
-    /** How long the copied state lasts, in milliseconds. */
-    resetAfter?: number;
-    onCopied?: (content: string) => void;
-  };
+> & {
+  /** The text written to the clipboard. */
+  content: string;
+  /** The accessible name; it stays the same in the copied state. */
+  "aria-label": string;
+  /** An optional visible label next to the icon. */
+  label?: ReactNode;
+  /** The visible label while copied (only shown when `label` is set). */
+  copiedLabel?: ReactNode;
+  /** How long the copied state lasts, in milliseconds. */
+  resetAfter?: number;
+  onCopied?: (content: string) => void;
+};
 
 /** A neobrutalism button that copies `content` to the clipboard. */
 export function CopyButton({
