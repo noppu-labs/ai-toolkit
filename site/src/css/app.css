@@ -50,9 +50,14 @@
     @apply font-sans antialiased;
   }
 
-  /* Base UI portals and popups need a stacking context on the app root. */
+  /* `relative`: Base UI's iOS 26+ Safari setting, so absolute popup backdrops cover the viewport after scrolling. */
   body {
-    @apply relative isolate bg-background font-base text-foreground;
+    @apply relative bg-background font-base text-foreground;
+  }
+
+  /* Base UI's isolation root: popups portalled into `body` stack above the app, whatever z-index it uses. */
+  #root {
+    @apply isolate;
   }
 
   h1,
