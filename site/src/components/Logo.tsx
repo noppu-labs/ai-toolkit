@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { LOGO_SRC } from "@/lib/assets";
+import { LOGO_MARK_SRC } from "@/lib/assets";
 import { cn } from "@/lib/utils";
 
 const SIZES = {
@@ -38,10 +38,10 @@ export function Logo({
     >
       <img
         alt={label ?? ""}
-        className="size-full scale-140 object-cover"
+        className="size-full object-contain"
         decoding="async"
         height={size === "sm" ? 48 : 72}
-        src={LOGO_SRC}
+        src={LOGO_MARK_SRC}
         width={size === "sm" ? 48 : 72}
       />
     </span>
