@@ -34,7 +34,4 @@
   --palette-lime: oklch(0.8494 0.2069 128.89);
   --palette-coral: oklch(0.7318 0.165 28.31);
   --palette-periwinkle: oklch(0.7395 0.106 263.6);
-
-  /* Destructive intent (kept for the shadcn-style variants) */
-  --palette-red: oklch(0.6256 0.1933 23.03);
 }

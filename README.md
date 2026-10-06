@@ -5,7 +5,7 @@
 [![build](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml)
 [![attestations](https://img.shields.io/badge/releases-attested-blue?logo=github)](https://github.com/noppu-labs/ai-toolkit/attestations)
 
-Agents and skills for agentic development in modern Laravel and React applications.
+Agent skills for deep code review and grounded investigation in PHP, TypeScript, Python and beyond, plus dedicated Laravel and React packs.
 
 **Website:** <https://noppu-labs.github.io/ai-toolkit/>
 

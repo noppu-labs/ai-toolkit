@@ -12,11 +12,6 @@ const buttonVariants = cva(
           "border-2 border-border bg-secondary-background text-foreground shadow-shadow hover:translate-x-boxShadowX hover:translate-y-boxShadowY hover:shadow-none",
         reverse:
           "border-2 border-border bg-main text-main-foreground hover:translate-x-reverseBoxShadowX hover:translate-y-reverseBoxShadowY hover:shadow-shadow",
-        // Compatibility aliases for call sites written against the shadcn
-        // variant names (removed once the sections are rewritten).
-        outline:
-          "border-2 border-border bg-secondary-background text-foreground shadow-shadow hover:translate-x-boxShadowX hover:translate-y-boxShadowY hover:shadow-none",
-        ghost: "border-2 border-transparent hover:border-border",
       },
       size: {
         default: "h-10 px-4 py-2",

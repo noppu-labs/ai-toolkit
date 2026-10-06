@@ -19,6 +19,6 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@animate-ui": "https://animate-ui.com/r/{name}.json"
+    "@neobrutalism": "https://neobrutalism.dev/r/{name}.json"
   }
 }

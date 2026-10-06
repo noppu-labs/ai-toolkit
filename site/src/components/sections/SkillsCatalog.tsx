@@ -175,6 +175,12 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
           ))}
         </ToggleGroup>
 
+        <output aria-live="polite" className="sr-only">
+          {visible.length === 1
+            ? "1 skill shown"
+            : `${visible.length} skills shown`}
+        </output>
+
         {visible.length === 0 ? (
           <div className="mt-6 rounded-[10px] border-2 border-current border-dashed p-8 text-center">
             <p className="font-medium text-lg">No skills match your filter.</p>

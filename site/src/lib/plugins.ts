@@ -13,7 +13,7 @@ export const PLUGIN_ORDER: readonly string[] = [
 ];
 
 /** Plugins that are not tied to one language or framework. */
-export const LANGUAGE_AGNOSTIC_PLUGINS: ReadonlySet<string> = new Set([
+const LANGUAGE_AGNOSTIC_PLUGINS: ReadonlySet<string> = new Set([
   "review",
   "investigate",
 ]);

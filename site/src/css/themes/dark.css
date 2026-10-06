@@ -14,7 +14,4 @@
   --terminal: var(--palette-terminal-dark);
   --ink: var(--palette-black);
   --grid-line: oklch(1 0 0 / 0.05);
-
-  --hero-gradient-from: var(--palette-pink);
-  --hero-gradient-to: var(--palette-plum-50);
 }

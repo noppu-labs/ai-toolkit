@@ -7,8 +7,7 @@ import {
 } from "react";
 import { CopyButton } from "@/components/CopyButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const PLUGINS = ["review", "investigate", "laravel", "inertia-react"] as const;
+import { PLUGIN_ORDER } from "@/lib/plugins";
 
 type InstallMethodId = "claude-code" | "skills-cli";
 
@@ -26,7 +25,7 @@ const CLAUDE_CODE: InstallMethod = {
   copyLabel: "Copy Claude Code install commands",
   commands: [
     "/plugin marketplace add noppu-labs/ai-toolkit",
-    ...PLUGINS.map((plugin) => `/plugin install ${plugin}@ai-toolkit`),
+    ...PLUGIN_ORDER.map((plugin) => `/plugin install ${plugin}@ai-toolkit`),
     "/laravel:install-rules",
     "/inertia-react:install-rules",
   ],
@@ -43,7 +42,7 @@ const SKILLS_CLI: InstallMethod = {
   id: "skills-cli",
   label: "Vercel skills CLI",
   copyLabel: "Copy skills CLI commands",
-  commands: PLUGINS.map(
+  commands: PLUGIN_ORDER.map(
     (plugin) => `npx skills add noppu-labs/ai-toolkit/${plugin}`,
   ),
   note: (

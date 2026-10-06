@@ -6,8 +6,7 @@
    (`bg-main`, `bg-secondary-background`, `shadow-shadow`,
    `rounded-base`, `translate-x-boxShadowX`, `font-heading`, …).
    The second block holds this site's brand tokens. The last
-   block keeps the shadcn-style names that older components still
-   use, mapped onto the new palette.
+   block derives Tailwind's radius scale from the base radius.
    ============================================================ */
 
 @theme inline {
@@ -49,29 +48,7 @@
   --color-plugin-laravel: var(--palette-coral);
   --color-plugin-inertia-react: var(--palette-periwinkle);
 
-  /* shadcn-style compatibility (removed once no component uses them) */
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-
-  --color-muted: var(--muted);
-
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-
-  --color-input: var(--input);
-
+  /* Radius scale derived from the base radius (`rounded-sm`, `rounded-xl`, …). */
   --radius-sm: calc(var(--border-radius) - 4px);
   --radius-md: calc(var(--border-radius) - 2px);
   --radius-lg: var(--border-radius);

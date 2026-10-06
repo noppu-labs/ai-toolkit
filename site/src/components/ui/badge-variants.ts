@@ -8,8 +8,6 @@ const badgeVariants = cva(
         default: "bg-background text-foreground",
         neutral: "bg-secondary-background text-foreground",
         main: "bg-main text-main-foreground",
-        // Compatibility alias for the shadcn variant name.
-        secondary: "bg-secondary-background text-foreground",
       },
     },
     defaultVariants: {

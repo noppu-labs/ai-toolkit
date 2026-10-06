@@ -113,6 +113,17 @@ describe("SkillsCatalog", () => {
     expect(skillNames()).toEqual(["laravel-enums"]);
   });
 
+  it("announces how many skills the filter shows", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+
+    const status = page.getByRole("status");
+    await expect.element(status).toHaveTextContent("4 skills shown");
+    await chip("laravel").click();
+    await expect.element(status).toHaveTextContent("2 skills shown");
+    await search.fill("backed");
+    await expect.element(status).toHaveTextContent("1 skill shown");
+  });
+
   it("shows an empty state and clears both the query and the chip", async () => {
     render(<SkillsCatalog plugins={PLUGINS} />);
 

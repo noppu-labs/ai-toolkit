@@ -61,7 +61,7 @@ function PluginCard({ plugin }: { plugin: PluginEntry }): ReactElement {
           ))}
         </ul>
         <div className="flex items-stretch gap-3">
-          <code className="flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap rounded-base border-2 border-border bg-terminal px-3.5 py-2.5 font-mono text-sm text-terminal-foreground">
+          <code className="wrap-anywhere flex min-w-0 flex-1 items-center rounded-base border-2 border-border bg-terminal px-3.5 py-2.5 font-mono text-sm text-terminal-foreground">
             {command}
           </code>
           <CopyButton

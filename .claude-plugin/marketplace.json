@@ -3,7 +3,7 @@
   "owner": {
     "name": "Noppu Labs"
   },
-  "description": "Claude Code plugins for the Noppu stack (Laravel 13 + Inertia v3 + React 19 + TypeScript)",
+  "description": "Three-stage PR reviews, comment and type-safety audits, and deterministic briefs that ground every investigation before an agent reads a line. Tuned for PHP, TypeScript and Python, with dedicated Laravel and React packs, and still useful in any other language.",
   "plugins": [
     {
       "name": "laravel",

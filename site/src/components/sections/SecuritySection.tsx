@@ -24,6 +24,10 @@ const HEALTH_LINKS = [
     label: "OpenSSF Best Practices",
     href: "https://www.bestpractices.dev/projects/13473",
   },
+  {
+    label: "OpenSSF Baseline",
+    href: "https://www.bestpractices.dev/projects/13473/baseline",
+  },
   { label: "Snyk", href: "https://snyk.io/test/github/noppu-labs/ai-toolkit" },
 ];
 
@@ -84,7 +88,7 @@ export function SecuritySection(): ReactElement {
                 size="icon-lg"
               />
             </div>
-            <pre className="overflow-x-auto p-5 font-mono text-[15px] text-terminal-foreground">
+            <pre className="wrap-anywhere whitespace-pre-wrap p-5 font-mono text-[15px] text-terminal-foreground">
               <code>
                 <span
                   aria-hidden="true"
