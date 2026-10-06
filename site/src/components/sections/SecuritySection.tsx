@@ -26,7 +26,7 @@ const HEALTH_LINKS = [
   },
   {
     label: "OpenSSF Baseline",
-    href: "https://www.bestpractices.dev/projects/13473/baseline",
+    href: "https://www.bestpractices.dev/projects/13473/baseline-1",
   },
   { label: "Snyk", href: "https://snyk.io/test/github/noppu-labs/ai-toolkit" },
 ];

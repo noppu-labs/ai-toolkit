@@ -80,7 +80,7 @@ describe("SecuritySection", () => {
       ],
       [
         "OpenSSF Baseline",
-        "https://www.bestpractices.dev/projects/13473/baseline",
+        "https://www.bestpractices.dev/projects/13473/baseline-1",
       ],
       ["Snyk", "https://snyk.io/test/github/noppu-labs/ai-toolkit"],
     ]);
