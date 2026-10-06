@@ -1,1 +1,4 @@
 export const LOGO_SRC = `${import.meta.env.BASE_URL}logo.svg`;
+
+/** The small mark: the whole axolotl with solid gills, legible at 48px. */
+export const LOGO_MARK_SRC = `${import.meta.env.BASE_URL}logo-mark.svg`;
