@@ -48,7 +48,7 @@ describe("Hero", () => {
     await expect.element(mascot).toBeVisible();
     await expect
       .element(mascot)
-      .toHaveAttribute("src", `${import.meta.env.BASE_URL}logo.png`);
+      .toHaveAttribute("src", `${import.meta.env.BASE_URL}logo.svg`);
     await expect
       .element(page.getByText("2 plugins", { exact: true }))
       .toBeVisible();
