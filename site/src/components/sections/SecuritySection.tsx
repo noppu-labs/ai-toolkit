@@ -1,25 +1,23 @@
 import type { ReactElement } from "react";
 import { useId } from "react";
 import { CopyButton } from "@/components/CopyButton";
+import { REPO_SLUG, REPO_URL } from "@/lib/repo";
 
-const VERIFY_COMMAND =
-  "gh attestation verify <plugin>-<version>.tgz --repo noppu-labs/ai-toolkit";
-
-const REPO = "https://github.com/noppu-labs/ai-toolkit";
+const VERIFY_COMMAND = `gh attestation verify <plugin>-<version>.tgz --repo ${REPO_SLUG}`;
 
 const LINKS = [
-  { label: "Security policy", href: `${REPO}/blob/main/SECURITY.md` },
+  { label: "Security policy", href: `${REPO_URL}/blob/main/SECURITY.md` },
   {
     label: "OpenSSF Scorecard",
-    href: "https://scorecard.dev/viewer/?uri=github.com/noppu-labs/ai-toolkit",
+    href: `https://scorecard.dev/viewer/?uri=github.com/${REPO_SLUG}`,
   },
-  { label: "Release attestations", href: `${REPO}/attestations` },
+  { label: "Release attestations", href: `${REPO_URL}/attestations` },
 ];
 
 const HEALTH_LINKS = [
-  { label: "tests", href: `${REPO}/actions/workflows/tests.yml` },
-  { label: "fuzz", href: `${REPO}/actions/workflows/fuzz.yml` },
-  { label: "build", href: `${REPO}/actions/workflows/release.yml` },
+  { label: "tests", href: `${REPO_URL}/actions/workflows/tests.yml` },
+  { label: "fuzz", href: `${REPO_URL}/actions/workflows/fuzz.yml` },
+  { label: "build", href: `${REPO_URL}/actions/workflows/release.yml` },
   {
     label: "OpenSSF Best Practices",
     href: "https://www.bestpractices.dev/projects/13473",
@@ -28,7 +26,7 @@ const HEALTH_LINKS = [
     label: "OpenSSF Baseline",
     href: "https://www.bestpractices.dev/projects/13473/baseline-1",
   },
-  { label: "Snyk", href: "https://snyk.io/test/github/noppu-labs/ai-toolkit" },
+  { label: "Snyk", href: `https://snyk.io/test/github/${REPO_SLUG}` },
 ];
 
 // The panel is lime and the card header white in both themes, so text and

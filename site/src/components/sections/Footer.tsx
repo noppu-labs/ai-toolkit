@@ -1,19 +1,20 @@
 import type { ReactElement } from "react";
 import { Logo } from "@/components/Logo";
+import { REPO_URL } from "@/lib/repo";
 
-const FOOTER_LINKS = [
-  { label: "GitHub", href: "https://github.com/noppu-labs/ai-toolkit" },
+const FOOTER_LINKS: { label: string; href: string }[] = [
+  { label: "GitHub", href: REPO_URL },
   {
     label: "License",
-    href: "https://github.com/noppu-labs/ai-toolkit/blob/main/LICENSE",
+    href: `${REPO_URL}/blob/main/LICENSE`,
   },
   {
     label: "Contributing",
-    href: "https://github.com/noppu-labs/ai-toolkit/blob/main/CONTRIBUTING.md",
+    href: `${REPO_URL}/blob/main/CONTRIBUTING.md`,
   },
   {
     label: "Releases",
-    href: "https://github.com/noppu-labs/ai-toolkit/releases",
+    href: `${REPO_URL}/releases`,
   },
 ];
 

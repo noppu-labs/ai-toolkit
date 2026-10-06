@@ -8,6 +8,7 @@ import {
 import { CopyButton } from "@/components/CopyButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PLUGIN_ORDER } from "@/lib/plugins";
+import { REPO_SLUG } from "@/lib/repo";
 
 type InstallMethodId = "claude-code" | "skills-cli";
 
@@ -24,7 +25,7 @@ const CLAUDE_CODE: InstallMethod = {
   label: "Claude Code marketplace",
   copyLabel: "Copy Claude Code install commands",
   commands: [
-    "/plugin marketplace add noppu-labs/ai-toolkit",
+    `/plugin marketplace add ${REPO_SLUG}`,
     ...PLUGIN_ORDER.map((plugin) => `/plugin install ${plugin}@ai-toolkit`),
     "/laravel:install-rules",
     "/inertia-react:install-rules",
@@ -43,7 +44,7 @@ const SKILLS_CLI: InstallMethod = {
   label: "Vercel skills CLI",
   copyLabel: "Copy skills CLI commands",
   commands: PLUGIN_ORDER.map(
-    (plugin) => `npx skills add noppu-labs/ai-toolkit/${plugin}`,
+    (plugin) => `npx skills add ${REPO_SLUG}/${plugin}`,
   ),
   note: (
     <>

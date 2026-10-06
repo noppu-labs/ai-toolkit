@@ -1,7 +1,6 @@
 import type { ReactElement } from "react";
+import { LOGO_SRC } from "@/lib/assets";
 import { cn } from "@/lib/utils";
-
-const LOGO_SRC = `${import.meta.env.BASE_URL}logo.png`;
 
 const SIZES = {
   sm: "size-12 rounded-[8px] border-border shadow-shadow-md",

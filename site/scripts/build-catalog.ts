@@ -14,9 +14,8 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Catalog, PluginEntry, SkillEntry } from "../src/catalog-types.ts";
+import { REPO_URL } from "../src/lib/repo.ts";
 import { parseFrontmatter } from "./frontmatter.ts";
-
-const REPO_URL = "https://github.com/noppu-labs/ai-toolkit";
 
 interface MarketplacePlugin {
   name: string;

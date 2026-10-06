@@ -1,9 +1,9 @@
 import { ArrowDown } from "lucide-react";
 import { type ReactElement, useId } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { LOGO_SRC } from "@/lib/assets";
+import { REPO_SLUG } from "@/lib/repo";
 import { cn } from "@/lib/utils";
-
-const LOGO_SRC = `${import.meta.env.BASE_URL}logo.png`;
 
 const CTA_CLASSES =
   "h-14 px-6 font-heading text-lg focus-visible:ring-offset-background";
@@ -35,7 +35,7 @@ export function Hero({
             aria-hidden="true"
             className="size-2.5 shrink-0 rounded-full border-2 border-border bg-plugin-investigate"
           />
-          Claude Code marketplace · noppu-labs/ai-toolkit
+          Claude Code marketplace · {REPO_SLUG}
         </span>
         <h1
           className="mt-7 text-[clamp(44px,6vw,80px)] leading-[0.98] tracking-[-0.04em]"
@@ -83,7 +83,7 @@ export function Hero({
               width={420}
             />
             <figcaption className="mt-2 flex items-center justify-between gap-2 font-bold font-mono text-sm">
-              <span>noppu-labs/ai-toolkit</span>
+              <span>{REPO_SLUG}</span>
               <span className="rounded-base border-2 border-border bg-white px-2.5 py-1">
                 {pluginCount} plugins
               </span>

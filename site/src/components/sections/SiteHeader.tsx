@@ -3,9 +3,8 @@ import type { ReactElement } from "react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { REPO_URL } from "@/lib/repo";
 import { cn } from "@/lib/utils";
-
-const REPO_URL = "https://github.com/noppu-labs/ai-toolkit";
 
 const NAV_LINKS = [
   { label: "Plugins", href: "#plugins" },
