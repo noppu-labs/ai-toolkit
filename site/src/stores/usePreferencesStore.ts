@@ -5,10 +5,13 @@ import {
   persist,
   type StateStorage,
 } from "zustand/middleware";
-import { systemPrefersDark } from "@/lib/theme";
+import { RESOLVED_THEMES, systemPrefersDark } from "@/lib/theme";
 
-export type Theme = "light" | "dark" | "system";
-export type InstallMethod = "claude-code" | "skills-cli";
+const THEMES = [...RESOLVED_THEMES, "system"] as const;
+export type Theme = (typeof THEMES)[number];
+
+export const INSTALL_METHODS = ["claude-code", "skills-cli"] as const;
+export type InstallMethod = (typeof INSTALL_METHODS)[number];
 
 interface PreferencesState {
   theme: Theme;
@@ -26,7 +29,7 @@ type PreferencesStore = PreferencesState & PreferencesActions;
 
 /** Also read by the no-flash script in `index.html`; keep the two in step. */
 export const PREFERENCES_STORAGE_KEY = "ai-toolkit-preferences";
-/** Where next-themes kept the theme before this store replaced it. */
+/** The key next-themes stored the theme under; `migrateLegacyTheme` adopts it once, then removes it. */
 export const LEGACY_THEME_KEY = "theme";
 const STORAGE_VERSION = 1;
 
@@ -35,38 +38,59 @@ const DEFAULT_PREFERENCES: PreferencesState = {
   installMethod: "claude-code",
 };
 
-const THEMES: readonly Theme[] = ["light", "dark", "system"];
-const INSTALL_METHODS: readonly InstallMethod[] = ["claude-code", "skills-cli"];
-
 function isTheme(value: unknown): value is Theme {
-  return THEMES.includes(value as Theme);
+  return THEMES.some((theme) => theme === value);
 }
 
-function isInstallMethod(value: unknown): value is InstallMethod {
-  return INSTALL_METHODS.includes(value as InstallMethod);
+export function isInstallMethod(value: unknown): value is InstallMethod {
+  return INSTALL_METHODS.some((method) => method === value);
 }
 
 /** Keeps only valid preference values, so a hand-edited or stale entry cannot break the page. */
 function sanitize(persisted: unknown): Partial<PreferencesState> {
-  const { theme, installMethod } = (persisted ?? {}) as Record<string, unknown>;
+  if (typeof persisted !== "object" || persisted === null) {
+    return {};
+  }
+  const theme = "theme" in persisted ? persisted.theme : undefined;
+  const installMethod =
+    "installMethod" in persisted ? persisted.installMethod : undefined;
+
   return {
     ...(isTheme(theme) && { theme }),
     ...(isInstallMethod(installMethod) && { installMethod }),
   };
 }
 
-// localStorage that never throws (it can in sandboxed iframes or with storage
-// blocked) and that, until the new key is first written, offers the legacy
-// next-themes value as a version-0 entry, so `migrate` adopts it once.
+/** Does nothing once the store's key exists, so later writes leave any new `theme` value alone. */
+export function migrateLegacyTheme(): void {
+  try {
+    const legacy = localStorage.getItem(LEGACY_THEME_KEY);
+    if (
+      legacy === null ||
+      localStorage.getItem(PREFERENCES_STORAGE_KEY) !== null
+    ) {
+      return;
+    }
+    if (isTheme(legacy)) {
+      localStorage.setItem(
+        PREFERENCES_STORAGE_KEY,
+        JSON.stringify({
+          state: { ...DEFAULT_PREFERENCES, theme: legacy },
+          version: STORAGE_VERSION,
+        }),
+      );
+    }
+    localStorage.removeItem(LEGACY_THEME_KEY);
+  } catch {
+    // Storage is blocked, so there is nothing to migrate.
+  }
+}
+
+// localStorage that never throws (it can in sandboxed iframes or with storage blocked).
 const preferencesStorage: StateStorage = {
   getItem: (name: string): string | null => {
     try {
-      const stored = localStorage.getItem(name);
-      const legacy = localStorage.getItem(LEGACY_THEME_KEY);
-      if (stored !== null || legacy === null) {
-        return stored;
-      }
-      return JSON.stringify({ state: { theme: legacy }, version: 0 });
+      return localStorage.getItem(name);
     } catch {
       return null;
     }
@@ -74,7 +98,6 @@ const preferencesStorage: StateStorage = {
   setItem: (name: string, value: string): void => {
     try {
       localStorage.setItem(name, value);
-      localStorage.removeItem(LEGACY_THEME_KEY);
     } catch {
       // Preferences then last for this visit only.
     }
@@ -87,6 +110,8 @@ const preferencesStorage: StateStorage = {
     }
   },
 };
+
+migrateLegacyTheme();
 
 export const usePreferencesStore = create<PreferencesStore>()(
   devtools(
@@ -122,7 +147,6 @@ export const usePreferencesStore = create<PreferencesStore>()(
           theme,
           installMethod,
         }),
-        // Version 0 is the legacy next-themes value; sanitize drops anything unknown.
         migrate: (persisted: unknown): PreferencesState => ({
           ...DEFAULT_PREFERENCES,
           ...sanitize(persisted),
@@ -139,3 +163,11 @@ export const usePreferencesStore = create<PreferencesStore>()(
     { name: "Preferences", enabled: import.meta.env.DEV },
   ),
 );
+
+// Another tab changed the preferences: adopt them, so this tab neither lags nor
+// overwrites them with its own stale state on its next write.
+window.addEventListener("storage", (event: StorageEvent): void => {
+  if (event.key === PREFERENCES_STORAGE_KEY) {
+    void usePreferencesStore.persist.rehydrate();
+  }
+});
