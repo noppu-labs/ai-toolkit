@@ -53,6 +53,7 @@ Thumbs.db
 
 # Vitest browser test artifacts
 .vitest/
+.vitest-attachments/
 __screenshots__/
 
 # Python
