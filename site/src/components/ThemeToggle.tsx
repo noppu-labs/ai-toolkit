@@ -1,25 +1,22 @@
 import { Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
-import { type ReactElement, useCallback } from "react";
+import type { ReactElement } from "react";
 import { Button } from "@/components/ui/button";
+import { useResolvedTheme } from "@/hooks/useResolvedTheme";
+import { usePreferencesStore } from "@/stores/usePreferencesStore";
 
 export function ThemeToggle({
   className,
 }: {
   className?: string;
 }): ReactElement {
-  const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
-  const toggle = useCallback(
-    (): void => setTheme(isDark ? "light" : "dark"),
-    [isDark, setTheme],
-  );
+  const isDark = useResolvedTheme() === "dark";
+  const toggleTheme = usePreferencesStore((state) => state.toggleTheme);
 
   return (
     <Button
-      aria-label="Toggle theme"
+      aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
       className={className}
-      onClick={toggle}
+      onClick={toggleTheme}
       size="icon"
       variant="neutral"
     >

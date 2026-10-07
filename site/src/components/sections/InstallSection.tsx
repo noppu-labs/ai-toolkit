@@ -1,16 +1,12 @@
-import {
-  type ReactElement,
-  type ReactNode,
-  useCallback,
-  useId,
-  useState,
-} from "react";
+import { type ReactElement, type ReactNode, useCallback, useId } from "react";
 import { CopyButton } from "@/components/CopyButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PLUGIN_ORDER } from "@/lib/plugins";
 import { REPO_SLUG } from "@/lib/repo";
-
-type InstallMethodId = "claude-code" | "skills-cli";
+import {
+  type InstallMethod as InstallMethodId,
+  usePreferencesStore,
+} from "@/stores/usePreferencesStore";
 
 interface InstallMethod {
   id: InstallMethodId;
@@ -57,16 +53,26 @@ const SKILLS_CLI: InstallMethod = {
 const INSTALL_METHODS: readonly InstallMethod[] = [CLAUDE_CODE, SKILLS_CLI];
 
 export function InstallSection(): ReactElement {
-  const [active, setActive] = useState<InstallMethod>(CLAUDE_CODE);
+  const activeId = usePreferencesStore((state) => state.installMethod);
+  const setInstallMethod = usePreferencesStore(
+    (state) => state.setInstallMethod,
+  );
+  const active =
+    INSTALL_METHODS.find((method) => method.id === activeId) ?? CLAUDE_CODE;
 
   const headingId = useId();
 
-  const handleValueChange = useCallback((value: unknown): void => {
-    const method = INSTALL_METHODS.find((candidate) => candidate.id === value);
-    if (method !== undefined) {
-      setActive(method);
-    }
-  }, []);
+  const handleValueChange = useCallback(
+    (value: unknown): void => {
+      const method = INSTALL_METHODS.find(
+        (candidate) => candidate.id === value,
+      );
+      if (method !== undefined) {
+        setInstallMethod(method.id);
+      }
+    },
+    [setInstallMethod],
+  );
 
   return (
     // biome-ignore lint/correctness/useUniqueElementIds: the in-page anchor the hero links to; the section renders once.
@@ -91,23 +97,23 @@ export function InstallSection(): ReactElement {
         </p>
         <p className="mt-4 text-base text-muted-foreground leading-[1.55]">
           Skills are namespaced after install, e.g.{" "}
-          <code className="rounded-sm border-2 border-border bg-secondary-background px-1.5 py-0.5 font-mono text-foreground text-sm">
+          <code className="rounded-sm border-2 border-edge bg-secondary-background px-1.5 py-0.5 font-mono text-foreground text-sm">
             review:comment-audit
           </code>
           .
         </p>
       </div>
 
-      <div className="min-w-0 flex-[999_1_600px] overflow-hidden rounded-xl border-3 border-border bg-secondary-background shadow-shadow-xl">
+      <div className="min-w-0 flex-[999_1_600px] overflow-hidden rounded-xl border-3 border-edge bg-secondary-background shadow-shadow-xl">
         <Tabs onValueChange={handleValueChange} value={active.id}>
-          <div className="flex flex-wrap items-center justify-between gap-2.5 border-border border-b-3 bg-background p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 border-edge border-b-3 bg-background p-3.5">
             <TabsList
               aria-label="Install method"
               className="h-auto flex-wrap justify-start gap-2.5 border-0 bg-transparent p-0"
             >
               {INSTALL_METHODS.map((method) => (
                 <TabsTrigger
-                  className="h-11 border-border bg-secondary-background px-4 text-[15px] text-foreground focus-visible:ring-offset-background data-active:bg-main data-active:text-main-foreground data-active:shadow-shadow-md"
+                  className="h-11 border-edge bg-secondary-background px-4 text-[15px] text-foreground focus-visible:ring-offset-background data-active:border-border data-active:bg-main data-active:text-main-foreground data-active:shadow-shadow-md"
                   key={method.id}
                   value={method.id}
                 >

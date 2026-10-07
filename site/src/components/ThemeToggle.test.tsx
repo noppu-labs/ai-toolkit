@@ -1,47 +1,73 @@
-import { ThemeProvider } from "next-themes";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import {
+  PREFERENCES_STORAGE_KEY,
+  usePreferencesStore,
+} from "@/stores/usePreferencesStore";
+import { resetPreferences, stubSystemTheme } from "@/test/preferences";
+import { ThemeSync } from "./ThemeSync.tsx";
 import { ThemeToggle } from "./ThemeToggle.tsx";
 
-function renderToggle(defaultTheme: string): void {
+function renderToggle(): void {
   render(
-    <ThemeProvider attribute="class" defaultTheme={defaultTheme} enableSystem>
+    <>
+      <ThemeSync />
       <ThemeToggle />
-    </ThemeProvider>,
+    </>,
   );
 }
 
+function storedTheme(): unknown {
+  const raw = localStorage.getItem(PREFERENCES_STORAGE_KEY);
+  return raw === null ? null : JSON.parse(raw).state.theme;
+}
+
+beforeEach(() => {
+  resetPreferences();
+});
+
 afterEach(() => {
-  window.localStorage.removeItem("theme");
-  document.documentElement.classList.remove("dark");
+  resetPreferences();
+  vi.restoreAllMocks();
 });
 
 describe("ThemeToggle", () => {
-  it("toggles from light to dark and persists", async () => {
-    window.localStorage.setItem("theme", "light");
-    renderToggle("light");
+  it("switches from light to dark and persists the choice", async () => {
+    usePreferencesStore.getState().setTheme("light");
+    renderToggle();
 
-    const toggle = page.getByRole("button", { name: "Toggle theme" });
-    await expect.element(toggle).toBeVisible();
-    await toggle.click();
+    await page.getByRole("button", { name: "Switch to dark theme" }).click();
 
     await expect
       .poll(() => document.documentElement.classList.contains("dark"))
       .toBe(true);
-    expect(window.localStorage.getItem("theme")).toBe("dark");
+    expect(storedTheme()).toBe("dark");
   });
 
-  it("toggles from dark back to light", async () => {
-    window.localStorage.setItem("theme", "dark");
-    document.documentElement.classList.add("dark");
-    renderToggle("dark");
+  it("switches from dark back to light", async () => {
+    usePreferencesStore.getState().setTheme("dark");
+    renderToggle();
 
-    await page.getByRole("button", { name: "Toggle theme" }).click();
+    await page.getByRole("button", { name: "Switch to light theme" }).click();
 
     await expect
       .poll(() => document.documentElement.classList.contains("dark"))
       .toBe(false);
-    expect(window.localStorage.getItem("theme")).toBe("light");
+    expect(storedTheme()).toBe("light");
+  });
+
+  it("names the switch away from the OS theme while following it", async () => {
+    stubSystemTheme(true);
+    renderToggle();
+
+    const toggle = page.getByRole("button", { name: "Switch to light theme" });
+    await expect.element(toggle).toBeVisible();
+    await toggle.click();
+
+    await expect
+      .element(page.getByRole("button", { name: "Switch to dark theme" }))
+      .toBeVisible();
+    expect(usePreferencesStore.getState().theme).toBe("light");
   });
 });

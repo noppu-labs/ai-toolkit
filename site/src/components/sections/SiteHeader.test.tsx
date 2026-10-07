@@ -1,21 +1,28 @@
-import { ThemeProvider } from "next-themes";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import { ThemeSync } from "@/components/ThemeSync";
 import { LOGO_FACE_SRC } from "@/lib/assets";
+import { usePreferencesStore } from "@/stores/usePreferencesStore";
+import { resetPreferences } from "@/test/preferences";
 import { SiteHeader } from "./SiteHeader.tsx";
 
 function renderHeader(): void {
   render(
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+    <>
+      <ThemeSync />
       <SiteHeader />
-    </ThemeProvider>,
+    </>,
   );
 }
 
+beforeEach(() => {
+  resetPreferences();
+  usePreferencesStore.getState().setTheme("light");
+});
+
 afterEach(() => {
-  window.localStorage.removeItem("theme");
-  document.documentElement.classList.remove("dark");
+  resetPreferences();
 });
 
 describe("SiteHeader", () => {
@@ -71,10 +78,9 @@ describe("SiteHeader", () => {
   });
 
   it("toggles the theme", async () => {
-    window.localStorage.setItem("theme", "light");
     renderHeader();
 
-    await page.getByRole("button", { name: "Toggle theme" }).click();
+    await page.getByRole("button", { name: "Switch to dark theme" }).click();
 
     await expect
       .poll(() => document.documentElement.classList.contains("dark"))
@@ -84,12 +90,12 @@ describe("SiteHeader", () => {
   it("keeps every control at least 44px tall", async () => {
     renderHeader();
     await expect
-      .element(page.getByRole("button", { name: "Toggle theme" }))
+      .element(page.getByRole("button", { name: "Switch to dark theme" }))
       .toBeVisible();
 
     const controls = [
       ...page.getByRole("navigation").getByRole("link").elements(),
-      page.getByRole("button", { name: "Toggle theme" }).element(),
+      page.getByRole("button", { name: "Switch to dark theme" }).element(),
     ];
     expect(controls.length).toBeGreaterThan(0);
     for (const control of controls) {

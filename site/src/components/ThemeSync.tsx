@@ -1,5 +1,5 @@
-import { useTheme } from "next-themes";
 import { useEffect } from "react";
+import { useResolvedTheme } from "@/hooks/useResolvedTheme";
 
 // index.html carries a light and a dark theme-color meta keyed on the OS setting,
 // so both are pointed at the chosen theme. Their colours are read once, before the
@@ -12,18 +12,23 @@ const colorFor = (scheme: "light" | "dark"): string | undefined =>
 const LIGHT = colorFor("light");
 const DARK = colorFor("dark");
 
-export function ThemeColorSync(): null {
-  const { resolvedTheme } = useTheme();
+/** Applies the resolved theme to `<html>` (the `dark` class and `color-scheme`) and the theme-color metas. */
+export function ThemeSync(): null {
+  const theme = useResolvedTheme();
 
   useEffect(() => {
-    const color = resolvedTheme === "dark" ? DARK : LIGHT;
+    const root = document.documentElement;
+    root.classList.toggle("dark", theme === "dark");
+    root.style.colorScheme = theme;
+
+    const color = theme === "dark" ? DARK : LIGHT;
     if (color === undefined) {
       return;
     }
     for (const meta of metas) {
       meta.content = color;
     }
-  }, [resolvedTheme]);
+  }, [theme]);
 
   return null;
 }
