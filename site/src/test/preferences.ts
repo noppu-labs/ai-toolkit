@@ -1,10 +1,10 @@
-import { vi } from "vitest";
 import { prefersDarkQuery } from "@/lib/theme";
 import {
   LEGACY_THEME_KEY,
   PREFERENCES_STORAGE_KEY,
   usePreferencesStore,
 } from "@/stores/usePreferencesStore";
+import { stubMediaQuery } from "@/test/media";
 
 export function resetPreferences(): void {
   usePreferencesStore.setState(usePreferencesStore.getInitialState(), true);
@@ -21,15 +21,6 @@ export interface SystemTheme {
 
 /** Undo with `vi.restoreAllMocks()`. */
 export function stubSystemTheme(dark: boolean): SystemTheme {
-  let matches = dark;
-  vi.spyOn(prefersDarkQuery, "matches", "get").mockImplementation(
-    () => matches,
-  );
-
-  return {
-    setDark: (next: boolean): void => {
-      matches = next;
-      prefersDarkQuery.dispatchEvent(new Event("change"));
-    },
-  };
+  const query = stubMediaQuery(prefersDarkQuery, dark);
+  return { setDark: query.set };
 }

@@ -1,15 +1,15 @@
-export const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+export const prefersReducedMotionQuery: MediaQueryList = window.matchMedia(
+  "(prefers-reduced-motion: reduce)",
+);
 
-/** Smooth, unless the visitor asked for less motion. */
 export function scrollBehavior(): ScrollBehavior {
-  return window.matchMedia(REDUCED_MOTION_QUERY).matches ? "instant" : "smooth";
+  return prefersReducedMotionQuery.matches ? "instant" : "smooth";
 }
 
 /**
- * Scrolls the element with this id to the top of the viewport (its
- * `scroll-margin-top` keeps it clear of the sticky header) and, when it can
- * take focus, focuses it without a second scroll, as following a link would
- * move the reading position. Returns whether the element exists.
+ * `scroll-margin-top` keeps the target clear of the sticky header. A target with a
+ * `tabindex` also takes focus, as following a link would, without a second scroll.
+ * Returns `false` when no element has this id.
  */
 export function goToSection(id: string): boolean {
   const target = document.getElementById(id);
@@ -23,13 +23,12 @@ export function goToSection(id: string): boolean {
   return true;
 }
 
-/** Scrolls to the top of the page and moves focus to the skip link's target, so the next Tab starts from the content. */
+/** Also moves focus to `focusId`, so the next Tab starts there rather than where focus was. */
 export function goToTop(focusId: string): void {
   window.scrollTo({ top: 0, behavior: scrollBehavior() });
   document.getElementById(focusId)?.focus({ preventScroll: true });
 }
 
-/** The element id in the URL's fragment, or `null` when there is none. */
 export function hashTarget(hash: string): string | null {
   if (hash.length <= 1) {
     return null;

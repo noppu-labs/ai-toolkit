@@ -2,21 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import App from "./App.tsx";
-import { REDUCED_MOTION_QUERY } from "./lib/scroll.ts";
+import { prefersReducedMotionQuery } from "./lib/scroll.ts";
 import { writePluginParam } from "./lib/url-state.ts";
+import { stubMediaQuery } from "./test/media.ts";
 
 function onScreen(element: Element): boolean {
   const { right, left } = element.getBoundingClientRect();
   return right > 0 && left < window.innerWidth;
-}
-
-function stubReducedMotion(reduce: boolean): void {
-  const original = window.matchMedia.bind(window);
-  vi.spyOn(window, "matchMedia").mockImplementation((query: string) =>
-    query === REDUCED_MOTION_QUERY
-      ? ({ matches: reduce, media: query } as MediaQueryList)
-      : original(query),
-  );
 }
 
 afterEach(() => {
@@ -46,7 +38,7 @@ describe("App", () => {
   ])(
     "scrolls to the URL's section once rendered (reduced motion: %s)",
     async (reduce, behavior) => {
-      stubReducedMotion(reduce);
+      stubMediaQuery(prefersReducedMotionQuery, reduce);
       const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
       window.history.replaceState(null, "", "#security");
 
@@ -62,7 +54,7 @@ describe("App", () => {
 
   it("lands a section's heading just below the sticky header", async () => {
     await page.viewport(390, 844);
-    stubReducedMotion(true);
+    stubMediaQuery(prefersReducedMotionQuery, true);
     window.history.replaceState(null, "", "#plugins");
 
     render(<App />);
@@ -84,7 +76,7 @@ describe("App", () => {
   });
 
   it("opens the catalog on a plugin from a card's skills link", async () => {
-    stubReducedMotion(true);
+    stubMediaQuery(prefersReducedMotionQuery, true);
     render(<App />);
 
     await page.getByRole("link", { name: /^See \d+ laravel skills$/ }).click();
@@ -99,6 +91,26 @@ describe("App", () => {
       )
       .toHaveAttribute("aria-pressed", "true");
     expect(window.location.search).toContain("plugin=laravel");
+  });
+
+  it("clears a typed catalog filter when a card's skills link is followed", async () => {
+    stubMediaQuery(prefersReducedMotionQuery, true);
+    render(<App />);
+    const search = page.getByRole("searchbox", { name: "Filter skills" });
+
+    await search.fill("zzz-no-such-skill");
+    // A DOM click: Playwright's would scroll the link under the sticky header.
+    const link = page.getByRole("link", { name: /^See \d+ laravel skills$/ });
+    link
+      .element()
+      .dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true }),
+      );
+
+    await expect.element(search).toHaveValue("");
+    await expect
+      .element(page.getByText("No skills match your filter."))
+      .not.toBeInTheDocument();
   });
 
   it("has no horizontal scroll on a phone", async () => {

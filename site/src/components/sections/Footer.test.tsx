@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
-import { REDUCED_MOTION_QUERY } from "@/lib/scroll";
+import { prefersReducedMotionQuery } from "@/lib/scroll";
+import { stubMediaQuery } from "@/test/media";
 import { Footer } from "./Footer.tsx";
 
 afterEach(() => {
@@ -101,12 +102,7 @@ describe("Footer", () => {
 
   it("jumps without animating when the visitor prefers less motion", async () => {
     await page.viewport(390, 844);
-    const original = window.matchMedia.bind(window);
-    vi.spyOn(window, "matchMedia").mockImplementation((query: string) =>
-      query === REDUCED_MOTION_QUERY
-        ? ({ matches: true, media: query } as MediaQueryList)
-        : original(query),
-    );
+    stubMediaQuery(prefersReducedMotionQuery, true);
     const scrollTo = vi
       .spyOn(window, "scrollTo")
       .mockImplementation(() => undefined);
