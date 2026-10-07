@@ -4,11 +4,13 @@ export const PLUGIN_PARAM = "plugin";
 /** Fired on `window` when this module changes the URL; `history` methods fire nothing themselves. */
 const URL_CHANGE_EVENT = "ai-toolkit:urlchange";
 
+/** Fired on `window` by `showPluginSkills`, so the catalog can drop a text query that would hide them. */
+const PLUGIN_LINK_EVENT = "ai-toolkit:pluginlink";
+
 export function readPluginParam(): string | null {
   return new URLSearchParams(window.location.search).get(PLUGIN_PARAM);
 }
 
-/** The link to a plugin's skills: the catalog filtered to it. */
 export function pluginSkillsHref(plugin: string): string {
   const params = new URLSearchParams({ [PLUGIN_PARAM]: plugin });
   return `?${params.toString()}#skills`;
@@ -21,7 +23,6 @@ interface WritePluginParamOptions {
   hash?: string;
 }
 
-/** Sets the plugin filter in the URL (`null` removes it), leaving every other parameter alone. */
 export function writePluginParam(
   plugin: string | null,
   { push = false, hash }: WritePluginParamOptions = {},
@@ -54,4 +55,16 @@ export function subscribeToUrl(onChange: () => void): () => void {
     window.removeEventListener("popstate", onChange);
     window.removeEventListener(URL_CHANGE_EVENT, onChange);
   };
+}
+
+/** What following a plugin's skills link does in page: filter the catalog to the plugin and say so. */
+export function showPluginSkills(plugin: string): void {
+  writePluginParam(plugin, { push: true, hash: "skills" });
+  window.dispatchEvent(new Event(PLUGIN_LINK_EVENT));
+}
+
+/** Calls `onFollow` when a plugin's skills link is followed in page. */
+export function subscribeToPluginLinks(onFollow: () => void): () => void {
+  window.addEventListener(PLUGIN_LINK_EVENT, onFollow);
+  return (): void => window.removeEventListener(PLUGIN_LINK_EVENT, onFollow);
 }

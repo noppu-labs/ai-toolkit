@@ -3,6 +3,7 @@ import {
   type ChangeEvent,
   type ReactElement,
   useCallback,
+  useEffect,
   useId,
   useMemo,
   useState,
@@ -18,7 +19,7 @@ import {
   sortPlugins,
 } from "@/lib/plugins";
 import { pluralize } from "@/lib/pluralize";
-import { writePluginParam } from "@/lib/url-state";
+import { subscribeToPluginLinks, writePluginParam } from "@/lib/url-state";
 import { cn } from "@/lib/utils";
 import type { PluginEntry, SkillEntry } from "../../catalog-types.ts";
 
@@ -80,8 +81,10 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
   const [query, setQuery] = useState("");
   const pluginParam = usePluginParam();
 
+  // A card's "See skills" link promises that plugin's skills, so a typed filter must not hide them.
+  useEffect(() => subscribeToPluginLinks(() => setQuery("")), []);
+
   const sorted = useMemo(() => sortPlugins(plugins), [plugins]);
-  // The plugin filter lives in the URL (`?plugin=`), so plugin cards can link to it.
   const plugin =
     pluginParam !== null && sorted.some((p) => p.name === pluginParam)
       ? pluginParam

@@ -110,20 +110,46 @@ describe("PluginCards", () => {
       .mockResolvedValue(undefined);
     render(<PluginCards plugins={PLUGINS} />);
 
-    await card("laravel")
-      .getByRole("button", { name: "Copy install commands for laravel" })
+    const laravel = card("laravel");
+    await laravel
+      .getByRole("button", {
+        name: "Copy step 1 for laravel: add the marketplace",
+      })
+      .click();
+    await laravel
+      .getByRole("button", { name: "Copy step 2 for laravel: install it" })
       .click();
     await method("skills CLI").click();
-    await card("laravel")
-      .getByRole("button", { name: "Copy install commands for laravel" })
+    await laravel
+      .getByRole("button", { name: "Copy the install command for laravel" })
       .click();
 
     expect(writeText.mock.calls).toEqual([
-      [
-        "/plugin marketplace add noppu-labs/ai-toolkit\n/plugin install laravel@ai-toolkit",
-      ],
+      ["/plugin marketplace add noppu-labs/ai-toolkit"],
+      ["/plugin install laravel@ai-toolkit"],
       ["npx skills add noppu-labs/ai-toolkit/laravel"],
     ]);
+  });
+
+  it("does not carry a “Copied!” state over to the other method", async () => {
+    vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    render(<PluginCards plugins={PLUGINS} />);
+
+    const laravel = card("laravel");
+    await laravel
+      .getByRole("button", { name: "Copy step 2 for laravel: install it" })
+      .click();
+    await expect.element(laravel.getByText("Copied!")).toBeVisible();
+    await method("skills CLI").click();
+
+    await expect
+      .element(
+        laravel.getByRole("button", {
+          name: "Copy the install command for laravel",
+        }),
+      )
+      .toHaveTextContent("Copy");
+    await expect.element(laravel.getByText("Copied!")).not.toBeInTheDocument();
   });
 
   it("switches every card to the skills CLI and stores the choice", async () => {

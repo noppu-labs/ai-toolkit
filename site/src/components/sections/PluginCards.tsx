@@ -7,50 +7,65 @@ import { CommandLine } from "@/components/CommandText";
 import { CopyButton } from "@/components/CopyButton";
 import { Badge } from "@/components/ui/badge";
 import {
+  INSTALL_METHOD_LABELS,
+  MARKETPLACE_ADD_COMMAND,
+  pluginInstallCommand,
+} from "@/lib/install-methods";
+import {
   isLanguageAgnostic,
   pluginColorClass,
   sortPlugins,
 } from "@/lib/plugins";
 import { pluralize } from "@/lib/pluralize";
-import { REPO_SLUG } from "@/lib/repo";
 import { goToSection } from "@/lib/scroll";
-import { pluginSkillsHref, writePluginParam } from "@/lib/url-state";
+import { pluginSkillsHref, showPluginSkills } from "@/lib/url-state";
 import { cn } from "@/lib/utils";
 import {
+  INSTALL_METHODS,
   type InstallMethod,
+  isInstallMethod,
   usePreferencesStore,
 } from "@/stores/usePreferencesStore";
 import type { PluginEntry } from "../../catalog-types.ts";
-
-const METHODS: readonly { id: InstallMethod; label: string }[] = [
-  { id: "claude-code", label: "Claude Code" },
-  { id: "skills-cli", label: "skills CLI" },
-];
 
 interface CommandStep {
   /** The glyph before the command: a step number, or the prompt. */
   marker: string;
   command: string;
-  /** Muted, for the step every plugin shares. */
+  copyLabel: string;
+  /** For the step every plugin shares. */
   muted?: boolean;
 }
 
-/** The commands a plugin card shows, and copies, for an install method. */
 function pluginInstallSteps(
   plugin: string,
   method: InstallMethod,
 ): CommandStep[] {
-  if (method === "skills-cli") {
-    return [{ marker: "›", command: `npx skills add ${REPO_SLUG}/${plugin}` }];
+  const install = pluginInstallCommand(plugin, method);
+  switch (method) {
+    case "claude-code":
+      return [
+        {
+          marker: "1",
+          command: MARKETPLACE_ADD_COMMAND,
+          copyLabel: `Copy step 1 for ${plugin}: add the marketplace`,
+          muted: true,
+        },
+        {
+          marker: "2",
+          command: install,
+          copyLabel: `Copy step 2 for ${plugin}: install it`,
+        },
+      ];
+    case "skills-cli":
+      return [
+        {
+          marker: "›",
+          command: install,
+          copyLabel: `Copy the install command for ${plugin}`,
+        },
+      ];
   }
-  return [
-    {
-      marker: "1",
-      command: `/plugin marketplace add ${REPO_SLUG}`,
-      muted: true,
-    },
-    { marker: "2", command: `/plugin install ${plugin}@ai-toolkit` },
-  ];
 }
 
 function chipLabels(plugin: PluginEntry): string[] {
@@ -87,7 +102,7 @@ function SeeSkillsLink({ plugin }: { plugin: PluginEntry }): ReactElement {
         return;
       }
       event.preventDefault();
-      writePluginParam(plugin.name, { push: true, hash: "skills" });
+      showPluginSkills(plugin.name);
       goToSection("skills");
     },
     [plugin.name],
@@ -146,29 +161,34 @@ function PluginCard({
             </li>
           ))}
         </ul>
-        <div className="flex items-start gap-2.5 rounded-base border-2 border-border bg-terminal px-3 py-2.5 md:gap-3 md:px-3.5 md:py-3">
-          <div className="flex min-w-0 flex-1 flex-col gap-1 text-[12.5px] leading-[1.55] md:text-sm md:leading-[1.6]">
-            {steps.map((step) => (
+        {/* A Copy button per command: a multi-line paste reaches Claude Code as one prompt. */}
+        <ol className="flex flex-col gap-2 rounded-base border-2 border-border bg-terminal px-3 py-2.5 text-[12.5px] leading-[1.55] md:px-3.5 md:py-3 md:text-sm md:leading-[1.6]">
+          {steps.map((step) => (
+            <li
+              className="flex items-center gap-2.5 md:gap-3"
+              key={step.command}
+            >
               <CommandLine
-                className={
+                className={cn(
+                  "min-w-0 flex-1",
                   step.muted
                     ? "text-terminal-foreground/70"
-                    : "text-terminal-foreground"
-                }
+                    : "text-terminal-foreground",
+                )}
                 command={step.command}
-                key={step.command}
                 marker={step.marker}
               />
-            ))}
-          </div>
-          <CopyButton
-            aria-label={`Copy install commands for ${plugin.name}`}
-            className="h-11 shrink-0 border-border bg-white px-2.5 font-heading text-[13px] text-black shadow-none hover:translate-x-0 hover:translate-y-0 focus-visible:ring-offset-terminal md:h-10 md:px-3 [&>svg]:hidden"
-            content={steps.map((step) => step.command).join("\n")}
-            copiedLabel="Copied!"
-            label="Copy"
-          />
-        </div>
+              <CopyButton
+                aria-label={step.copyLabel}
+                className="h-11 shrink-0 border-border bg-white px-2.5 font-heading text-[13px] text-black shadow-none hover:translate-x-0 hover:translate-y-0 focus-visible:ring-offset-terminal md:h-10 md:px-3 [&>svg]:hidden"
+                content={step.command}
+                copiedLabel="Copied!"
+                key={method}
+                label="Copy"
+              />
+            </li>
+          ))}
+        </ol>
         <SeeSkillsLink plugin={plugin} />
       </div>
     </article>
@@ -198,13 +218,13 @@ function MethodPicker({
         onValueChange={onChange}
         value={method}
       >
-        {METHODS.map(({ id, label }) => (
+        {INSTALL_METHODS.map((id) => (
           <Radio.Root
             className="inline-flex h-9 cursor-pointer items-center whitespace-nowrap rounded-base border-2 border-edge bg-background px-3 font-heading text-[13px] text-foreground outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background data-checked:border-border data-checked:bg-main data-checked:text-main-foreground data-checked:shadow-shadow-sm md:h-10 md:px-3.5 md:text-sm"
             key={id}
             value={id}
           >
-            {label}
+            {INSTALL_METHOD_LABELS[id].short}
           </Radio.Root>
         ))}
       </RadioGroup>
@@ -225,9 +245,8 @@ export function PluginCards({ plugins }: PluginCardsProps): ReactElement {
 
   const handleMethodChange = useCallback(
     (value: unknown): void => {
-      const next = METHODS.find((candidate) => candidate.id === value);
-      if (next !== undefined) {
-        setInstallMethod(next.id);
+      if (isInstallMethod(value)) {
+        setInstallMethod(value);
       }
     },
     [setInstallMethod],

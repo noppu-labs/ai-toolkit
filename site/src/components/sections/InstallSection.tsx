@@ -2,8 +2,12 @@ import { type ReactElement, type ReactNode, useCallback, useId } from "react";
 import { CommandLine } from "@/components/CommandText";
 import { CopyButton } from "@/components/CopyButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  INSTALL_METHOD_LABELS,
+  MARKETPLACE_ADD_COMMAND,
+  pluginInstallCommand,
+} from "@/lib/install-methods";
 import { PLUGIN_ORDER } from "@/lib/plugins";
-import { REPO_SLUG } from "@/lib/repo";
 import {
   INSTALL_METHODS,
   type InstallMethod,
@@ -13,34 +17,32 @@ import {
 
 interface InstallStep {
   title: string;
-  /** Shown from `md` only, where the title has room for it; always part of the copy button's name. */
+  /** Shown from `md` only, where the title has room for it. */
   detail?: string;
   commands: readonly string[];
 }
 
 interface InstallMethodTab {
-  /** The tab label on phones. */
-  shortLabel: ReactNode;
-  /** The tab label from `md`. */
-  label: ReactNode;
   steps: readonly InstallStep[];
+  /** Under the steps, for what to do once installed. */
+  hint?: ReactNode;
   note: ReactNode;
+}
+
+function installCommands(method: InstallMethod): string[] {
+  return PLUGIN_ORDER.map((plugin) => pluginInstallCommand(plugin, method));
 }
 
 const INSTALL_METHOD_TABS: Record<InstallMethod, InstallMethodTab> = {
   "claude-code": {
-    shortLabel: "Claude Code",
-    label: "Claude Code marketplace",
     steps: [
       {
         title: "Add the marketplace",
-        commands: [`/plugin marketplace add ${REPO_SLUG}`],
+        commands: [MARKETPLACE_ADD_COMMAND],
       },
       {
         title: "Install what you need",
-        commands: PLUGIN_ORDER.map(
-          (plugin) => `/plugin install ${plugin}@ai-toolkit`,
-        ),
+        commands: installCommands("claude-code"),
       },
       {
         title: "Copy the stack rules",
@@ -48,6 +50,17 @@ const INSTALL_METHOD_TABS: Record<InstallMethod, InstallMethodTab> = {
         commands: ["/laravel:install-rules", "/inertia-react:install-rules"],
       },
     ],
+    hint: (
+      <>
+        Skills are namespaced after install: run them as{" "}
+        <code className="font-mono text-foreground">
+          /&lt;plugin&gt;:&lt;skill&gt;
+        </code>
+        , e.g.{" "}
+        <code className="font-mono text-foreground">/review:comment-audit</code>
+        .
+      </>
+    ),
     note: (
       <>
         The install-rules commands copy each stack plugin’s path-scoped rules
@@ -57,14 +70,10 @@ const INSTALL_METHOD_TABS: Record<InstallMethod, InstallMethodTab> = {
     ),
   },
   "skills-cli": {
-    shortLabel: "skills CLI",
-    label: "Vercel skills CLI",
     steps: [
       {
         title: "Add plugins one by one",
-        commands: PLUGIN_ORDER.map(
-          (plugin) => `npx skills add ${REPO_SLUG}/${plugin}`,
-        ),
+        commands: installCommands("skills-cli"),
       },
     ],
     note: (
@@ -77,12 +86,6 @@ const INSTALL_METHOD_TABS: Record<InstallMethod, InstallMethodTab> = {
   },
 };
 
-function stepName(step: InstallStep): string {
-  return step.detail === undefined
-    ? step.title
-    : `${step.title} ${step.detail}`;
-}
-
 function Step({
   step,
   number,
@@ -92,34 +95,35 @@ function Step({
 }): ReactElement {
   return (
     <li>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 font-heading text-[15px] md:gap-2.5 md:text-base">
-          <span
-            aria-hidden="true"
-            className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-border bg-main text-[13px] text-main-foreground md:size-6.5"
-          >
-            {number}
-          </span>
-          <span>
-            {step.title}
-            {step.detail === undefined ? null : (
-              <span className="hidden md:inline"> {step.detail}</span>
-            )}
-          </span>
+      <div className="mb-2 flex items-center gap-2 font-heading text-[15px] md:gap-2.5 md:text-base">
+        <span
+          aria-hidden="true"
+          className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-border bg-main text-[13px] text-main-foreground md:size-6.5"
+        >
+          {number}
         </span>
-        <CopyButton
-          aria-label={`Copy step ${number}: ${stepName(step)}`}
-          className="h-9 shrink-0 gap-1.5 px-2.5 font-heading text-[13px] shadow-shadow-sm focus-visible:ring-offset-secondary-background md:px-3 [&_svg]:size-3.5"
-          content={step.commands.join("\n")}
-          copiedLabel="Copied!"
-          label="Copy"
-        />
+        <span>
+          {step.title}
+          {step.detail === undefined ? null : (
+            <span className="hidden md:inline"> {step.detail}</span>
+          )}
+        </span>
       </div>
-      <div className="rounded-base border-2 border-border bg-terminal px-3 py-2.5 text-[13px] text-terminal-foreground leading-[1.55] md:px-4 md:py-3 md:text-sm md:leading-[1.8]">
+      {/* A Copy button per command: a multi-line paste reaches Claude Code as one prompt. */}
+      <ul className="flex flex-col gap-1.5 rounded-base border-2 border-border bg-terminal px-3 py-2 text-[13px] text-terminal-foreground leading-[1.55] md:px-4 md:py-2.5 md:text-sm md:leading-[1.8]">
         {step.commands.map((command) => (
-          <CommandLine className="my-0.5" command={command} key={command} />
+          <li className="flex items-center gap-2" key={command}>
+            <CommandLine className="min-w-0 flex-1" command={command} />
+            <CopyButton
+              aria-label={`Copy ${command}`}
+              className="h-9 shrink-0 border-border bg-white px-2.5 font-heading text-[13px] text-black shadow-none hover:translate-x-0 hover:translate-y-0 focus-visible:ring-offset-terminal [&>svg]:hidden"
+              content={command}
+              copiedLabel="Copied!"
+              label="Copy"
+            />
+          </li>
         ))}
-      </div>
+      </ul>
     </li>
   );
 }
@@ -182,10 +186,10 @@ export function InstallSection(): ReactElement {
                 value={id}
               >
                 <span className="md:hidden">
-                  {INSTALL_METHOD_TABS[id].shortLabel}
+                  {INSTALL_METHOD_LABELS[id].short}
                 </span>
                 <span className="hidden md:inline">
-                  {INSTALL_METHOD_TABS[id].label}
+                  {INSTALL_METHOD_LABELS[id].long}
                 </span>
               </TabsTrigger>
             ))}
@@ -201,6 +205,11 @@ export function InstallSection(): ReactElement {
                   <Step key={step.title} number={index + 1} step={step} />
                 ))}
               </ol>
+              {INSTALL_METHOD_TABS[id].hint === undefined ? null : (
+                <p className="mt-3.5 text-muted-foreground text-sm leading-normal md:mt-4.5">
+                  {INSTALL_METHOD_TABS[id].hint}
+                </p>
+              )}
             </TabsContent>
           ))}
         </Tabs>

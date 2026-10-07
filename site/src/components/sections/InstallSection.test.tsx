@@ -5,45 +5,32 @@ import { usePreferencesStore } from "@/stores/usePreferencesStore";
 import { resetPreferences } from "@/test/preferences";
 import { InstallSection } from "./InstallSection.tsx";
 
-const CLAUDE_CODE_STEPS: [string, string[]][] = [
-  [
-    "Copy step 1: Add the marketplace",
-    ["/plugin marketplace add noppu-labs/ai-toolkit"],
-  ],
-  [
-    "Copy step 2: Install what you need",
-    [
-      "/plugin install review@ai-toolkit",
-      "/plugin install investigate@ai-toolkit",
-      "/plugin install laravel@ai-toolkit",
-      "/plugin install inertia-react@ai-toolkit",
-    ],
-  ],
-  [
-    "Copy step 3: Copy the stack rules (laravel, inertia-react)",
-    ["/laravel:install-rules", "/inertia-react:install-rules"],
-  ],
+const CLAUDE_CODE_COMMANDS = [
+  "/plugin marketplace add noppu-labs/ai-toolkit",
+  "/plugin install review@ai-toolkit",
+  "/plugin install investigate@ai-toolkit",
+  "/plugin install laravel@ai-toolkit",
+  "/plugin install inertia-react@ai-toolkit",
+  "/laravel:install-rules",
+  "/inertia-react:install-rules",
 ];
 
-const SKILLS_CLI_STEP: [string, string[]] = [
-  "Copy step 1: Add plugins one by one",
-  [
-    "npx skills add noppu-labs/ai-toolkit/review",
-    "npx skills add noppu-labs/ai-toolkit/investigate",
-    "npx skills add noppu-labs/ai-toolkit/laravel",
-    "npx skills add noppu-labs/ai-toolkit/inertia-react",
-  ],
+const SKILLS_CLI_COMMANDS = [
+  "npx skills add noppu-labs/ai-toolkit/review",
+  "npx skills add noppu-labs/ai-toolkit/investigate",
+  "npx skills add noppu-labs/ai-toolkit/laravel",
+  "npx skills add noppu-labs/ai-toolkit/inertia-react",
 ];
 
 const claudeCodeTab = page.getByRole("tab", { name: /Claude Code/ });
 const skillsCliTab = page.getByRole("tab", { name: /skills CLI/ });
 
 function stepTitles(): string[] {
-  return page
+  const steps = page
     .getByRole("tabpanel")
-    .getByRole("listitem")
-    .elements()
-    .map((step) => step.querySelector("span")?.textContent ?? "");
+    .element()
+    .querySelectorAll("ol > li");
+  return [...steps].map((step) => step.firstElementChild?.textContent ?? "");
 }
 
 function mockClipboard(): ReturnType<typeof vi.fn> {
@@ -96,17 +83,29 @@ describe("InstallSection", () => {
       .not.toBeInTheDocument();
   });
 
-  it.each(CLAUDE_CODE_STEPS)(
-    "copies exactly the commands of “%s”",
-    async (name, commands) => {
-      const writeText = mockClipboard();
-      render(<InstallSection />);
+  // One command per copy: a multi-line paste reaches Claude Code as one prompt.
+  it.each(CLAUDE_CODE_COMMANDS)("copies “%s” on its own", async (command) => {
+    const writeText = mockClipboard();
+    render(<InstallSection />);
 
-      await page.getByRole("button", { name, exact: true }).click();
+    await page
+      .getByRole("button", { name: `Copy ${command}`, exact: true })
+      .click();
 
-      expect(writeText).toHaveBeenCalledExactlyOnceWith(commands.join("\n"));
-    },
-  );
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(command);
+  });
+
+  it("says how installed skills are named, next to the Claude Code steps", async () => {
+    render(<InstallSection />);
+
+    const hint = page
+      .getByRole("tabpanel")
+      .getByText("Skills are namespaced after install", { exact: false });
+    await expect.element(hint).toBeVisible();
+    expect(hint.element().textContent).toBe(
+      "Skills are namespaced after install: run them as /<plugin>:<skill>, e.g. /review:comment-audit.",
+    );
+  });
 
   it("switches to the one skills CLI step and its note", async () => {
     render(<InstallSection />);
@@ -130,15 +129,16 @@ describe("InstallSection", () => {
       .not.toBeInTheDocument();
   });
 
-  it("copies exactly the skills CLI commands", async () => {
+  it.each(SKILLS_CLI_COMMANDS)("copies “%s” on its own", async (command) => {
     const writeText = mockClipboard();
     render(<InstallSection />);
 
     await skillsCliTab.click();
-    const [name, commands] = SKILLS_CLI_STEP;
-    await page.getByRole("button", { name, exact: true }).click();
+    await page
+      .getByRole("button", { name: `Copy ${command}`, exact: true })
+      .click();
 
-    expect(writeText).toHaveBeenCalledExactlyOnceWith(commands.join("\n"));
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(command);
   });
 
   it("labels the tabs in full on wide screens", async () => {
@@ -196,7 +196,7 @@ describe("InstallSection", () => {
     await expect
       .element(
         page.getByRole("button", {
-          name: "Copy step 1: Add plugins one by one",
+          name: "Copy npx skills add noppu-labs/ai-toolkit/review",
         }),
       )
       .toBeVisible();
