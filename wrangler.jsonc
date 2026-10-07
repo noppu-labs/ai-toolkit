@@ -1,0 +1,9 @@
+// Cloudflare Workers Builds reads this to publish PR previews of the site.
+// Production stays on GitHub Pages (.github/workflows/deploy-pages.yml).
+{
+  "name": "ai-toolkit",
+  "compatibility_date": "2026-10-07",
+  "assets": {
+    "directory": "./site/dist"
+  }
+}

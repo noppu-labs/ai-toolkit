@@ -28,6 +28,9 @@ Thumbs.db
 # Serverless
 .serverless/
 
+# Wrangler local state
+/.wrangler/
+
 # Wayfinder (auto-generated)
 /resources/js/actions
 /resources/js/routes
