@@ -1,10 +1,7 @@
-// Cloudflare Workers Builds reads this to publish PR previews of the site.
-// Production stays on GitHub Pages (.github/workflows/deploy-pages.yml).
 {
   "name": "ai-toolkit",
   "compatibility_date": "2026-10-07",
-  // Pushes to main would otherwise publish a second public copy on workers.dev.
-  // Previews keep their URLs.
+  // Prevents pushes to main from publishing a 2nd public copy.
   "workers_dev": false,
   "assets": {
     "directory": "./site/dist"
