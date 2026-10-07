@@ -95,55 +95,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <noscript>
-      <div
-        style="
-          max-width: 40rem;
-          margin: 2.5rem auto;
-          padding: 1.5rem;
-          border: 3px solid oklch(0 0 0);
-          border-radius: 8px;
-          background: oklch(1 0 0);
-          box-shadow: 6px 6px 0 0 oklch(0 0 0);
-          color: oklch(0.1776 0 0);
-          font: 500 1rem/1.6 'Space Grotesk Variable', system-ui, sans-serif;
-        "
-      >
-        <h1 style="margin: 0 0 0.75rem; font-size: 1.75rem; line-height: 1.15">
-          AI Toolkit
-        </h1>
-        <p style="margin: 0 0 1rem">
-          Agent skills for deep code review and grounded investigation. The
-          skills catalog needs JavaScript, but you can install the plugins in
-          Claude Code without it:
-        </p>
-        <pre
-          style="
-            margin: 0 0 1rem;
-            padding: 1rem;
-            overflow-x: auto;
-            border-radius: 6px;
-            background: oklch(0.1921 0.0176 312.7);
-            color: oklch(0.9535 0.0101 345.42);
-            font: 0.875rem/1.7 'JetBrains Mono Variable', ui-monospace, monospace;
-          "
-        >
-/plugin marketplace add noppu-labs/ai-toolkit
-/plugin install review@ai-toolkit
-/plugin install investigate@ai-toolkit
-/plugin install laravel@ai-toolkit
-/plugin install inertia-react@ai-toolkit</pre
-        >
-        <p style="margin: 0">
-          Every plugin and skill is described in the
-          <a
-            href="https://github.com/noppu-labs/ai-toolkit#readme"
-            style="color: inherit; font-weight: 700; text-decoration: underline"
-            >README on GitHub</a
-          >.
-        </p>
-      </div>
-    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

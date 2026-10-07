@@ -1,5 +1,7 @@
-import { REPO_SLUG } from "@/lib/repo";
+// Relative, so vite.config.ts can load it through scripts/noscript-install.ts without the `@` alias.
+
 import type { InstallMethod } from "@/stores/usePreferencesStore";
+import { REPO_SLUG } from "./repo.ts";
 
 /** The `name` in `.claude-plugin/marketplace.json`, which `/plugin install` takes after the `@`. */
 const MARKETPLACE_NAME = "ai-toolkit";
