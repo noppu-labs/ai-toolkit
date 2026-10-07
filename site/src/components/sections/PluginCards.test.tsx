@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
-import { readPluginParam, writePluginParam } from "@/lib/url-state";
+import {
+  readPluginParam,
+  readSearchParam,
+  writeSearchParams,
+} from "@/lib/url-state";
 import { usePreferencesStore } from "@/stores/usePreferencesStore";
 import { resetPreferences } from "@/test/preferences";
 import type { PluginEntry } from "../../catalog-types.ts";
@@ -48,7 +52,7 @@ beforeEach(() => {
 
 afterEach(() => {
   resetPreferences();
-  writePluginParam(null, { hash: "" });
+  writeSearchParams({ plugin: null, skill: null }, { hash: "" });
   vi.restoreAllMocks();
 });
 
@@ -207,11 +211,13 @@ describe("PluginCards", () => {
         <section id="skills" tabIndex={-1} />
       </>,
     );
+    writeSearchParams({ skill: "shadcn" });
     const historyLength = window.history.length;
 
     await page.getByRole("link", { name: "See 2 laravel skills" }).click();
 
     expect(readPluginParam()).toBe("laravel");
+    expect(readSearchParam("skill")).toBeNull();
     expect(window.location.hash).toBe("#skills");
     // A new history entry, so Back returns to the cards.
     expect(window.history.length).toBe(historyLength + 1);

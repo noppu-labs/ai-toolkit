@@ -6,6 +6,12 @@ export const PLUGIN_ORDER: readonly string[] = [
   "inertia-react",
 ];
 
+/** Skills a plugin lists first on the site, in this order; the rest follow alphabetically. */
+const LEADING_SKILLS: Readonly<Record<string, readonly string[]>> = {
+  // The orchestrator first: it runs the other review skills.
+  review: ["pr-review", "comment-audit", "type-safety-review", "pr-comments"],
+};
+
 const LANGUAGE_AGNOSTIC_PLUGINS: ReadonlySet<string> = new Set([
   "review",
   "investigate",
@@ -28,6 +34,13 @@ const PRESSED_COLOR_CLASSES: Readonly<Record<string, string>> = {
     "aria-pressed:bg-plugin-inertia-react data-pressed:bg-plugin-inertia-react",
 };
 
+const COLOR_VARS: Readonly<Record<string, string>> = {
+  review: "var(--color-plugin-review)",
+  investigate: "var(--color-plugin-investigate)",
+  laravel: "var(--color-plugin-laravel)",
+  "inertia-react": "var(--color-plugin-inertia-react)",
+};
+
 const FALLBACK_COLOR_CLASS = "bg-main";
 const FALLBACK_PRESSED_COLOR_CLASS =
   "aria-pressed:bg-main data-pressed:bg-main";
@@ -43,8 +56,28 @@ export function sortPlugins<T extends { name: string }>(
   return [...plugins].sort((a, b) => rank(a.name) - rank(b.name));
 }
 
+/** A plugin's skills in the site order: its leading skills, then the rest by name. */
+export function sortSkills<T extends { name: string }>(
+  plugin: string,
+  skills: readonly T[],
+): T[] {
+  const leading = LEADING_SKILLS[plugin] ?? [];
+  const rank = (name: string): number => {
+    const index = leading.indexOf(name);
+    return index === -1 ? leading.length : index;
+  };
+  return [...skills].sort(
+    (a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name),
+  );
+}
+
 export function pluginColorClass(name: string): string {
   return COLOR_CLASSES[name] ?? FALLBACK_COLOR_CLASS;
+}
+
+/** The plugin's colour as a CSS value, for styles a utility class cannot name (an accent shadow). */
+export function pluginColorVar(name: string): string {
+  return COLOR_VARS[name] ?? "var(--color-main)";
 }
 
 export function pluginPressedColorClass(name: string): string {

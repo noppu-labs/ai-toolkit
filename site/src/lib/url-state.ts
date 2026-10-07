@@ -88,7 +88,10 @@ export function subscribeToUrl(onChange: () => void): () => void {
 
 /** What following a plugin's skills link does in page: filter the catalog to the plugin and say so. */
 export function showPluginSkills(plugin: string): void {
-  writePluginParam(plugin, { push: true, hash: "skills" });
+  writeSearchParams(
+    { [PLUGIN_PARAM]: plugin, [QUERY_PARAM]: null, [SKILL_PARAM]: null },
+    { push: true, hash: "skills" },
+  );
   window.dispatchEvent(new Event(PLUGIN_LINK_EVENT));
 }
 

@@ -3,7 +3,7 @@ import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import App from "./App.tsx";
 import { prefersReducedMotionQuery } from "./lib/scroll.ts";
-import { writePluginParam } from "./lib/url-state.ts";
+import { writeSearchParams } from "./lib/url-state.ts";
 import { stubMediaQuery } from "./test/media.ts";
 
 function onScreen(element: Element): boolean {
@@ -13,7 +13,7 @@ function onScreen(element: Element): boolean {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  writePluginParam(null, { hash: "" });
+  writeSearchParams({ q: null, plugin: null, skill: null }, { hash: "" });
   window.scrollTo({ top: 0, behavior: "instant" });
 });
 
@@ -87,7 +87,7 @@ describe("App", () => {
       .element(
         catalog
           .getByRole("group", { name: "Filter by plugin" })
-          .getByRole("button", { name: /^laravel \d+$/ }),
+          .getByRole("button", { name: /^laravel \d+ skills$/ }),
       )
       .toHaveAttribute("aria-pressed", "true");
     expect(window.location.search).toContain("plugin=laravel");
@@ -111,6 +111,29 @@ describe("App", () => {
     await expect
       .element(page.getByText("No skills match your filter."))
       .not.toBeInTheDocument();
+  });
+
+  it("selects a deep-linked skill and still scrolls to the catalog", async () => {
+    await page.viewport(1280, 900);
+    stubMediaQuery(prefersReducedMotionQuery, true);
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+    window.history.replaceState(
+      null,
+      "",
+      "?skill=deep&plugin=investigate#skills",
+    );
+
+    render(<App />);
+
+    await expect
+      .poll(() => (scrollIntoView.mock.contexts[0] as Element | undefined)?.id)
+      .toBe("skills");
+    await expect
+      .element(page.getByRole("button", { name: /^deep\b/ }))
+      .toHaveAttribute("aria-current", "true");
+    await expect
+      .element(page.getByRole("complementary", { name: "Skill details" }))
+      .toMatchTextContent("investigate2 of 3");
   });
 
   it("has no horizontal scroll on a phone", async () => {
