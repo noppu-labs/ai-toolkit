@@ -278,7 +278,7 @@ function validateArgs(input) {
   if (!Array.isArray(input) || input.length === 0) {
     throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, url, instructions? }, ...]");
   }
-  const prs = input.map(validatePr);
+  const prs = input.map((pr, index) => validatePr(pr, index));
   const numbers = new Set();
   for (const pr of prs) {
     if (numbers.has(pr.number)) {

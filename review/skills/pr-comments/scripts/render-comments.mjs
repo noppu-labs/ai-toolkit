@@ -71,8 +71,8 @@ const BLOCKING = new Set(["🔴", "🟠"]);
 
 // Vocabulary a model leaks from the stage reports into the head of a body:
 // its own header, a rule id, an audit verdict, or the pass that found it.
-const SCRUB_PATTERNS = [
-  /^\p{Extended_Pictographic}\s+\*\*\[[^\]\n]*\]\s*[^*\n]*\*\*\s*/u,
+export const SCRUB_PATTERNS = [
+  /^\p{Extended_Pictographic}\s+\*\*\[[^\]\n]*\](?:\s*\n)?[^*\n]*\*\*\s*/u,
   /^\*\*[^*\n]*,\s*(?:PHP|TS|PY)-\d\*\*:?\s*/u,
   /^\*\*(?:PHP|TS|PY)-\d\*\*:?\s*/u,
   /^(?:PHP|TS|PY)-\d:\s*/u,

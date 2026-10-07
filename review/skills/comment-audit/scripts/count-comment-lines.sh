@@ -14,7 +14,7 @@
 set -euo pipefail
 
 lib="$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-[ -r "$lib" ] || { echo "count-comment-lines.sh: cannot read $lib" >&2; exit 2; }
+[[ -r "$lib" ]] || { echo "count-comment-lines.sh: cannot read $lib" >&2; exit 2; }
 source "$lib"
 
 check_refs count-comment-lines.sh 'BASE HEAD' "$@"
@@ -36,7 +36,7 @@ to_out=""
 if ! command -v "$python" >/dev/null 2>&1; then
   echo "count-comment-lines.sh: $python not found; Python files are counted by the regex" >&2
   sides=""
-elif [ "${#to_paths[@]}" -gt 0 ]; then
+elif [[ "${#to_paths[@]}" -gt 0 ]]; then
   to_out=$(printf '%s\0' "${to_paths[@]}" | "$python" "$helper" "$head" 2>&1) || true
 fi
 

@@ -32,6 +32,7 @@ type RenderedInput = Record<string, unknown> & { comments: RenderedComment[] };
 
 type RenderModule = {
   LABELS: Record<Category, string[]>;
+  SCRUB_PATTERNS: RegExp[];
   VERDICTS: string[];
   formatMarkdown: (rendered: RenderedInput) => string;
   renderComments: (input: unknown) => RenderedInput;
@@ -422,6 +423,90 @@ describe("scrubBody", () => {
       fc.property(bodyArb, (body) => {
         return scrubBody(body).length <= body.length;
       }),
+    );
+  });
+
+  it.each([
+    [
+      "a newline after the bracket",
+      "🔴 **[Bug]\napp/Thing.php:31** Real body.",
+    ],
+    [
+      "spaces around that newline",
+      "🔴 **[Bug]  \n  app/Thing.php:31** Real body.",
+    ],
+    ["only spaces before the closing bold", "🔴 **[Bug]   ** Real body."],
+    ["nothing before the closing bold", "🔴 **[Bug]** Real body."],
+  ])("strips a severity header with %s", (_name, body) => {
+    expect(scrubBody(body)).toBe("Real body.");
+  });
+});
+
+describe("severity header pattern", () => {
+  // The header pattern before the S8786 rewrite, which backtracked
+  // quadratically on whitespace after `]`.
+  const OLD_HEADER_RE =
+    /^\p{Extended_Pictographic}\s+\*\*\[[^\]\n]*\]\s*[^*\n]*\*\*\s*/u;
+  const headerRe: RegExp = mod.SCRUB_PATTERNS[0] as RegExp;
+
+  const whitespace: fc.Arbitrary<string> = fc.constantFrom(
+    " ",
+    "\t",
+    "\n",
+    "\r",
+    "\v",
+    "\f",
+    "\u{a0}",
+    "\u{feff}",
+    "\u{1680}",
+    "\u{2000}",
+    "\u{2028}",
+    "\u{2029}",
+    "\u{202f}",
+    "\u{3000}",
+  );
+  const spaces: fc.Arbitrary<string> = fc.string({
+    unit: whitespace,
+    maxLength: 4,
+  });
+  const separators: fc.Arbitrary<string> = fc.oneof(
+    fc.constantFrom("", " ", "\t", "\n", "  \n  "),
+    fc.string({
+      unit: fc.oneof(whitespace, fc.constant("\n")),
+      maxLength: 4,
+    }),
+  );
+  const makeText = (extra: string[]): fc.Arbitrary<string> =>
+    fc.string({
+      unit: fc.oneof(whitespace, fc.constantFrom("a", ":", ".", "]", ...extra)),
+      maxLength: 8,
+    });
+  const headers: fc.Arbitrary<string> = fc
+    .tuple(
+      fc.constantFrom("🔴", "🟠", "🟡", "⚪", "x"),
+      spaces,
+      makeText(["["]),
+      separators,
+      makeText([]),
+      fc.constantFrom("**", "*", ""),
+      spaces,
+      fc.string(),
+    )
+    .map(
+      ([emoji, gap, label, separator, free, close, trailing, tail]) =>
+        `${emoji}${gap}**[${label}]${separator}${free}${close}${trailing}${tail}`,
+    );
+
+  it("strips what the pre-S8786 pattern stripped", () => {
+    fc.assert(
+      fc.property(
+        fc.oneof({ arbitrary: headers, weight: 4 }, fc.string()),
+        (body) => {
+          expect(body.replace(headerRe, "")).toBe(
+            body.replace(OLD_HEADER_RE, ""),
+          );
+        },
+      ),
     );
   });
 });
