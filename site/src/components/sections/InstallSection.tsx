@@ -4,71 +4,66 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PLUGIN_ORDER } from "@/lib/plugins";
 import { REPO_SLUG } from "@/lib/repo";
 import {
-  type InstallMethod as InstallMethodId,
+  INSTALL_METHODS,
+  type InstallMethod,
+  isInstallMethod,
   usePreferencesStore,
 } from "@/stores/usePreferencesStore";
 
-interface InstallMethod {
-  id: InstallMethodId;
+interface InstallMethodTab {
   label: string;
   copyLabel: string;
   commands: readonly string[];
   note: ReactNode;
 }
 
-const CLAUDE_CODE: InstallMethod = {
-  id: "claude-code",
-  label: "Claude Code marketplace",
-  copyLabel: "Copy Claude Code install commands",
-  commands: [
-    `/plugin marketplace add ${REPO_SLUG}`,
-    ...PLUGIN_ORDER.map((plugin) => `/plugin install ${plugin}@ai-toolkit`),
-    "/laravel:install-rules",
-    "/inertia-react:install-rules",
-  ],
-  note: (
-    <>
-      The install-rules commands copy each plugin’s path-scoped rules into your
-      project’s <code className="font-mono">.claude/rules/</code>. Review them
-      afterwards.
-    </>
-  ),
+const INSTALL_METHOD_TABS: Record<InstallMethod, InstallMethodTab> = {
+  "claude-code": {
+    label: "Claude Code marketplace",
+    copyLabel: "Copy Claude Code install commands",
+    commands: [
+      `/plugin marketplace add ${REPO_SLUG}`,
+      ...PLUGIN_ORDER.map((plugin) => `/plugin install ${plugin}@ai-toolkit`),
+      "/laravel:install-rules",
+      "/inertia-react:install-rules",
+    ],
+    note: (
+      <>
+        The install-rules commands copy each plugin’s path-scoped rules into
+        your project’s <code className="font-mono">.claude/rules/</code>. Review
+        them afterwards.
+      </>
+    ),
+  },
+  "skills-cli": {
+    label: "Vercel skills CLI",
+    copyLabel: "Copy skills CLI commands",
+    commands: PLUGIN_ORDER.map(
+      (plugin) => `npx skills add ${REPO_SLUG}/${plugin}`,
+    ),
+    note: (
+      <>
+        <code className="font-mono">{`\${CLAUDE_PLUGIN_ROOT}`}</code> is not set
+        on this route, so investigate’s script paths need replacing after
+        install.
+      </>
+    ),
+  },
 };
-
-const SKILLS_CLI: InstallMethod = {
-  id: "skills-cli",
-  label: "Vercel skills CLI",
-  copyLabel: "Copy skills CLI commands",
-  commands: PLUGIN_ORDER.map(
-    (plugin) => `npx skills add ${REPO_SLUG}/${plugin}`,
-  ),
-  note: (
-    <>
-      <code className="font-mono">{`\${CLAUDE_PLUGIN_ROOT}`}</code> is not set
-      on this route, so investigate’s script paths need replacing after install.
-    </>
-  ),
-};
-
-const INSTALL_METHODS: readonly InstallMethod[] = [CLAUDE_CODE, SKILLS_CLI];
 
 export function InstallSection(): ReactElement {
-  const activeId = usePreferencesStore((state) => state.installMethod);
+  const installMethod = usePreferencesStore((state) => state.installMethod);
   const setInstallMethod = usePreferencesStore(
     (state) => state.setInstallMethod,
   );
-  const active =
-    INSTALL_METHODS.find((method) => method.id === activeId) ?? CLAUDE_CODE;
+  const active = INSTALL_METHOD_TABS[installMethod];
 
   const headingId = useId();
 
   const handleValueChange = useCallback(
     (value: unknown): void => {
-      const method = INSTALL_METHODS.find(
-        (candidate) => candidate.id === value,
-      );
-      if (method !== undefined) {
-        setInstallMethod(method.id);
+      if (isInstallMethod(value)) {
+        setInstallMethod(value);
       }
     },
     [setInstallMethod],
@@ -105,19 +100,19 @@ export function InstallSection(): ReactElement {
       </div>
 
       <div className="min-w-0 flex-[999_1_600px] overflow-hidden rounded-xl border-3 border-edge bg-secondary-background shadow-shadow-xl">
-        <Tabs onValueChange={handleValueChange} value={active.id}>
+        <Tabs onValueChange={handleValueChange} value={installMethod}>
           <div className="flex flex-wrap items-center justify-between gap-2.5 border-edge border-b-3 bg-background p-3.5">
             <TabsList
               aria-label="Install method"
               className="h-auto flex-wrap justify-start gap-2.5 border-0 bg-transparent p-0"
             >
-              {INSTALL_METHODS.map((method) => (
+              {INSTALL_METHODS.map((id) => (
                 <TabsTrigger
                   className="h-11 border-edge bg-secondary-background px-4 text-[15px] text-foreground focus-visible:ring-offset-background data-active:border-border data-active:bg-main data-active:text-main-foreground data-active:shadow-shadow-md"
-                  key={method.id}
-                  value={method.id}
+                  key={id}
+                  value={id}
                 >
-                  {method.label}
+                  {INSTALL_METHOD_TABS[id].label}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -126,18 +121,18 @@ export function InstallSection(): ReactElement {
               className="h-11 px-3.5 font-heading text-[15px] shadow-shadow-md focus-visible:ring-offset-background"
               content={active.commands.join("\n")}
               copiedLabel="Copied!"
-              key={active.id}
+              key={installMethod}
               label="Copy"
             />
           </div>
-          {INSTALL_METHODS.map((method) => (
+          {INSTALL_METHODS.map((id) => (
             <TabsContent
               className="mt-0 overflow-x-auto bg-terminal px-6 pt-6 pb-7 focus-visible:ring-inset focus-visible:ring-offset-0"
-              key={method.id}
-              value={method.id}
+              key={id}
+              value={id}
             >
               <ul className="font-mono text-[15px] text-terminal-foreground leading-loose">
-                {method.commands.map((command) => (
+                {INSTALL_METHOD_TABS[id].commands.map((command) => (
                   <li className="whitespace-nowrap" key={command}>
                     <span aria-hidden="true" className="mr-3 text-main">
                       ›
