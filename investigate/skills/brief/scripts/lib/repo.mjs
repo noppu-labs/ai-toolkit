@@ -26,15 +26,20 @@ export const TS_EXT_RE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
 const TEST_FILE_RE = /\.(test|spec|stories)\.(?:[cm]?[jt]s|[jt]sx)$/;
 const MIN_NAME_LENGTH = 4;
 const IDENT_RE = /^[A-Za-z_$][\w$]*$/;
+// `[^\S\r\n\u2028\u2029]` is `\s` without the line terminators, so a match
+// starts on the export's own line rather than on a blank line above it.
 const EXPORT_RE =
-  /^\s*export\s+(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:function\s*\*?|class|const\s+enum|const|let|var|enum|type|interface|abstract\s+class)\s+([A-Za-z_$][\w$]*)/gm;
+  /^[^\S\r\n\u2028\u2029]*export\s+(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:function(?:\s*\*)?|class|const\s+enum|const|let|var|enum|type|interface|abstract\s+class)\s+([A-Za-z_$][\w$]*)/gm;
 // `export { a, b as c }` names a and c; a list followed by `from` re-exports
 // another module's symbols, which are not defined here.
-const EXPORT_LIST_RE = /^\s*export\s+(?:type\s+)?\{([^}]*)\}(?!\s*from\b)/gm;
-const DEFAULT_IDENT_RE = /^\s*export\s+default\s+([A-Za-z_$][\w$]*)\s*;?\s*$/gm;
+const EXPORT_LIST_RE =
+  /^[^\S\r\n\u2028\u2029]*export\s+(?:type\s+)?\{([^}]*)\}(?!\s*from\b)/gm;
+const DEFAULT_IDENT_RE =
+  /^[^\S\r\n\u2028\u2029]*export\s+default\s+([A-Za-z_$][\w$]*)\s*(?:;\s*)?$/gm;
 const CJS_DEFAULT_RE =
-  /^\s*module\.exports\s*=\s*([A-Za-z_$][\w$]*)\s*;?\s*$/gm;
-const CJS_NAMED_RE = /^\s*(?:module\.)?exports\.([A-Za-z_$][\w$]*)\s*=/gm;
+  /^[^\S\r\n\u2028\u2029]*module\.exports\s*=\s*([A-Za-z_$][\w$]*)\s*(?:;\s*)?$/gm;
+const CJS_NAMED_RE =
+  /^[^\S\r\n\u2028\u2029]*(?:module\.)?exports\.([A-Za-z_$][\w$]*)\s*=/gm;
 const SKIPPED_DIRS = new Set(["vendor", "node_modules"]);
 
 export function resolveRepo(targetArg, env = process.env) {
@@ -108,6 +113,12 @@ function listDir(dir, env) {
   return res.stdout.split("\0").filter(Boolean);
 }
 
+/** Code-unit order: the same order as the default sort, but explicit and locale-independent. */
+export function compareCodeUnits(a, b) {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
 export function collectFiles(p, env = process.env) {
   // Filters see paths relative to the target so an ancestor named `tests` cannot hide the repo.
   if (statSync(p).isFile()) return isSourceFile(path.basename(p)) ? [p] : [];
@@ -115,7 +126,7 @@ export function collectFiles(p, env = process.env) {
     .map((rel) => ({ rel, full: path.join(p, rel) }))
     .filter(({ rel, full }) => keep(rel, full))
     .map(({ full }) => full);
-  return [...new Set(files)].sort();
+  return [...new Set(files)].sort(compareCodeUnits);
 }
 
 function listNames(body) {
@@ -125,7 +136,8 @@ function listNames(body) {
       item
         .trim()
         .replace(/^type\s+/, "")
-        .split(/\s+as\s+/)
+        .replace(/\s+/g, " ")
+        .split(" as ")
         .at(-1),
     )
     .filter((name) => name && name !== "default" && IDENT_RE.test(name));
