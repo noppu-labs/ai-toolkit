@@ -12,9 +12,9 @@ function isExecutableFile(candidate: string): boolean {
 }
 
 /**
- * Resolves a tool name to the absolute path of its first match on PATH.
- * Empty and relative entries are skipped, so a tool in the working directory
- * cannot shadow the real one.
+ * Skips empty and relative PATH entries, so a tool in the working directory
+ * cannot shadow the real one. POSIX only: PATHEXT is not consulted, so Windows
+ * `git.exe` is not found.
  */
 export function resolveExecutable(
   name: string,
