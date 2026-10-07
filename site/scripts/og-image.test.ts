@@ -6,23 +6,32 @@ import {
   OG_IMAGE_HEIGHT,
   OG_IMAGE_WIDTH,
   ogImageHtml,
+  ogImageInputsHash,
+  ogImageInputsHashPath,
   readOgImageAssets,
 } from "./og-image.ts";
 
 const SITE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+const html = ogImageHtml(readOgImageAssets(SITE_DIR));
+
 describe("ogImageHtml", () => {
-  const html = ogImageHtml(readOgImageAssets(SITE_DIR));
-
   it("carries the wordmark, the hero line, the address and the byline", () => {
-    const text = html.replace(/<[^>]+>/g, "");
+    // Match the words with any spaces and tags between them, rather than strip the tags.
+    const words = (text: string): RegExp =>
+      new RegExp(
+        `>${text
+          .split(" ")
+          .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+          .join(String.raw`(?:\s|<[^>]*>)+`)}<`,
+      );
 
-    expect(text).toContain("AI Toolkit");
-    expect(text).toContain(
-      "Agent skills for deep code review and grounded investigation.",
+    expect(html).toMatch(words("AI Toolkit"));
+    expect(html).toMatch(
+      words("Agent skills for deep code review and grounded investigation."),
     );
-    expect(text).toContain("toolkit.noppu.com");
-    expect(text).toContain("by Noppu Labs");
+    expect(html).toMatch(words("toolkit.noppu.com"));
+    expect(html).toMatch(words("by Noppu Labs"));
   });
 
   it("embeds the palette, the fonts and both marks, so it renders offline", () => {
@@ -30,6 +39,7 @@ describe("ogImageHtml", () => {
     expect(html.match(/data:font\/woff2;base64,/g)).toHaveLength(2);
     expect(html.match(/data:image\/svg\+xml;base64,/g)).toHaveLength(2);
     expect(html).not.toMatch(/(src|href)="(https?:)?\/\//);
+    expect(html).not.toMatch(/(url\(|@import)\s*["']?(https?:)?\/\//);
   });
 });
 
@@ -40,6 +50,15 @@ describe("public/og-image.png", () => {
     expect(png.subarray(1, 4).toString("latin1")).toBe("PNG");
     expect(png.readUInt32BE(16)).toBe(OG_IMAGE_WIDTH);
     expect(png.readUInt32BE(20)).toBe(OG_IMAGE_HEIGHT);
+  });
+
+  it("was rendered from the current template, palette, logos and fonts", () => {
+    const committed = readFileSync(ogImageInputsHashPath(SITE_DIR), "utf8");
+
+    expect(
+      committed.trim(),
+      "the card's inputs changed: run `npm run og-image -w site` and commit og-image.png and og-image.inputs.sha256",
+    ).toBe(ogImageInputsHash(html));
   });
 
   it("stays small enough for link previews", () => {

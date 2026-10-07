@@ -1,32 +1,29 @@
 /**
- * Renders the 1200×630 social card, `public/og-image.png`, from an HTML template in headless
- * Chromium, with the site's fonts, palette and axolotl mark. The PNG is committed: regenerate it
- * after changing the template, the palette or the logo, and commit the result.
- *
- *   npm run og-image -w site
- *
- * It uses Playwright's own Chromium (`npx playwright install chromium`); set `CHROMIUM_PATH` to
- * use another Chromium binary instead.
+ * Writes `public/og-image.png` and the hash of its inputs, `public/og-image.inputs.sha256`.
+ * Nothing in the build regenerates the committed PNG: after changing the template, the palette,
+ * the logo or the font packages, run `npm run og-image -w site` and commit both files;
+ * `og-image.test.ts` fails until you do.
+ * Needs the Chromium of `site/`'s own Playwright, which is not the root one the tests use: run
+ * `npx playwright install chromium` from `site/`, or set `CHROMIUM_PATH` to another Chromium binary.
  */
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { SITE_URL } from "../src/lib/site.ts";
 import { isMainModule } from "./main-module.ts";
+import { ABOVE_THE_FOLD_FONTS } from "./preload-fonts.ts";
 
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
 
 /** The files the card embeds, so the template renders without a server or network access. */
 export interface OgImageAssets {
-  /** `primitives.css`, for the `--palette-*` colours. */
   palette: string;
-  /** The axolotl mark, as SVG markup. */
   mark: string;
-  /** The face mark, as SVG markup. */
   face: string;
-  /** Latin subsets of the variable fonts, as woff2 bytes. */
   spaceGrotesk: Uint8Array;
   jetbrainsMono: Uint8Array;
 }
@@ -39,7 +36,6 @@ function woff2DataUri(font: Uint8Array): string {
   return `data:font/woff2;base64,${Buffer.from(font).toString("base64")}`;
 }
 
-/** The card's HTML: the wordmark and hero line on the left, the axolotl on a tilted pink card on the right. */
 export function ogImageHtml(assets: OgImageAssets): string {
   return `<!doctype html>
 <html lang="en">
@@ -118,7 +114,7 @@ h1 {
   </div>
   <h1>Agent skills for <span class="highlight">deep code review</span> and grounded investigation.</h1>
   <div class="footer">
-    <span class="url">toolkit.noppu.com</span>
+    <span class="url">${new URL(SITE_URL).host}</span>
     <span class="by">by Noppu Labs</span>
   </div>
 </div>
@@ -131,11 +127,20 @@ h1 {
 `;
 }
 
-/** Reads the card's assets from the site and its font packages. */
 export function readOgImageAssets(siteDir: string): OgImageAssets {
   const require = createRequire(join(siteDir, "package.json"));
-  const font = (pkg: string, file: string): Uint8Array =>
-    readFileSync(require.resolve(`@fontsource-variable/${pkg}/files/${file}`));
+  // The site preloads the same files; each file name starts with its package name.
+  const font = (pkg: string): Uint8Array => {
+    const file = ABOVE_THE_FOLD_FONTS.find((name) =>
+      name.startsWith(`${pkg}-`),
+    );
+    if (file === undefined) {
+      throw new Error(`og-image: ABOVE_THE_FOLD_FONTS has no ${pkg} file`);
+    }
+    return readFileSync(
+      require.resolve(`@fontsource-variable/${pkg}/files/${file}`),
+    );
+  };
   return {
     palette: readFileSync(
       join(siteDir, "src", "css", "tokens", "primitives.css"),
@@ -143,18 +148,22 @@ export function readOgImageAssets(siteDir: string): OgImageAssets {
     ),
     mark: readFileSync(join(siteDir, "public", "logo-mark.svg"), "utf8"),
     face: readFileSync(join(siteDir, "public", "logo-face.svg"), "utf8"),
-    spaceGrotesk: font(
-      "space-grotesk",
-      "space-grotesk-latin-wght-normal.woff2",
-    ),
-    jetbrainsMono: font(
-      "jetbrains-mono",
-      "jetbrains-mono-latin-wght-normal.woff2",
-    ),
+    spaceGrotesk: font("space-grotesk"),
+    jetbrainsMono: font("jetbrains-mono"),
   };
 }
 
+/** Hashes the rendered template, which embeds every input, so a changed input changes the hash. */
+export function ogImageInputsHash(html: string): string {
+  return createHash("sha256").update(html).digest("hex");
+}
+
+export function ogImageInputsHashPath(siteDir: string): string {
+  return join(siteDir, "public", "og-image.inputs.sha256");
+}
+
 async function render(siteDir: string): Promise<string> {
+  const html = ogImageHtml(readOgImageAssets(siteDir));
   const executablePath = process.env.CHROMIUM_PATH;
   const browser = await chromium.launch(
     executablePath ? { executablePath } : {},
@@ -164,7 +173,7 @@ async function render(siteDir: string): Promise<string> {
       viewport: { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT },
       deviceScaleFactor: 1,
     });
-    await page.setContent(ogImageHtml(readOgImageAssets(siteDir)), {
+    await page.setContent(html, {
       waitUntil: "load",
     });
     await page.evaluate(async () => {
@@ -172,6 +181,10 @@ async function render(siteDir: string): Promise<string> {
     });
     const out = join(siteDir, "public", "og-image.png");
     await page.screenshot({ path: out, type: "png" });
+    writeFileSync(
+      ogImageInputsHashPath(siteDir),
+      `${ogImageInputsHash(html)}\n`,
+    );
     return out;
   } finally {
     await browser.close();
