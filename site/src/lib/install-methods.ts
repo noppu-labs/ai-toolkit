@@ -32,3 +32,48 @@ export function pluginInstallCommand(
       return `npx skills add ${REPO_SLUG}/${plugin}`;
   }
 }
+
+export function otherInstallMethod(method: InstallMethod): InstallMethod {
+  return method === "claude-code" ? "skills-cli" : "claude-code";
+}
+
+export interface CommandStep {
+  /** The glyph before the command: a step number, or the prompt. */
+  marker: string;
+  command: string;
+  copyLabel: string;
+  /** For the step every plugin shares. */
+  muted?: boolean;
+}
+
+/** Shared by the plugin cards and the skill detail, so both show and copy the same commands. */
+export function pluginInstallSteps(
+  plugin: string,
+  method: InstallMethod,
+): CommandStep[] {
+  const install = pluginInstallCommand(plugin, method);
+  switch (method) {
+    case "claude-code":
+      return [
+        {
+          marker: "1",
+          command: MARKETPLACE_ADD_COMMAND,
+          copyLabel: `Copy step 1 for ${plugin}: add the marketplace`,
+          muted: true,
+        },
+        {
+          marker: "2",
+          command: install,
+          copyLabel: `Copy step 2 for ${plugin}: install it`,
+        },
+      ];
+    case "skills-cli":
+      return [
+        {
+          marker: "›",
+          command: install,
+          copyLabel: `Copy the install command for ${plugin}`,
+        },
+      ];
+  }
+}

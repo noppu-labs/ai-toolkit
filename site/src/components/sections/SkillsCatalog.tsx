@@ -1,6 +1,4 @@
-import { Search } from "lucide-react";
 import {
-  type ChangeEvent,
   type ReactElement,
   useCallback,
   useEffect,
@@ -8,67 +6,271 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { usePluginParam } from "@/hooks/usePluginParam";
 import {
-  pluginColorClass,
-  pluginPressedColorClass,
-  sortPlugins,
-} from "@/lib/plugins";
+  type PluginChip,
+  SkillFilterBar,
+} from "@/components/catalog/SkillFilterBar";
+import { SkillList } from "@/components/catalog/SkillList";
+import { SkillPane } from "@/components/catalog/SkillPane";
+import { SkillSheet } from "@/components/catalog/SkillSheet";
+import { Button } from "@/components/ui/button";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useSearchParam } from "@/hooks/useSearchParam";
+import {
+  ALL_PLUGINS,
+  type CatalogSkill,
+  catalogSkills,
+  findSkill,
+  groupSkills,
+  inPlugin,
+  matchesQuery,
+  type SkillGroup,
+} from "@/lib/catalog";
+import { sortPlugins } from "@/lib/plugins";
 import { pluralize } from "@/lib/pluralize";
-import { subscribeToPluginLinks, writePluginParam } from "@/lib/url-state";
-import { cn } from "@/lib/utils";
-import type { PluginEntry, SkillEntry } from "../../catalog-types.ts";
+import {
+  PLUGIN_PARAM,
+  QUERY_PARAM,
+  SKILL_PARAM,
+  writeSearchParams,
+} from "@/lib/url-state";
+import type { PluginEntry } from "../../catalog-types.ts";
 
-const ALL = "all";
+/** Tailwind's `lg`: from here the list and the detail pane sit side by side. */
+const DESKTOP_QUERY = "(width >= 64rem)";
 
-interface CatalogSkill extends SkillEntry {
+/** Rows a long group shows before "Show more". */
+const COLLAPSED_ROWS = { desktop: 6, phone: 4 } as const;
+
+/** The history state of the entry a phone sheet pushes, so its close button can go back rather than add another. */
+const SHEET_ENTRY = "ai-toolkit:skill-sheet";
+
+interface Neighbours {
+  previous: CatalogSkill;
+  next: CatalogSkill;
+}
+
+/** The skills before and after `skill` in `list`, wrapping around; the ends when it is not in the list. */
+function neighbours(
+  list: readonly CatalogSkill[],
+  skill: CatalogSkill,
+): Neighbours | null {
+  const last = list.at(-1);
+  const first = list[0];
+  if (first === undefined || last === undefined) {
+    return null;
+  }
+  const index = list.indexOf(skill);
+  if (index === -1) {
+    return { previous: last, next: first };
+  }
+  return {
+    previous: list[(index - 1 + list.length) % list.length] ?? last,
+    next: list[(index + 1) % list.length] ?? first,
+  };
+}
+
+function deviceOf(desktop: boolean): keyof typeof COLLAPSED_ROWS {
+  return desktop ? "desktop" : "phone";
+}
+
+/** Long groups collapse only while nothing narrows the list. */
+function collapseLimit(
+  query: string,
+  plugin: string,
+  desktop: boolean,
+): number | null {
+  const narrowed = query.trim() !== "" || plugin !== ALL_PLUGINS;
+  return narrowed ? null : COLLAPSED_ROWS[deviceOf(desktop)];
+}
+
+/** The plugin of `skill` when its group collapses it out of view, for expanding that group. */
+function pastTheFold(
+  skills: readonly CatalogSkill[],
+  skill: CatalogSkill | null,
+  collapseAt: number,
+): string[] {
+  if (skill === null) {
+    return [];
+  }
+  const siblings = skills.filter((other) => other.plugin === skill.plugin);
+  return siblings.indexOf(skill) >= collapseAt ? [skill.plugin] : [];
+}
+
+function isShown(groups: readonly SkillGroup[], skill: CatalogSkill): boolean {
+  return groups.some((group) => group.shown.includes(skill));
+}
+
+/**
+ * True from the render where the layout narrows from desktop to phone until
+ * the selection is cleared: a skill picked in the pane must not open a sheet
+ * the visitor never asked for.
+ */
+function useLeftDesktop(desktop: boolean): boolean {
+  const [wasDesktop, setWasDesktop] = useState(desktop);
+  const leftDesktop = wasDesktop && !desktop;
+
+  useEffect(() => {
+    if (wasDesktop === desktop) {
+      return;
+    }
+    if (leftDesktop) {
+      writeSearchParams({ [SKILL_PARAM]: null });
+    }
+    setWasDesktop(desktop);
+  }, [desktop, leftDesktop, wasDesktop]);
+
+  return leftDesktop;
+}
+
+interface CatalogState {
+  query: string;
+  /** A plugin name, or `all`. */
   plugin: string;
+  /** The skill named in the URL, when it exists. */
+  chosen: CatalogSkill | null;
+  changeQuery: (query: string) => void;
+  /** Also clears the selected skill, which could sit outside the new filter. */
+  changePlugin: (plugin: string) => void;
+  clearFilter: () => void;
+  /** Selects a skill; on phones, opens it in the sheet. */
+  choose: (skill: CatalogSkill) => void;
+  closeSheet: () => void;
 }
 
-function matches(skill: SkillEntry, query: string): boolean {
-  const q = query.toLowerCase();
-  return (
-    skill.name.toLowerCase().includes(q) ||
-    skill.description.toLowerCase().includes(q)
+/** The filter and selection, kept in the URL (`?q=`, `?plugin=`, `?skill=`) so any view can be linked to. */
+function useCatalogState(
+  skills: readonly CatalogSkill[],
+  pluginNames: readonly string[],
+  desktop: boolean,
+): CatalogState {
+  const query = useSearchParam(QUERY_PARAM) ?? "";
+  const pluginParam = useSearchParam(PLUGIN_PARAM);
+  const skillParam = useSearchParam(SKILL_PARAM);
+
+  const plugin =
+    pluginParam !== null && pluginNames.includes(pluginParam)
+      ? pluginParam
+      : ALL_PLUGINS;
+  const chosen = useMemo(
+    () => (skillParam === null ? null : findSkill(skills, skillParam)),
+    [skills, skillParam],
   );
-}
 
-function inPlugin(skill: CatalogSkill, plugin: string): boolean {
-  return plugin === ALL || skill.plugin === plugin;
-}
+  const changeQuery = useCallback((next: string): void => {
+    writeSearchParams({ [QUERY_PARAM]: next });
+  }, []);
 
-function SkillCard({ skill }: { skill: CatalogSkill }): ReactElement {
-  return (
-    <article className="flex flex-col gap-2.5 rounded-[10px] border-2 border-edge bg-background px-4.5 pt-4.5 pb-5 shadow-shadow">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="min-w-0 break-words font-mono text-[15px]">
-          <a
-            className="rounded-sm text-foreground underline-offset-[3px] hover:underline hover:decoration-2 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            href={skill.sourceUrl}
-            rel="noreferrer"
-            target="_blank"
-          >
-            {skill.name}
-          </a>
-        </h3>
-        <span
-          className={cn(
-            "flex-none rounded-sm border-2 border-border px-2 py-0.5 font-bold font-mono text-[11px] text-black",
-            pluginColorClass(skill.plugin),
-          )}
-        >
-          {skill.plugin}
-        </span>
-      </div>
-      <p className="text-[15px] text-muted-foreground leading-normal">
-        {skill.description}
-      </p>
-    </article>
+  const changePlugin = useCallback((next: string): void => {
+    writeSearchParams({
+      [PLUGIN_PARAM]: next === ALL_PLUGINS ? null : next,
+      [SKILL_PARAM]: null,
+    });
+  }, []);
+
+  const clearFilter = useCallback((): void => {
+    writeSearchParams({ [QUERY_PARAM]: null, [PLUGIN_PARAM]: null });
+  }, []);
+
+  // On phones the sheet gets its own history entry, so Back closes it.
+  const choose = useCallback(
+    (skill: CatalogSkill): void => {
+      writeSearchParams(
+        { [SKILL_PARAM]: skill.name },
+        desktop ? {} : { push: true, state: SHEET_ENTRY },
+      );
+    },
+    [desktop],
   );
+
+  // A sheet opened from a shared link has no entry of its own to go back from.
+  const closeSheet = useCallback((): void => {
+    if (window.history.state === SHEET_ENTRY) {
+      window.history.back();
+    } else {
+      writeSearchParams({ [SKILL_PARAM]: null });
+    }
+  }, []);
+
+  return {
+    query,
+    plugin,
+    chosen,
+    changeQuery,
+    changePlugin,
+    clearFilter,
+    choose,
+    closeSheet,
+  };
+}
+
+function chipCounts(
+  queried: readonly CatalogSkill[],
+  pluginNames: readonly string[],
+): PluginChip[] {
+  return [ALL_PLUGINS, ...pluginNames].map((name) => ({
+    name,
+    count: queried.filter((skill) => inPlugin(skill, name)).length,
+  }));
+}
+
+interface Selection {
+  /** What the desktop pane shows: the chosen skill, else the first in the list; `null` when the list is empty. */
+  selected: CatalogSkill | null;
+  /** Its 1-based place in the filtered list, or `null` when the filter hides it. */
+  position: number | null;
+}
+
+function selection(
+  filtered: readonly CatalogSkill[],
+  chosen: CatalogSkill | null,
+): Selection {
+  const selected =
+    filtered.length === 0 ? null : (chosen ?? filtered[0] ?? null);
+  const index = selected === null ? -1 : filtered.indexOf(selected);
+  return { selected, position: index === -1 ? null : index + 1 };
+}
+
+/** Previous and Next in the pane: they cycle through the filtered list, opening a collapsed group on the way. */
+function useStepper(
+  filtered: readonly CatalogSkill[],
+  groups: readonly SkillGroup[],
+  selected: CatalogSkill | null,
+  choose: (skill: CatalogSkill) => void,
+  expand: (plugin: string) => void,
+): Record<keyof Neighbours, () => void> {
+  const step = useCallback(
+    (direction: keyof Neighbours): void => {
+      const target =
+        selected === null
+          ? undefined
+          : neighbours(filtered, selected)?.[direction];
+      if (target === undefined) {
+        return;
+      }
+      if (!isShown(groups, target)) {
+        expand(target.plugin);
+      }
+      choose(target);
+    },
+    [choose, expand, filtered, groups, selected],
+  );
+  const previous = useCallback((): void => step("previous"), [step]);
+  const next = useCallback((): void => step("next"), [step]);
+  return { previous, next };
+}
+
+/** Plugins whose long groups the visitor opened with "Show more" (or Previous and Next). */
+function useExpandedGroups(
+  initial: () => string[],
+): [ReadonlySet<string>, (plugin: string) => void] {
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set(initial()),
+  );
+  const expand = useCallback((plugin: string): void => {
+    setExpanded((current) => new Set(current).add(plugin));
+  }, []);
+  return [expanded, expand];
 }
 
 interface SkillsCatalogProps {
@@ -77,50 +279,58 @@ interface SkillsCatalogProps {
 
 export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
   const headingId = useId();
-  const inputId = useId();
-  const [query, setQuery] = useState("");
-  const pluginParam = usePluginParam();
+  const paneId = useId();
+  const desktop = useMediaQuery(DESKTOP_QUERY);
+  const leftDesktop = useLeftDesktop(desktop);
 
-  // A card's "See skills" link promises that plugin's skills, so a typed filter must not hide them.
-  useEffect(() => subscribeToPluginLinks(() => setQuery("")), []);
+  const skills = useMemo(() => catalogSkills(plugins), [plugins]);
+  const pluginNames = useMemo(
+    () => sortPlugins(plugins).map((plugin) => plugin.name),
+    [plugins],
+  );
+  const {
+    query,
+    plugin,
+    chosen,
+    changeQuery,
+    changePlugin,
+    clearFilter,
+    choose,
+    closeSheet,
+  } = useCatalogState(skills, pluginNames, desktop);
 
-  const sorted = useMemo(() => sortPlugins(plugins), [plugins]);
-  const plugin =
-    pluginParam !== null && sorted.some((p) => p.name === pluginParam)
-      ? pluginParam
-      : ALL;
-  const allSkills = useMemo(
-    (): CatalogSkill[] =>
-      sorted.flatMap((p) => p.skills.map((s) => ({ ...s, plugin: p.name }))),
-    [sorted],
+  // `pinned` below keeps the selected skill's group open. On phones the
+  // selection ends when the sheet closes, so a deep link past the fold also
+  // opens its group, for focus to return to the row.
+  const [expanded, expand] = useExpandedGroups(() =>
+    desktop ? [] : pastTheFold(skills, chosen, COLLAPSED_ROWS.phone),
   );
 
-  const handleQueryChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>): void => {
-      setQuery(event.target.value);
-    },
-    [],
+  const queried = useMemo(
+    () => skills.filter((skill) => matchesQuery(skill, query)),
+    [skills, query],
+  );
+  const filtered = useMemo(
+    () => queried.filter((skill) => inPlugin(skill, plugin)),
+    [queried, plugin],
+  );
+  const collapseAt = collapseLimit(query, plugin, desktop);
+  const groups = useMemo(
+    () =>
+      groupSkills(filtered, pluginNames, {
+        collapseAt,
+        expanded,
+        pinned: chosen,
+      }),
+    [filtered, pluginNames, collapseAt, expanded, chosen],
+  );
+  const chips = useMemo(
+    () => chipCounts(queried, pluginNames),
+    [queried, pluginNames],
   );
 
-  // Pressing the active chip would empty a single-select group; keep it.
-  const handlePluginChange = useCallback((value: string[]): void => {
-    const [next] = value;
-    if (next !== undefined) {
-      writePluginParam(next === ALL ? null : next);
-    }
-  }, []);
-
-  const handleClear = useCallback((): void => {
-    setQuery("");
-    writePluginParam(null);
-  }, []);
-
-  const queried = allSkills.filter((skill) => matches(skill, query));
-  const visible = queried.filter((skill) => inPlugin(skill, plugin));
-  const chips = [ALL, ...sorted.map((p) => p.name)].map((name) => ({
-    name,
-    count: queried.filter((skill) => inPlugin(skill, name)).length,
-  }));
+  const { selected, position } = selection(filtered, chosen);
+  const stepper = useStepper(filtered, groups, selected, choose, expand);
 
   return (
     // biome-ignore lint/correctness/useUniqueElementIds: the in-page anchor the nav links to; the section renders once.
@@ -131,86 +341,80 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
       // Focusable from script, so following a plugin card's skills link moves focus here.
       tabIndex={-1}
     >
-      <div className="mx-auto max-w-300 px-4 py-24 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <p className="font-bold font-mono text-sm uppercase tracking-[0.08em]">
-              03 — Skills
-            </p>
-            <h2
-              className="mt-3 text-4xl leading-none tracking-[-0.03em] sm:text-5xl"
-              id={headingId}
-            >
-              The whole catalog.
-            </h2>
-          </div>
-          <div className="min-w-60 flex-[0_1_360px]">
-            <Label className="mb-2 block font-bold" htmlFor={inputId}>
-              Filter skills
-            </Label>
-            <div className="relative">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute top-3.75 left-3.5 size-4.5"
-                strokeWidth={2.5}
-              />
-              <Input
-                className="h-12 bg-background pr-3.5 pl-10.5 text-base shadow-shadow"
-                id={inputId}
-                onChange={handleQueryChange}
-                placeholder="e.g. review, brief, testing…"
-                type="search"
-                value={query}
-              />
-            </div>
-          </div>
-        </div>
-
-        <ToggleGroup
-          aria-label="Filter by plugin"
-          className="mt-8 w-full flex-wrap"
-          onValueChange={handlePluginChange}
-          spacing={3}
-          value={[plugin]}
+      <div className="mx-auto max-w-300 px-4 pt-10 pb-10 sm:px-6 md:pt-22 md:pb-24">
+        <p className="font-bold font-mono text-xs uppercase tracking-[0.08em] md:text-sm">
+          03 — Skills
+        </p>
+        <h2
+          className="mt-2 text-[32px] leading-[1.05] tracking-[-0.03em] md:mt-3 md:text-5xl md:leading-none"
+          id={headingId}
         >
-          {chips.map(({ name, count }) => (
-            <ToggleGroupItem
-              className={cn(
-                "h-11 rounded-full bg-background px-4 font-bold font-mono text-foreground text-sm focus-visible:ring-offset-secondary-background data-pressed:-translate-x-px data-pressed:-translate-y-px data-pressed:shadow-shadow-md",
-                // "all" is no plugin, so it falls back to the main colour.
-                pluginPressedColorClass(name),
-              )}
-              key={name}
-              value={name}
-            >
-              {name} <span className="font-medium">{count}</span>
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+          The whole catalog.
+        </h2>
 
-        <output aria-live="polite" className="sr-only">
-          {`${pluralize(visible.length, "skill")} shown`}
-        </output>
+        <div className="mt-2 md:mt-5 lg:mt-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)] lg:items-start lg:gap-8">
+          <div className="min-w-0">
+            <SkillFilterBar
+              chips={chips}
+              onPluginChange={changePlugin}
+              onQueryChange={changeQuery}
+              plugin={plugin}
+              query={query}
+              skillCount={skills.length}
+              wide={desktop}
+            />
 
-        {visible.length === 0 ? (
-          <div className="mt-6 rounded-[10px] border-2 border-current border-dashed p-8 text-center">
-            <p className="font-medium text-lg">No skills match your filter.</p>
-            <Button
-              className="mt-4 h-11"
-              onClick={handleClear}
-              variant="neutral"
+            <output
+              aria-live="polite"
+              className="mt-4 mb-3 block font-bold text-[13px] text-muted-foreground md:text-sm"
             >
-              Clear filter
-            </Button>
+              {pluralize(filtered.length, "skill")}
+              <span className="sr-only"> shown</span>
+            </output>
+
+            {filtered.length === 0 ? (
+              <div className="rounded-[10px] border-2 border-current border-dashed p-6 text-center md:p-8">
+                <p className="font-medium text-base md:text-lg">
+                  No skills match your filter.
+                </p>
+                <Button
+                  className="mt-3 h-11 px-4.5 font-heading text-[15px] shadow-shadow-md focus-visible:ring-offset-secondary-background md:mt-3.5"
+                  onClick={clearFilter}
+                >
+                  Clear filter
+                </Button>
+              </div>
+            ) : (
+              <SkillList
+                groups={groups}
+                onExpand={expand}
+                onSelect={choose}
+                paneId={desktop ? paneId : null}
+                selected={desktop ? selected : null}
+              />
+            )}
           </div>
-        ) : (
-          <div className="mt-9 grid grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))] gap-5">
-            {visible.map((skill) => (
-              <SkillCard key={`${skill.plugin}/${skill.name}`} skill={skill} />
-            ))}
-          </div>
-        )}
+
+          {desktop ? (
+            <SkillPane
+              id={paneId}
+              onNext={stepper.next}
+              onPrevious={stepper.previous}
+              position={position}
+              skill={selected}
+              total={filtered.length}
+            />
+          ) : null}
+        </div>
       </div>
+      {desktop ? null : (
+        <SkillSheet
+          onClose={closeSheet}
+          position={position}
+          skill={leftDesktop ? null : chosen}
+          total={filtered.length}
+        />
+      )}
     </section>
   );
 }
