@@ -9,7 +9,7 @@ export const REASON =
   "The report is the text of the subagent's completion notification. To keep it on " +
   "disk, write that text to the scratchpad with the Write tool.";
 
-const OUTPUT_TOKEN = /[^\s'"`<>|;&()]+\.output(?![\w.-])/g;
+const SEPARATORS = /[\s'"`<>|;&()]+/;
 
 export function getCandidatePaths(toolName, toolInput) {
   if (toolName === "Read") {
@@ -20,7 +20,9 @@ export function getCandidatePaths(toolName, toolInput) {
 
   if (toolName === "Bash") {
     return typeof toolInput?.command === "string"
-      ? (toolInput.command.match(OUTPUT_TOKEN) ?? [])
+      ? toolInput.command
+          .split(SEPARATORS)
+          .filter((token) => token.endsWith(".output"))
       : [];
   }
 

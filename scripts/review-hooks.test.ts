@@ -139,7 +139,9 @@ describe("getDecision", () => {
     fc.assert(
       fc.property(
         fc.string().filter((command) => !command.includes(".output")),
-        (command) => getDecision(makeBash(command)) === null,
+        (command) => {
+          expect(getDecision(makeBash(command))).toBeNull();
+        },
       ),
     );
   });
@@ -149,10 +151,13 @@ describe("getDecision", () => {
       fc.property(
         fc.string(),
         fc.constantFrom(" ", "; ", " && ", " | ", "\n"),
-        (prefix, separator) =>
-          getDecision(
-            makeBash(`${prefix} cat ${agentOutput}${separator}echo ok`),
-          ) !== null,
+        (prefix, separator) => {
+          expect(
+            getDecision(
+              makeBash(`${prefix} cat ${agentOutput}${separator}echo ok`),
+            ),
+          ).not.toBeNull();
+        },
       ),
     );
   });
