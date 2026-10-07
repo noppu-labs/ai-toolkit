@@ -2,7 +2,13 @@ import { symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { hashDirectory, hashFiles, listFiles, sha256 } from "./hashing.ts";
+import {
+  compareStrings,
+  hashDirectory,
+  hashFiles,
+  listFiles,
+  sha256,
+} from "./hashing.ts";
 import { addSkill, makeRoot } from "./test-helpers.ts";
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
@@ -11,6 +17,24 @@ describe("sha256", () => {
   it("hashes strings and buffers identically", () => {
     expect(sha256("abc")).toBe(sha256(Buffer.from("abc")));
     expect(sha256("abc")).toMatch(SHA256_HEX);
+  });
+});
+
+describe("compareStrings", () => {
+  it("orders by UTF-16 code unit, like the default sort", () => {
+    fc.assert(
+      fc.property(fc.array(fc.string({ unit: "binary" })), (items) => {
+        expect([...items].sort(compareStrings)).toEqual([...items].sort());
+      }),
+    );
+  });
+
+  it("returns 0 for equal strings", () => {
+    fc.assert(
+      fc.property(fc.string(), (s) => {
+        expect(compareStrings(s, s)).toBe(0);
+      }),
+    );
   });
 });
 

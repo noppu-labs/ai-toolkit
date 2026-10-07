@@ -22,13 +22,16 @@ export function listFiles(dir: string, base: string = dir): string[] {
     }
   }
 
-  return out.sort();
+  return out.sort(compareStrings);
 }
 
-// Codepoint order, unlike localeCompare, is locale-independent — the digest
-// must be stable across machines. Only ever called with distinct Map keys, so
-// there is no equality case.
-function compareStrings(a: string, b: string): number {
+// Code-unit order, unlike localeCompare, is locale-independent: the digest
+// must be stable across machines.
+export function compareStrings(a: string, b: string): number {
+  if (a === b) {
+    return 0;
+  }
+
   return a < b ? -1 : 1;
 }
 
