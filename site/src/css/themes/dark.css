@@ -1,4 +1,4 @@
-/* Dark theme, applied when `<html>` has the `dark` class. Only colours change; borders, shadows and `main` stay as in light. */
+/* Dark theme, applied when `<html>` has the `dark` class. Only colours change; shadows, the black `border` and `main` stay as in light. */
 
 .dark {
   color-scheme: dark;
@@ -6,6 +6,8 @@
   --background: var(--palette-plum-850);
   --secondary-background: var(--palette-plum-900);
   --foreground: var(--palette-plum-50);
+  /* Black outlines would vanish on the dark neutral surfaces. */
+  --edge: var(--palette-mauve-500);
   /* A black focus ring would vanish on the dark backgrounds. */
   --ring: var(--palette-plum-50);
 

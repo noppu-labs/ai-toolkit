@@ -40,7 +40,7 @@ function inPlugin(skill: CatalogSkill, plugin: string): boolean {
 
 function SkillCard({ skill }: { skill: CatalogSkill }): ReactElement {
   return (
-    <article className="flex flex-col gap-2.5 rounded-[10px] border-2 border-border bg-background px-4.5 pt-4.5 pb-5 shadow-shadow">
+    <article className="flex flex-col gap-2.5 rounded-[10px] border-2 border-edge bg-background px-4.5 pt-4.5 pb-5 shadow-shadow">
       <div className="flex items-center justify-between gap-2">
         <h3 className="min-w-0 break-words font-mono text-[15px]">
           <a
@@ -116,7 +116,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
     // biome-ignore lint/correctness/useUniqueElementIds: the in-page anchor the nav links to; the section renders once.
     <section
       aria-labelledby={headingId}
-      className="scroll-mt-24 border-border border-y-3 bg-secondary-background"
+      className="scroll-mt-24 border-edge border-y-3 bg-secondary-background"
       id="skills"
     >
       <div className="mx-auto max-w-300 px-4 py-24 sm:px-6">
@@ -143,7 +143,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
                 strokeWidth={2.5}
               />
               <Input
-                className="h-12 bg-background pr-3.5 pl-10.5 text-base shadow-shadow dark:border-foreground/60"
+                className="h-12 bg-background pr-3.5 pl-10.5 text-base shadow-shadow"
                 id={inputId}
                 onChange={handleQueryChange}
                 placeholder="e.g. review, brief, testing…"
@@ -164,7 +164,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
           {chips.map(({ name, count }) => (
             <ToggleGroupItem
               className={cn(
-                "h-11 rounded-full bg-background px-4 font-bold font-mono text-foreground text-sm focus-visible:ring-offset-secondary-background data-pressed:-translate-x-px data-pressed:-translate-y-px data-pressed:shadow-shadow-md dark:not-data-pressed:border-foreground/60",
+                "h-11 rounded-full bg-background px-4 font-bold font-mono text-foreground text-sm focus-visible:ring-offset-secondary-background data-pressed:-translate-x-px data-pressed:-translate-y-px data-pressed:shadow-shadow-md",
                 // "all" is no plugin, so it falls back to the main colour.
                 pluginPressedColorClass(name),
               )}

@@ -22,6 +22,8 @@
   --palette-plum-50: oklch(0.9573 0.011 348.43);
   --palette-plum-200: oklch(0.8369 0.0183 345.7);
   --palette-terminal-dark: oklch(0.1548 0.008 325.96);
+  /* Neutral edges in dark mode: 3.9:1 on plum-850, 4.4:1 on plum-900 */
+  --palette-mauve-500: oklch(0.5996 0.0272 340.71);
   --palette-black: oklch(0 0 0);
 
   /* Text on the terminal background (both modes) */

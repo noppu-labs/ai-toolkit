@@ -1,9 +1,10 @@
 import type { ReactElement } from "react";
+import { GitHubMark } from "@/components/GitHubMark";
 import { Logo } from "@/components/Logo";
 import { REPO_URL } from "@/lib/repo";
 
-const FOOTER_LINKS: { label: string; href: string }[] = [
-  { label: "GitHub", href: REPO_URL },
+const FOOTER_LINKS: { label: string; href: string; icon?: ReactElement }[] = [
+  { label: "GitHub", href: REPO_URL, icon: <GitHubMark /> },
   {
     label: "License",
     href: `${REPO_URL}/blob/main/LICENSE`,
@@ -26,7 +27,8 @@ export function Footer(): ReactElement {
           <Logo inverse mark="face" size="lg" />
           <p className="flex flex-col gap-1">
             <span className="font-heading text-2xl tracking-[-0.02em]">
-              Noppu Labs — AI Toolkit
+              AI Toolkit{" "}
+              <span className="font-medium text-white/85">by Noppu Labs</span>
             </span>
             <span className="font-mono text-[13px] text-white/85">
               Deep code review and grounded investigation for coding agents.
@@ -37,11 +39,12 @@ export function Footer(): ReactElement {
           {FOOTER_LINKS.map((link) => (
             <li key={link.href}>
               <a
-                className="inline-flex min-h-11 items-center rounded-base border-2 border-white px-3.5 py-2.5 font-bold transition-colors hover:bg-white hover:text-black focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+                className="inline-flex min-h-11 items-center gap-2 rounded-base border-2 border-white px-3.5 py-2.5 font-bold transition-colors hover:bg-white hover:text-black focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
                 href={link.href}
                 rel="noreferrer"
                 target="_blank"
               >
+                {link.icon}
                 {link.label}
               </a>
             </li>

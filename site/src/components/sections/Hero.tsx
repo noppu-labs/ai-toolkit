@@ -30,7 +30,7 @@ export function Hero({
       id="top"
     >
       <div className="min-w-0 flex-[999_1_520px]">
-        <span className="inline-flex items-center gap-2 rounded-full border-2 border-border bg-secondary-background px-3 py-1.5 font-bold font-mono text-[13px] shadow-shadow-sm">
+        <span className="inline-flex items-center gap-2 rounded-full border-2 border-edge bg-secondary-background px-3 py-1.5 font-bold font-mono text-[13px] shadow-shadow-sm">
           <span
             aria-hidden="true"
             className="size-2.5 shrink-0 rounded-full border-2 border-border bg-plugin-investigate"

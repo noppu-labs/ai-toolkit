@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import { usePreferencesStore } from "@/stores/usePreferencesStore";
+import { resetPreferences } from "@/test/preferences";
 import { InstallSection } from "./InstallSection.tsx";
 
 const CLAUDE_CODE_COMMANDS = [
@@ -20,7 +22,12 @@ const SKILLS_CLI_COMMANDS = [
   "npx skills add noppu-labs/ai-toolkit/inertia-react",
 ].join("\n");
 
+beforeEach(() => {
+  resetPreferences();
+});
+
 afterEach(() => {
+  resetPreferences();
   vi.restoreAllMocks();
 });
 
@@ -102,5 +109,27 @@ describe("InstallSection", () => {
       .click();
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith(SKILLS_CLI_COMMANDS);
+  });
+
+  it("remembers the chosen install method", async () => {
+    render(<InstallSection />);
+
+    await page.getByRole("tab", { name: "Vercel skills CLI" }).click();
+
+    await expect
+      .poll(() => usePreferencesStore.getState().installMethod)
+      .toBe("skills-cli");
+  });
+
+  it("opens on the stored install method", async () => {
+    usePreferencesStore.getState().setInstallMethod("skills-cli");
+    render(<InstallSection />);
+
+    await expect
+      .element(page.getByRole("tab", { name: "Vercel skills CLI" }))
+      .toHaveAttribute("aria-selected", "true");
+    await expect
+      .element(page.getByRole("button", { name: "Copy skills CLI commands" }))
+      .toBeVisible();
   });
 });

@@ -8,12 +8,12 @@
     {
       "name": "laravel",
       "source": "./laravel",
-      "description": "Laravel backend skills, agent, and path-scoped rules for the Noppu Laravel 13 stack"
+      "description": "Backend skills, a specialist agent and path-scoped rules for Laravel 13 apps: controllers, models, DTOs, policies, testing and security."
     },
     {
       "name": "inertia-react",
       "source": "./inertia-react",
-      "description": "Inertia v3 + React 19 + TypeScript frontend skills, agent, and path-scoped rules"
+      "description": "Frontend skills, a specialist agent and path-scoped rules for Inertia v3 + React 19 + TypeScript: shadcn, Tailwind, state management and Vite performance."
     },
     {
       "name": "review",
