@@ -35,6 +35,8 @@
   --font-weight-heading: var(--heading-font-weight);
 
   /* brand */
+  /* Borders of neutral surfaces (cards, inputs, chips, lists); `border` stays black for coloured fills. */
+  --color-edge: var(--edge);
   --color-muted-foreground: var(--muted-foreground);
   --color-terminal: var(--terminal);
   --color-terminal-foreground: var(--terminal-foreground);

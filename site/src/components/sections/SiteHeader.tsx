@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import type { ReactElement } from "react";
+import { GitHubMark } from "@/components/GitHubMark";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -17,7 +18,7 @@ const FOCUS_RING =
 
 export function SiteHeader(): ReactElement {
   return (
-    <header className="sticky top-0 z-10 border-border border-b-2 bg-background">
+    <header className="sticky top-0 z-10 border-edge border-b-2 bg-background">
       <nav
         aria-label="Main"
         className="mx-auto flex max-w-300 flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6"
@@ -45,7 +46,7 @@ export function SiteHeader(): ReactElement {
               <li key={link.href}>
                 <a
                   className={cn(
-                    "inline-flex min-h-11 items-center rounded-base border-2 border-transparent px-3 py-2 font-base no-underline hover:border-border hover:bg-secondary-background",
+                    "inline-flex min-h-11 items-center rounded-base border-2 border-transparent px-3 py-2 font-base no-underline hover:border-edge hover:bg-secondary-background",
                     FOCUS_RING,
                   )}
                   href={link.href}
@@ -59,10 +60,11 @@ export function SiteHeader(): ReactElement {
           <a
             className={cn(
               buttonVariants({ variant: "noShadow", size: "default" }),
-              "ml-2 h-11 border-border bg-ink px-4 font-heading text-base text-white shadow-[3px_3px_0_0_var(--color-main)] hover:translate-x-boxShadowX hover:translate-y-boxShadowY hover:shadow-none",
+              "ml-2 h-11 border-border bg-ink px-4 font-heading text-base text-white shadow-[3px_3px_0_0_var(--color-main)] hover:translate-x-boxShadowX hover:translate-y-boxShadowY hover:shadow-none [&_svg:first-child]:size-4.5 [&_svg]:size-3.5",
             )}
             href={REPO_URL}
           >
+            <GitHubMark />
             GitHub
             <ArrowUpRight aria-hidden="true" strokeWidth={2.5} />
           </a>

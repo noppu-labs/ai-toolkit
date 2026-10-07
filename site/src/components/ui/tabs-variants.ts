@@ -5,8 +5,8 @@ const tabsListVariants = cva(
   {
     variants: {
       variant: {
-        default: "h-12 rounded-base border-2 border-border bg-background p-1",
-        line: "gap-1 border-border border-b-2 bg-transparent data-[orientation=vertical]:border-r-2 data-[orientation=vertical]:border-b-0",
+        default: "h-12 rounded-base border-2 border-edge bg-background p-1",
+        line: "gap-1 border-edge border-b-2 bg-transparent data-[orientation=vertical]:border-r-2 data-[orientation=vertical]:border-b-0",
       },
     },
     defaultVariants: {

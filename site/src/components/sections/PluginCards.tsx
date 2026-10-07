@@ -30,7 +30,7 @@ function PluginCard({ plugin }: { plugin: PluginEntry }): ReactElement {
   const command = `/plugin install ${plugin.name}@ai-toolkit`;
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-xl border-3 border-border bg-secondary-background shadow-shadow-lg">
+    <article className="flex flex-col overflow-hidden rounded-xl border-3 border-edge bg-secondary-background shadow-shadow-lg">
       <div
         className={cn(
           "flex items-center justify-between gap-3 border-border border-b-3 px-6 py-5 text-black",
@@ -49,7 +49,7 @@ function PluginCard({ plugin }: { plugin: PluginEntry }): ReactElement {
         <ul aria-label="Contents" className="mt-auto flex flex-wrap gap-2">
           {chipLabels(plugin).map((label) => (
             <li
-              className="rounded-full border-2 border-border bg-background px-3 py-1.5 font-bold text-sm"
+              className="rounded-full border-2 border-edge bg-background px-3 py-1.5 font-bold text-sm"
               key={label}
             >
               {label}
@@ -57,7 +57,7 @@ function PluginCard({ plugin }: { plugin: PluginEntry }): ReactElement {
           ))}
         </ul>
         <div className="flex items-stretch gap-3">
-          <code className="wrap-anywhere flex min-w-0 flex-1 items-center rounded-base border-2 border-border bg-terminal px-3.5 py-2.5 font-mono text-sm text-terminal-foreground">
+          <code className="wrap-anywhere flex min-w-0 flex-1 items-center rounded-base border-2 border-edge bg-terminal px-3.5 py-2.5 font-mono text-sm text-terminal-foreground">
             {command}
           </code>
           <CopyButton

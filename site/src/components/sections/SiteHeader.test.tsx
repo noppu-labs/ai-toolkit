@@ -67,6 +67,16 @@ describe("SiteHeader", () => {
       .toHaveAttribute("href", "https://github.com/noppu-labs/ai-toolkit");
   });
 
+  it("shows the GitHub mark, hidden from screen readers, in the GitHub link", async () => {
+    renderHeader();
+
+    const link = page.getByRole("link", { name: "GitHub" });
+    await expect.element(link).toBeVisible();
+    const mark = link.element().querySelector("svg");
+    expect(mark).toHaveAttribute("aria-hidden", "true");
+    expect(mark).toHaveAttribute("fill", "currentColor");
+  });
+
   it("gives the GitHub link the 3px main-colour shadow", async () => {
     renderHeader();
 

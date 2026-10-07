@@ -81,7 +81,7 @@ export function SecuritySection(): ReactElement {
               <span className="font-bold text-sm">Verify a release</span>
               <CopyButton
                 aria-label="Copy verify command"
-                className={`bg-white text-black shadow-shadow-sm ${FOCUS_ON_LIGHT}`}
+                className={`border-border bg-white text-black shadow-shadow-sm ${FOCUS_ON_LIGHT}`}
                 content={VERIFY_COMMAND}
                 size="icon-lg"
               />
