@@ -185,23 +185,24 @@ describe("guard-task-output.mjs", () => {
     expect(result.stdout).not.toBe("");
   });
 
-  it("is registered as a PreToolUse hook on Bash and Read", () => {
+  it("is registered as a PreToolUse hook on Bash and Read, gated to .output paths", () => {
     const config: unknown = JSON.parse(
       readFileSync(join(hooksDir, "hooks.json"), "utf8"),
+    );
+    const command: unknown = expect.stringMatching(
+      /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/guard-task-output\.mjs"$/,
     );
 
     expect(config).toMatchObject({
       hooks: {
         PreToolUse: [
           {
-            matcher: "Bash|Read",
-            hooks: [
-              {
-                command: expect.stringMatching(
-                  /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/guard-task-output\.mjs"$/,
-                ),
-              },
-            ],
+            matcher: "Bash",
+            hooks: [{ type: "command", if: "Bash(*.output*)", command }],
+          },
+          {
+            matcher: "Read",
+            hooks: [{ type: "command", if: "Read(//**/*.output)", command }],
           },
         ],
       },

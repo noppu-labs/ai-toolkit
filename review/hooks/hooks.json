@@ -2,10 +2,22 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Read",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
+            "if": "Bash(*.output*)",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-task-output.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Read(//**/*.output)",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-task-output.mjs\"",
             "timeout": 10
           }
