@@ -2,7 +2,3 @@
 # search results without touching production. GitHub Pages ignores this file.
 https://:preview.toolkit.noppu.dev/*
   X-Robots-Tag: noindex
-
-# TEMP probe: must not match the preview host
-https://:preview.example.invalid/*
-  X-Host-Probe: wrong-host
