@@ -1,7 +1,11 @@
-export type ResolvedTheme = "light" | "dark";
+export const RESOLVED_THEMES = ["light", "dark"] as const;
+export type ResolvedTheme = (typeof RESOLVED_THEMES)[number];
 
-export const PREFERS_DARK_QUERY = "(prefers-color-scheme: dark)";
+/** The one OS colour-scheme query the page reads and listens to. */
+export const prefersDarkQuery: MediaQueryList = window.matchMedia(
+  "(prefers-color-scheme: dark)",
+);
 
 export function systemPrefersDark(): boolean {
-  return window.matchMedia(PREFERS_DARK_QUERY).matches;
+  return prefersDarkQuery.matches;
 }
