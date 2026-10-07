@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import { useId } from "react";
+import { CommandLine } from "@/components/CommandText";
 import { CopyButton } from "@/components/CopyButton";
 import { REPO_SLUG, REPO_URL } from "@/lib/repo";
 
@@ -41,43 +42,45 @@ export function SecuritySection(): ReactElement {
     // biome-ignore lint/correctness/useUniqueElementIds: the in-page anchor the nav links to; the section renders once.
     <section
       aria-labelledby={headingId}
-      className="mx-auto max-w-300 scroll-mt-24 px-4 py-28 sm:px-6"
+      className="mx-auto max-w-300 scroll-mt-header px-4 pt-12 pb-14 sm:px-6 md:py-28"
       id="security"
     >
-      <div className="flex flex-wrap items-center gap-10 rounded-2xl border-3 border-border bg-plugin-investigate p-[clamp(28px,5vw,56px)] text-black shadow-[10px_10px_0px_0px_var(--shadow-color)]">
-        <div className="min-w-0 flex-[1_1_380px]">
-          <p className="font-bold font-mono text-sm uppercase tracking-[0.08em]">
+      <div className="flex flex-col rounded-[14px] border-3 border-border bg-plugin-investigate px-4.5 py-5.5 text-black shadow-shadow-lg md:flex-row md:flex-wrap md:items-center md:gap-10 md:rounded-2xl md:p-[clamp(28px,5vw,56px)] md:shadow-[10px_10px_0px_0px_var(--shadow-color)]">
+        {/* On phones both columns dissolve into one, so the command follows the paragraph it explains. */}
+        <div className="contents md:block md:min-w-0 md:flex-[1_1_380px]">
+          <p className="font-bold font-mono text-xs uppercase tracking-[0.08em] md:text-sm">
             04 — Security &amp; provenance
           </p>
           <h2
-            className="mt-3 text-4xl leading-[1.02] tracking-[-0.03em] sm:text-[44px]"
+            className="mt-2 text-[28px] leading-[1.05] tracking-[-0.03em] md:mt-3 md:text-[44px] md:leading-[1.02]"
             id={headingId}
           >
             Every release is attested.
           </h2>
-          <p className="mt-5 text-lg leading-[1.55]">
+          <p className="mt-3 text-[15px] leading-normal md:mt-5 md:text-lg md:leading-[1.55]">
             Each release ships a plugin tarball with GitHub build provenance
             attestation, proving it was built by this repository&rsquo;s CI from
             the tagged commit.
           </p>
-          <ul className="mt-6 flex flex-wrap gap-2.5">
+          <ul className="order-1 mt-4 flex flex-col gap-2.5 md:order-none md:mt-6 md:flex-row md:flex-wrap">
             {LINKS.map((link) => (
               <li key={link.href}>
                 <a
-                  className={`inline-flex min-h-11 items-center rounded-base border-2 border-border bg-white px-3.5 py-2.5 font-bold text-black shadow-shadow-md transition-all hover:translate-x-0.75 hover:translate-y-0.75 hover:shadow-none ${FOCUS_ON_LIGHT}`}
+                  className={`flex min-h-12 items-center justify-between gap-2 rounded-base border-2 border-border bg-white px-3.5 py-2.5 font-bold text-black shadow-shadow-md transition-all hover:translate-x-0.75 hover:translate-y-0.75 hover:shadow-none md:inline-flex md:min-h-11 ${FOCUS_ON_LIGHT}`}
                   href={link.href}
                   rel="noreferrer"
                   target="_blank"
                 >
                   {link.label}
+                  <span aria-hidden="true">↗</span>
                 </a>
               </li>
             ))}
           </ul>
         </div>
-        <div className="flex min-w-0 flex-[999_1_460px] flex-col gap-4">
-          <div className="overflow-hidden rounded-[10px] border-3 border-border bg-terminal shadow-shadow-lg">
-            <div className="flex items-center justify-between gap-3 border-border border-b-3 bg-white py-1.5 pr-1.5 pl-3.5">
+        <div className="contents md:flex md:min-w-0 md:flex-[999_1_460px] md:flex-col md:gap-4">
+          <div className="mt-4 overflow-hidden rounded-[8px] border-2 border-border bg-terminal md:mt-0 md:rounded-[10px] md:border-3 md:shadow-shadow-lg">
+            <div className="flex items-center justify-between gap-3 border-border border-b-2 bg-white py-1.5 pr-1.5 pl-3 md:border-b-3 md:pl-3.5">
               <span className="font-bold text-sm">Verify a release</span>
               <CopyButton
                 aria-label="Copy verify command"
@@ -86,19 +89,17 @@ export function SecuritySection(): ReactElement {
                 size="icon-lg"
               />
             </div>
-            <pre className="wrap-anywhere whitespace-pre-wrap p-5 font-mono text-[15px] text-terminal-foreground">
-              <code>
-                <span
-                  aria-hidden="true"
-                  className="mr-2.5 text-plugin-investigate"
-                >
-                  ›
-                </span>
-                {VERIFY_COMMAND}
-              </code>
-            </pre>
+            <div className="px-3 py-2.5 text-[12.5px] text-terminal-foreground leading-[1.6] md:px-5 md:py-4.5 md:text-[15px] md:leading-[1.7]">
+              <CommandLine
+                command={VERIFY_COMMAND}
+                markerClassName="text-plugin-investigate"
+              />
+            </div>
           </div>
-          <ul aria-label="Project health" className="flex flex-wrap gap-2">
+          <ul
+            aria-label="Project health"
+            className="order-2 mt-4 flex flex-wrap gap-1.5 md:order-none md:mt-0 md:gap-2"
+          >
             {HEALTH_LINKS.map((link) => (
               <li key={link.href}>
                 <a
