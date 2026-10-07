@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import { readPluginParam, writePluginParam } from "@/lib/url-state";
 import type { PluginEntry } from "../../catalog-types.ts";
 import {
   FIXTURE_CATALOG,
@@ -76,6 +77,7 @@ function borderContrast(element: Element): number {
 
 afterEach(() => {
   document.documentElement.classList.remove("dark");
+  writePluginParam(null);
 });
 
 describe("SkillsCatalog", () => {
@@ -197,5 +199,45 @@ describe("SkillsCatalog", () => {
     await expect.element(chip("all")).toHaveAttribute("aria-pressed", "true");
     await expect.element(page.getByText("laravel-enums")).toBeVisible();
     expect(skillNames()).toHaveLength(4);
+  });
+
+  it("preselects the plugin named in the URL", async () => {
+    writePluginParam("laravel");
+    render(<SkillsCatalog plugins={PLUGINS} />);
+
+    await expect
+      .element(chip("laravel"))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(skillNames()).toEqual(["laravel-dtos", "laravel-enums"]);
+  });
+
+  it("follows the URL when a link elsewhere sets the plugin", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+    await expect.element(chip("all")).toHaveAttribute("aria-pressed", "true");
+
+    writePluginParam("inertia-react");
+
+    await expect
+      .element(chip("inertia-react"))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(skillNames()).toEqual(["shadcn"]);
+  });
+
+  it("ignores an unknown plugin in the URL", async () => {
+    writePluginParam("no-such-plugin");
+    render(<SkillsCatalog plugins={PLUGINS} />);
+
+    await expect.element(chip("all")).toHaveAttribute("aria-pressed", "true");
+    expect(skillNames()).toHaveLength(4);
+  });
+
+  it("keeps the URL in step with the chips", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+
+    await chip("review").click();
+    expect(readPluginParam()).toBe("review");
+
+    await chip("all").click();
+    expect(readPluginParam()).toBeNull();
   });
 });
