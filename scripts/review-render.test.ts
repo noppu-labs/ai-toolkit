@@ -32,7 +32,7 @@ type RenderedInput = Record<string, unknown> & { comments: RenderedComment[] };
 
 type RenderModule = {
   LABELS: Record<Category, string[]>;
-  SCRUB_PATTERNS: RegExp[];
+  SEVERITY_HEADER_RE: RegExp;
   VERDICTS: string[];
   formatMarkdown: (rendered: RenderedInput) => string;
   renderComments: (input: unknown) => RenderedInput;
@@ -447,7 +447,7 @@ describe("severity header pattern", () => {
   // quadratically on whitespace after `]`.
   const OLD_HEADER_RE =
     /^\p{Extended_Pictographic}\s+\*\*\[[^\]\n]*\]\s*[^*\n]*\*\*\s*/u;
-  const headerRe: RegExp = mod.SCRUB_PATTERNS[0] as RegExp;
+  const headerRe: RegExp = mod.SEVERITY_HEADER_RE;
 
   const whitespace: fc.Arbitrary<string> = fc.constantFrom(
     " ",
