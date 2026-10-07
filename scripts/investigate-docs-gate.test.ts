@@ -180,10 +180,11 @@ describe("bestPin", () => {
         fc.option(fc.integer({ min: 0, max: 50 }), { nil: null }),
         (versions, major) => {
           const r = gate.bestPin(versions, major);
-          return (
-            r === undefined ||
-            (versions.includes(r) && gate.majorOf(r) === major)
-          );
+
+          if (r !== undefined) {
+            expect(versions).toContain(r);
+            expect(gate.majorOf(r)).toBe(major);
+          }
         },
       ),
     );
@@ -206,8 +207,12 @@ describe("bestPin", () => {
             .filter(([m]) => m === major)
             .sort((a, b) => b[0] - a[0] || b[1] - a[1] || b[2] - a[2]);
           const r = gate.bestPin(versions, major);
-          if (same.length === 0) return r === undefined;
-          return String(r).replace(/^v/, "") === (same[0] ?? []).join(".");
+
+          if (same.length === 0) {
+            expect(r).toBeUndefined();
+          } else {
+            expect(String(r).replace(/^v/, "")).toBe((same[0] ?? []).join("."));
+          }
         },
       ),
     );
@@ -332,12 +337,11 @@ describe("c7Verdict", () => {
         fc.string(),
         (c, major, pkg) => {
           const v = gate.c7Verdict(c, major, pkg);
-          return (
-            Number.isInteger(v.rank) &&
-            v.rank >= 0 &&
-            v.rank <= 6 &&
-            v.label.length > 0
-          );
+
+          expect(Number.isInteger(v.rank)).toBe(true);
+          expect(v.rank).toBeGreaterThanOrEqual(0);
+          expect(v.rank).toBeLessThanOrEqual(6);
+          expect(v.label.length).toBeGreaterThan(0);
         },
       ),
     );

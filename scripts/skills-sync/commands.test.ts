@@ -37,13 +37,18 @@ describe("parseSkillArg", () => {
   it("yields a valid pair or throws an Error", () => {
     fc.assert(
       fc.property(fc.option(fc.string(), { nil: undefined }), (arg) => {
-        try {
-          const { plugin, name } = parseSkillArg(arg);
+        let parsed: ReturnType<typeof parseSkillArg>;
 
-          return PLUGINS.includes(plugin) && name.length > 0;
+        try {
+          parsed = parseSkillArg(arg);
         } catch (error) {
-          return error instanceof Error;
+          expect(error).toBeInstanceOf(Error);
+
+          return;
         }
+
+        expect(PLUGINS).toContain(parsed.plugin);
+        expect(parsed.name.length).toBeGreaterThan(0);
       }),
     );
   });

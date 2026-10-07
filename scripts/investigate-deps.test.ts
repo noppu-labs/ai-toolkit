@@ -162,10 +162,12 @@ describe("jsPackageOf", () => {
     fc.assert(
       fc.property(fc.string(), (spec) => {
         const r = deps.jsPackageOf(spec);
-        return (
-          r === null ||
-          (!r.startsWith(".") && !r.startsWith("/") && !r.startsWith("@/"))
-        );
+
+        if (r !== null) {
+          expect(r.startsWith(".")).toBe(false);
+          expect(r.startsWith("/")).toBe(false);
+          expect(r.startsWith("@/")).toBe(false);
+        }
       }),
     );
   });

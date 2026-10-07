@@ -139,7 +139,9 @@ describe("classifyHit", () => {
     fc.assert(
       fc.property(fc.string(), (text) => {
         const c = wiring.classifyHit("Foo", text);
-        return wiring.CATEGORIES.includes(c) && c !== "test";
+
+        expect(wiring.CATEGORIES).toContain(c);
+        expect(c).not.toBe("test");
       }),
     );
   });

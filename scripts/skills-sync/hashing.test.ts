@@ -115,7 +115,8 @@ describe("hashFiles", () => {
           );
           const hash = hashFiles(forward);
 
-          return hash === hashFiles(reversed) && SHA256_HEX.test(hash);
+          expect(hash).toBe(hashFiles(reversed));
+          expect(hash).toMatch(SHA256_HEX);
         },
       ),
     );
@@ -138,7 +139,7 @@ describe("hashFiles", () => {
           const first = entries[0];
 
           if (first === undefined) {
-            return true; // unreachable: minLength:1 guarantees at least one entry
+            return; // unreachable: minLength:1 guarantees at least one entry
           }
 
           const [firstPath, firstContent] = first;
@@ -151,7 +152,7 @@ describe("hashFiles", () => {
 
           mutated.set(firstPath, Buffer.from(flipped));
 
-          return hashFiles(base) !== hashFiles(mutated);
+          expect(hashFiles(base)).not.toBe(hashFiles(mutated));
         },
       ),
     );

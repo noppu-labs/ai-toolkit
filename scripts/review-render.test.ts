@@ -413,7 +413,7 @@ describe("scrubBody", () => {
       fc.property(bodyArb, (body) => {
         const once = scrubBody(body);
 
-        return scrubBody(once) === once;
+        expect(scrubBody(once)).toBe(once);
       }),
     );
   });
@@ -421,7 +421,7 @@ describe("scrubBody", () => {
   it("never adds characters", () => {
     fc.assert(
       fc.property(bodyArb, (body) => {
-        return scrubBody(body).length <= body.length;
+        expect(scrubBody(body).length).toBeLessThanOrEqual(body.length);
       }),
     );
   });
@@ -1264,21 +1264,19 @@ describe("renderComments", () => {
           (comment) => comment.code,
         );
 
-        return (
-          codes.join(",") === makeExpectedCodes(comments).join(",") &&
-          new Set(codes).size === codes.length
-        );
+        expect(codes.join(",")).toBe(makeExpectedCodes(comments).join(","));
+        expect(new Set(codes).size).toBe(codes.length);
       }),
     );
   });
 
   it("renders a header followed by exactly one newline", () => {
     fc.assert(
-      fc.property(makeCommentListArb(), (comments) =>
-        renderComments({ comments }).comments.every((comment) =>
-          HEADER.test(comment.body),
-        ),
-      ),
+      fc.property(makeCommentListArb(), (comments) => {
+        for (const comment of renderComments({ comments }).comments) {
+          expect(comment.body).toMatch(HEADER);
+        }
+      }),
     );
   });
 
@@ -1294,12 +1292,11 @@ describe("renderComments", () => {
         const before = JSON.stringify(input);
 
         const rendered = renderComments(input);
-        const passedThrough = Object.entries(extras).every(
-          ([key, value]) =>
-            JSON.stringify(rendered[key]) === JSON.stringify(value),
-        );
 
-        return passedThrough && JSON.stringify(input) === before;
+        for (const [key, value] of Object.entries(extras)) {
+          expect(JSON.stringify(rendered[key])).toBe(JSON.stringify(value));
+        }
+        expect(JSON.stringify(input)).toBe(before);
       }),
     );
   });
@@ -1328,10 +1325,8 @@ describe("renderComments", () => {
 
           const message = getError({ comments });
 
-          return (
-            message.includes(`comments[${index}]: label `) &&
-            message.includes(mismatched.category)
-          );
+          expect(message).toContain(`comments[${index}]: label `);
+          expect(message).toContain(mismatched.category);
         },
       ),
     );
