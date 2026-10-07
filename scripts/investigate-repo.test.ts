@@ -278,7 +278,7 @@ describe("tsExports", () => {
     unit: fc.constantFrom(" ", "\t", "\u{feff}", "\u{a0}", "\v", "\f"),
     maxLength: 3,
   });
-  const lineEnds = fc.constantFrom("\n", "\r\n", "\r", "\u{2028}");
+  const lineEnds = fc.constantFrom("\n", "\r\n", "\r", "\u{2028}", "\u{2029}");
   const fragments = fc.constantFrom(
     "",
     "export const foo = 1",
@@ -333,7 +333,16 @@ describe("tsExports", () => {
   });
 
   const gaps = fc.string({
-    unit: fc.constantFrom(" ", "\t", "\n"),
+    unit: fc.constantFrom(
+      " ",
+      "\t",
+      "\n",
+      "\r",
+      "\u{a0}",
+      "\u{feff}",
+      "\u{2028}",
+      "\u{2029}",
+    ),
     minLength: 1,
     maxLength: 4,
   });
