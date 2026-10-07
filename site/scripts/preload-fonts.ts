@@ -4,21 +4,19 @@ import type {
   IndexHtmlTransformContext,
   Plugin,
   ResolvedConfig,
+  Rolldown,
 } from "vite";
 
-/** The latin subsets of the two variable fonts the first screen renders with. */
 export const ABOVE_THE_FOLD_FONTS: readonly string[] = [
   "space-grotesk-latin-wght-normal.woff2",
   "jetbrains-mono-latin-wght-normal.woff2",
 ];
 
-/** The fields of a Rolldown output asset this plugin reads. */
-export interface EmittedAsset {
-  type: "asset" | "chunk";
-  fileName: string;
-  names?: readonly string[];
-  originalFileNames?: readonly string[];
-}
+/** The fields of a Rolldown output file this plugin reads. */
+export type EmittedAsset =
+  | Pick<Rolldown.OutputChunk, "type" | "fileName">
+  | (Pick<Rolldown.OutputAsset, "type" | "fileName"> &
+      Partial<Pick<Rolldown.OutputAsset, "names" | "originalFileNames">>);
 
 function emittedFrom(asset: EmittedAsset, font: string): boolean {
   return (
@@ -29,7 +27,7 @@ function emittedFrom(asset: EmittedAsset, font: string): boolean {
   );
 }
 
-/** `<link rel="preload">` tags for the hashed files the build emitted for `fonts`. A missing font fails the build, so a renamed upstream file cannot silently drop the preload. */
+/** A missing font fails the build, so a renamed upstream file cannot silently drop the preload. */
 export function fontPreloadTags(
   assets: readonly EmittedAsset[],
   fonts: readonly string[],
