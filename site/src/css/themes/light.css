@@ -14,8 +14,7 @@
   --heading-font-weight: 700;
   --base-font-weight: 500;
 
-  /* Hard shadows, and the borders of coloured fills, are black in both modes.
-     Neutral surfaces use `edge`, which lightens in dark mode so their outlines stay visible. */
+  /* Hard shadows, and the borders of coloured fills, are black in both modes. */
   --border: var(--palette-black);
   --edge: var(--palette-black);
   --shadow-color: var(--palette-black);
