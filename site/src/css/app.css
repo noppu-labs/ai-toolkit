@@ -52,7 +52,6 @@
     @apply font-sans antialiased;
   }
 
-  /* In-page links glide unless the visitor asked for less motion. */
   @media (prefers-reduced-motion: no-preference) {
     html {
       scroll-behavior: smooth;

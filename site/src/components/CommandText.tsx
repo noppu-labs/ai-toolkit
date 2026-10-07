@@ -22,7 +22,6 @@ function word(text: string): ReactNode {
   );
 }
 
-/** A command that wraps only between its words, keeping each word (and the repo slug) unbroken. */
 export function CommandWords({ command }: { command: string }): ReactElement {
   const words = command.split(" ");
   return (
@@ -40,13 +39,13 @@ export function CommandWords({ command }: { command: string }): ReactElement {
 
 interface CommandLineProps {
   command: string;
-  /** The prompt glyph, or a step number; decorative, so hidden from screen readers. */
+  /** The prompt glyph by default, or a step number. */
   marker?: ReactNode;
   className?: string;
   markerClassName?: string;
 }
 
-/** One terminal line: a prompt glyph, then the command with a hanging indent when it wraps. */
+/** One terminal line; a wrapped command continues under its first word, not under the marker. */
 export function CommandLine({
   command,
   marker = "›",

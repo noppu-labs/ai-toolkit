@@ -54,7 +54,6 @@ describe("CommandLine", () => {
 
     const words = [...container.querySelectorAll("code > span")];
     const [first, , last] = words.map((word) => word.getBoundingClientRect());
-    // Wrapped onto a later line, starting where the command did, not under the prompt.
     expect(last?.top).toBeGreaterThan(first?.top ?? 0);
     expect(Math.round(last?.left ?? 0)).toBe(Math.round(first?.left ?? 0));
   });

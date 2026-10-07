@@ -21,7 +21,7 @@ const FOOTER_LINKS: { label: string; href: string; icon?: ReactElement }[] = [
   },
 ];
 
-/** The skip link's target; "Back to top" moves focus there, so the next Tab starts from the content. */
+/** The skip link's target, `<main id="main">` in `App.tsx`. */
 const MAIN_ID = "main";
 
 function handleBackToTop(): void {
