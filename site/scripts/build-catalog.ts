@@ -90,17 +90,37 @@ function readPlugin(rootDir: string, plugin: MarketplacePlugin): PluginEntry {
   };
 }
 
+/** The site links to a skill by its name alone (`?skill=<name>`), so no two plugins may share one. */
+function requireUniqueSkillNames(plugins: readonly PluginEntry[]): void {
+  const owners = new Map<string, string>();
+  for (const plugin of plugins) {
+    for (const skill of plugin.skills) {
+      const owner = owners.get(skill.name);
+      if (owner !== undefined) {
+        throw new Error(
+          `skill "${skill.name}" is in both ${owner} and ${plugin.name}; skill names must be unique across plugins`,
+        );
+      }
+      owners.set(skill.name, plugin.name);
+    }
+  }
+}
+
 export function buildCatalog(rootDir: string): Catalog {
   const marketplace = readJson(
     join(rootDir, ".claude-plugin", "marketplace.json"),
   ) as MarketplaceManifest;
+  const plugins = marketplace.plugins.map((plugin) =>
+    readPlugin(rootDir, plugin),
+  );
+  requireUniqueSkillNames(plugins);
   return {
     marketplaceName: requireString(marketplace.name, 'marketplace.json "name"'),
     marketplaceDescription: requireString(
       marketplace.description,
       'marketplace.json "description"',
     ),
-    plugins: marketplace.plugins.map((plugin) => readPlugin(rootDir, plugin)),
+    plugins,
   };
 }
 

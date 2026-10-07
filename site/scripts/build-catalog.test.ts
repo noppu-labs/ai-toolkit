@@ -82,6 +82,35 @@ describe("buildCatalog", () => {
     expect(() => buildCatalog(root)).toThrow(/empty/);
   });
 
+  it("throws when two plugins ship a skill with the same name", () => {
+    root = makeRepo();
+    writeFileSync(
+      join(root, ".claude-plugin", "marketplace.json"),
+      JSON.stringify({
+        name: "ai-toolkit",
+        description: "Test marketplace",
+        plugins: [
+          { name: "demo", source: "./demo", description: "Demo plugin" },
+          { name: "other", source: "./other", description: "Other plugin" },
+        ],
+      }),
+    );
+    mkdirSync(join(root, "other", ".claude-plugin"), { recursive: true });
+    writeFileSync(
+      join(root, "other", ".claude-plugin", "plugin.json"),
+      JSON.stringify({ name: "other", version: "1.0.0" }),
+    );
+    mkdirSync(join(root, "other", "skills", "alpha"), { recursive: true });
+    writeFileSync(
+      join(root, "other", "skills", "alpha", "SKILL.md"),
+      "---\nname: alpha\ndescription: Another alpha\n---\n",
+    );
+
+    expect(() => buildCatalog(root)).toThrow(
+      'skill "alpha" is in both demo and other',
+    );
+  });
+
   it("builds the real repository catalog without throwing", () => {
     const realRoot = join(import.meta.dirname, "..", "..");
     const catalog = buildCatalog(realRoot);
