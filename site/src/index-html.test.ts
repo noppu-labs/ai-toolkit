@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pluginInstallSteps } from "@/lib/install";
+import { pluginInstallSteps } from "@/lib/install-methods";
 import { PLUGIN_ORDER } from "@/lib/plugins";
 import { REPO_URL } from "@/lib/repo";
 import { SITE_URL } from "@/lib/site";
