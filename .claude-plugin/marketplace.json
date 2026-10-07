@@ -18,7 +18,7 @@
     {
       "name": "review",
       "source": "./review",
-      "description": "Code review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, a three-stage PR review orchestrator, and PR comments"
+      "description": "Code review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, a three-stage PR review orchestrator, and PR comments, plus a PreToolUse hook that keeps agents off a background subagent's .output symlink"
     },
     {
       "name": "investigate",
