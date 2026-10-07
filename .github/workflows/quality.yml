@@ -41,6 +41,7 @@ jobs:
           "
       - name: Plugin validation
         run: |
+          # Pinned; keep in step with release.yml. Dependabot does not update versions in run: lines.
           npm install -g @anthropic-ai/claude-code@2.1.292
           claude plugin validate .
       - name: Site build
