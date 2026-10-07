@@ -30,7 +30,7 @@ export default function App(): ReactElement {
       </a>
       <SiteHeader />
       {/* biome-ignore lint/correctness/useUniqueElementIds: the skip link's target; the page renders once. */}
-      <main id="main">
+      <main className="scroll-mt-24" id="main">
         <Hero
           description={catalog.marketplaceDescription}
           pluginCount={pluginCount}
