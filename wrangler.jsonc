@@ -1,0 +1,11 @@
+{
+  "name": "ai-toolkit",
+  "compatibility_date": "2026-10-07",
+  // Prevents pushes to main from publishing a 2nd public copy.
+  "workers_dev": false,
+  "assets": {
+    "directory": "./site/dist"
+  },
+  // wrangler preview refuses to run without this block, even empty.
+  "previews": {}
+}
