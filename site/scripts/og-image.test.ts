@@ -17,21 +17,19 @@ const html = ogImageHtml(readOgImageAssets(SITE_DIR));
 
 describe("ogImageHtml", () => {
   it("carries the wordmark, the hero line, the address and the byline", () => {
-    // Match the words with any spaces and tags between them, rather than strip the tags.
-    const words = (text: string): RegExp =>
-      new RegExp(
-        `>${text
-          .split(" ")
-          .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-          .join(String.raw`(?:\s|<[^>]*>)+`)}<`,
-      );
+    // The text between tags, joined with spaces; split, not stripped, so no regex is built from content.
+    const text = html
+      .split(/<[^>]*>/)
+      .join(" ")
+      .split(/\s+/)
+      .join(" ");
 
-    expect(html).toMatch(words("AI Toolkit"));
-    expect(html).toMatch(
-      words("Agent skills for deep code review and grounded investigation."),
+    expect(text).toContain("AI Toolkit");
+    expect(text).toContain(
+      "Agent skills for deep code review and grounded investigation.",
     );
-    expect(html).toMatch(words("toolkit.noppu.com"));
-    expect(html).toMatch(words("by Noppu Labs"));
+    expect(text).toContain("toolkit.noppu.com");
+    expect(text).toContain("by Noppu Labs");
   });
 
   it("embeds the palette, the fonts and both marks, so it renders offline", () => {
