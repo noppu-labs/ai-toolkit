@@ -12,6 +12,11 @@ function stored(): unknown {
   return raw === null ? null : JSON.parse(raw);
 }
 
+// Reflect.construct sidesteps CodeQL's StorageEvent model, which lacks the init parameter.
+function storageEvent(init: StorageEventInit): StorageEvent {
+  return Reflect.construct(StorageEvent, ["storage", init]);
+}
+
 beforeEach(() => {
   resetPreferences();
 });
@@ -174,10 +179,7 @@ describe("usePreferencesStore", () => {
     localStorage.setItem(PREFERENCES_STORAGE_KEY, value);
 
     window.dispatchEvent(
-      new StorageEvent("storage", {
-        key: PREFERENCES_STORAGE_KEY,
-        newValue: value,
-      }),
+      storageEvent({ key: PREFERENCES_STORAGE_KEY, newValue: value }),
     );
 
     await expect.poll(() => usePreferencesStore.getState().theme).toBe("dark");
@@ -190,7 +192,7 @@ describe("usePreferencesStore", () => {
       JSON.stringify({ state: { theme: "dark" }, version: 1 }),
     );
 
-    window.dispatchEvent(new StorageEvent("storage", { key: "other" }));
+    window.dispatchEvent(storageEvent({ key: "other" }));
     await Promise.resolve();
 
     expect(usePreferencesStore.getState().theme).toBe("system");
