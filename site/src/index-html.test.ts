@@ -41,12 +41,16 @@ describe("index.html sharing tags", () => {
     expect(meta("og:site_name")).toMatch(/AI Toolkit/);
   });
 
-  it("gives X the large card, with the Open Graph title, description and image", () => {
+  it("gives X the large card and the image's alt text, leaving the rest to the Open Graph tags", () => {
     expect(meta("twitter:card")).toBe("summary_large_image");
-    expect(meta("twitter:title")).toBe(meta("og:title"));
-    expect(meta("twitter:description")).toBe(meta("og:description"));
-    expect(meta("twitter:image")).toBe(meta("og:image"));
     expect(meta("twitter:image:alt")).toBe(meta("og:image:alt"));
+    for (const fallback of [
+      "twitter:title",
+      "twitter:description",
+      "twitter:image",
+    ]) {
+      expect(meta(fallback)).toBeNull();
+    }
   });
 
   it("serves the social card from public/", async () => {
