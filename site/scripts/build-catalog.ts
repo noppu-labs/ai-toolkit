@@ -12,10 +12,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import type { Catalog, PluginEntry, SkillEntry } from "../src/catalog-types.ts";
 import { REPO_URL } from "../src/lib/repo.ts";
 import { parseFrontmatter } from "./frontmatter.ts";
+import { isMainModule } from "./main-module.ts";
 
 interface MarketplacePlugin {
   name: string;
@@ -124,10 +125,7 @@ export function buildCatalog(rootDir: string): Catalog {
   };
 }
 
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
-) {
+if (isMainModule(import.meta.url)) {
   const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
   const catalog = buildCatalog(rootDir);
   const outDir = join(rootDir, "site", "src", "generated");
