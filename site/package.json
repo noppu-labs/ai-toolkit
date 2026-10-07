@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "browsers:install": "playwright install chromium --with-deps",
     "prebuild": "tsx scripts/build-catalog.ts",
     "build": "vite build",
     "predev": "tsx scripts/build-catalog.ts",

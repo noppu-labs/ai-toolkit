@@ -22,7 +22,7 @@ jobs:
           node-version: 24
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Fuzz property tests (fast-check, high run count)
         run: npm run fuzz
         env:

@@ -19,7 +19,7 @@ jobs:
           node-version: 24
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Unit + property tests (with coverage)
         run: npm run coverage-ci
       - name: Report coverage
@@ -42,8 +42,8 @@ jobs:
           export PATH="$RUNNER_TEMP/py38:$PATH"
           python3 --version
           python3 --version | grep -q '^Python 3\.8\.'
-          REVIEW_PYTHON="$RUNNER_TEMP/py38/python3" npx vitest run scripts/review-scripts.test.ts
+          REVIEW_PYTHON="$RUNNER_TEMP/py38/python3" npm test -- scripts/review-scripts.test.ts
       - name: Install Playwright chromium
-        run: npx playwright install chromium --with-deps
+        run: npm run browsers:install -w site
       - name: Site tests
         run: npm run test -w site
