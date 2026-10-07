@@ -4,11 +4,15 @@ import primitives from "./css/tokens/primitives.css?raw";
 
 /** The `--palette-*` custom properties a stylesheet or style attribute declares. */
 function paletteDeclarations(css: string): Map<string, string> {
-  return new Map(
-    [...css.matchAll(/(--palette-[\w-]+):\s*([^;"]+?)\s*(?:;|")/g)].map(
-      ([, name, value]) => [name, value],
-    ),
-  );
+  const declarations = new Map<string, string>();
+  for (const [, name, value] of css.matchAll(
+    /(--palette-[\w-]+):\s*([^;"]+?)\s*(?:;|")/g,
+  )) {
+    if (name !== undefined && value !== undefined) {
+      declarations.set(name, value);
+    }
+  }
+  return declarations;
 }
 
 const palette = paletteDeclarations(primitives);
