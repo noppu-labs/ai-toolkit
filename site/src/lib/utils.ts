@@ -14,6 +14,7 @@ const twMerge = extendTailwindMerge({
         "boxShadowY",
         "reverseBoxShadowX",
         "reverseBoxShadowY",
+        "header",
       ],
     },
   },

@@ -1,7 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import { prefersReducedMotionQuery } from "@/lib/scroll";
+import { stubMediaQuery } from "@/test/media";
 import { Footer } from "./Footer.tsx";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("Footer", () => {
   it("names the project and links to the repository pages", async () => {
@@ -54,5 +60,71 @@ describe("Footer", () => {
       "aria-hidden",
       "true",
     );
+  });
+
+  it("sets the links in a 2×2 grid on phones", async () => {
+    await page.viewport(390, 844);
+    render(<Footer />);
+
+    const links = page.getByRole("contentinfo").getByRole("link");
+    await expect.element(links.first()).toBeVisible();
+    const boxes = links.elements().map((link) => link.getBoundingClientRect());
+    const columns = new Set(boxes.map((box) => Math.round(box.left)));
+    const rows = new Set(boxes.map((box) => Math.round(box.top)));
+    expect(columns.size).toBe(2);
+    expect(rows.size).toBe(2);
+    for (const box of boxes) {
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  it("goes back to the top and moves focus to the main content", async () => {
+    await page.viewport(390, 844);
+    const scrollTo = vi
+      .spyOn(window, "scrollTo")
+      .mockImplementation(() => undefined);
+    render(
+      <>
+        {/* biome-ignore lint/correctness/useUniqueElementIds: stands in for the skip link's target. */}
+        <main id="main" tabIndex={-1} />
+        <Footer />
+      </>,
+    );
+
+    await page.getByRole("button", { name: "Back to top" }).click();
+
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({
+      top: 0,
+      behavior: "smooth",
+    });
+    await expect.element(page.getByRole("main")).toHaveFocus();
+  });
+
+  it("jumps without animating when the visitor prefers less motion", async () => {
+    await page.viewport(390, 844);
+    stubMediaQuery(prefersReducedMotionQuery, true);
+    const scrollTo = vi
+      .spyOn(window, "scrollTo")
+      .mockImplementation(() => undefined);
+    render(<Footer />);
+
+    await page.getByRole("button", { name: "Back to top" }).click();
+
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({
+      top: 0,
+      behavior: "instant",
+    });
+  });
+
+  it("leaves “Back to top” to phones", async () => {
+    await page.viewport(1280, 800);
+    render(<Footer />);
+
+    await expect
+      .element(page.getByRole("link", { name: "GitHub" }))
+      .toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: "Back to top" }))
+      .not.toBeInTheDocument();
   });
 });

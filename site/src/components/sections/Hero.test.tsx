@@ -22,6 +22,16 @@ describe("Hero", () => {
     expect(page.getByRole("heading", { level: 1 }).all()).toHaveLength(1);
   });
 
+  it("keeps a space before the repo in the badge text", async () => {
+    await page.viewport(1280, 800);
+    renderHero();
+
+    await expect
+      .element(page.getByText("Claude Code marketplace", { exact: false }))
+      .toHaveTextContent("Claude Code marketplace · noppu-labs/ai-toolkit");
+    await page.viewport(414, 896);
+  });
+
   it("shows the marketplace description from the catalog", async () => {
     renderHero(FIXTURE_CATALOG.marketplaceDescription);
 

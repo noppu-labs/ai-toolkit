@@ -1,6 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import { readPluginParam, writePluginParam } from "@/lib/url-state";
+import { usePreferencesStore } from "@/stores/usePreferencesStore";
+import { resetPreferences } from "@/test/preferences";
 import type { PluginEntry } from "../../catalog-types.ts";
 import {
   FIXTURE_CATALOG,
@@ -13,18 +16,39 @@ const PLUGINS: PluginEntry[] = [
   FIXTURE_REVIEW_PLUGIN,
 ];
 
-function chipsOf(name: string): string[] {
-  const card = page
+function card(name: string): ReturnType<typeof page.getByRole> {
+  return page
     .getByRole("article")
     .filter({ has: page.getByRole("heading", { name, exact: true }) });
-  return card
+}
+
+function chipsOf(name: string): string[] {
+  return card(name)
     .getByRole("list", { name: "Contents" })
     .getByRole("listitem")
     .elements()
     .map((item) => item.textContent ?? "");
 }
 
+/** The commands a card shows, without the decorative step numbers and prompts. */
+function shownCommands(name: string): string[] {
+  return [...card(name).element().querySelectorAll("code")].map(
+    (code) => code.textContent ?? "",
+  );
+}
+
+const method = (name: string): ReturnType<typeof page.getByRole> =>
+  page
+    .getByRole("radiogroup", { name: "Install with" })
+    .getByRole("radio", { name });
+
+beforeEach(() => {
+  resetPreferences();
+});
+
 afterEach(() => {
+  resetPreferences();
+  writePluginParam(null, { hash: "" });
   vi.restoreAllMocks();
 });
 
@@ -65,20 +89,136 @@ describe("PluginCards", () => {
     expect(chipsOf("review")).toEqual(["1 skill", "any language"]);
   });
 
-  it("copies a plugin's install command", async () => {
+  it("shows the Claude Code commands, numbered, by default", async () => {
+    render(<PluginCards plugins={PLUGINS} />);
+
+    await expect
+      .element(method("Claude Code"))
+      .toHaveAttribute("aria-checked", "true");
+    await expect
+      .element(method("skills CLI"))
+      .toHaveAttribute("aria-checked", "false");
+    expect(shownCommands("laravel")).toEqual([
+      "/plugin marketplace add noppu-labs/ai-toolkit",
+      "/plugin install laravel@ai-toolkit",
+    ]);
+  });
+
+  it("copies exactly the commands it shows", async () => {
     const writeText = vi
       .spyOn(navigator.clipboard, "writeText")
       .mockResolvedValue(undefined);
     render(<PluginCards plugins={PLUGINS} />);
 
-    await expect
-      .element(page.getByText("/plugin install laravel@ai-toolkit"))
-      .toBeVisible();
-    await page
-      .getByRole("button", { name: "Copy install command for laravel" })
+    const laravel = card("laravel");
+    await laravel
+      .getByRole("button", {
+        name: "Copy step 1 for laravel: add the marketplace",
+      })
       .click();
-    expect(writeText).toHaveBeenCalledExactlyOnceWith(
-      "/plugin install laravel@ai-toolkit",
+    await laravel
+      .getByRole("button", { name: "Copy step 2 for laravel: install it" })
+      .click();
+    await method("skills CLI").click();
+    await laravel
+      .getByRole("button", { name: "Copy the install command for laravel" })
+      .click();
+
+    expect(writeText.mock.calls).toEqual([
+      ["/plugin marketplace add noppu-labs/ai-toolkit"],
+      ["/plugin install laravel@ai-toolkit"],
+      ["npx skills add noppu-labs/ai-toolkit/laravel"],
+    ]);
+  });
+
+  it("does not carry a “Copied!” state over to the other method", async () => {
+    vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    render(<PluginCards plugins={PLUGINS} />);
+
+    const laravel = card("laravel");
+    await laravel
+      .getByRole("button", { name: "Copy step 2 for laravel: install it" })
+      .click();
+    await expect.element(laravel.getByText("Copied!")).toBeVisible();
+    await method("skills CLI").click();
+
+    await expect
+      .element(
+        laravel.getByRole("button", {
+          name: "Copy the install command for laravel",
+        }),
+      )
+      .toHaveTextContent("Copy");
+    await expect.element(laravel.getByText("Copied!")).not.toBeInTheDocument();
+  });
+
+  it("switches every card to the skills CLI and stores the choice", async () => {
+    render(<PluginCards plugins={PLUGINS} />);
+
+    await method("skills CLI").click();
+
+    await expect
+      .element(method("skills CLI"))
+      .toHaveAttribute("aria-checked", "true");
+    expect(usePreferencesStore.getState().installMethod).toBe("skills-cli");
+    expect(shownCommands("review")).toEqual([
+      "npx skills add noppu-labs/ai-toolkit/review",
+    ]);
+    expect(shownCommands("inertia-react")).toEqual([
+      "npx skills add noppu-labs/ai-toolkit/inertia-react",
+    ]);
+  });
+
+  it("follows the install method chosen elsewhere on the page", async () => {
+    render(<PluginCards plugins={PLUGINS} />);
+    await expect
+      .element(method("Claude Code"))
+      .toHaveAttribute("aria-checked", "true");
+
+    usePreferencesStore.getState().setInstallMethod("skills-cli");
+
+    await expect
+      .element(method("skills CLI"))
+      .toHaveAttribute("aria-checked", "true");
+    expect(shownCommands("laravel")).toEqual([
+      "npx skills add noppu-labs/ai-toolkit/laravel",
+    ]);
+  });
+
+  it("links each card to its plugin's skills in the catalog", async () => {
+    render(<PluginCards plugins={PLUGINS} />);
+
+    await expect
+      .element(page.getByRole("link", { name: "See 2 laravel skills" }))
+      .toHaveAttribute("href", "?plugin=laravel#skills");
+    await expect
+      .element(page.getByRole("link", { name: "See 1 inertia-react skill" }))
+      .toHaveAttribute("href", "?plugin=inertia-react#skills");
+  });
+
+  it("filters the catalog to the plugin and scrolls to it without reloading", async () => {
+    const scrollIntoView = vi
+      .spyOn(Element.prototype, "scrollIntoView")
+      .mockImplementation(() => undefined);
+    render(
+      <>
+        <PluginCards plugins={PLUGINS} />
+        {/* biome-ignore lint/correctness/useUniqueElementIds: stands in for the catalog section. */}
+        <section id="skills" tabIndex={-1} />
+      </>,
     );
+    const historyLength = window.history.length;
+
+    await page.getByRole("link", { name: "See 2 laravel skills" }).click();
+
+    expect(readPluginParam()).toBe("laravel");
+    expect(window.location.hash).toBe("#skills");
+    // A new history entry, so Back returns to the cards.
+    expect(window.history.length).toBe(historyLength + 1);
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(scrollIntoView.mock.contexts[0]).toBe(
+      document.getElementById("skills"),
+    );
+    expect(document.activeElement).toBe(document.getElementById("skills"));
   });
 });

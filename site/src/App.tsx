@@ -9,6 +9,7 @@ import { SecuritySection } from "./components/sections/SecuritySection.tsx";
 import { SiteHeader } from "./components/sections/SiteHeader.tsx";
 import { SkillsCatalog } from "./components/sections/SkillsCatalog.tsx";
 import catalogJson from "./generated/catalog.json";
+import { useScrollToHashOnLoad } from "./hooks/useScrollToHashOnLoad.ts";
 
 const catalog: Catalog = catalogJson;
 
@@ -19,6 +20,8 @@ const skillCount: number = catalog.plugins.reduce(
 );
 
 export default function App(): ReactElement {
+  useScrollToHashOnLoad();
+
   return (
     // `overflow-x: clip` (unlike `hidden`) keeps the sticky header working.
     <div className="min-h-screen overflow-x-clip bg-grid font-base text-foreground">
@@ -29,8 +32,9 @@ export default function App(): ReactElement {
         Skip to content
       </a>
       <SiteHeader />
+      {/* tabIndex: focusable from script, for "Back to top". */}
       {/* biome-ignore lint/correctness/useUniqueElementIds: the skip link's target; the page renders once. */}
-      <main className="scroll-mt-24" id="main">
+      <main className="scroll-mt-header outline-hidden" id="main" tabIndex={-1}>
         <Hero
           description={catalog.marketplaceDescription}
           pluginCount={pluginCount}

@@ -3,6 +3,7 @@ import {
   type ChangeEvent,
   type ReactElement,
   useCallback,
+  useEffect,
   useId,
   useMemo,
   useState,
@@ -11,12 +12,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { usePluginParam } from "@/hooks/usePluginParam";
 import {
   pluginColorClass,
   pluginPressedColorClass,
   sortPlugins,
 } from "@/lib/plugins";
 import { pluralize } from "@/lib/pluralize";
+import { subscribeToPluginLinks, writePluginParam } from "@/lib/url-state";
 import { cn } from "@/lib/utils";
 import type { PluginEntry, SkillEntry } from "../../catalog-types.ts";
 
@@ -76,9 +79,16 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
   const headingId = useId();
   const inputId = useId();
   const [query, setQuery] = useState("");
-  const [plugin, setPlugin] = useState(ALL);
+  const pluginParam = usePluginParam();
+
+  // A card's "See skills" link promises that plugin's skills, so a typed filter must not hide them.
+  useEffect(() => subscribeToPluginLinks(() => setQuery("")), []);
 
   const sorted = useMemo(() => sortPlugins(plugins), [plugins]);
+  const plugin =
+    pluginParam !== null && sorted.some((p) => p.name === pluginParam)
+      ? pluginParam
+      : ALL;
   const allSkills = useMemo(
     (): CatalogSkill[] =>
       sorted.flatMap((p) => p.skills.map((s) => ({ ...s, plugin: p.name }))),
@@ -96,13 +106,13 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
   const handlePluginChange = useCallback((value: string[]): void => {
     const [next] = value;
     if (next !== undefined) {
-      setPlugin(next);
+      writePluginParam(next === ALL ? null : next);
     }
   }, []);
 
   const handleClear = useCallback((): void => {
     setQuery("");
-    setPlugin(ALL);
+    writePluginParam(null);
   }, []);
 
   const queried = allSkills.filter((skill) => matches(skill, query));
@@ -116,8 +126,10 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
     // biome-ignore lint/correctness/useUniqueElementIds: the in-page anchor the nav links to; the section renders once.
     <section
       aria-labelledby={headingId}
-      className="scroll-mt-24 border-edge border-y-3 bg-secondary-background"
+      className="scroll-mt-header border-edge border-y-3 bg-secondary-background outline-hidden"
       id="skills"
+      // Focusable from script, so following a plugin card's skills link moves focus here.
+      tabIndex={-1}
     >
       <div className="mx-auto max-w-300 px-4 py-24 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-6">

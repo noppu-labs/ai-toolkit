@@ -21,6 +21,24 @@ describe("SecuritySection", () => {
     );
   });
 
+  it("tabs through its controls in the order a phone shows them", async () => {
+    await page.viewport(390, 844);
+    render(<SecuritySection />);
+    await expect
+      .element(page.getByRole("button", { name: "Copy verify command" }))
+      .toBeVisible();
+
+    const controls = [
+      ...page.getByRole("region").element().querySelectorAll("a, button"),
+    ];
+    const tops = controls.map((control) =>
+      Math.round(control.getBoundingClientRect().top),
+    );
+    expect(tops).toEqual(tops.toSorted((a, b) => a - b));
+    expect(controls[0]?.getAttribute("aria-label")).toBe("Copy verify command");
+    await page.viewport(414, 896);
+  });
+
   it("links to the security policy and Scorecard", async () => {
     render(<SecuritySection />);
 
