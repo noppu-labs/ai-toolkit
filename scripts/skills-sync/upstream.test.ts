@@ -118,7 +118,8 @@ describe("fetchUpstream", () => {
           hostileGh,
         );
 
-        return result.files.size === 1 && SHA256_HEX.test(result.hash);
+        expect(result.files.size).toBe(1);
+        expect(result.hash).toMatch(SHA256_HEX);
       }),
     );
   });

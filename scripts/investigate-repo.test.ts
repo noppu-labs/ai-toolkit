@@ -2,12 +2,14 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { git } from "./fixtures/investigate-git.ts";
 import type { Sym } from "./fixtures/investigate-types.ts";
 
 type RepoModule = {
   TS_EXT_RE: RegExp;
+  compareCodeUnits: (a: string, b: string) => number;
   collectFiles: (p: string, env?: NodeJS.ProcessEnv) => string[];
   tsExports: (text: string) => string[];
   deriveSymbols: (
@@ -48,6 +50,58 @@ const repo: RepoModule = (await import(
 const exec: ExecModule = (await import(
   pathToFileURL(join(libDir, "exec.mjs")).href
 )) as ExecModule;
+
+// pre-S8786 patterns, kept to prove the rewrite is equivalent
+const OLD_IDENT_RE = /^[A-Za-z_$][\w$]*$/;
+const OLD_EXPORT_RE =
+  /^\s*export\s+(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:function\s*\*?|class|const\s+enum|const|let|var|enum|type|interface|abstract\s+class)\s+([A-Za-z_$][\w$]*)/gm;
+const OLD_EXPORT_LIST_RE =
+  /^\s*export\s+(?:type\s+)?\{([^}]*)\}(?!\s*from\b)/gm;
+const OLD_DEFAULT_IDENT_RE =
+  /^\s*export\s+default\s+([A-Za-z_$][\w$]*)\s*;?\s*$/gm;
+const OLD_CJS_DEFAULT_RE =
+  /^\s*module\.exports\s*=\s*([A-Za-z_$][\w$]*)\s*;?\s*$/gm;
+const OLD_CJS_NAMED_RE = /^\s*(?:module\.)?exports\.([A-Za-z_$][\w$]*)\s*=/gm;
+
+function oldListNames(body: string): string[] {
+  return body
+    .split(",")
+    .map((item) =>
+      item
+        .trim()
+        .replace(/^type\s+/, "")
+        .split(/\s+as\s+/)
+        .at(-1),
+    )
+    .filter(
+      (name): name is string =>
+        !!name && name !== "default" && OLD_IDENT_RE.test(name),
+    );
+}
+
+// tsExports as it stood, driven by the old patterns: ordering and dedupe are
+// part of what the rewrite must preserve.
+function getOldTsExports(text: string): string[] {
+  const hits: { at: number; names: string[] }[] = [];
+  for (const re of [
+    OLD_EXPORT_RE,
+    OLD_DEFAULT_IDENT_RE,
+    OLD_CJS_DEFAULT_RE,
+    OLD_CJS_NAMED_RE,
+  ]) {
+    for (const m of text.matchAll(re))
+      hits.push({ at: m.index, names: [m[1] ?? ""] });
+  }
+  for (const m of text.matchAll(OLD_EXPORT_LIST_RE)) {
+    hits.push({ at: m.index, names: oldListNames(m[1] ?? "") });
+  }
+  const names: string[] = [];
+  for (const name of hits.sort((a, b) => a.at - b.at).flatMap((h) => h.names)) {
+    if (name && !names.includes(name)) names.push(name);
+  }
+
+  return names;
+}
 
 function gitInit(prefix: string): string {
   const cwd = mkdtempSync(join(tmpdir(), prefix));
@@ -202,6 +256,151 @@ describe("tsExports", () => {
     expect(
       repo.tsExports("export const a = 1;\nexport { a };\nexport const a = 2;"),
     ).toEqual(["a"]);
+  });
+
+  it("names exports indented with tabs, after blank lines, with CRLF endings, or after a BOM", () => {
+    expect(
+      repo.tsExports(
+        "\u{feff}export const first = 1;\r\n\r\n\r\n\texport const alpha = 1;\r\n\n  \n\t export function* gen() {}\r\n\t\texport { beta, type Gamma as delta }\r\n\r\n\tmodule.exports = Legacy;\r\n",
+      ),
+    ).toEqual(["first", "alpha", "gen", "beta", "delta", "Legacy"]);
+  });
+
+  it("names export list items through type modifiers, renames, wide gaps, trailing commas and default", () => {
+    expect(
+      repo.tsExports(
+        "export {  a ,  type   B  as   c,\tdefault as d, e as default ,\n  f\tas\tg,  }\n",
+      ),
+    ).toEqual(["a", "c", "d", "g"]);
+  });
+
+  const indents = fc.string({
+    unit: fc.constantFrom(" ", "\t", "\u{feff}", "\u{a0}", "\v", "\f"),
+    maxLength: 3,
+  });
+  const lineEnds = fc.constantFrom("\n", "\r\n", "\r", "\u{2028}", "\u{2029}");
+  const fragments = fc.constantFrom(
+    "",
+    "export const foo = 1",
+    "export function* gen() {}",
+    "export function\t*\tgen2() {}",
+    "export function*gen3() {}",
+    "export function *  (",
+    "export function  (",
+    "export async function load() {}",
+    "export const enum Dir {}",
+    "export declare const bar: number;",
+    "export abstract class Shape {}",
+    "export default class Store {}",
+    "export default class",
+    "Later {}",
+    "export default Widget;",
+    "export default Widget ;  ",
+    "export default Widget   other",
+    ";",
+    "export { a, type b as c }",
+    "export type { Props }",
+    "export {",
+    "  first, // first as alias",
+    "  second as renamed,",
+    "}",
+    'export { x } from "./y"',
+    "module.exports = thing;",
+    "module.exports = thing   ;  ",
+    "module.exports.other = 2",
+    "exports.name =",
+    "exports.spaced   = 1",
+    "const hidden = 1",
+  );
+
+  it("matches the pre-S8786 patterns on any mix of export lines", () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.tuple(indents, fragments, indents, lineEnds), {
+          maxLength: 12,
+        }),
+        (lines) => {
+          const text = lines
+            .map(
+              ([lead, fragment, trail, end]) => lead + fragment + trail + end,
+            )
+            .join("");
+
+          expect(repo.tsExports(text)).toEqual(getOldTsExports(text));
+        },
+      ),
+    );
+  });
+
+  const gaps = fc.string({
+    unit: fc.constantFrom(
+      " ",
+      "\t",
+      "\n",
+      "\r",
+      "\u{a0}",
+      "\u{feff}",
+      "\u{2028}",
+      "\u{2029}",
+    ),
+    minLength: 1,
+    maxLength: 4,
+  });
+  const idents = fc.oneof(
+    fc.constantFrom("default", "as", "type", "foo", "Bar"),
+    fc.stringMatching(/^[A-Za-z_$][\w$]{0,4}$/),
+  );
+  const listItems = fc
+    .tuple(fc.boolean(), idents, fc.option(idents), gaps, gaps, gaps)
+    .map(
+      ([typed, name, alias, g1, g2, g3]) =>
+        (typed ? `type${g1}` : "") +
+        name +
+        (alias === null ? "" : `${g2}as${g3}${alias}`),
+    );
+
+  it("names the same export list items as the pre-S8786 split", () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.tuple(listItems, gaps), { minLength: 1, maxLength: 6 }),
+        fc.boolean(),
+        (items, trailingComma) => {
+          const body =
+            items.map(([item, gap]) => item + gap).join(",") +
+            (trailingComma ? "," : "");
+          const text = `export {${body}}\n`;
+
+          expect(repo.tsExports(text)).toEqual(getOldTsExports(text));
+        },
+      ),
+    );
+  });
+
+  it("names the same items as the pre-S8786 split for malformed list items", () => {
+    const words = fc.constantFrom("a", "as", "type", "//", "default", "x1");
+    const junk = fc
+      .array(fc.tuple(words, gaps), { minLength: 1, maxLength: 6 })
+      .map((parts) => parts.map(([word, gap]) => word + gap).join(""));
+
+    fc.assert(
+      fc.property(fc.array(junk, { minLength: 1, maxLength: 4 }), (items) => {
+        const text = `export { ${items.join(",")} }\n`;
+
+        expect(repo.tsExports(text)).toEqual(getOldTsExports(text));
+      }),
+    );
+  });
+});
+
+describe("compareCodeUnits", () => {
+  it("sorts in the same order as the default sort", () => {
+    fc.assert(
+      fc.property(fc.array(fc.string({ unit: "binary" })), (items) => {
+        expect([...items].sort(repo.compareCodeUnits)).toEqual(
+          [...items].sort(),
+        );
+      }),
+    );
   });
 });
 

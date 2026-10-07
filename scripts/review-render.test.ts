@@ -32,6 +32,7 @@ type RenderedInput = Record<string, unknown> & { comments: RenderedComment[] };
 
 type RenderModule = {
   LABELS: Record<Category, string[]>;
+  SEVERITY_HEADER_RE: RegExp;
   VERDICTS: string[];
   formatMarkdown: (rendered: RenderedInput) => string;
   renderComments: (input: unknown) => RenderedInput;
@@ -412,7 +413,7 @@ describe("scrubBody", () => {
       fc.property(bodyArb, (body) => {
         const once = scrubBody(body);
 
-        return scrubBody(once) === once;
+        expect(scrubBody(once)).toBe(once);
       }),
     );
   });
@@ -420,8 +421,92 @@ describe("scrubBody", () => {
   it("never adds characters", () => {
     fc.assert(
       fc.property(bodyArb, (body) => {
-        return scrubBody(body).length <= body.length;
+        expect(scrubBody(body).length).toBeLessThanOrEqual(body.length);
       }),
+    );
+  });
+
+  it.each([
+    [
+      "a newline after the bracket",
+      "🔴 **[Bug]\napp/Thing.php:31** Real body.",
+    ],
+    [
+      "spaces around that newline",
+      "🔴 **[Bug]  \n  app/Thing.php:31** Real body.",
+    ],
+    ["only spaces before the closing bold", "🔴 **[Bug]   ** Real body."],
+    ["nothing before the closing bold", "🔴 **[Bug]** Real body."],
+  ])("strips a severity header with %s", (_name, body) => {
+    expect(scrubBody(body)).toBe("Real body.");
+  });
+});
+
+describe("severity header pattern", () => {
+  // The header pattern before the S8786 rewrite, which backtracked
+  // quadratically on whitespace after `]`.
+  const OLD_HEADER_RE =
+    /^\p{Extended_Pictographic}\s+\*\*\[[^\]\n]*\]\s*[^*\n]*\*\*\s*/u;
+  const headerRe: RegExp = mod.SEVERITY_HEADER_RE;
+
+  const whitespace: fc.Arbitrary<string> = fc.constantFrom(
+    " ",
+    "\t",
+    "\n",
+    "\r",
+    "\v",
+    "\f",
+    "\u{a0}",
+    "\u{feff}",
+    "\u{1680}",
+    "\u{2000}",
+    "\u{2028}",
+    "\u{2029}",
+    "\u{202f}",
+    "\u{3000}",
+  );
+  const spaces: fc.Arbitrary<string> = fc.string({
+    unit: whitespace,
+    maxLength: 4,
+  });
+  const separators: fc.Arbitrary<string> = fc.oneof(
+    fc.constantFrom("", " ", "\t", "\n", "  \n  "),
+    fc.string({
+      unit: fc.oneof(whitespace, fc.constant("\n")),
+      maxLength: 4,
+    }),
+  );
+  const makeText = (extra: string[]): fc.Arbitrary<string> =>
+    fc.string({
+      unit: fc.oneof(whitespace, fc.constantFrom("a", ":", ".", "]", ...extra)),
+      maxLength: 8,
+    });
+  const headers: fc.Arbitrary<string> = fc
+    .tuple(
+      fc.constantFrom("🔴", "🟠", "🟡", "⚪", "x"),
+      spaces,
+      makeText(["["]),
+      separators,
+      makeText([]),
+      fc.constantFrom("**", "*", ""),
+      spaces,
+      fc.string(),
+    )
+    .map(
+      ([emoji, gap, label, separator, free, close, trailing, tail]) =>
+        `${emoji}${gap}**[${label}]${separator}${free}${close}${trailing}${tail}`,
+    );
+
+  it("strips what the pre-S8786 pattern stripped", () => {
+    fc.assert(
+      fc.property(
+        fc.oneof({ arbitrary: headers, weight: 4 }, fc.string()),
+        (body) => {
+          expect(body.replace(headerRe, "")).toBe(
+            body.replace(OLD_HEADER_RE, ""),
+          );
+        },
+      ),
     );
   });
 });
@@ -1179,21 +1264,19 @@ describe("renderComments", () => {
           (comment) => comment.code,
         );
 
-        return (
-          codes.join(",") === makeExpectedCodes(comments).join(",") &&
-          new Set(codes).size === codes.length
-        );
+        expect(codes.join(",")).toBe(makeExpectedCodes(comments).join(","));
+        expect(new Set(codes).size).toBe(codes.length);
       }),
     );
   });
 
   it("renders a header followed by exactly one newline", () => {
     fc.assert(
-      fc.property(makeCommentListArb(), (comments) =>
-        renderComments({ comments }).comments.every((comment) =>
-          HEADER.test(comment.body),
-        ),
-      ),
+      fc.property(makeCommentListArb(), (comments) => {
+        for (const comment of renderComments({ comments }).comments) {
+          expect(comment.body).toMatch(HEADER);
+        }
+      }),
     );
   });
 
@@ -1209,12 +1292,11 @@ describe("renderComments", () => {
         const before = JSON.stringify(input);
 
         const rendered = renderComments(input);
-        const passedThrough = Object.entries(extras).every(
-          ([key, value]) =>
-            JSON.stringify(rendered[key]) === JSON.stringify(value),
-        );
 
-        return passedThrough && JSON.stringify(input) === before;
+        for (const [key, value] of Object.entries(extras)) {
+          expect(JSON.stringify(rendered[key])).toBe(JSON.stringify(value));
+        }
+        expect(JSON.stringify(input)).toBe(before);
       }),
     );
   });
@@ -1243,10 +1325,8 @@ describe("renderComments", () => {
 
           const message = getError({ comments });
 
-          return (
-            message.includes(`comments[${index}]: label `) &&
-            message.includes(mismatched.category)
-          );
+          expect(message).toContain(`comments[${index}]: label `);
+          expect(message).toContain(mismatched.category);
         },
       ),
     );

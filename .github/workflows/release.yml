@@ -59,10 +59,10 @@ jobs:
       - name: Pre-publish validation
         if: steps.detect.outputs.count != '0'
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm run sync -- verify
-          npm install -g @anthropic-ai/claude-code
-          claude plugin validate .
+          npm ci --ignore-scripts --prefix .github/tools
+          npm run plugin:validate
       - name: Attest build provenance
         id: attest
         if: steps.detect.outputs.count != '0'

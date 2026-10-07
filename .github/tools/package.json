@@ -1,0 +1,8 @@
+{
+  "name": "ci-tools",
+  "private": true,
+  "description": "CI-only tools, kept out of the root manifest so contributors never install them",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.292"
+  }
+}

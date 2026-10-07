@@ -22,10 +22,8 @@ describe("parseLock", () => {
       fc.property(fc.string(), (text) => {
         try {
           parseLock(text);
-
-          return true;
         } catch (error) {
-          return error instanceof SyntaxError;
+          expect(error).toBeInstanceOf(SyntaxError);
         }
       }),
     );
@@ -34,12 +32,11 @@ describe("parseLock", () => {
   // Property: any object serialized as JSON parses back to a deep-equal value.
   it("round-trips JSON-serialized values", () => {
     fc.assert(
-      fc.property(
-        fc.jsonValue(),
-        (value) =>
-          JSON.stringify(parseLock(JSON.stringify(value))) ===
+      fc.property(fc.jsonValue(), (value) => {
+        expect(JSON.stringify(parseLock(JSON.stringify(value)))).toBe(
           JSON.stringify(value),
-      ),
+        );
+      }),
     );
   });
 });
@@ -86,8 +83,9 @@ describe("classify", () => {
         ),
         maybeString,
         maybeString,
-        (entry, vendoredNow, upstreamNow) =>
-          STATUSES.includes(classify(entry, vendoredNow, upstreamNow)),
+        (entry, vendoredNow, upstreamNow) => {
+          expect(STATUSES).toContain(classify(entry, vendoredNow, upstreamNow));
+        },
       ),
     );
   });

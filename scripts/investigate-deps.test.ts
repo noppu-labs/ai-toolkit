@@ -162,10 +162,12 @@ describe("jsPackageOf", () => {
     fc.assert(
       fc.property(fc.string(), (spec) => {
         const r = deps.jsPackageOf(spec);
-        return (
-          r === null ||
-          (!r.startsWith(".") && !r.startsWith("/") && !r.startsWith("@/"))
-        );
+
+        if (r !== null) {
+          expect(r.startsWith(".")).toBe(false);
+          expect(r.startsWith("/")).toBe(false);
+          expect(r.startsWith("@/")).toBe(false);
+        }
       }),
     );
   });
@@ -205,6 +207,28 @@ describe("collectDependencies", () => {
     });
     expect(rows.find((r) => r.name === "vitest")?.dev).toBe(true);
     expect(rows.find((r) => r.name === "fsevents")?.dev).toBe(true);
+  });
+
+  it("sorts rows by code unit, so uppercase names come before lowercase ones", () => {
+    const root = mkdtempSync(join(tmpdir(), "x-"));
+    writeFileSync(
+      join(root, "package-lock.json"),
+      JSON.stringify({
+        packages: {
+          "node_modules/axios": { version: "1.0.0" },
+          "node_modules/Zod": { version: "3.0.0" },
+        },
+      }),
+    );
+    writeFileSync(
+      join(root, "a.mjs"),
+      "import axios from 'axios';\nimport { z } from 'Zod';\n",
+    );
+    const { rows } = deps.collectDependencies({
+      files: [join(root, "a.mjs")],
+      repoRoot: root,
+    });
+    expect(rows.map((r) => r.name)).toEqual(["Zod", "axios"]);
   });
 
   it("names the lockfile it could not read for each ecosystem the target uses", () => {

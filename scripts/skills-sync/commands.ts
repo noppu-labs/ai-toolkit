@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resolveExecutable } from "../resolve-executable.ts";
 import { getErrorMessage } from "./errors.ts";
 import { hashDirectory } from "./hashing.ts";
 import { classify, readLock, writeLock } from "./lockfile.ts";
@@ -197,7 +198,7 @@ export function diffSkill(
     writeUpstreamTo(tmp, fetcher(assertUpstream(plugin, name, entry)).files);
 
     const result = spawnSync(
-      "git",
+      resolveExecutable("git"),
       ["diff", "--no-index", join(root, plugin, "skills", name), tmp],
       { stdio: "inherit" },
     );

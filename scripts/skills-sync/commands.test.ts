@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, type TestContext } from "vitest";
 import {
   acceptSkill,
   diffSkill,
@@ -37,13 +37,18 @@ describe("parseSkillArg", () => {
   it("yields a valid pair or throws an Error", () => {
     fc.assert(
       fc.property(fc.option(fc.string(), { nil: undefined }), (arg) => {
-        try {
-          const { plugin, name } = parseSkillArg(arg);
+        let parsed: ReturnType<typeof parseSkillArg>;
 
-          return PLUGINS.includes(plugin) && name.length > 0;
+        try {
+          parsed = parseSkillArg(arg);
         } catch (error) {
-          return error instanceof Error;
+          expect(error).toBeInstanceOf(Error);
+
+          return;
         }
+
+        expect(PLUGINS).toContain(parsed.plugin);
+        expect(parsed.name.length).toBeGreaterThan(0);
       }),
     );
   });
@@ -312,7 +317,9 @@ describe("diffSkill", () => {
     ).toBe(1);
   });
 
-  it("throws when the underlying spawnSync call fails (e.g. git missing from PATH)", (t) => {
+  // Diffs a github-sourced demo skill with PATH reduced to one temp dir,
+  // which holds a `git` running `gitScript` when one is given.
+  function diffWithOnlyGit(t: TestContext, gitScript?: string): number {
     const root = makeRoot(t);
 
     addSkill(
@@ -323,55 +330,41 @@ describe("diffSkill", () => {
       makeGithubEntry(),
     );
 
-    const emptyPathDir = mkdtempSync(join(tmpdir(), "empty-path-"));
+    const binDir = mkdtempSync(join(tmpdir(), "only-git-"));
     const originalPath = process.env.PATH;
 
     t.onTestFinished(() => {
       process.env.PATH = originalPath;
-      rmSync(emptyPathDir, { recursive: true, force: true });
+      rmSync(binDir, { recursive: true, force: true });
     });
-    process.env.PATH = emptyPathDir;
+    if (gitScript !== undefined) {
+      writeFileSync(join(binDir, "git"), gitScript, { mode: 0o755 });
+    }
+    process.env.PATH = binDir;
 
-    expect(() =>
-      diffSkill(
-        root,
-        "laravel",
-        "demo",
-        makeFakeFetcher({ "SKILL.md": "# demo" }),
-      ),
-    ).toThrow(/ENOENT/);
+    return diffSkill(
+      root,
+      "laravel",
+      "demo",
+      makeFakeFetcher({ "SKILL.md": "# demo" }),
+    );
+  }
+
+  it("throws when git cannot be resolved from PATH", (t) => {
+    expect(() => diffWithOnlyGit(t)).toThrow("`git` not found on PATH");
+  });
+
+  it("throws the spawn error when git resolves but cannot start", (t) => {
+    // An executable whose interpreter does not exist makes spawnSync report
+    // ENOENT through result.error instead of an exit status.
+    expect(() => diffWithOnlyGit(t, "#!/nonexistent/interpreter\n")).toThrow(
+      /ENOENT/,
+    );
   });
 
   it("throws instead of reporting no differences when git is killed by a signal", (t) => {
-    const root = makeRoot(t);
-
-    addSkill(
-      root,
-      "laravel",
-      "demo",
-      { "SKILL.md": "# demo" },
-      makeGithubEntry(),
+    expect(() => diffWithOnlyGit(t, "#!/bin/sh\nkill -TERM $$\n")).toThrow(
+      /killed by SIGTERM/,
     );
-
-    const fakeBinDir = mkdtempSync(join(tmpdir(), "signal-git-"));
-    const originalPath = process.env.PATH;
-
-    t.onTestFinished(() => {
-      process.env.PATH = originalPath;
-      rmSync(fakeBinDir, { recursive: true, force: true });
-    });
-    writeFileSync(join(fakeBinDir, "git"), "#!/bin/sh\nkill -TERM $$\n", {
-      mode: 0o755,
-    });
-    process.env.PATH = fakeBinDir;
-
-    expect(() =>
-      diffSkill(
-        root,
-        "laravel",
-        "demo",
-        makeFakeFetcher({ "SKILL.md": "# demo" }),
-      ),
-    ).toThrow(/killed by SIGTERM/);
   });
 });

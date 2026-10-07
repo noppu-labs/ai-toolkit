@@ -8,7 +8,7 @@ python=${REVIEW_PYTHON:-python3}
 check_refs() {
   local ref
 
-  if [ "$#" -lt 4 ]; then
+  if [[ "$#" -lt 4 ]]; then
     echo "usage: $0 $2 [DIR...]" >&2
     exit 2
   fi
@@ -76,7 +76,7 @@ emit_section() {
   lines=($2)
   set +f
   printf '== %s %s\n' "$1" "${#lines[@]}"
-  [ "${#lines[@]}" -eq 0 ] || printf '%s\n' "${lines[@]}"
+  [[ "${#lines[@]}" -eq 0 ]] || printf '%s\n' "${lines[@]}"
 }
 
 # Usage: emit_stream SIDES DIFF_ARGS... Prints route_diff's stream for the

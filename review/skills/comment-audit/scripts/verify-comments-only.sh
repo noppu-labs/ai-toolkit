@@ -10,7 +10,7 @@
 set -euo pipefail
 
 lib="$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-[ -r "$lib" ] || { echo "verify-comments-only.sh: cannot read $lib" >&2; exit 2; }
+[[ -r "$lib" ]] || { echo "verify-comments-only.sh: cannot read $lib" >&2; exit 2; }
 source "$lib"
 
 check_refs verify-comments-only.sh 'FROM TO' "$@"
@@ -42,17 +42,17 @@ if ! command -v "$python" >/dev/null 2>&1; then
   echo "verify-comments-only.sh: $python not found; Python files are checked with the regex" >&2
   sides=""
 else
-  if [ "${#from_paths[@]}" -gt 0 ]; then
+  if [[ "${#from_paths[@]}" -gt 0 ]]; then
     from_out=$(printf '%s\0' "${from_paths[@]}" | "$python" "$helper" "$from" 2>&1) || true
   fi
-  if [ "${#to_paths[@]}" -gt 0 ]; then
+  if [[ "${#to_paths[@]}" -gt 0 ]]; then
     to_out=$(printf '%s\0' "${to_paths[@]}" | "$python" "$helper" "$to" 2>&1) || true
   fi
 fi
 
 hits=$(emit_stream "$sides" "$from" "$to" -- "$@" | route_diff verify "$from" "$to")
 
-if [ -n "$hits" ]; then
+if [[ -n "$hits" ]]; then
   printf '%s\n' "$hits"
   exit 1
 fi

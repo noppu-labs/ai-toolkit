@@ -18,11 +18,11 @@ jobs:
           node-version: 24
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Biome
-        run: npx biome ci .
+        run: npm run lint:biome-ci
       - name: Markdown lint
-        run: npx markdownlint-cli2
+        run: npm run lint:md
       - name: Typecheck
         run: npm run typecheck
       - name: Site typecheck
@@ -41,8 +41,8 @@ jobs:
           "
       - name: Plugin validation
         run: |
-          npm install -g @anthropic-ai/claude-code
-          claude plugin validate .
+          npm ci --ignore-scripts --prefix .github/tools
+          npm run plugin:validate
       - name: Site build
         run: npm run build -w site
 
@@ -54,6 +54,6 @@ jobs:
         with:
           enable-cache: true
       - name: Install Python tooling
-        run: uv sync --locked
+        run: uv sync --locked --no-build
       - name: Python checks (ruff, ruff format, pyright at 3.8, codespell, bandit, complexipy)
         run: scripts/python-checks.sh

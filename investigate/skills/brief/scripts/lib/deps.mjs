@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { TS_EXT_RE } from "./repo.mjs";
+import { compareCodeUnits, TS_EXT_RE } from "./repo.mjs";
 
 const PHP_USE_RE =
   /^\s*use\s+(?:function\s+|const\s+)?\\?([A-Za-z_][A-Za-z0-9_\\]*)/;
@@ -192,8 +192,11 @@ export function collectDependencies({ files, repoRoot }) {
   for (const f of files) scanFile(f, nsMap, npm, found);
 
   const rows = [...found.values()]
-    .map((r) => ({ ...r, importedAs: [...r.importedAs].sort() }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .map((r) => ({
+      ...r,
+      importedAs: [...r.importedAs].sort(compareCodeUnits),
+    }))
+    .sort((a, b) => compareCodeUnits(a.name, b.name));
 
   return { rows, unread };
 }

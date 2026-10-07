@@ -14,6 +14,10 @@ import {
   type UpstreamSource,
 } from "./types.ts";
 
+const LOCAL_ENTRY: Readonly<LockEntry> = Object.freeze({
+  sourceType: "local",
+});
+
 export function makeRoot(t: TestContext): string {
   const root = mkdtempSync(join(tmpdir(), "ai-toolkit-test-"));
 
@@ -32,7 +36,7 @@ export function addSkill(
   plugin: string,
   name: string,
   files: Record<string, string>,
-  entry: LockEntry = { sourceType: "local" },
+  entry: LockEntry = LOCAL_ENTRY,
 ): string {
   const dir = join(root, plugin, "skills", name);
 
