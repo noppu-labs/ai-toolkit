@@ -36,7 +36,9 @@ beforeAll(async () => {
     const meta = document.createElement("meta");
     meta.name = "theme-color";
     meta.media = media;
-    meta.content = content;
+    // As index.html's no-flash script leaves them on a dark first paint.
+    meta.dataset.color = content;
+    meta.content = DARK;
     document.head.append(meta);
 
     return meta;

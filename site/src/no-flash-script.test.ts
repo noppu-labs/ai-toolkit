@@ -17,6 +17,8 @@ interface Setup {
 interface Applied {
   dark: boolean;
   colorScheme: string;
+  /** Each theme-color meta's `content` and `data-color`, in document order. */
+  themeColors: { content: string; color: string | undefined }[];
 }
 
 const SCRIPT: string = (() => {
@@ -30,7 +32,6 @@ const SCRIPT: string = (() => {
   return inline[0].textContent;
 })();
 
-/** Runs index.html's inline script against stubbed globals and reports what it applied to `<html>`. */
 function runScript({ storage, osDark }: Setup): Applied {
   const localStorage = {
     getItem: (key: string): string | null => {
@@ -43,15 +44,20 @@ function runScript({ storage, osDark }: Setup): Applied {
   const matchMedia = (query: string): { matches: boolean } => ({
     matches: query === "(prefers-color-scheme: dark)" && osDark,
   });
-  const root = document.createElement("html");
+  // A fresh, inert copy of index.html, so the script meets the real metas.
+  const doc = new DOMParser().parseFromString(indexHtml, "text/html");
   new Function("localStorage", "matchMedia", "document", SCRIPT)(
     localStorage,
     matchMedia,
-    { documentElement: root },
+    doc,
   );
+  const root = doc.documentElement;
   return {
     dark: root.classList.contains("dark"),
     colorScheme: root.style.colorScheme,
+    themeColors: [
+      ...doc.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'),
+    ].map((meta) => ({ content: meta.content, color: meta.dataset.color })),
   };
 }
 
@@ -64,6 +70,9 @@ function persisted(theme: Theme): Record<string, string> {
   }
   return { [PREFERENCES_STORAGE_KEY]: value };
 }
+
+const LIGHT_COLOR = "#fff4f9";
+const DARK_COLOR = "#2a2229";
 
 afterEach(() => {
   resetPreferences();
@@ -78,7 +87,7 @@ describe("index.html no-flash script", () => {
   ] as const)(
     "applies a stored %s theme (OS dark: %s) as dark: %s",
     (theme, osDark, dark) => {
-      expect(runScript({ storage: persisted(theme), osDark })).toEqual({
+      expect(runScript({ storage: persisted(theme), osDark })).toMatchObject({
         dark,
         colorScheme: dark ? "dark" : "light",
       });
@@ -88,10 +97,10 @@ describe("index.html no-flash script", () => {
   it("falls back to the legacy next-themes key", () => {
     expect(
       runScript({ storage: { [LEGACY_THEME_KEY]: "dark" }, osDark: false }),
-    ).toEqual({ dark: true, colorScheme: "dark" });
+    ).toMatchObject({ dark: true, colorScheme: "dark" });
     expect(
       runScript({ storage: { [LEGACY_THEME_KEY]: "light" }, osDark: true }),
-    ).toEqual({ dark: false, colorScheme: "light" });
+    ).toMatchObject({ dark: false, colorScheme: "light" });
   });
 
   it("prefers the store's key over the legacy one", () => {
@@ -99,6 +108,33 @@ describe("index.html no-flash script", () => {
 
     expect(runScript({ storage, osDark: true }).dark).toBe(false);
   });
+
+  it("ignores the legacy key once the store's key exists, even without a theme", () => {
+    const storage = {
+      [PREFERENCES_STORAGE_KEY]: JSON.stringify({
+        state: { installMethod: "skills-cli" },
+        version: 1,
+      }),
+      [LEGACY_THEME_KEY]: "dark",
+    };
+
+    expect(runScript({ storage, osDark: false }).dark).toBe(false);
+  });
+
+  it.each([
+    ["dark", false, DARK_COLOR],
+    ["light", true, LIGHT_COLOR],
+  ] as const)(
+    "points both theme-color metas at a stored %s theme (OS dark: %s)",
+    (theme, osDark, color) => {
+      expect(
+        runScript({ storage: persisted(theme), osDark }).themeColors,
+      ).toEqual([
+        { content: color, color: LIGHT_COLOR },
+        { content: color, color: DARK_COLOR },
+      ]);
+    },
+  );
 
   it.each([true, false])(
     "follows the OS (dark: %s) with nothing stored",

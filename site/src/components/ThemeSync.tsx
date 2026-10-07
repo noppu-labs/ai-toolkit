@@ -2,17 +2,16 @@ import { useEffect } from "react";
 import { useResolvedTheme } from "@/hooks/useResolvedTheme";
 
 // index.html carries a light and a dark theme-color meta keyed on the OS setting,
-// so both are pointed at the chosen theme. Their colours are read once, before the
-// first sync overwrites them.
+// so both are pointed at the chosen theme. Its no-flash script already overwrote
+// their content, leaving each meta's own colour in `data-color`.
 const metas = Array.from(
   document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'),
 );
 const colorFor = (scheme: "light" | "dark"): string | undefined =>
-  metas.find((meta) => meta.media.includes(scheme))?.content;
+  metas.find((meta) => meta.media.includes(scheme))?.dataset.color;
 const LIGHT = colorFor("light");
 const DARK = colorFor("dark");
 
-/** Applies the resolved theme to `<html>` (the `dark` class and `color-scheme`) and the theme-color metas. */
 export function ThemeSync(): null {
   const theme = useResolvedTheme();
 
