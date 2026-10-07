@@ -8,27 +8,38 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <title>Page not found · AI Toolkit</title>
-    <!-- GitHub Pages serves this file for every missing path, so every URL here is absolute. It loads none of the app's CSS or JS; the colours mirror the site's palette tokens. -->
+    <!-- GitHub Pages serves this file at every missing path, at any depth, so every local URL is root-relative. The colours copy the palette tokens in `src/css/tokens/primitives.css`; change both together. -->
     <style>
       :root {
         color-scheme: light dark;
-        --pink: oklch(0.7862 0.1495 349.25);
-        --black: oklch(0 0 0);
-        --background: oklch(0.9771 0.0134 347.94);
-        --surface: oklch(1 0 0);
-        --foreground: oklch(0.1776 0 0);
-        --muted: oklch(0.3313 0.0186 344.18);
+        --palette-pink: oklch(0.7862 0.1495 349.25);
+        --palette-black: oklch(0 0 0);
+        --palette-white: oklch(1 0 0);
+        --palette-shell: oklch(0.9771 0.0134 347.94);
+        --palette-ink: oklch(0.1776 0 0);
+        --palette-plum-700: oklch(0.3313 0.0186 344.18);
+        --palette-plum-850: oklch(0.264 0.0174 330.17);
+        --palette-plum-900: oklch(0.2123 0.011 332.75);
+        --palette-plum-50: oklch(0.9573 0.011 348.43);
+        --palette-plum-200: oklch(0.8369 0.0183 345.7);
+        --palette-mauve-500: oklch(0.5996 0.0272 340.71);
+        --pink: var(--palette-pink);
+        --black: var(--palette-black);
+        --background: var(--palette-shell);
+        --surface: var(--palette-white);
+        --foreground: var(--palette-ink);
+        --muted: var(--palette-plum-700);
         --edge: var(--black);
         --grid-line: oklch(0 0 0 / 0.05);
       }
 
       @media (prefers-color-scheme: dark) {
         :root {
-          --background: oklch(0.264 0.0174 330.17);
-          --surface: oklch(0.2123 0.011 332.75);
-          --foreground: oklch(0.9573 0.011 348.43);
-          --muted: oklch(0.8369 0.0183 345.7);
-          --edge: oklch(0.5996 0.0272 340.71);
+          --background: var(--palette-plum-850);
+          --surface: var(--palette-plum-900);
+          --foreground: var(--palette-plum-50);
+          --muted: var(--palette-plum-200);
+          --edge: var(--palette-mauve-500);
           --grid-line: oklch(1 0 0 / 0.05);
         }
       }
@@ -83,7 +94,7 @@
         height: 48px;
         border: 2px solid var(--black);
         border-radius: 8px;
-        background: oklch(1 0 0);
+        background: var(--palette-white);
         box-shadow: 3px 3px 0 0 var(--black);
       }
 

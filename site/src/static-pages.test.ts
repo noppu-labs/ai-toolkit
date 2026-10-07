@@ -25,7 +25,7 @@ describe("404.html", () => {
     const local = [...doc.querySelectorAll("[src], link[href]")].map(
       (element) => element.getAttribute("src") ?? element.getAttribute("href"),
     );
-    expect(local.every((url) => url?.startsWith("/"))).toBe(true);
+    expect(local.every((url) => /^\/(?!\/)/.test(url ?? ""))).toBe(true);
   });
 
   it("stands alone, without the app's scripts or stylesheets", async () => {

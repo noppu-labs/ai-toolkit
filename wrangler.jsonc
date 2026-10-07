@@ -4,7 +4,9 @@
   // Prevents pushes to main from publishing a 2nd public copy.
   "workers_dev": false,
   "assets": {
-    "directory": "./site/dist"
+    "directory": "./site/dist",
+    // Serves site/public/404.html, as GitHub Pages does, instead of an empty 404.
+    "not_found_handling": "404-page"
   },
   // wrangler preview refuses to run without this block, even empty.
   "previews": {}
