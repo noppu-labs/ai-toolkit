@@ -317,7 +317,7 @@ describe("diffSkill", () => {
     ).toBe(1);
   });
 
-  it("throws when the underlying spawnSync call fails (e.g. git missing from PATH)", (t) => {
+  it("throws when git cannot be resolved from PATH", (t) => {
     const root = makeRoot(t);
 
     addSkill(
@@ -336,6 +336,41 @@ describe("diffSkill", () => {
       rmSync(emptyPathDir, { recursive: true, force: true });
     });
     process.env.PATH = emptyPathDir;
+
+    expect(() =>
+      diffSkill(
+        root,
+        "laravel",
+        "demo",
+        makeFakeFetcher({ "SKILL.md": "# demo" }),
+      ),
+    ).toThrow("`git` not found on PATH");
+  });
+
+  it("throws the spawn error when git resolves but cannot start", (t) => {
+    const root = makeRoot(t);
+
+    addSkill(
+      root,
+      "laravel",
+      "demo",
+      { "SKILL.md": "# demo" },
+      makeGithubEntry(),
+    );
+
+    const fakeBinDir = mkdtempSync(join(tmpdir(), "broken-git-"));
+    const originalPath = process.env.PATH;
+
+    t.onTestFinished(() => {
+      process.env.PATH = originalPath;
+      rmSync(fakeBinDir, { recursive: true, force: true });
+    });
+    // An executable whose interpreter does not exist makes spawnSync report
+    // ENOENT through result.error instead of an exit status.
+    writeFileSync(join(fakeBinDir, "git"), "#!/nonexistent/interpreter\n", {
+      mode: 0o755,
+    });
+    process.env.PATH = fakeBinDir;
 
     expect(() =>
       diffSkill(

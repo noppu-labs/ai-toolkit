@@ -1,10 +1,11 @@
 // Fetching upstream skill snapshots from GitHub via the gh CLI.
 import { execFileSync } from "node:child_process";
+import { resolveExecutable } from "../resolve-executable.ts";
 import { hashFiles } from "./hashing.ts";
 import type { GhApi, UpstreamSnapshot, UpstreamSource } from "./types.ts";
 
 export function fetchGhJson(path: string): unknown {
-  const stdout = execFileSync("gh", ["api", path], {
+  const stdout = execFileSync(resolveExecutable("gh"), ["api", path], {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
