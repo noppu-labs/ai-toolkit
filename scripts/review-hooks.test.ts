@@ -9,43 +9,17 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import fc from "fast-check";
 import { afterAll, describe, expect, it } from "vitest";
-
-type Decision = {
-  hookSpecificOutput: {
-    hookEventName: "PreToolUse";
-    permissionDecision: "deny";
-    permissionDecisionReason: string;
-  };
-};
-
-type HookInput = {
-  tool_name?: unknown;
-  tool_input?: unknown;
-  cwd?: unknown;
-};
-
-type GuardModule = {
-  REASON: string;
-  getCandidatePaths: (toolName: unknown, toolInput: unknown) => string[];
-  getDecision: (input: HookInput) => Decision | null;
-};
+import {
+  getCandidatePaths,
+  getDecision,
+  type HookInput,
+  REASON,
+} from "../review/hooks/guard-task-output.mjs";
 
 const hooksDir: string = join(import.meta.dirname, "..", "review", "hooks");
 const scriptPath: string = join(hooksDir, "guard-task-output.mjs");
-
-// The script is plain ESM outside tsconfig's `include`, so a static import
-// would resolve to an untyped module. A computed specifier keeps the contract
-// declared here and the runtime behaviour under test.
-const mod: GuardModule = (await import(
-  pathToFileURL(scriptPath).href
-)) as GuardModule;
-
-const getCandidatePaths: GuardModule["getCandidatePaths"] =
-  mod.getCandidatePaths;
-const getDecision: GuardModule["getDecision"] = mod.getDecision;
 
 const root: string = mkdtempSync(join(tmpdir(), "guard-task-output-"));
 const transcript: string = join(root, "agent.jsonl");
@@ -101,9 +75,7 @@ describe("getDecision", () => {
     );
 
     expect(decision?.hookSpecificOutput.permissionDecision).toBe("deny");
-    expect(decision?.hookSpecificOutput.permissionDecisionReason).toBe(
-      mod.REASON,
-    );
+    expect(decision?.hookSpecificOutput.permissionDecisionReason).toBe(REASON);
   });
 
   it("resolves a relative path against the hook's cwd", () => {

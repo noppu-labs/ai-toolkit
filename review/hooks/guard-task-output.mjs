@@ -1,7 +1,14 @@
 #!/usr/bin/env node
+// @ts-check
 import { lstatSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+
+/**
+ * @typedef {{ file_path?: unknown; command?: unknown } | null | undefined} ToolInput
+ * @typedef {{ tool_name?: unknown; tool_input?: ToolInput; cwd?: unknown }} HookInput
+ * @typedef {{ hookSpecificOutput: { hookEventName: "PreToolUse"; permissionDecision: "deny"; permissionDecisionReason: string } }} Decision
+ */
 
 export const REASON =
   "This .output file is a symlink to a background subagent's JSONL transcript under " +
@@ -11,6 +18,11 @@ export const REASON =
 
 const SEPARATORS = /[\s'"`<>|;&()]+/;
 
+/**
+ * @param {unknown} toolName
+ * @param {ToolInput} toolInput
+ * @returns {string[]}
+ */
 export function getCandidatePaths(toolName, toolInput) {
   if (toolName === "Read") {
     return typeof toolInput?.file_path === "string"
@@ -29,6 +41,9 @@ export function getCandidatePaths(toolName, toolInput) {
   return [];
 }
 
+/**
+ * @param {string} path
+ */
 function isSymlink(path) {
   try {
     return lstatSync(path).isSymbolicLink();
@@ -39,6 +54,10 @@ function isSymlink(path) {
 
 // Background Bash tasks write plain .output files, which stay readable; only
 // the symlinked ones a background subagent leaves behind are denied.
+/**
+ * @param {HookInput | null | undefined} input
+ * @returns {Decision | null}
+ */
 export function getDecision(input) {
   const cwd = typeof input?.cwd === "string" ? input.cwd : process.cwd();
   const paths = getCandidatePaths(input?.tool_name, input?.tool_input)
