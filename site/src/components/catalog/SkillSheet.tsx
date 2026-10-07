@@ -9,14 +9,22 @@ import {
 import { type CatalogSkill, SKILL_ROW_ATTRIBUTE } from "@/lib/catalog";
 import { pluginColorClass, pluginColorVar } from "@/lib/plugins";
 import { cn } from "@/lib/utils";
-import { SkillDetailBody, SkillPosition } from "./SkillDetail.tsx";
+import {
+  SkillDetailBody,
+  SkillPosition,
+  type SkillPositionProps,
+} from "./SkillDetail.tsx";
 
-interface SkillSheetProps {
+interface SkillSheetProps
+  extends Pick<SkillPositionProps, "position" | "total"> {
   /** The skill to show; `null` closes the sheet. */
   skill: CatalogSkill | null;
-  position: number | null;
-  total: number;
   onClose: () => void;
+}
+
+interface Shown {
+  skill: CatalogSkill | null;
+  position: number | null;
 }
 
 /** The phone detail view: a modal bottom sheet over the list. */
@@ -26,11 +34,12 @@ export function SkillSheet({
   total,
   onClose,
 }: SkillSheetProps): ReactElement {
-  // The last skill shown, so the sheet keeps its content while it closes.
-  const [shown, setShown] = useState(skill);
-  if (skill !== null && skill !== shown) {
-    setShown(skill);
+  // The last skill shown and its place, so the sheet keeps both while it closes.
+  const [last, setLast] = useState<Shown>({ skill, position });
+  if (skill !== null && (skill !== last.skill || position !== last.position)) {
+    setLast({ skill, position });
   }
+  const shown = last.skill;
 
   const handleOpenChange = useCallback(
     (open: boolean): void => {
@@ -83,7 +92,7 @@ export function SkillSheet({
                   </span>
                   <SkillPosition
                     className="text-muted-foreground"
-                    position={position}
+                    position={last.position}
                     total={total}
                   />
                 </div>

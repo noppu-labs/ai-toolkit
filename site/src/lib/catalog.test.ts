@@ -58,7 +58,11 @@ describe("catalogSkills", () => {
 
 describe("matchesQuery and inPlugin", () => {
   it("matches the name, summary or description, ignoring case and outer spaces", () => {
-    const dtos = findSkill(skills, "laravel-dtos", ALL_PLUGINS) as CatalogSkill;
+    const dtos = findSkill(skills, "laravel-dtos");
+    expect(dtos).not.toBeNull();
+    if (dtos === null) {
+      return;
+    }
     expect(matchesQuery(dtos, " SPATIE ")).toBe(true);
     expect(matchesQuery(dtos, "more detail")).toBe(true);
     expect(matchesQuery(dtos, "enum")).toBe(false);
@@ -68,8 +72,9 @@ describe("matchesQuery and inPlugin", () => {
 });
 
 describe("findSkill", () => {
-  it("returns null for an unknown name", () => {
-    expect(findSkill(skills, "nope", ALL_PLUGINS)).toBeNull();
+  it("finds a skill by name, and returns null for an unknown one", () => {
+    expect(findSkill(skills, "laravel-dtos")?.plugin).toBe("laravel");
+    expect(findSkill(skills, "nope")).toBeNull();
   });
 });
 
@@ -113,7 +118,7 @@ describe("groupSkills", () => {
         expanded: new Set(["laravel"]),
       })[1]?.shown,
     ).toHaveLength(7);
-    const pinned = findSkill(skills, "a6", ALL_PLUGINS);
+    const pinned = findSkill(skills, "a6");
     expect(
       groupSkills(skills, order, { ...options, expanded: new Set(), pinned })[1]
         ?.shown,

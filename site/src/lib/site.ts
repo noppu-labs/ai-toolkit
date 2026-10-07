@@ -1,8 +1,5 @@
-/** Where the site is published; links meant to be shared start here. */
-export const SITE_URL = "https://toolkit.noppu.com";
-
-/** The shareable link to a skill: the catalog, with the skill open. */
+/** On the page's own origin, so a link copied on a preview deployment opens that preview. */
 export function skillShareUrl(skill: string): string {
   const params = new URLSearchParams({ skill });
-  return `${SITE_URL}/?${params.toString()}#skills`;
+  return `${window.location.origin}/?${params.toString()}#skills`;
 }

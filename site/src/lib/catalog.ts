@@ -22,7 +22,6 @@ export interface SkillGroup {
   shown: CatalogSkill[];
 }
 
-/** Every skill in the site order: plugins in their order, then each plugin's skills. */
 export function catalogSkills(plugins: readonly PluginEntry[]): CatalogSkill[] {
   return sortPlugins(plugins).flatMap((plugin) =>
     sortSkills(plugin.name, plugin.skills).map((skill) => ({
@@ -33,7 +32,6 @@ export function catalogSkills(plugins: readonly PluginEntry[]): CatalogSkill[] {
   );
 }
 
-/** Case-insensitive match on the name, the summary or the SKILL.md description. */
 export function matchesQuery(skill: CatalogSkill, query: string): boolean {
   const q = query.trim().toLowerCase();
   return [skill.name, skill.summary, skill.description].some((text) =>
@@ -45,20 +43,17 @@ export function inPlugin(skill: CatalogSkill, plugin: string): boolean {
   return plugin === ALL_PLUGINS || skill.plugin === plugin;
 }
 
-/** The skill with this name, preferring one in the filtered plugin should two plugins share a name. */
+/** Skill names are unique across plugins: the catalog build fails otherwise. */
 export function findSkill(
   skills: readonly CatalogSkill[],
   name: string,
-  plugin: string,
 ): CatalogSkill | null {
-  const named = skills.filter((skill) => skill.name === name);
-  return named.find((skill) => inPlugin(skill, plugin)) ?? named[0] ?? null;
+  return skills.find((skill) => skill.name === name) ?? null;
 }
 
 interface GroupOptions {
   /** Rows a long group shows before "Show more"; `null` shows every row. A group only one row longer shows it rather than "Show 1 more". */
   collapseAt: number | null;
-  /** Plugins whose groups the visitor expanded. */
   expanded: ReadonlySet<string>;
   /** A skill that must stay on screen (the selected one): its group shows every row. */
   pinned: CatalogSkill | null;

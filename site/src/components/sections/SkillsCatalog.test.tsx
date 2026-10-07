@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import {
+  PLUGIN_PARAM,
   QUERY_PARAM,
-  readPluginParam,
   readSearchParam,
   SKILL_PARAM,
-  writePluginParam,
+  showPluginSkills,
   writeSearchParams,
 } from "@/lib/url-state";
 import { usePreferencesStore } from "@/stores/usePreferencesStore";
@@ -105,7 +105,6 @@ function row(name: string): ReturnType<typeof page.getByRole> {
   return page.getByRole("button", { name: new RegExp(`^${name}\\b`) });
 }
 
-/** The skill names of the rows on screen, in order. */
 function rowNames(): string[] {
   return [...document.querySelectorAll("[data-skill-row]")].map(
     (element) => element.getAttribute("data-skill-row") ?? "",
@@ -174,7 +173,10 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   resetPreferences();
-  writeSearchParams({ q: null, plugin: null, skill: null }, { hash: "" });
+  writeSearchParams(
+    { q: null, plugin: null, skill: null },
+    { hash: "", state: null },
+  );
 });
 
 describe("SkillsCatalog filter bar", () => {
@@ -206,20 +208,25 @@ describe("SkillsCatalog filter bar", () => {
       .element(chips.getByRole("button", { name: "inertia-react 1 skill" }))
       .toBeVisible();
     const badge = chip("review").element().querySelector("span");
-    expect(badge?.textContent).toBe("2 skills");
-    expect(getComputedStyle(badge as Element).fontVariantNumeric).toBe(
-      "tabular-nums",
-    );
+    expect(badge).toBeInstanceOf(Element);
+    if (!(badge instanceof Element)) {
+      return;
+    }
+    expect(badge.textContent).toBe("2 skills");
+    expect(getComputedStyle(badge).fontVariantNumeric).toBe("tabular-nums");
   });
 
   it("swaps the badge colours on the pressed chip", async () => {
     render(<SkillsCatalog plugins={PLUGINS} />);
     await chip("review").click();
 
-    const pressed = chip("review").element().querySelector("span") as Element;
-    const unpressed = chip("laravel")
-      .element()
-      .querySelector("span") as Element;
+    const pressed = chip("review").element().querySelector("span");
+    const unpressed = chip("laravel").element().querySelector("span");
+    expect(pressed).toBeInstanceOf(Element);
+    expect(unpressed).toBeInstanceOf(Element);
+    if (!(pressed instanceof Element) || !(unpressed instanceof Element)) {
+      return;
+    }
     expect(getComputedStyle(pressed).backgroundColor).toBe("rgb(0, 0, 0)");
     expect(getComputedStyle(pressed).color).toBe("rgb(255, 255, 255)");
     expect(getComputedStyle(unpressed).backgroundColor).toBe(
@@ -326,7 +333,7 @@ describe("SkillsCatalog list", () => {
 
   it("shows each skill's plain summary, falling back to the description's first sentence", async () => {
     await onDesktop();
-    writePluginParam("laravel");
+    writeSearchParams({ [PLUGIN_PARAM]: "laravel" });
     render(<SkillsCatalog plugins={PLUGINS} />);
 
     await expect
@@ -395,7 +402,7 @@ describe("SkillsCatalog list", () => {
     await page.getByRole("button", { name: "Clear filter" }).click();
     await expect.element(search).toHaveValue("");
     await expect.element(chip("all")).toHaveAttribute("aria-pressed", "true");
-    expect(readPluginParam()).toBeNull();
+    expect(readSearchParam(PLUGIN_PARAM)).toBeNull();
     expect(readSearchParam(QUERY_PARAM)).toBeNull();
     await expect.poll(() => rowNames().length).toBeGreaterThan(0);
   });
@@ -464,9 +471,9 @@ describe("SkillsCatalog detail pane (desktop)", () => {
     await expect.element(pane).toMatchTextContent("14 of 14");
 
     await chip("investigate").click();
-    await next.click();
     await expect.element(heading).toHaveTextContent("brief");
     await next.click();
+    await expect.element(heading).toHaveTextContent("deep");
     await next.click();
     await next.click();
     await expect.element(heading).toHaveTextContent("brief");
@@ -560,21 +567,64 @@ describe("SkillsCatalog detail pane (desktop)", () => {
     const copyLink = pane.getByRole("button", { name: "Copy link to deep" });
     await copyLink.click();
     expect(writeText).toHaveBeenLastCalledWith(
-      "https://toolkit.noppu.com/?skill=deep#skills",
+      `${window.location.origin}/?skill=deep#skills`,
     );
     await expect.element(copyLink).toMatchTextContent("Link copied!");
   });
 
-  it("keeps a filtered-out selection in the pane, unnumbered", async () => {
+  it("keeps a selection the query filters out in the pane, unnumbered", async () => {
     render(<SkillsCatalog plugins={PLUGINS} />);
     await row("deep").click();
 
-    await chip("laravel").click();
+    await search.fill("laravel");
 
     await expect
       .element(pane.getByRole("heading", { level: 3 }))
       .toHaveTextContent("deep");
     await expect.element(pane).toMatchTextContent("investigate– of 8");
+  });
+
+  it("starts a plugin chip from the plugin's first skill", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+    await row("deep").click();
+
+    await chip("laravel").click();
+
+    expect(readSearchParam(SKILL_PARAM)).toBeNull();
+    await expect
+      .element(pane.getByRole("heading", { level: 3 }))
+      .toHaveTextContent("laravel-dtos");
+    await expect.element(pane).toMatchTextContent("laravel1 of 8");
+  });
+
+  it("shows no skill, and disables Previous and Next, when the filter matches nothing", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+    await row("deep").click();
+
+    await search.fill("zzz-no-such-skill");
+
+    await expect.element(pane).toMatchTextContent("No skill to show.");
+    await expect
+      .element(pane.getByRole("heading", { level: 3 }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(pane.getByRole("button", { name: "Previous skill" }))
+      .toBeDisabled();
+    await expect
+      .element(pane.getByRole("button", { name: "Next skill" }))
+      .toBeDisabled();
+  });
+
+  it("does not open a sheet when the window narrows to a phone", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+    await row("deep").click();
+    expect(readSearchParam(SKILL_PARAM)).toBe("deep");
+
+    await onPhone();
+
+    await expect.element(pane).not.toBeInTheDocument();
+    await expect.poll(() => readSearchParam(SKILL_PARAM)).toBeNull();
+    await expect.element(sheet).not.toBeInTheDocument();
   });
 });
 
@@ -632,6 +682,55 @@ describe("SkillsCatalog detail sheet (phones)", () => {
     await userEvent.click(document.body, { position: { x: 195, y: 20 } });
 
     await expect.element(sheet).not.toBeInTheDocument();
+  });
+
+  it("opens in a new history entry, so Back closes it", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+
+    await row("deep").click();
+    await expect.element(sheet).toBeVisible();
+
+    window.history.back();
+
+    await expect.element(sheet).not.toBeInTheDocument();
+    expect(readSearchParam(SKILL_PARAM)).toBeNull();
+  });
+
+  it("goes back from the entry it opened when its close button closes it", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+    const before = window.history.state;
+
+    await row("deep").click();
+    await expect.element(sheet).toBeVisible();
+    await sheet.getByRole("button", { name: "Close" }).click();
+
+    await expect.element(sheet).not.toBeInTheDocument();
+    expect(readSearchParam(SKILL_PARAM)).toBeNull();
+    expect(window.history.state).toBe(before);
+  });
+
+  it("closes a shared link's sheet in place", async () => {
+    writeSearchParams({ [SKILL_PARAM]: "deep" });
+    const length = window.history.length;
+    render(<SkillsCatalog plugins={PLUGINS} />);
+    await expect.element(sheet).toBeVisible();
+
+    await sheet.getByRole("button", { name: "Close" }).click();
+
+    await expect.element(sheet).not.toBeInTheDocument();
+    expect(readSearchParam(SKILL_PARAM)).toBeNull();
+    expect(window.history.length).toBe(length);
+  });
+
+  it("returns focus to a deep-linked row past the fold of its group", async () => {
+    writeSearchParams({ [SKILL_PARAM]: "laravel-extra-5" });
+    render(<SkillsCatalog plugins={PLUGINS} />);
+    await expect.element(sheet).toHaveAccessibleName("laravel-extra-5");
+
+    await userEvent.keyboard("{Escape}");
+
+    await expect.element(sheet).not.toBeInTheDocument();
+    await expect.element(row("laravel-extra-5")).toHaveFocus();
   });
 
   it("does not highlight a selection in the list", async () => {
@@ -723,7 +822,7 @@ describe("SkillsCatalog URL state", () => {
     render(<SkillsCatalog plugins={PLUGINS} />);
     await expect.element(chip("all")).toHaveAttribute("aria-pressed", "true");
 
-    writePluginParam("inertia-react");
+    writeSearchParams({ [PLUGIN_PARAM]: "inertia-react" });
 
     await expect
       .element(chip("inertia-react"))
@@ -735,9 +834,40 @@ describe("SkillsCatalog URL state", () => {
     render(<SkillsCatalog plugins={PLUGINS} />);
 
     await chip("review").click();
-    expect(readPluginParam()).toBe("review");
+    expect(readSearchParam(PLUGIN_PARAM)).toBe("review");
 
     await chip("all").click();
-    expect(readPluginParam()).toBeNull();
+    expect(readSearchParam(PLUGIN_PARAM)).toBeNull();
+  });
+
+  it("still follows a chip when the browser refuses to rewrite the URL", async () => {
+    vi.spyOn(window.history, "replaceState").mockImplementation(() => {
+      throw new DOMException("Too many calls", "SecurityError");
+    });
+    render(<SkillsCatalog plugins={PLUGINS} />);
+
+    await chip("review").click();
+
+    await expect
+      .element(chip("review"))
+      .toHaveAttribute("aria-pressed", "true");
+    await expect.poll(rowNames).toEqual(["pr-review", "comment-audit"]);
+  });
+
+  it("follows Back to the query a plugin card's link cleared", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+    await search.fill("spatie");
+
+    showPluginSkills("laravel");
+    await expect.element(search).toHaveValue("");
+    await expect
+      .element(chip("laravel"))
+      .toHaveAttribute("aria-pressed", "true");
+
+    window.history.back();
+
+    await expect.element(search).toHaveValue("spatie");
+    await expect.element(chip("all")).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(rowNames).toEqual(["laravel-dtos"]);
   });
 });

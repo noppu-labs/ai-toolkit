@@ -3,13 +3,16 @@ import {
   pluginSkillsHref,
   readSearchParam,
   showPluginSkills,
-  subscribeToPluginLinks,
   subscribeToUrl,
   writeSearchParams,
 } from "./url-state.ts";
 
 afterEach(() => {
-  writeSearchParams({ q: null, plugin: null, skill: null }, { hash: "" });
+  vi.restoreAllMocks();
+  writeSearchParams(
+    { q: null, plugin: null, skill: null },
+    { hash: "", state: null },
+  );
 });
 
 describe("writeSearchParams", () => {
@@ -42,13 +45,49 @@ describe("writeSearchParams", () => {
     unsubscribe();
   });
 
-  it("leaves the URL alone when the browser refuses the change", () => {
-    vi.spyOn(window.history, "replaceState").mockImplementation(() => {
+  it("follows a change the browser refuses, and writes it with the next one it accepts", () => {
+    const onChange = vi.fn();
+    const unsubscribe = subscribeToUrl(onChange);
+    const replaceState = vi
+      .spyOn(window.history, "replaceState")
+      .mockImplementation(() => {
+        throw new DOMException("Too many calls", "SecurityError");
+      });
+
+    expect(() => writeSearchParams({ plugin: "review" })).not.toThrow();
+    expect(new URLSearchParams(window.location.search).has("plugin")).toBe(
+      false,
+    );
+    expect(readSearchParam("plugin")).toBe("review");
+    expect(onChange).toHaveBeenCalledOnce();
+
+    replaceState.mockRestore();
+    writeSearchParams({ q: "brief" });
+    expect(new URLSearchParams(window.location.search).get("plugin")).toBe(
+      "review",
+    );
+    expect(readSearchParam("q")).toBe("brief");
+    unsubscribe();
+  });
+
+  it("drops a refused change once the address moves on", async () => {
+    vi.spyOn(window.history, "pushState").mockImplementationOnce(() => {
       throw new DOMException("Too many calls", "SecurityError");
     });
-    expect(() => writeSearchParams({ q: "x" })).not.toThrow();
-    expect(readSearchParam("q")).toBeNull();
-    vi.restoreAllMocks();
+    writeSearchParams({ plugin: "laravel" }, { push: true });
+    expect(readSearchParam("plugin")).toBe("laravel");
+
+    window.location.hash = "elsewhere";
+
+    await expect.poll(() => window.location.hash).toBe("#elsewhere");
+    expect(readSearchParam("plugin")).toBeNull();
+  });
+
+  it("sets the history entry's state when asked, keeping it otherwise", () => {
+    writeSearchParams({ skill: "deep" }, { push: true, state: "marked" });
+    expect(window.history.state).toBe("marked");
+    writeSearchParams({ skill: "brief" });
+    expect(window.history.state).toBe("marked");
   });
 });
 
@@ -84,25 +123,17 @@ describe("subscribeToUrl", () => {
 });
 
 describe("showPluginSkills", () => {
-  it("filters to the plugin at #skills and tells link subscribers", () => {
-    const onFollow = vi.fn();
-    const unsubscribe = subscribeToPluginLinks(onFollow);
+  it("filters to the plugin at #skills, clearing the query and the skill, in a new entry", async () => {
+    writeSearchParams({ q: "brief", skill: "deep" });
 
     showPluginSkills("laravel");
 
     expect(readSearchParam("plugin")).toBe("laravel");
+    expect(readSearchParam("q")).toBeNull();
+    expect(readSearchParam("skill")).toBeNull();
     expect(window.location.hash).toBe("#skills");
-    expect(onFollow).toHaveBeenCalledOnce();
-    unsubscribe();
-  });
 
-  it("is not reported for other URL changes", () => {
-    const onFollow = vi.fn();
-    const unsubscribe = subscribeToPluginLinks(onFollow);
-
-    writeSearchParams({ plugin: "laravel" });
-
-    expect(onFollow).not.toHaveBeenCalled();
-    unsubscribe();
+    window.history.back();
+    await expect.poll(() => readSearchParam("q")).toBe("brief");
   });
 });

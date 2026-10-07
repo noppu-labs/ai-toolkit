@@ -31,9 +31,7 @@ import { pluralize } from "@/lib/pluralize";
 import {
   PLUGIN_PARAM,
   QUERY_PARAM,
-  readSearchParam,
   SKILL_PARAM,
-  subscribeToPluginLinks,
   writeSearchParams,
 } from "@/lib/url-state";
 import type { PluginEntry } from "../../catalog-types.ts";
@@ -41,8 +39,11 @@ import type { PluginEntry } from "../../catalog-types.ts";
 /** Tailwind's `lg`: from here the list and the detail pane sit side by side. */
 const DESKTOP_QUERY = "(width >= 64rem)";
 
-/** Rows a long group shows before "Show more", while nothing narrows the list. */
+/** Rows a long group shows before "Show more". */
 const COLLAPSED_ROWS = { desktop: 6, phone: 4 } as const;
+
+/** The history state of the entry a phone sheet pushes, so its close button can go back rather than add another. */
+const SHEET_ENTRY = "ai-toolkit:skill-sheet";
 
 interface Neighbours {
   previous: CatalogSkill;
@@ -100,6 +101,28 @@ function isShown(groups: readonly SkillGroup[], skill: CatalogSkill): boolean {
   return groups.some((group) => group.shown.includes(skill));
 }
 
+/**
+ * True from the render where the layout narrows from desktop to phone until
+ * the selection is cleared: a skill picked in the pane must not open a sheet
+ * the visitor never asked for.
+ */
+function useLeftDesktop(desktop: boolean): boolean {
+  const [wasDesktop, setWasDesktop] = useState(desktop);
+  const leftDesktop = wasDesktop && !desktop;
+
+  useEffect(() => {
+    if (wasDesktop === desktop) {
+      return;
+    }
+    if (leftDesktop) {
+      writeSearchParams({ [SKILL_PARAM]: null });
+    }
+    setWasDesktop(desktop);
+  }, [desktop, leftDesktop, wasDesktop]);
+
+  return leftDesktop;
+}
+
 interface CatalogState {
   query: string;
   /** A plugin name, or `all`. */
@@ -107,49 +130,66 @@ interface CatalogState {
   /** The skill named in the URL, when it exists. */
   chosen: CatalogSkill | null;
   changeQuery: (query: string) => void;
+  /** Also clears the selected skill, which could sit outside the new filter. */
   changePlugin: (plugin: string) => void;
-  /** Clears both the query and the plugin filter. */
   clearFilter: () => void;
-  /** Selects a skill (on phones, opens it); `null` deselects it. */
-  choose: (skill: CatalogSkill | null) => void;
+  /** Selects a skill; on phones, opens it in the sheet. */
+  choose: (skill: CatalogSkill) => void;
+  closeSheet: () => void;
 }
 
 /** The filter and selection, kept in the URL (`?q=`, `?plugin=`, `?skill=`) so any view can be linked to. */
 function useCatalogState(
   skills: readonly CatalogSkill[],
   pluginNames: readonly string[],
+  desktop: boolean,
 ): CatalogState {
-  // The query is typed into a controlled input, so it lives in React state; the URL follows it.
-  const [query, setQuery] = useState(() => readSearchParam(QUERY_PARAM) ?? "");
+  const query = useSearchParam(QUERY_PARAM) ?? "";
   const pluginParam = useSearchParam(PLUGIN_PARAM);
   const skillParam = useSearchParam(SKILL_PARAM);
-
-  // A card's "See skills" link promises that plugin's skills, so a typed filter must not hide them.
-  useEffect(() => subscribeToPluginLinks(() => setQuery("")), []);
 
   const plugin =
     pluginParam !== null && pluginNames.includes(pluginParam)
       ? pluginParam
       : ALL_PLUGINS;
-  const chosen =
-    skillParam === null ? null : findSkill(skills, skillParam, plugin);
+  const chosen = useMemo(
+    () => (skillParam === null ? null : findSkill(skills, skillParam)),
+    [skills, skillParam],
+  );
 
   const changeQuery = useCallback((next: string): void => {
-    setQuery(next);
     writeSearchParams({ [QUERY_PARAM]: next });
   }, []);
 
   const changePlugin = useCallback((next: string): void => {
-    writeSearchParams({ [PLUGIN_PARAM]: next === ALL_PLUGINS ? null : next });
+    writeSearchParams({
+      [PLUGIN_PARAM]: next === ALL_PLUGINS ? null : next,
+      [SKILL_PARAM]: null,
+    });
   }, []);
 
   const clearFilter = useCallback((): void => {
-    setQuery("");
     writeSearchParams({ [QUERY_PARAM]: null, [PLUGIN_PARAM]: null });
   }, []);
 
-  const choose = useCallback((skill: CatalogSkill | null): void => {
-    writeSearchParams({ [SKILL_PARAM]: skill?.name ?? null });
+  // On phones the sheet gets its own history entry, so Back closes it.
+  const choose = useCallback(
+    (skill: CatalogSkill): void => {
+      writeSearchParams(
+        { [SKILL_PARAM]: skill.name },
+        desktop ? {} : { push: true, state: SHEET_ENTRY },
+      );
+    },
+    [desktop],
+  );
+
+  // A sheet opened from a shared link has no entry of its own to go back from.
+  const closeSheet = useCallback((): void => {
+    if (window.history.state === SHEET_ENTRY) {
+      window.history.back();
+    } else {
+      writeSearchParams({ [SKILL_PARAM]: null });
+    }
   }, []);
 
   return {
@@ -160,6 +200,7 @@ function useCatalogState(
     changePlugin,
     clearFilter,
     choose,
+    closeSheet,
   };
 }
 
@@ -174,18 +215,18 @@ function chipCounts(
 }
 
 interface Selection {
-  /** What the desktop pane shows: the chosen skill, else the first in the list. */
+  /** What the desktop pane shows: the chosen skill, else the first in the list; `null` when the list is empty. */
   selected: CatalogSkill | null;
   /** Its 1-based place in the filtered list, or `null` when the filter hides it. */
   position: number | null;
 }
 
 function selection(
-  skills: readonly CatalogSkill[],
   filtered: readonly CatalogSkill[],
   chosen: CatalogSkill | null,
 ): Selection {
-  const selected = chosen ?? filtered[0] ?? skills[0] ?? null;
+  const selected =
+    filtered.length === 0 ? null : (chosen ?? filtered[0] ?? null);
   const index = selected === null ? -1 : filtered.indexOf(selected);
   return { selected, position: index === -1 ? null : index + 1 };
 }
@@ -240,6 +281,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
   const headingId = useId();
   const paneId = useId();
   const desktop = useMediaQuery(DESKTOP_QUERY);
+  const leftDesktop = useLeftDesktop(desktop);
 
   const skills = useMemo(() => catalogSkills(plugins), [plugins]);
   const pluginNames = useMemo(
@@ -254,24 +296,41 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
     changePlugin,
     clearFilter,
     choose,
-  } = useCatalogState(skills, pluginNames);
+    closeSheet,
+  } = useCatalogState(skills, pluginNames, desktop);
 
-  // A deep link to a skill past the fold of its group opens the group.
+  // `pinned` below keeps the selected skill's group open. On phones the
+  // selection ends when the sheet closes, so a deep link past the fold also
+  // opens its group, for focus to return to the row.
   const [expanded, expand] = useExpandedGroups(() =>
-    pastTheFold(skills, chosen, COLLAPSED_ROWS[deviceOf(desktop)]),
+    desktop ? [] : pastTheFold(skills, chosen, COLLAPSED_ROWS.phone),
   );
 
-  const queried = skills.filter((skill) => matchesQuery(skill, query));
-  const filtered = queried.filter((skill) => inPlugin(skill, plugin));
-  const groups = groupSkills(filtered, pluginNames, {
-    collapseAt: collapseLimit(query, plugin, desktop),
-    expanded,
-    pinned: chosen,
-  });
+  const queried = useMemo(
+    () => skills.filter((skill) => matchesQuery(skill, query)),
+    [skills, query],
+  );
+  const filtered = useMemo(
+    () => queried.filter((skill) => inPlugin(skill, plugin)),
+    [queried, plugin],
+  );
+  const collapseAt = collapseLimit(query, plugin, desktop);
+  const groups = useMemo(
+    () =>
+      groupSkills(filtered, pluginNames, {
+        collapseAt,
+        expanded,
+        pinned: chosen,
+      }),
+    [filtered, pluginNames, collapseAt, expanded, chosen],
+  );
+  const chips = useMemo(
+    () => chipCounts(queried, pluginNames),
+    [queried, pluginNames],
+  );
 
-  const { selected, position } = selection(skills, filtered, chosen);
+  const { selected, position } = selection(filtered, chosen);
   const stepper = useStepper(filtered, groups, selected, choose, expand);
-  const closeSheet = useCallback((): void => choose(null), [choose]);
 
   return (
     // biome-ignore lint/correctness/useUniqueElementIds: the in-page anchor the nav links to; the section renders once.
@@ -296,7 +355,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
         <div className="mt-2 md:mt-5 lg:mt-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)] lg:items-start lg:gap-8">
           <div className="min-w-0">
             <SkillFilterBar
-              chips={chipCounts(queried, pluginNames)}
+              chips={chips}
               onPluginChange={changePlugin}
               onQueryChange={changeQuery}
               plugin={plugin}
@@ -336,7 +395,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
             )}
           </div>
 
-          {desktop && selected !== null ? (
+          {desktop ? (
             <SkillPane
               id={paneId}
               onNext={stepper.next}
@@ -352,7 +411,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
         <SkillSheet
           onClose={closeSheet}
           position={position}
-          skill={chosen}
+          skill={leftDesktop ? null : chosen}
           total={filtered.length}
         />
       )}

@@ -8,16 +8,17 @@ export const SKILL_PARAM = "skill";
 /** Fired on `window` when this module changes the URL; `history` methods fire nothing themselves. */
 const URL_CHANGE_EVENT = "ai-toolkit:urlchange";
 
-/** Fired on `window` by `showPluginSkills`, so the catalog can drop a text query that would hide them. */
-const PLUGIN_LINK_EVENT = "ai-toolkit:pluginlink";
+/** A write the browser refused, and the address it was made from: the page follows it while that address stays. */
+let refused: { from: string; to: string } | null = null;
 
-/** A search parameter of the current URL, or `null` when it is absent. */
-export function readSearchParam(name: string): string | null {
-  return new URLSearchParams(window.location.search).get(name);
+/** The URL the page follows: the last one this module asked for, even when the browser refused it. */
+function currentHref(): string {
+  const href = window.location.href;
+  return refused !== null && refused.from === href ? refused.to : href;
 }
 
-export function readPluginParam(): string | null {
-  return readSearchParam(PLUGIN_PARAM);
+export function readSearchParam(name: string): string | null {
+  return new URL(currentHref()).searchParams.get(name);
 }
 
 export function pluginSkillsHref(plugin: string): string {
@@ -30,6 +31,8 @@ interface WriteUrlOptions {
   push?: boolean;
   /** The fragment to put in the URL, without `#`; the current one is kept when unset. */
   hash?: string;
+  /** The history entry's state; the current one is kept when unset. */
+  state?: unknown;
 }
 
 /**
@@ -39,9 +42,10 @@ interface WriteUrlOptions {
  */
 export function writeSearchParams(
   params: Readonly<Record<string, string | null>>,
-  { push = false, hash }: WriteUrlOptions = {},
+  { push = false, hash, state = window.history.state }: WriteUrlOptions = {},
 ): void {
-  const url = new URL(window.location.href);
+  const current = currentHref();
+  const url = new URL(current);
   for (const [name, value] of Object.entries(params)) {
     if (value === null || value === "") {
       url.searchParams.delete(name);
@@ -52,28 +56,22 @@ export function writeSearchParams(
   if (hash !== undefined) {
     url.hash = hash;
   }
-  if (url.href === window.location.href) {
+  if (url.href === current) {
     return;
   }
   try {
     if (push) {
-      window.history.pushState(window.history.state, "", url);
+      window.history.pushState(state, "", url);
     } else {
-      window.history.replaceState(window.history.state, "", url);
+      window.history.replaceState(state, "", url);
     }
+    refused = null;
   } catch {
-    // Safari throws when a page rewrites its URL too often; the URL then lags until the next write.
-    return;
+    // Safari throws when a page rewrites its URL too often. The page follows the change anyway;
+    // the next write the browser accepts carries it into the address bar.
+    refused = { from: window.location.href, to: url.href };
   }
   window.dispatchEvent(new Event(URL_CHANGE_EVENT));
-}
-
-/** Sets the plugin filter in the URL (`null` removes it), leaving every other parameter alone. */
-export function writePluginParam(
-  plugin: string | null,
-  options: WriteUrlOptions = {},
-): void {
-  writeSearchParams({ [PLUGIN_PARAM]: plugin }, options);
 }
 
 /** Calls `onChange` when the URL changes through this module or the back and forward buttons. */
@@ -86,17 +84,14 @@ export function subscribeToUrl(onChange: () => void): () => void {
   };
 }
 
-/** What following a plugin's skills link does in page: filter the catalog to the plugin and say so. */
+/**
+ * What following a plugin's skills link does in page: filter the catalog to
+ * the plugin. It also clears the query, which could hide every skill of the
+ * plugin, and the selected skill, which could sit outside the new filter.
+ */
 export function showPluginSkills(plugin: string): void {
   writeSearchParams(
     { [PLUGIN_PARAM]: plugin, [QUERY_PARAM]: null, [SKILL_PARAM]: null },
     { push: true, hash: "skills" },
   );
-  window.dispatchEvent(new Event(PLUGIN_LINK_EVENT));
-}
-
-/** Calls `onFollow` when a plugin's skills link is followed in page. */
-export function subscribeToPluginLinks(onFollow: () => void): () => void {
-  window.addEventListener(PLUGIN_LINK_EVENT, onFollow);
-  return (): void => window.removeEventListener(PLUGIN_LINK_EVENT, onFollow);
 }
