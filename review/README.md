@@ -12,6 +12,10 @@ noppu-labs/ai-toolkit/review` for other harnesses).
 | `review:type-safety-review` | Rules a diff or a path against the type-safety checklists for PHP, TypeScript, and Python. |
 | `review:writing-comments` | What belongs in a comment and what to cut. |
 
+## The task-output hook
+
+`hooks/hooks.json` registers `hooks/guard-task-output.mjs` as a `PreToolUse` hook on `Bash` and `Read`. It denies a call that names a `.output` file when that file is a symlink, which is what a background subagent, such as the one `code-review` runs, leaves in the session's `tasks/` directory. The symlink points at the subagent's JSONL transcript under `~/.claude`, so Claude Code treats any read or copy as touching a sensitive file and stops on a permission prompt, which stalls an unattended worker. The deny reason tells the agent that the report is the completion notification's text and to write that text to the scratchpad instead. Background Bash tasks write plain `.output` files, and the hook leaves those alone. It needs `node` on `PATH` and lets the call through on any input it cannot parse.
+
 ## The `pr-review-stages` workflow
 
 `workflows/pr-review-stages.js` is a Claude Code [dynamic workflow](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin). When the Workflow tool is listed, `review:pr-review` runs the structural brief, the three stage subagents, and the consolidation through it instead of by hand: the script holds the fan-out, every stage return is validated against a schema, the consolidation is plain JavaScript, and a run that stops part way can be relaunched in the same session, where completed agents return their saved results and the failed agent and those after it run again. `/workflows` shows its three phases, `Brief`, `Stages`, and `Consolidate`. The `code-review` pass and the merge of its report stay in the skill.
