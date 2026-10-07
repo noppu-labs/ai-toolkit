@@ -55,6 +55,10 @@ describe("getCandidatePaths", () => {
     ]);
   });
 
+  it("ignores a Read of a file that does not end in .output", () => {
+    expect(getCandidatePaths("Read", { file_path: transcript })).toEqual([]);
+  });
+
   it("ignores other tools and malformed input", () => {
     expect(getCandidatePaths("Write", { file_path: agentOutput })).toEqual([]);
     expect(getCandidatePaths("Bash", { command: 42 })).toEqual([]);

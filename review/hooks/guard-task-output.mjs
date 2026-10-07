@@ -25,7 +25,8 @@ const SEPARATORS = /[\s'"`<>|;&()]+/;
  */
 export function getCandidatePaths(toolName, toolInput) {
   if (toolName === "Read") {
-    return typeof toolInput?.file_path === "string"
+    return typeof toolInput?.file_path === "string" &&
+      toolInput.file_path.endsWith(".output")
       ? [toolInput.file_path]
       : [];
   }
@@ -60,9 +61,9 @@ function isSymlink(path) {
  */
 export function getDecision(input) {
   const cwd = typeof input?.cwd === "string" ? input.cwd : process.cwd();
-  const paths = getCandidatePaths(input?.tool_name, input?.tool_input)
-    .filter((path) => path.endsWith(".output"))
-    .map((path) => resolve(cwd, path));
+  const paths = getCandidatePaths(input?.tool_name, input?.tool_input).map(
+    (path) => resolve(cwd, path),
+  );
 
   if (!paths.some(isSymlink)) {
     return null;
