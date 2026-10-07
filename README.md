@@ -7,7 +7,7 @@
 
 Agent skills for deep code review and grounded investigation in PHP, TypeScript, Python and beyond, plus dedicated Laravel and React packs.
 
-**Website:** <https://noppu-labs.github.io/ai-toolkit/>
+**Website:** <https://toolkit.noppu.com/>
 
 ## Secure code following best practices
 
