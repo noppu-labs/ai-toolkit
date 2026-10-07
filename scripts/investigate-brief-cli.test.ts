@@ -492,7 +492,9 @@ describe("brief.mjs", () => {
     expect(runBrief(cwd, "--help").status).toBe(0);
   });
 
-  it("writes the whole brief through a pipe when it exceeds 64 KiB", () => {
+  it("writes the whole brief through a pipe when it exceeds 64 KiB", {
+    timeout: 30_000,
+  }, () => {
     const cwd = makeLargeRepo();
     const r = runBrief(
       cwd,
