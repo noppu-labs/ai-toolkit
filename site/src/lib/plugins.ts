@@ -34,13 +34,6 @@ const PRESSED_COLOR_CLASSES: Readonly<Record<string, string>> = {
     "aria-pressed:bg-plugin-inertia-react data-pressed:bg-plugin-inertia-react",
 };
 
-const COLOR_VARS: Readonly<Record<string, string>> = {
-  review: "var(--color-plugin-review)",
-  investigate: "var(--color-plugin-investigate)",
-  laravel: "var(--color-plugin-laravel)",
-  "inertia-react": "var(--color-plugin-inertia-react)",
-};
-
 const FALLBACK_COLOR_CLASS = "bg-main";
 const FALLBACK_PRESSED_COLOR_CLASS =
   "aria-pressed:bg-main data-pressed:bg-main";
@@ -56,7 +49,6 @@ export function sortPlugins<T extends { name: string }>(
   return [...plugins].sort((a, b) => rank(a.name) - rank(b.name));
 }
 
-/** A plugin's skills in the site order: its leading skills, then the rest by name. */
 export function sortSkills<T extends { name: string }>(
   plugin: string,
   skills: readonly T[],
@@ -77,7 +69,7 @@ export function pluginColorClass(name: string): string {
 
 /** The plugin's colour as a CSS value, for styles a utility class cannot name (an accent shadow). */
 export function pluginColorVar(name: string): string {
-  return COLOR_VARS[name] ?? "var(--color-main)";
+  return `var(--color-plugin-${name}, var(--color-main))`;
 }
 
 export function pluginPressedColorClass(name: string): string {

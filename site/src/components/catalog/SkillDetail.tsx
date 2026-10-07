@@ -27,16 +27,19 @@ const SWITCH_LABELS = {
   "skills-cli": "Use the skills CLI instead",
 } as const;
 
+export interface SkillPositionProps {
+  /** 1-based place in the filtered list, or `null` when the filter hides the skill. */
+  position: number | null;
+  total: number;
+  className?: string;
+}
+
 /** "3 of 30", or "– of 30" when the skill is filtered out of the list. */
 export function SkillPosition({
   position,
   total,
   className,
-}: {
-  position: number | null;
-  total: number;
-  className?: string;
-}): ReactElement {
+}: SkillPositionProps): ReactElement {
   return (
     <span className={cn("font-bold font-mono text-[13px]", className)}>
       {position ?? "–"} of {total}
@@ -44,10 +47,7 @@ export function SkillPosition({
   );
 }
 
-/**
- * The SKILL.md description, clamped to four lines. The toggle appears only
- * when the text is longer than that. Remount it (a `key`) for each skill.
- */
+/** Remount it with a `key` per skill: `expanded` and `clamped` belong to one text. */
 function AgentText({ text }: { text: string }): ReactElement {
   const textId = useId();
   const textRef = useRef<HTMLParagraphElement>(null);
@@ -103,7 +103,6 @@ function AgentText({ text }: { text: string }): ReactElement {
   );
 }
 
-/** The install commands for the skill's plugin, in the visitor's install method, as on the plugin cards. */
 function SkillInstall({ plugin }: { plugin: string }): ReactElement {
   const method = usePreferencesStore((state) => state.installMethod);
   const setInstallMethod = usePreferencesStore(
@@ -162,7 +161,7 @@ interface SkillDetailBodyProps {
   surface: DetailSurface;
 }
 
-/** Everything about a skill below its name: what it does, how it is invoked and installed, and links. */
+/** Everything below the skill's name, which the pane and the sheet each render themselves. */
 export function SkillDetailBody({
   skill,
   surface,

@@ -1,6 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
 
-/** Whether the media query matches, followed live as the window resizes. */
 export function useMediaQuery(query: string): boolean {
   const subscribe = useCallback(
     (onChange: () => void): (() => void) => {

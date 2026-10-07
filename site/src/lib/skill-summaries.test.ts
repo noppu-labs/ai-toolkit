@@ -7,12 +7,10 @@ import {
   skillSummary,
 } from "./skill-summaries.ts";
 
-/** `plugin/skill` for every skill in the catalog. */
 const catalogKeys: string[] = catalog.plugins.flatMap((plugin) =>
   plugin.skills.map((skill) => `${plugin.name}/${skill.name}`),
 );
 
-/** `plugin/skill` for every summary in the locale file. */
 const summaryKeys: string[] = Object.entries(SKILL_SUMMARIES).flatMap(
   ([plugin, skills]) =>
     Object.keys(skills).map((skill) => `${plugin}/${skill}`),

@@ -93,10 +93,24 @@ describe("sortSkills", () => {
 
 describe("plugin colours", () => {
   it("names each plugin's accent as a CSS value, main for unknown ones", () => {
-    expect(pluginColorVar("investigate")).toBe(
-      "var(--color-plugin-investigate)",
+    const resolve = (value: string): string => {
+      const element = document.createElement("div");
+      element.style.backgroundColor = value;
+      document.body.append(element);
+      const color = getComputedStyle(element).backgroundColor;
+      element.remove();
+      return color;
+    };
+
+    expect(resolve(pluginColorVar("investigate"))).toBe(
+      resolve("var(--color-plugin-investigate)"),
     );
-    expect(pluginColorVar("unknown")).toBe("var(--color-main)");
+    expect(resolve(pluginColorVar("investigate"))).not.toBe(
+      resolve("var(--color-main)"),
+    );
+    expect(resolve(pluginColorVar("unknown"))).toBe(
+      resolve("var(--color-main)"),
+    );
   });
 
   it("maps each known plugin to its accent and unknown ones to main", () => {

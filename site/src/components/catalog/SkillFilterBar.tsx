@@ -24,7 +24,6 @@ interface SkillFilterBarProps {
   wide: boolean;
 }
 
-/** Search and plugin chips; it sticks below the header while the list scrolls. */
 export function SkillFilterBar({
   query,
   onQueryChange,

@@ -15,13 +15,20 @@ import { pluginColorClass } from "@/lib/plugins";
 import { cn } from "@/lib/utils";
 import { CountBadge } from "./CountBadge.tsx";
 
-interface SkillRowProps {
-  skill: CatalogSkill;
-  /** Whether the pane beside the list shows this skill (desktop only). */
-  current: boolean;
+interface SkillListProps {
+  groups: SkillGroup[];
+  /** The skill the desktop pane shows; `null` on phones. */
+  selected: CatalogSkill | null;
   /** The desktop pane's id; without it, rows open the phone sheet. */
   paneId: string | null;
   onSelect: (skill: CatalogSkill) => void;
+  onExpand: (plugin: string) => void;
+}
+
+interface SkillRowProps extends Pick<SkillListProps, "paneId" | "onSelect"> {
+  skill: CatalogSkill;
+  /** Whether the pane beside the list shows this skill (desktop only). */
+  current: boolean;
 }
 
 function SkillRow({
@@ -71,11 +78,9 @@ function SkillRow({
   );
 }
 
-interface SkillGroupListProps {
+interface SkillGroupListProps
+  extends Pick<SkillListProps, "selected" | "paneId" | "onSelect"> {
   group: SkillGroup;
-  selected: CatalogSkill | null;
-  paneId: string | null;
-  onSelect: (skill: CatalogSkill) => void;
   onExpand: (group: SkillGroup) => void;
 }
 
@@ -147,16 +152,6 @@ function SkillGroupList({
   );
 }
 
-interface SkillListProps {
-  groups: SkillGroup[];
-  /** The skill the desktop pane shows; `null` on phones, where rows open a sheet. */
-  selected: CatalogSkill | null;
-  paneId: string | null;
-  onSelect: (skill: CatalogSkill) => void;
-  onExpand: (plugin: string) => void;
-}
-
-/** The filtered skills, grouped by plugin. */
 export function SkillList({
   groups,
   selected,
