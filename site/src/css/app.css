@@ -52,6 +52,13 @@
     @apply font-sans antialiased;
   }
 
+  /* In-page links glide unless the visitor asked for less motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
   /* `relative`: Base UI's iOS 26+ Safari setting, so absolute popup backdrops cover the viewport after scrolling. */
   body {
     @apply relative bg-background font-base text-foreground;
