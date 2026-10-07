@@ -21,7 +21,7 @@
   --shadow: var(--box-shadow-x) var(--box-shadow-y) 0px 0px var(--shadow-color);
   --overlay: oklch(0 0 0 / 0.8);
 
-  /* The sticky header is exactly this tall, so sections can use it as their scroll margin. */
+  /* The sticky header's height (taller only if its row wraps), so sections can use it as their scroll margin. */
   --header-height: 4rem;
 
   /* neobrutalism colours */
@@ -40,7 +40,9 @@
   --grid-line: oklch(0 0 0 / 0.05);
 }
 
-@media (width >= 48rem) {
+/* Tailwind's `md`, the breakpoint the header's layout classes switch at. */
+/* biome-ignore lint/correctness/noUnknownFunction: Tailwind resolves `theme()` at build time. */
+@media (width >= theme(--breakpoint-md)) {
   :root {
     --header-height: 4.875rem;
   }

@@ -25,7 +25,7 @@
 
   --radius-base: var(--border-radius);
 
-  /* `h-header`, `top-header`, `scroll-mt-header`: the sticky header's height. */
+  /* `min-h-header`, `top-header`, `scroll-mt-header`: the sticky header's height. */
   --spacing-header: var(--header-height);
 
   --shadow-shadow: var(--shadow);

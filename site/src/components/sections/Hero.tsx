@@ -36,7 +36,7 @@ export function Hero({
             aria-hidden="true"
             className="size-2 shrink-0 rounded-full border-2 border-border bg-plugin-investigate md:size-2.5"
           />
-          Claude Code marketplace
+          Claude Code marketplace{" "}
           <span className="hidden sm:inline">· {REPO_SLUG}</span>
         </span>
         <h1

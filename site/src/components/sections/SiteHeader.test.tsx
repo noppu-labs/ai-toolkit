@@ -131,6 +131,26 @@ describe("SiteHeader on wide screens", () => {
     expect(shadow).not.toContain("4px 4px");
   });
 
+  it("wraps rather than clipping when text-only zoom enlarges the row", async () => {
+    await page.viewport(768, 800);
+    // Text-only zoom raises rem but leaves the `md` media query matching.
+    document.documentElement.style.fontSize = "24px";
+    try {
+      renderHeader();
+      const github = page.getByRole("link", { name: "GitHub" });
+      await expect.element(github).toBeVisible();
+
+      expect(
+        github.element().getBoundingClientRect().right,
+      ).toBeLessThanOrEqual(window.innerWidth);
+      const header = page.getByRole("banner").element();
+      expect(header.scrollWidth).toBeLessThanOrEqual(header.clientWidth);
+    } finally {
+      document.documentElement.style.fontSize = "";
+      await page.viewport(1280, 800);
+    }
+  });
+
   it("keeps every control at least 44px tall", async () => {
     renderHeader();
     await expect
@@ -239,16 +259,38 @@ describe("SiteHeader on phones", () => {
     await expect.element(menuButton).toHaveFocus();
   });
 
-  it("closes when a link is followed and returns focus to the menu button", async () => {
-    renderHeader();
+  it("closes when a link is followed, and the next Tab starts in its section", async () => {
+    render(
+      <>
+        <SiteHeader />
+        {/* biome-ignore lint/correctness/useUniqueElementIds: stands in for the plugins section. */}
+        <section id="plugins">
+          <button type="button">In the section</button>
+        </section>
+      </>,
+    );
 
     await menuButton.click();
     await menu.getByRole("link", { name: /Plugins/ }).click();
 
     await expect.element(menu).not.toBeInTheDocument();
-    await expect.element(menuButton).toHaveFocus();
     expect(window.location.hash).toBe("#plugins");
+    await expect.element(menuButton).not.toHaveFocus();
+    await userEvent.tab();
+    await expect
+      .element(page.getByRole("button", { name: "In the section" }))
+      .toHaveFocus();
     window.history.replaceState(null, "", window.location.pathname);
+  });
+
+  it("closes when the window widens past the menu's breakpoint", async () => {
+    renderHeader();
+
+    await menuButton.click();
+    await expect.element(menu).toBeVisible();
+    await page.viewport(1280, 800);
+
+    await expect.element(menu).not.toBeInTheDocument();
   });
 
   it("closes on a click outside the menu", async () => {

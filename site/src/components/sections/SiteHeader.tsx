@@ -22,9 +22,6 @@ const NAV_LINKS = [
   { label: "Security", href: "#security" },
 ] as const;
 
-/** Tailwind's `md`: from here the header shows its links inline instead of the menu. */
-const INLINE_NAV_QUERY = "(width >= 48rem)";
-
 const FOCUS_RING =
   "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
@@ -40,29 +37,39 @@ function MobileMenu({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const linkFollowedRef = useRef(false);
 
   const handleOpenChange = useCallback((next: boolean): void => {
+    linkFollowedRef.current = false;
     setOpen(next);
   }, []);
 
-  // Following a link closes the menu; the browser then scrolls to the section.
-  const close = useCallback((): void => {
+  const closeAfterLink = useCallback((): void => {
+    linkFollowedRef.current = true;
     setOpen(false);
   }, []);
 
-  // Widening the window past the breakpoint hides the trigger; close the menu with it.
+  // Escape, an outside click or the trigger return focus to the trigger; after a
+  // link, focus is left alone, so the next Tab starts from the linked section.
+  const finalFocus = useCallback(
+    (): HTMLElement | false | null =>
+      linkFollowedRef.current ? false : triggerRef.current,
+    [],
+  );
+
+  // The trigger is `md:hidden`, so widening the window hides it; close the menu with it.
   useEffect(() => {
-    if (!open) {
+    const trigger = triggerRef.current;
+    if (!open || trigger === null) {
       return;
     }
-    const query = window.matchMedia(INLINE_NAV_QUERY);
-    const onChange = (): void => {
-      if (query.matches) {
+    const observer = new ResizeObserver((): void => {
+      if (trigger.getClientRects().length === 0) {
         setOpen(false);
       }
-    };
-    query.addEventListener("change", onChange);
-    return (): void => query.removeEventListener("change", onChange);
+    });
+    observer.observe(trigger);
+    return (): void => observer.disconnect();
   }, [open]);
 
   return (
@@ -92,8 +99,7 @@ function MobileMenu({
         >
           <Popover.Popup
             aria-label="Menu"
-            // Back to the menu button however the menu closes, even after a link moved focus to its section.
-            finalFocus={triggerRef}
+            finalFocus={finalFocus}
             className="max-h-(--available-height) w-(--anchor-width) overflow-y-auto border-edge border-b-3 bg-secondary-background px-4 pt-2 pb-4.5 text-foreground shadow-[0_6px_0_0_var(--shadow-color)] outline-hidden"
           >
             <nav aria-label="Main">
@@ -106,7 +112,7 @@ function MobileMenu({
                         FOCUS_RING,
                       )}
                       href={link.href}
-                      onClick={close}
+                      onClick={closeAfterLink}
                     >
                       <span
                         aria-hidden="true"
@@ -133,7 +139,7 @@ function MobileMenu({
                 "mt-4 flex h-13 w-full gap-2.5 text-[17px] [&_svg:first-child]:size-5 [&_svg]:size-4",
               )}
               href={REPO_URL}
-              onClick={close}
+              onClick={closeAfterLink}
             >
               <GitHubMark />
               View on GitHub
@@ -151,10 +157,11 @@ export function SiteHeader(): ReactElement {
 
   return (
     <header
-      className="sticky top-0 z-10 h-header border-edge border-b-2 bg-background"
+      className="sticky top-0 z-10 flex min-h-header border-edge border-b-2 bg-background"
       ref={headerRef}
     >
-      <div className="mx-auto flex h-full max-w-300 items-center justify-between gap-2 pr-3 pl-4 sm:px-6 md:gap-3">
+      {/* `flex-wrap`: text-only zoom can outgrow the row without moving the `md` breakpoint; the header then grows rather than clipping. */}
+      <div className="mx-auto flex w-full max-w-300 items-center justify-between gap-2 pr-3 pl-4 sm:px-6 md:flex-wrap md:gap-3 md:py-2">
         <a
           className={cn(
             "flex min-h-11 items-center gap-2.5 rounded-base no-underline md:gap-3",
@@ -176,9 +183,9 @@ export function SiteHeader(): ReactElement {
             </span>
           </span>
         </a>
-        <div className="flex items-center gap-2 md:gap-1">
+        <div className="flex items-center gap-2 md:flex-wrap md:gap-1">
           <nav aria-label="Main" className="hidden md:block">
-            <ul className="flex items-center gap-1">
+            <ul className="flex items-center gap-1 md:flex-wrap">
               {NAV_LINKS.map((link) => (
                 <li key={link.href}>
                   <a
