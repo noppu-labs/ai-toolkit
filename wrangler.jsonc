@@ -3,6 +3,9 @@
 {
   "name": "ai-toolkit",
   "compatibility_date": "2026-10-07",
+  // Pushes to main would otherwise publish a second public copy on workers.dev.
+  // Previews keep their URLs.
+  "workers_dev": false,
   "assets": {
     "directory": "./site/dist"
   },

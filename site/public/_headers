@@ -1,0 +1,4 @@
+# Read by Cloudflare only: keeps PR previews on toolkit.noppu.dev out of
+# search results. GitHub Pages ignores this file.
+/*
+  X-Robots-Tag: noindex
