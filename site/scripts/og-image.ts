@@ -11,8 +11,9 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { isMainModule } from "./main-module.ts";
 
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
@@ -177,10 +178,7 @@ async function render(siteDir: string): Promise<string> {
   }
 }
 
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
-) {
+if (isMainModule(import.meta.url)) {
   const siteDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const out = await render(siteDir);
   console.log(`og-image.png written: ${out}`);
