@@ -5,5 +5,7 @@
   "compatibility_date": "2026-10-07",
   "assets": {
     "directory": "./site/dist"
-  }
+  },
+  // wrangler preview refuses to run without this block, even empty.
+  "previews": {}
 }
