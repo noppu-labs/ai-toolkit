@@ -53,8 +53,7 @@ function isSymlink(path) {
   }
 }
 
-// Background Bash tasks write plain .output files, which stay readable; only
-// the symlinked ones a background subagent leaves behind are denied.
+// See review/README.md, "The task-output hook".
 /**
  * @param {HookInput | null | undefined} input
  * @returns {Decision | null}
