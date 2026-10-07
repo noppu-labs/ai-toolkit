@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <title>Page not found · AI Toolkit</title>
+    <!-- GitHub Pages serves this file for every missing path, so every URL here is absolute. It loads none of the app's CSS or JS; the colours mirror the site's palette tokens. -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --pink: oklch(0.7862 0.1495 349.25);
+        --black: oklch(0 0 0);
+        --background: oklch(0.9771 0.0134 347.94);
+        --surface: oklch(1 0 0);
+        --foreground: oklch(0.1776 0 0);
+        --muted: oklch(0.3313 0.0186 344.18);
+        --edge: var(--black);
+        --grid-line: oklch(0 0 0 / 0.05);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --background: oklch(0.264 0.0174 330.17);
+          --surface: oklch(0.2123 0.011 332.75);
+          --foreground: oklch(0.9573 0.011 348.43);
+          --muted: oklch(0.8369 0.0183 345.7);
+          --edge: oklch(0.5996 0.0272 340.71);
+          --grid-line: oklch(1 0 0 / 0.05);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        display: grid;
+        min-height: 100dvh;
+        margin: 0;
+        padding: 1.5rem 1rem;
+        place-items: center;
+        background-color: var(--background);
+        background-image:
+          linear-gradient(var(--grid-line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+        background-size: 48px 48px;
+        color: var(--foreground);
+        font:
+          500 1rem/1.6 "Space Grotesk",
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      main {
+        width: 100%;
+        max-width: 40rem;
+        padding: 2rem 1.5rem;
+        border: 3px solid var(--edge);
+        border-radius: 12px;
+        background: var(--surface);
+        box-shadow: 6px 6px 0 0 var(--black);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: inherit;
+        font-size: 1.25rem;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      .brand img {
+        width: 48px;
+        height: 48px;
+        border: 2px solid var(--black);
+        border-radius: 8px;
+        background: oklch(1 0 0);
+        box-shadow: 3px 3px 0 0 var(--black);
+      }
+
+      .code {
+        display: block;
+        width: fit-content;
+        margin: 2rem 0 0;
+        padding: 0.125rem 0.625rem;
+        border: 2px solid var(--black);
+        border-radius: 999px;
+        background: var(--pink);
+        color: var(--black);
+        font:
+          700 0.8125rem/1.6 ui-monospace,
+          "SF Mono",
+          "Cascadia Code",
+          Menlo,
+          Consolas,
+          monospace;
+      }
+
+      h1 {
+        margin: 0.75rem 0 0;
+        font-size: clamp(2rem, 7vw, 2.75rem);
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+      }
+
+      p {
+        margin: 1rem 0 0;
+        color: var(--muted);
+        font-size: 1.0625rem;
+      }
+
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.875rem;
+        margin-top: 1.75rem;
+      }
+
+      nav a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 2.75rem;
+        padding: 0 1.125rem;
+        border: 2px solid var(--edge);
+        border-radius: 6px;
+        background: var(--surface);
+        box-shadow: 4px 4px 0 0 var(--black);
+        color: inherit;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      nav a.primary {
+        border-color: var(--black);
+        background: var(--pink);
+        color: var(--black);
+      }
+
+      nav a:hover {
+        box-shadow: none;
+        transform: translate(4px, 4px);
+      }
+
+      a:focus-visible {
+        outline: 3px solid var(--foreground);
+        outline-offset: 3px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        nav a:hover {
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="brand" href="/">
+        <img alt="" height="48" src="/logo-face.svg" width="48" />
+        AI Toolkit
+      </a>
+      <span class="code">404</span>
+      <h1>This page wandered off</h1>
+      <p>
+        There is nothing at this address. The link may be out of date, or the
+        page may have moved. Everything on the site is on the home page.
+      </p>
+      <nav aria-label="Ways back">
+        <a class="primary" href="/">Go to the home page</a>
+        <a href="/#skills">Browse the skills</a>
+        <a href="https://github.com/noppu-labs/ai-toolkit">View on GitHub</a>
+      </nav>
+    </main>
+  </body>
+</html>
