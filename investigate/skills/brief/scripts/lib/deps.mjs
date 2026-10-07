@@ -196,7 +196,7 @@ export function collectDependencies({ files, repoRoot }) {
       ...r,
       importedAs: [...r.importedAs].sort(compareCodeUnits),
     }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => compareCodeUnits(a.name, b.name));
 
   return { rows, unread };
 }

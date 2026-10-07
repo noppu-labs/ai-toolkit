@@ -26,8 +26,11 @@ export const TS_EXT_RE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
 const TEST_FILE_RE = /\.(test|spec|stories)\.(?:[cm]?[jt]s|[jt]sx)$/;
 const MIN_NAME_LENGTH = 4;
 const IDENT_RE = /^[A-Za-z_$][\w$]*$/;
-// `[^\S\r\n\u2028\u2029]` is `\s` without the line terminators, so a match
-// starts on the export's own line rather than on a blank line above it.
+// `[^\S\r\n\u2028\u2029]` is `\s` minus line terminators, shared by EXPORT_RE,
+// EXPORT_LIST_RE, DEFAULT_IDENT_RE, CJS_DEFAULT_RE and CJS_NAMED_RE: `^\s*`
+// under the m flag rescans every following blank line from each line start
+// (S8786), and `[ \t]*` would stop matching BOM, no-break-space and form-feed
+// indents.
 const EXPORT_RE =
   /^[^\S\r\n\u2028\u2029]*export\s+(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:function(?:\s*\*)?|class|const\s+enum|const|let|var|enum|type|interface|abstract\s+class)\s+([A-Za-z_$][\w$]*)/gm;
 // `export { a, b as c }` names a and c; a list followed by `from` re-exports
@@ -113,7 +116,7 @@ function listDir(dir, env) {
   return res.stdout.split("\0").filter(Boolean);
 }
 
-/** Code-unit order: the same order as the default sort, but explicit and locale-independent. */
+/** The default sort's code-unit order, spelled out. Not `localeCompare`: its order depends on the locale. */
 export function compareCodeUnits(a, b) {
   if (a === b) return 0;
   return a < b ? -1 : 1;
