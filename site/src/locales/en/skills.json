@@ -1,0 +1,40 @@
+{
+  "review": {
+    "pr-review": "Reviews a PR, or a stack of PRs, three ways (correctness, type safety, comments) and merges it all into one report.",
+    "comment-audit": "Goes through every comment a branch adds and says whether to keep, trim, move or delete it.",
+    "type-safety-review": "Finds loose types in a diff: any and mixed, untyped arrays that should be DTOs, unchecked casts.",
+    "pr-comments": "Turns review findings into line-anchored PR comments, graded by severity.",
+    "writing-comments": "What belongs in a code comment, and what to cut."
+  },
+  "investigate": {
+    "brief": "Maps a path before anyone reads code: callers, wiring, blast radius and installed versions.",
+    "deep": "A full investigation of a module: one brief, two independent passes, and only the findings both agree on.",
+    "spec": "Checks a spec, ticket or plan claim by claim against the actual code."
+  },
+  "laravel": {
+    "laravel-activity-logging": "Audit trails with spatie/laravel-activitylog: who did what, and when.",
+    "laravel-controllers": "Thin HTTP controllers with no domain logic.",
+    "laravel-database-optimization": "Faster queries, indexes, caching and eager loading.",
+    "laravel-dtos": "Data transfer objects with Spatie Laravel Data.",
+    "laravel-enums": "Backed enums with labels and behaviour.",
+    "laravel-models": "Eloquent model patterns and the database layer.",
+    "laravel-owasp-security": "An OWASP Top 10 audit for Laravel + Inertia apps.",
+    "laravel-policies": "Authorization policies for resource access.",
+    "laravel-quality": "PHPStan, Pint and strict types.",
+    "laravel-query-builders": "Custom, composable, type-safe query builders.",
+    "laravel-routing": "Routes, model binding and authorization.",
+    "laravel-services": "Service layer for external APIs with Saloon.",
+    "laravel-testing": "Tests with Pest 4 or PHPUnit 12.",
+    "laravel-validation": "Form requests and validation tests.",
+    "laravel-value-objects": "Immutable value objects for domain values.",
+    "php-best-practices": "Modern PHP 8 patterns, PSR and SOLID."
+  },
+  "inertia-react": {
+    "laravel-inertia-react": "Laravel + Inertia + React integration patterns.",
+    "react-vite-best-practices": "React and Vite performance guidelines.",
+    "shadcn": "Add, fix and compose shadcn components.",
+    "state-management": "React Query and Zustand patterns.",
+    "tailwind-best-practices": "Tailwind CSS patterns and conventions.",
+    "typescript-react-patterns": "TypeScript patterns for React."
+  }
+}
