@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // @ts-check
-import { lstatSync, readFileSync } from "node:fs";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -94,6 +94,8 @@ function main() {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+if (
+  import.meta.url === pathToFileURL(realpathSync(process.argv[1] ?? "")).href
+) {
   main();
 }

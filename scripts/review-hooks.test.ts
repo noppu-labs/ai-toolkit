@@ -168,6 +168,23 @@ describe("guard-task-output.mjs", () => {
     expect(runHook("not json")).toEqual({ status: 0, stdout: "" });
   });
 
+  it("runs when invoked through a symlinked plugin root", () => {
+    const linkedHooks = join(root, "linked-hooks");
+
+    symlinkSync(hooksDir, linkedHooks);
+
+    const result = spawnSync(
+      "node",
+      [join(linkedHooks, "guard-task-output.mjs")],
+      {
+        input: JSON.stringify(makeBash(`cp ${agentOutput} out.md`)),
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.stdout).not.toBe("");
+  });
+
   it("is registered as a PreToolUse hook on Bash and Read", () => {
     const config = JSON.parse(
       readFileSync(join(hooksDir, "hooks.json"), "utf8"),
