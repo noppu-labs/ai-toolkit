@@ -60,8 +60,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
-        working-directory: review
-        run: npm install
+        run: npm ci --ignore-scripts
 
       - name: Build
         working-directory: review

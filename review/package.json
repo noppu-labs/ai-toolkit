@@ -36,6 +36,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "tsc"
   },
   "dependencies": {
