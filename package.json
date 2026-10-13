@@ -1,7 +1,8 @@
 {
   "type": "module",
   "workspaces": [
-    "site"
+    "site",
+    "review"
   ],
   "scripts": {
     "coverage-ci": "vitest run --coverage",
