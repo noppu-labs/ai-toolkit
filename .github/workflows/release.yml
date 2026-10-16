@@ -12,8 +12,9 @@ name: release
 #   - npm trusted publishers for BOTH package names of each npm plugin, each
 #     pointing at GitHub Actions, repository noppu-labs/ai-toolkit, workflow
 #     `release.yml`, no environment.
-#   - Actions -> General -> "Workflow permissions" allows id-token writes
-#     (required for OIDC publishing and npm --provenance).
+#   - Nothing in the repository settings: npm-publish requests
+#     `id-token: write` in its own permissions, which OIDC publishing and
+#     npm --provenance need.
 
 on:
   push:
@@ -295,8 +296,9 @@ jobs:
       - name: Verify artifact checksums
         working-directory: artifacts
         run: sha256sum --check checksums-sha256.txt
-      # Trusted publishing needs Node >= 22.14 and npm >= 11.5.1; Node 24
-      # bundles a new enough npm. npm exchanges the job's OIDC token itself.
+      # Trusted publishing needs Node >= 22.14 and npm >= 11.5.1. setup-node
+      # installs the latest Node 24, whose bundled npm is new enough. npm
+      # exchanges the job's OIDC token itself.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24

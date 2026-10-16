@@ -9,7 +9,7 @@ export type LoadedSkill = {
   content: string;
 };
 
-type ParsedSkill = { name: string; description: string; body: string };
+export type ParsedSkill = { name: string; description: string; body: string };
 
 type RewriteOptions = { packageRoot: string; ids: ReadonlySet<string> };
 

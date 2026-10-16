@@ -7,6 +7,8 @@ type SkillEditor = Parameters<
   Parameters<Plugin.Context["skill"]["transform"]>[0]
 >[0];
 
+// The brands are type-only: ids are skill directory names and paths join an
+// absolute package root, so the casts below add no unchecked assumption.
 function makeSkillInfo(skill: LoadedSkill): Skill.Info {
   return {
     id: skill.id as Skill.Info["id"],
