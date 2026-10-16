@@ -133,7 +133,7 @@ jobs:
   npm-targets:
     name: select npm targets
     needs: release
-    if: always() && (needs.release.result == 'success' || needs.release.result == 'skipped')
+    if: ${{ !cancelled() && (needs.release.result == 'success' || needs.release.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -195,7 +195,7 @@ jobs:
   npm-build:
     name: build ${{ matrix.target.plugin }}
     needs: npm-targets
-    if: needs.npm-targets.result == 'success' && needs.npm-targets.outputs.targets != '[]'
+    if: ${{ !cancelled() && needs.npm-targets.result == 'success' && needs.npm-targets.outputs.targets != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -265,7 +265,7 @@ jobs:
   npm-publish:
     name: publish ${{ matrix.target.plugin }}
     needs: [npm-targets, npm-build]
-    if: needs.npm-targets.result == 'success' && needs.npm-targets.outputs.targets != '[]'
+    if: ${{ !cancelled() && needs.npm-targets.result == 'success' && needs.npm-targets.outputs.targets != '[]' && needs.npm-build.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
