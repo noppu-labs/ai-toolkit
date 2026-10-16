@@ -2,7 +2,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin, Skill } from "@opencode/plugin";
 import { describe, expect, it, vi } from "vitest";
-import { makePlugin } from "../review/opencode/index.ts";
+import defaultPlugin, { makePlugin } from "../review/opencode/index.ts";
 import {
   type LoadedSkill,
   loadSkills,
@@ -136,5 +136,22 @@ describe("makePlugin", () => {
     await expect(makePlugin("/nonexistent").setup(ctx)).rejects.toThrow(
       "/nonexistent/skills",
     );
+  });
+});
+
+describe("default export", () => {
+  it("rewrites paths without a doubled separator", async () => {
+    const { ctx, run } = makeFakeContext();
+    const fake: FakeEditor = makeFakeEditor();
+
+    await defaultPlugin.setup(ctx);
+    run(fake.editor);
+
+    expect(fake.added.length).toBeGreaterThan(0);
+
+    for (const skill of fake.added) {
+      expect(skill.content).not.toContain("//skills/");
+      expect(skill.path).not.toContain("//");
+    }
   });
 });

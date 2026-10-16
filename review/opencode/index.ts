@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin, Skill } from "@opencode/plugin";
 import { type LoadedSkill, loadSkills } from "./load-skills.ts";
@@ -36,4 +37,6 @@ export function makePlugin(
   } satisfies Plugin.Plugin;
 }
 
-export default makePlugin(fileURLToPath(new URL("..", import.meta.url)));
+export default makePlugin(
+  resolve(fileURLToPath(new URL("..", import.meta.url))),
+);
