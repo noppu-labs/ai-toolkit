@@ -1,0 +1,37 @@
+{
+  "name": "@noppu-labs/opencode-review",
+  "version": "0.8.4",
+  "description": "Code review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, a three-stage PR review orchestrator, and PR comments",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noppu-labs/ai-toolkit.git",
+    "directory": "review"
+  },
+  "homepage": "https://github.com/noppu-labs/ai-toolkit/tree/main/review#readme",
+  "bugs": {
+    "url": "https://github.com/noppu-labs/ai-toolkit/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "code-review",
+    "pr-review",
+    "skills"
+  ],
+  "exports": {
+    ".": "./opencode/index.ts",
+    "./server": "./opencode/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "skills/",
+    "opencode/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
