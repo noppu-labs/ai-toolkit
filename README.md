@@ -29,6 +29,8 @@ Agent skills for deep code review and grounded investigation in PHP, TypeScript,
 | `review` | 5 review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, PR review orchestrator, PR comments |
 | `investigate` | 3 skills: deterministic structural brief, deep two-pass investigation, spec/ticket review |
 
+The `review` plugin also ships as an OpenCode package, see [OpenCode install](review/README.md#opencode).
+
 ## Install (Claude Code marketplace)
 
 ```text

@@ -13,6 +13,38 @@ noppu-labs/ai-toolkit/review` for other harnesses).
 | `review:type-safety-review` | Rules a diff or a path against the type-safety checklists for PHP, TypeScript, and Python. |
 | `review:writing-comments` | What belongs in a comment and what to cut. |
 
+## OpenCode
+
+The same skills ship as the OpenCode plugin `@noppu-labs/opencode-review`, also published as
+`opencode-review` with the same contents. It targets OpenCode V2.
+
+Install it with the plugin command, or list it under `plugins` in your OpenCode config:
+
+```bash
+opencode plugin add @noppu-labs/opencode-review
+```
+
+```json
+{
+  "plugins": ["@noppu-labs/opencode-review"]
+}
+```
+
+Update with `opencode plugin update`.
+
+Invoke a skill with `@<skill>`, for example `@pr-review`, or pick one from `/skills`. The skill
+names are the six in the table above without the `review:` prefix.
+
+Differences from the Claude Code plugin:
+
+- `pr-review` uses `correctness-review` instead of `code-review`, and has no Workflow.
+- `investigate:brief` is not available on OpenCode yet, so briefs are built with the fallback
+  commands.
+- The task-output hook is Claude-only.
+
+`npx skills add` also reaches OpenCode, but it leaves `${CLAUDE_PLUGIN_ROOT}` unresolved, so the
+npm plugin is the supported route there.
+
 ## The task-output hook
 
 `hooks/hooks.json` registers `hooks/guard-task-output.mjs` as a `PreToolUse` hook on `Bash` and `Read`, with an `if` rule on each (`Bash(*.output*)`, `Read(//**/*.output)`) so Node only starts for a call that names a `.output` path. Those rules need Claude Code 2.1.176 or later to match reliably. It denies a call that names a `.output` file when that file is a symlink, which is what a background subagent, such as the one `code-review` runs, leaves in the session's `tasks/` directory. The symlink points at the subagent's JSONL transcript under `~/.claude`, so Claude Code treats any read or copy as touching a sensitive file and stops on a permission prompt, which stalls an unattended worker. The deny reason tells the agent that the report is the completion notification's text and to write that text to the scratchpad instead. Background Bash tasks write plain `.output` files, and the hook leaves those alone. It needs `node` on `PATH` and lets the call through on any input it cannot parse. It matches paths as written, so a path the shell builds (a variable, a glob, a `cd` earlier in the same command) gets through; the instruction in `pr-review` is the primary defence.
