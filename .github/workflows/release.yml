@@ -228,7 +228,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Test
-        run: npx vitest run scripts/opencode-*.test.ts
+        run: npm test -- scripts/opencode-*.test.ts
       - name: Pack
         id: pack
         env:
@@ -243,7 +243,7 @@ jobs:
       - name: Smoke-test the tarball
         env:
           OPENCODE_REVIEW_TARBALL: ${{ steps.pack.outputs.tarball }}
-        run: npx vitest run scripts/opencode-package.test.ts
+        run: npm test -- scripts/opencode-package.test.ts
       - name: Tarball contents
         run: |
           set -euo pipefail
