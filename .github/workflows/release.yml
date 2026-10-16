@@ -1,10 +1,31 @@
 name: release
 
+# Pushing plugin.json changes to main tags and releases each new plugin version
+# (job `release`). Plugins that also ship an npm package (a package.json next to
+# .claude-plugin/) are then built, tested, and published to npm under both the
+# scoped name and the unscoped name, through OIDC trusted publishing: no npm
+# token is stored anywhere. Manual dispatch retries the npm publish for an
+# existing <plugin>@<version> tag without moving it. Re-runs are idempotent:
+# name@version pairs already on npm are skipped.
+#
+# Prerequisites (configure once each, outside this repo):
+#   - npm trusted publishers for BOTH package names of each npm plugin, each
+#     pointing at GitHub Actions, repository noppu-labs/ai-toolkit, workflow
+#     `release.yml`, no environment.
+#   - Actions -> General -> "Workflow permissions" allows id-token writes
+#     (required for OIDC publishing and npm --provenance).
+
 on:
   push:
     branches: [main]
     paths:
       - "**/.claude-plugin/plugin.json"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing <plugin>@<version> tag whose npm publish to retry
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,6 +36,7 @@ concurrency:
 
 jobs:
   release:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       # Push tags, create releases, and sign provenance attestations.
@@ -107,3 +129,204 @@ jobs:
             gh release create "$tag" --verify-tag --notes-file notes.md \
               "dist/$plugin-$version.tgz" "$bundle"
           done < dist/pending.txt
+
+  npm-targets:
+    name: select npm targets
+    needs: release
+    if: always() && (needs.release.result == 'success' || needs.release.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      targets: ${{ steps.select.outputs.targets }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: git fetch --tags --force
+      # Output: JSON array of {plugin, tag}. On push, a plugin qualifies when it
+      # has a package.json and the tag for its current plugin.json version points
+      # at this commit (i.e. the release job just created it). On dispatch, the
+      # input tag. An empty array skips the downstream jobs.
+      - name: Select targets
+        id: select
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          targets='[]'
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ ! "$INPUT_TAG" =~ ^[a-z0-9-]+@[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::tag '$INPUT_TAG' is not <plugin>@<x.y.z>."
+              exit 1
+            fi
+            if ! git rev-parse -q --verify "refs/tags/$INPUT_TAG^{commit}" >/dev/null; then
+              echo "::error::tag '$INPUT_TAG' does not exist."
+              exit 1
+            fi
+            plugin="${INPUT_TAG%@*}"
+            if [[ ! -f "$plugin/package.json" ]]; then
+              echo "::error::$plugin has no package.json."
+              exit 1
+            fi
+            targets=$(jq -nc --arg plugin "$plugin" --arg tag "$INPUT_TAG" '[{plugin: $plugin, tag: $tag}]')
+          else
+            for pkg in */package.json; do
+              plugin="${pkg%%/*}"
+              manifest="$plugin/.claude-plugin/plugin.json"
+              [[ -f "$manifest" ]] || continue
+              version=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version ?? ''" "$manifest")
+              [[ -n "$version" ]] || continue
+              tag="$plugin@$version"
+              tag_sha=$(git rev-parse -q --verify "refs/tags/$tag^{commit}" || true)
+              if [[ "$tag_sha" != "$GITHUB_SHA" ]]; then
+                echo "$tag is not tagged at $GITHUB_SHA; skipping."
+                continue
+              fi
+              targets=$(jq -c --arg plugin "$plugin" --arg tag "$tag" '. + [{plugin: $plugin, tag: $tag}]' <<< "$targets")
+            done
+          fi
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          echo "targets: $targets"
+
+  npm-build:
+    name: build ${{ matrix.target.plugin }}
+    needs: npm-targets
+    if: needs.npm-targets.result == 'success' && needs.npm-targets.outputs.targets != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.npm-targets.outputs.targets) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ matrix.target.tag }}
+          persist-credentials: false
+      - name: Verify versions agree
+        env:
+          PLUGIN: ${{ matrix.target.plugin }}
+          TAG: ${{ matrix.target.tag }}
+        run: |
+          set -euo pipefail
+          pkg_version=$(node -p "require('./$PLUGIN/package.json').version")
+          plugin_version=$(node -p "require('./$PLUGIN/.claude-plugin/plugin.json').version")
+          tag_version="${TAG#*@}"
+          if [[ "$pkg_version" != "$tag_version" || "$plugin_version" != "$tag_version" ]]; then
+            echo "::error::version mismatch: tag $tag_version, package.json $pkg_version, plugin.json $plugin_version."
+            exit 1
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Test
+        run: npx vitest run scripts/opencode-*.test.ts
+      - name: Pack
+        id: pack
+        env:
+          PLUGIN: ${{ matrix.target.plugin }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          (cd "$PLUGIN" && npm pack --ignore-scripts --pack-destination ../artifacts)
+          set -- artifacts/*.tgz
+          [ "$#" -eq 1 ] && [ -f "$1" ]
+          echo "tarball=$PWD/$1" >> "$GITHUB_OUTPUT"
+      - name: Smoke-test the tarball
+        env:
+          OPENCODE_REVIEW_TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npx vitest run scripts/opencode-package.test.ts
+      - name: Tarball contents
+        run: |
+          set -euo pipefail
+          echo "##[group]Tarball contents"
+          tar -tzf artifacts/*.tgz | sort
+          echo "##[endgroup]"
+      - name: Generate SHA-256 checksums
+        run: |
+          set -euo pipefail
+          cd artifacts
+          sha256sum ./*.tgz > checksums-sha256.txt
+          cat checksums-sha256.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: npm-${{ matrix.target.plugin }}
+          path: artifacts/
+          if-no-files-found: error
+
+  npm-publish:
+    name: publish ${{ matrix.target.plugin }}
+    needs: [npm-targets, npm-build]
+    if: needs.npm-targets.result == 'success' && needs.npm-targets.outputs.targets != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.npm-targets.outputs.targets) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ matrix.target.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Re-verify tag still points at this commit
+        env:
+          TAG: ${{ matrix.target.tag }}
+        run: |
+          set -euo pipefail
+          [ "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$(git rev-parse HEAD)" ]
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-${{ matrix.target.plugin }}
+          path: artifacts
+      # The artifact must still match the checksum generated next to the build.
+      - name: Verify artifact checksums
+        working-directory: artifacts
+        run: sha256sum --check checksums-sha256.txt
+      # Trusted publishing needs Node >= 22.14 and npm >= 11.5.1; Node 24
+      # bundles a new enough npm. npm exchanges the job's OIDC token itself.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Publish the verified tarball under the scoped name, then the same
+      # contents under the unscoped name. Each name is guarded so a re-run or a
+      # retry after a partial failure skips versions already on npm.
+      - name: Publish to npm (both names)
+        env:
+          PLUGIN: ${{ matrix.target.plugin }}
+        run: |
+          set -euo pipefail
+          set -- artifacts/*.tgz
+          [ "$#" -eq 1 ]
+          scoped=$(node -p "require('./$PLUGIN/package.json').name")
+          version=$(node -p "require('./$PLUGIN/package.json').version")
+          unscoped="${scoped#@noppu-labs/}"
+          if npm view "$scoped@$version" version >/dev/null 2>&1; then
+            echo "::notice::$scoped@$version is already on npm; skipping scoped publish"
+          else
+            npm publish "./$1" --provenance --access public --tag latest
+          fi
+          rm -rf publish-dir && mkdir publish-dir
+          tar -xzf "$1" -C publish-dir --strip-components=1
+          if npm view "$unscoped@$version" version >/dev/null 2>&1; then
+            echo "::notice::$unscoped@$version is already on npm; skipping unscoped publish"
+          else
+            (
+              cd publish-dir
+              npm pkg set name="$unscoped"
+              npm publish . --provenance --access public --tag latest
+            )
+          fi
