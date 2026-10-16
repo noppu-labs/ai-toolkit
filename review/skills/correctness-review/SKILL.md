@@ -107,7 +107,7 @@ Return exactly these three sections and nothing else.
 
 One entry per finding, crash first. Each entry starts with `path:line` on the head side, then the claim in one or two sentences, then the outcome. An uncertain finding has `(uncertain)` after its `path:line` and says what would decide it. No finding without a `path:line`.
 
-End every finding with its outcome, one of: crash, wrong data shown, wrong data persisted, harmless, question. Harmless means no crash, no wrong data shown or persisted, and an effect that clears on retry or reload. Question means the diff could not settle the claim and you are asking the author. The outcome separates a bug from a harmless edge case or a question, and a finding without one is graded as a bug. A finding about structure rather than behaviour (dead code, duplication, layering, a convention) ends with harmless.
+End every finding with its outcome, one of: crash, wrong data shown, wrong data persisted, harmless, question. Harmless means no crash, no wrong data shown or persisted, and an effect that clears on retry or reload. Question means the diff could not settle the claim and you are asking the author. The outcome separates a bug from a harmless edge case or a question, and a finding without one is graded as a bug. A finding about structure rather than behaviour (dead code, duplication, layering, a convention) ends with harmless. An uncertain finding keeps the outcome it would have if confirmed; question is only for asking the author something the diff cannot settle.
 
 One filled example:
 
