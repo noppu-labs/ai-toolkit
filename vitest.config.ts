@@ -6,7 +6,7 @@ export default defineConfig({
     setupFiles: ["scripts/fc-setup.ts"],
     coverage: {
       provider: "v8",
-      include: ["scripts/**/*.ts"],
+      include: ["scripts/**/*.ts", "review/opencode/**/*.ts"],
       reporter: ["text", "json-summary", "json"],
       reportsDirectory: "./coverage",
       thresholds: {
