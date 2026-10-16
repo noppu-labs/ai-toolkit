@@ -352,6 +352,16 @@ describe("scrubBody", () => {
       input: "code-review only: Real body.",
       expected: "Real body.",
     },
+    {
+      name: "a bracketed correctness-review pass tag",
+      input: "[correctness-review only] Real body.",
+      expected: "Real body.",
+    },
+    {
+      name: "a bare correctness-review pass tag",
+      input: "correctness-review only: Real body.",
+      expected: "Real body.",
+    },
   ];
 
   for (const scrubCase of cases) {
@@ -399,6 +409,7 @@ describe("scrubBody", () => {
     "WRONG: ",
     "[both passes] ",
     "code-review only: ",
+    "[correctness-review only] ",
   );
 
   const bodyArb: fc.Arbitrary<string> = fc.oneof(

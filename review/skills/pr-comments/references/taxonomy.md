@@ -83,7 +83,7 @@ When the rule id and the finding's text disagree, the text wins: read what the r
 
 ### Correctness findings
 
-Correctness findings carry no identifier, only a pass label (`both passes`, `code-review only`, `hand review only`) that must not reach the author. Each finding from the hand-review pass ends with an outcome clause: crash, wrong data shown, wrong data persisted, harmless, or question. Pick the label from the claim and the outcome:
+Correctness findings carry no identifier, only a pass label (`both passes`, `code-review only`, `correctness-review only`, `hand review only`) that must not reach the author. Each finding from the hand-review pass ends with an outcome clause: crash, wrong data shown, wrong data persisted, harmless, or question. Pick the label from the claim and the outcome:
 
 | The finding says | Label |
 | --- | --- |
