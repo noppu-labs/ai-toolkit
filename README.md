@@ -26,7 +26,7 @@ Agent skills for deep code review and grounded investigation in PHP, TypeScript,
 | --- | --- |
 | `laravel` | 16 backend skills, `laravel-backend-specialist` agent, 4 path-scoped rules |
 | `inertia-react` | 6 frontend skills, `frontend-developer` agent, 2 path-scoped rules |
-| `review` | 5 review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, PR review orchestrator, PR comments |
+| `review` | 6 review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, correctness review, PR review orchestrator, PR comments |
 | `investigate` | 3 skills: deterministic structural brief, deep two-pass investigation, spec/ticket review |
 
 The `review` plugin also ships as an OpenCode package, see [OpenCode install](review/README.md#opencode).
