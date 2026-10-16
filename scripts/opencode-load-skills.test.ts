@@ -240,6 +240,16 @@ describe("loadSkills", () => {
     expect(skills[1]?.path).toBe(pathB);
   });
 
+  it("names the file whose SKILL.md cannot be parsed", () => {
+    const root: string = makeRoot();
+    const dir: string = join(root, "skills", "broken");
+
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "SKILL.md"), "no frontmatter here\n");
+
+    expect(() => loadSkills(root)).toThrow(join(dir, "SKILL.md"));
+  });
+
   it("prefers an OpenCode override", () => {
     const root: string = makeRoot();
 

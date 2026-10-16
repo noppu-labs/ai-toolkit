@@ -153,13 +153,24 @@ function pickSkillPath(packageRoot: string, id: string): string {
     : join(packageRoot, "skills", id, "SKILL.md");
 }
 
+function readSkillFile(path: string): ParsedSkill {
+  try {
+    return parseSkillFile(readFileSync(path, "utf8"));
+  } catch (error) {
+    const message: string =
+      error instanceof Error ? error.message : String(error);
+
+    throw new Error(`${path}: ${message}`, { cause: error });
+  }
+}
+
 export function loadSkills(packageRoot: string): LoadedSkill[] {
   const ids: string[] = readSkillDirectories(join(packageRoot, "skills"));
   const idSet: ReadonlySet<string> = new Set(ids);
 
   return ids.map((id: string): LoadedSkill => {
     const path: string = pickSkillPath(packageRoot, id);
-    const parsed: ParsedSkill = parseSkillFile(readFileSync(path, "utf8"));
+    const parsed: ParsedSkill = readSkillFile(path);
 
     return {
       id,
