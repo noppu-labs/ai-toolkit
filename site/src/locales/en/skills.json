@@ -1,6 +1,7 @@
 {
   "review": {
     "pr-review": "Reviews a PR, or a stack of PRs, three ways (correctness, type safety, comments) and merges it all into one report.",
+    "correctness-review": "Hunts bugs in a diff angle by angle, and keeps every suspect the code does not disprove.",
     "comment-audit": "Goes through every comment a branch adds and says whether to keep, trim, move or delete it.",
     "type-safety-review": "Finds loose types in a diff: any and mixed, untyped arrays that should be DTOs, unchecked casts.",
     "pr-comments": "Turns review findings into line-anchored PR comments, graded by severity.",

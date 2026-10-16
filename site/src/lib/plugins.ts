@@ -9,7 +9,13 @@ export const PLUGIN_ORDER: readonly string[] = [
 /** Skills a plugin lists first on the site, in this order; the rest follow alphabetically. */
 const LEADING_SKILLS: Readonly<Record<string, readonly string[]>> = {
   // The orchestrator first: it runs the other review skills.
-  review: ["pr-review", "comment-audit", "type-safety-review", "pr-comments"],
+  review: [
+    "pr-review",
+    "correctness-review",
+    "comment-audit",
+    "type-safety-review",
+    "pr-comments",
+  ],
 };
 
 const LANGUAGE_AGNOSTIC_PLUGINS: ReadonlySet<string> = new Set([
