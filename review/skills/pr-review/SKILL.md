@@ -5,7 +5,7 @@ description: Orchestrate a three-stage review (correctness, type safety, comment
 
 # PR review orchestrator
 
-Three reviews of the same diff merged into one report: correctness, type safety, comments. Correctness runs as two independent passes, the harness's `code-review` skill invoked by the orchestrator and a stage subagent reviewing by hand. The orchestrator resolves the refs, builds a structural brief, dispatches everything, and consolidates what comes back. On Claude Code with workflows enabled, the brief, the stage dispatch, and the consolidation run as the plugin workflow `review:pr-review-stages` (the workflow path in step 3); elsewhere the orchestrator does them by hand.
+Three reviews of the same diff merged into one report: correctness, type safety, comments. Correctness runs as two independent passes: the harness's `code-review` skill invoked by the orchestrator at a level set by the PR's size, and a stage subagent reviewing by hand. When `code-review` is not listed, a stage subagent running `review:correctness-review` takes the first pass, so there are always two. The orchestrator resolves the refs, builds a structural brief, dispatches everything, and consolidates what comes back. On Claude Code with workflows enabled, the brief, the stage dispatch, and the consolidation run as the plugin workflow `review:pr-review-stages` (the workflow path in step 3); elsewhere the orchestrator does them by hand.
 
 The orchestrator keeps its context lean. It reads briefs and subagent reports and nothing else. It never opens a diff, a changed file, or a `git show`, however small the PR looks. Everything that needs the diff happens inside a subagent.
 
@@ -22,8 +22,10 @@ One PR number, or several forming a stack in merge order. Everything else is res
 For each PR number:
 
 ```sh
-gh pr view <n> --json number,title,baseRefName,headRefName,headRefOid,url
+gh pr view <n> --json number,title,baseRefName,headRefName,headRefOid,url,additions,deletions,changedFiles
 ```
+
+A large PR is one where `additions + deletions > 1500` or `changedFiles > 30`, counted per PR, so each PR of a stack is sized on its own diff. The size sets how the first correctness pass runs in step 3. The numbers are a starting point to tune, not a measured value.
 
 Each PR is reviewed against its own `baseRefName`, never against the trunk. In a stack, PR two's base is PR one's head branch, so reviewing it against `main` would re-review PR one's diff. PR two's `<BASE>` is PR one's resolved `<HEAD>` rather than a separate fetch of `origin/<baseRefName>`, so the two reviews meet at the same commit.
 
@@ -88,11 +90,11 @@ The commands run here produce the brief. Their output goes into the brief, not i
 
 ## Step 3: run the passes
 
-Per PR: one `code-review` invocation and three stage subagents, all dispatched in the same turn so they run in parallel where the harness allows. A three PR stack is three invocations and nine subagents.
+Per PR: one first correctness pass and three stage subagents, all dispatched in the same turn so they run in parallel where the harness allows. The first pass is one `code-review` invocation, or, when `code-review` is not listed, one `correctness-review` stage subagent, three for a large PR. A three PR stack with `code-review` listed is three invocations and nine subagents.
 
 ### Workflow path
 
-If a tool named `Workflow` is listed, the brief of step 2, the three stage subagents below, and the consolidation of step 4 run as the plugin workflow `review:pr-review-stages` instead of by hand. Invoke `code-review` first, exactly as the next section says, so both run at once. Then call the Workflow tool with `name` set to `review:pr-review-stages` and `args` set to the list from step 1, in merge order, as a JSON array value (never a JSON-encoded string), one object per PR:
+If a tool named `Workflow` is listed, the brief of step 2, the three stage subagents below, and the consolidation of step 4 run as the plugin workflow `review:pr-review-stages` instead of by hand. Run the first correctness pass first: invoke `code-review`, or dispatch the `correctness-review` stage when `code-review` is not listed, exactly as the next sections say, so both run at once. Then call the Workflow tool with `name` set to `review:pr-review-stages` and `args` set to the list from step 1, in merge order, as a JSON array value (never a JSON-encoded string), one object per PR:
 
 ```json
 [
@@ -108,7 +110,7 @@ If a tool named `Workflow` is listed, the brief of step 2, the three stage subag
 
 `head` carries whatever step 1 resolved: `pr-review/<n>`, or `<headRefOid>` after the SHA fallback. The same holds for the example with `instructions` below.
 
-The workflow builds each brief in a subagent, runs the three stage prompts below with every return validated against a schema, and returns `{ report, counts }`. `report` is the step 4 report without the `code-review` merge: every correctness finding carries `hand review only`, and the roll-up already names what the brief and the stages skipped. `counts` is one `{ number, correctness, typeSafety, comments }` per PR, a finding count per stage or `null` for a stage that did not report. Skip step 2 and the stage dispatch below, hold the result, and go to step 4 for the merge. The orchestrator still never opens the diff.
+The workflow builds each brief in a subagent, runs the three stage prompts below with every return validated against a schema, and returns `{ report, counts }`. `report` is the step 4 report without the first-pass merge: every correctness finding carries `hand review only`, and the roll-up already names what the brief and the stages skipped. `counts` is one `{ number, correctness, typeSafety, comments }` per PR, a finding count per stage or `null` for a stage that did not report. Skip step 2 and the stage dispatch below, hold the result, and go to step 4 for the merge. The orchestrator still never opens the diff.
 
 When the prompt that invoked this skill asks for instructions to reach the stages or the brief (the requirements the PR is meant to deliver, which repository files are the review standard, `--repo <owner>/<name>` on every `gh` call, which refs exist in the checkout, `sibling=` and `out=` for comment-audit, the package manager the gate commands use), add an `instructions` object to that PR, with any of `brief`, `correctness`, `typeSafety`, `comments`, and `all`, each a non-empty string:
 
@@ -130,21 +132,57 @@ The script appends them to that agent's prompt after the filled template and bef
 
 The Workflow tool exists only in Claude Code with workflows enabled. When it is not listed (another harness, `disableWorkflows`, a plan without workflows), or the call fails before any agent runs (a syntax error in the script, a refused launch, or `not found` because only the skill is installed, as after `npx skills add`), continue as written: build the briefs, dispatch the stage subagents, and consolidate by hand. Both paths produce the same report shape. The exception is a rejected `args`: the call fails before any agent runs, but the tool result names the field, as in `args[0].instructions.typesafety is not a known key`, so fix that field and call the workflow once more instead of continuing by hand.
 
-If the run stops after agents have run (the tool result reports an error, or the run was stopped from `/workflows`), relaunch it once with the `scriptPath` and `resumeFromRunId` from the first result and the same `args` verbatim, `instructions` included, as the Workflow tool documents: completed agents return their saved results, and the failed agent and those started after it run again. The same relaunch covers a PR where one or two stage sections read `The stage did not report.` (that stage's agent died or exhausted its schema retries): its completed agents return from the saved results and the missing stage runs again. When a stage is still missing after the relaunch, dispatch that stage by hand with the template below and a brief rebuilt per step 2, and replace its roll-up line. A PR whose three stage sections all read `The stage did not report.` did not complete inside the workflow: build its brief and dispatch its three stage subagents by hand, as below, and write that PR's section by the step 4 rules before the `code-review` merge, replacing its roll-up line `PR <n>: the pipeline stopped before consolidation, so no stage reported` with what those stages skipped.
+If the run stops after agents have run (the tool result reports an error, or the run was stopped from `/workflows`), relaunch it once with the `scriptPath` and `resumeFromRunId` from the first result and the same `args` verbatim, `instructions` included, as the Workflow tool documents: completed agents return their saved results, and the failed agent and those started after it run again. The same relaunch covers a PR where one or two stage sections read `The stage did not report.` (that stage's agent died or exhausted its schema retries): its completed agents return from the saved results and the missing stage runs again. When a stage is still missing after the relaunch, dispatch that stage by hand with the template below and a brief rebuilt per step 2, and replace its roll-up line. A PR whose three stage sections all read `The stage did not report.` did not complete inside the workflow: build its brief and dispatch its three stage subagents by hand, as below, and write that PR's section by the step 4 rules before the first-pass merge, replacing its roll-up line `PR <n>: the pipeline stopped before consolidation, so no stage reported` with what those stages skipped.
 
 ### Correctness, first pass: `code-review`
 
-If a skill named `code-review` is listed, the orchestrator invokes it once per PR, from its own context, with the PR number as the target:
+If a skill named `code-review` is listed, the orchestrator invokes it once per PR, from its own context, with a level and the PR number as the target. The level is fixed so that runs are reproducible, since without one the skill reuses whatever level was typed last:
 
 ```text
-code-review <number>
+code-review xhigh <number>
+code-review max <number>
 ```
 
-The skill runs its review in a background subagent and returns only that subagent's name. Its report arrives later as a task completion notification addressed to the session that invoked it. Invoked from the orchestrator, that is the orchestrator. Invoked from inside a stage subagent, the harness parents the background subagent to the top-level session anyway, so the notification bypasses the stage, and the stage waits for a result that never reaches it. That is why the stage template below reviews by hand and does not mention `code-review`.
+`xhigh` is for every PR that is not large by the step 1 rule, and `max` for a large one. `xhigh` runs its angles in one context; `max` runs them as subagents, so a diff too big for one context still gets every angle.
 
-The notification carries the report as text. Hold it for step 4, and to keep it on disk write that text to the scratchpad with the Write tool. Consolidation waits until it has arrived; the correctness section is never written from what the skill was expected to find. If the skill is not listed, or its subagent stops without a report, the hand review is the only correctness pass, and `## Not available in this run` says so. Never read or copy the task's `.output` file: for a background subagent it is a symlink to the subagent's JSONL transcript under `~/.claude`, not the report, and touching it stops the session on a permission prompt.
+The skill runs its review in a background subagent and returns only that subagent's name. Its report arrives later as a task completion notification addressed to the session that invoked it. Invoked from the orchestrator, that is the orchestrator. Invoked from inside a stage subagent, the harness parents the background subagent to the top-level session anyway, so the notification bypasses the stage, and the stage waits for a result that never reaches it. That is why the stage template below reviews by hand and does not invoke `code-review`.
 
-The same parenting applies one level down. At effort levels where `code-review` spawns its own finder subagents, those finders are registered under the orchestrator's session as well, so their results arrive at the orchestrator while the fork idles with nothing left to wait on. The sign is a completion notification from the fork saying its finders are still running, followed by idle notices from agents named `finder-*`. Collect every finder result that arrives, then send them verbatim in one message to the fork by its name, `code-review`. It resumes, runs its verification pass, and returns the consolidated report as a second completion notification. Finder results are candidates, not findings; only the fork's consolidated report enters step 4.
+The notification carries the report as text. Hold it for step 4, and to keep it on disk write that text to the scratchpad with the Write tool. Consolidation waits until it has arrived; the correctness section is never written from what the skill was expected to find. If the skill is not listed, the next section's `correctness-review` stage takes the first pass. If the `code-review` subagent stops without a report, the hand review is the only correctness pass, and `## Not available in this run` says so. Never read or copy the task's `.output` file: for a background subagent it is a symlink to the subagent's JSONL transcript under `~/.claude`, not the report, and touching it stops the session on a permission prompt.
+
+The same parenting applies one level down, on `max` only, the level where `code-review` spawns its own finder subagents. Those finders are registered under the orchestrator's session as well, so their results arrive at the orchestrator while the fork idles with nothing left to wait on. The sign is a completion notification from the fork saying its finders are still running, followed by idle notices from agents named `finder-*`. Collect every finder result that arrives, then send them verbatim in one message to the fork by its name, `code-review`. It resumes, runs its verification pass, and returns the consolidated report as a second completion notification. Finder results are candidates, not findings; only the fork's consolidated report enters step 4.
+
+### Correctness, first pass without code-review: `correctness-review`
+
+When no skill named `code-review` is listed, the orchestrator dispatches the first-pass template below as a stage subagent, in the same turn as the other stages. Its slots are filled as in the table under the next heading, plus `<ANGLES>`:
+
+- For a PR that is not large by the step 1 rule, one subagent runs with `<ANGLES>` set to `A,B,C,D,E`.
+- For a large PR, three subagents run, with `<ANGLES>` set to `A,B`, `C`, and `D,E`. The orchestrator merges their three reports into one first-pass report by listing each subagent's findings. It combines two entries only when their `path:line` and outcome are identical, and it never judges whether two different claims are the same finding. An angle a subagent lists under `## Skipped` only because its `<ANGLES>` left it out is dropped from the merge when another subagent ran it. When one or two of the three do not report, the angles they owned go under `## Not available in this run`.
+
+On the workflow path the brief is built inside the workflow, so the orchestrator has none when it dispatches this stage. There, `<BRIEF>` is the line `No brief for this pass; find the changed symbols and their callers from the diff.`
+
+The merged report is held for step 4 in place of the `code-review` report. When every first-pass subagent stops without a report, the hand review is the only correctness pass, as for `code-review`. A first-pass subagent that could not invoke the skill and reviewed by hand says so under `## Skipped`; its findings carry the `hand review only` label, not `correctness-review only`.
+
+Correctness stage, the first pass:
+
+```text
+Review PR "<PR_TITLE>" (<PR_URL>) for correctness. Base ref <BASE>, head ref <HEAD>.
+Only what the branch adds is in scope: git diff <BASE>...<HEAD>, three dots.
+
+Structural brief:
+<BRIEF>
+
+Invoke `review:correctness-review base=<BASE> head=<HEAD> angles=<ANGLES>`. That
+skill returns its report as its response and writes no file. Use the brief as the
+starting list of changed symbols and their callers.
+
+A separate stage reviews the same diff by hand as the second correctness pass, so
+your findings are this skill's reading of the diff alone.
+
+Return the skill's three sections, `## Findings`, `## Validated`, and `## Skipped`,
+unchanged and nothing else. If the skill cannot be invoked, review the diff by hand,
+end every finding with its outcome (crash, wrong data shown, wrong data persisted,
+harmless, question), and say so under `## Skipped`.
+```
 
 ### Stage subagents
 
@@ -310,12 +348,12 @@ Rules for the body:
 - One section per PR, in the merge order given as input, holding the three stage sections.
 - Every finding keeps its `path:line` from the HEAD side, so it can be pasted as a PR review comment, and keeps its outcome clause, which decides its label downstream.
 - A finding two stages both reported stays under each stage that reported it, suffixed `also reported by <stage>`. The orchestrator has not read the diff and does not decide whether two claims at one line are one finding; `review:pr-comments` shows it once (step 5).
-- `### Correctness` merges the two passes. A finding both passes reported appears once, labelled `both passes`. A finding one pass reported keeps its label, `code-review only` or `hand review only`, so the reader knows how much weight it carries. Where the passes disagree, both claims are listed under the finding; the orchestrator does not pick a side, since it has not read the diff.
+- `### Correctness` merges the two passes. A finding both passes reported appears once, labelled `both passes`. A finding one pass reported keeps its label, `code-review only`, `correctness-review only`, or `hand review only`, so the reader knows how much weight it carries. `correctness-review only` marks a first-pass finding when the `correctness-review` stage ran in place of `code-review`. A first-pass finding from a subagent that reviewed by hand because it could not invoke the skill is labelled `hand review only`. Where the passes disagree, both claims are listed under the finding; the orchestrator does not pick a side, since it has not read the diff.
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
-- `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it. If `code-review` was not listed or returned no report, it is named here with the reason, and the correctness findings carry the `hand review only` label. When every stage had everything, the section says so in one line rather than being dropped.
+- `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it. If `code-review` was not listed, it is named here with the reason and the line says that `correctness-review` replaced it. If the first pass, `code-review` or `correctness-review`, returned no report, it is named here with the reason, and the correctness findings carry the `hand review only` label. When only one or two of a large PR's three first-pass subagents did not report, the angles they owned are named here, and the findings of the subagents that did report keep `correctness-review only`. When every stage had everything, the section says so in one line rather than being dropped.
 - When step 1 fell back to the SHA for a PR, `## Not available in this run` says which trigger applied (`refs/pull/<n>/head` was not fetchable, or the branch moved after the `gh` call) and names the SHA reviewed, so the reader knows the head came from `gh` rather than from the pull ref.
 
-On the workflow path the script has written everything above except the `code-review` merge, which stays a model step: a finding both passes reported becomes one entry relabelled `both passes`; a finding only `code-review` reported is added under `### Correctness` with `code-review only`; the `hand review only` labels the script wrote stay on the rest; when `code-review` was not listed or returned no report, add it to `## Not available in this run` with the reason; and when step 1 used the SHA fallback, add its line, naming the trigger and the SHA reviewed, to `## Not available in this run`. Do not rewrite the rest of the report. When the finding you add lands under a `### Correctness` that reads `No findings.`, or a line you add to `## Not available in this run` lands in a roll-up that reads `Every stage had everything it needed.`, replace that line. When `### Correctness` reads `The stage did not report.`, keep that line and add the `code-review only` findings under it.
+On the workflow path the script has written everything above except the first-pass merge, which stays a model step. It runs the same way whether the first pass was `code-review` or the `correctness-review` stage, with that pass's label: a finding both passes reported becomes one entry relabelled `both passes`; a finding only the first pass reported is added under `### Correctness` with `code-review only` or `correctness-review only`; the `hand review only` labels the script wrote stay on the rest; when `code-review` was not listed, add it to `## Not available in this run` with the reason and say that `correctness-review` replaced it; when the first pass returned no report, add it there with the reason; and when step 1 used the SHA fallback, add its line, naming the trigger and the SHA reviewed, to `## Not available in this run`. Do not rewrite the rest of the report. When the finding you add lands under a `### Correctness` that reads `No findings.`, or a line you add to `## Not available in this run` lands in a roll-up that reads `Every stage had everything it needed.`, replace that line. When `### Correctness` reads `The stage did not report.`, keep that line and add the `code-review only` or `correctness-review only` findings under it.
 
 ## Step 5: comments for the author
 

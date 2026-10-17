@@ -7,10 +7,42 @@ noppu-labs/ai-toolkit/review` for other harnesses).
 | Skill | Purpose |
 | --- | --- |
 | `review:pr-review` | Orchestrates a three-stage review (correctness, type safety, comments) of one PR or a stack, with a structural brief per PR, and consolidates one report. |
+| `review:correctness-review` | Hunts correctness defects in a diff through five named angles and a gap sweep, keeping every candidate the code does not refute. The first correctness pass of `pr-review` where the harness has no `code-review` skill. |
 | `review:pr-comments` | Turns a review report into graded, coded comments a PR author reads, with a GitHub suggestion block where the fix is a few lines of file text. |
 | `review:comment-audit` | Gives every comment, docblock, and docstring a branch adds a verdict. |
 | `review:type-safety-review` | Rules a diff or a path against the type-safety checklists for PHP, TypeScript, and Python. |
 | `review:writing-comments` | What belongs in a comment and what to cut. |
+
+## OpenCode
+
+The same skills ship as the OpenCode plugin `@noppu-labs/opencode-review`. It targets OpenCode V2.
+
+Install it with the plugin command, or list it under `plugins` in your OpenCode config:
+
+```bash
+opencode plugin add @noppu-labs/opencode-review
+```
+
+```json
+{
+  "plugins": ["@noppu-labs/opencode-review"]
+}
+```
+
+Update with `opencode plugin update`.
+
+Invoke a skill with `@<skill>`, for example `@pr-review`, or pick one from `/skills`. The skill
+names are the six in the table above without the `review:` prefix.
+
+Differences from the Claude Code plugin:
+
+- `pr-review` uses `correctness-review` instead of `code-review`, and has no Workflow.
+- `investigate:brief` is not available on OpenCode yet, so briefs are built with the fallback
+  commands.
+- The task-output hook is Claude-only.
+
+`npx skills add` also reaches OpenCode, but it leaves `${CLAUDE_PLUGIN_ROOT}` unresolved, so the
+npm plugin is the supported route there.
 
 ## The task-output hook
 

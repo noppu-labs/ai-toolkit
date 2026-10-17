@@ -81,8 +81,8 @@ const SCRUB_PATTERNS = [
   /^\((?:PHP|TS|PY)-\d\)\s*/u,
   /^\*\*(?:DELETE|MOVE|TRIM|UNSURE|WRONG)\*\*:?\s*/u,
   /^(?:DELETE|MOVE|TRIM|UNSURE|WRONG):\s*/u,
-  /^\[(?:both passes|code-review only|hand review only)\]\s*/u,
-  /^(?:both passes|code-review only|hand review only):\s*/u,
+  /^\[(?:both passes|code-review only|correctness-review only|hand review only)\]\s*/u,
+  /^(?:both passes|code-review only|correctness-review only|hand review only):\s*/u,
 ];
 
 const USAGE = "usage: render-comments.mjs [--format json|markdown]";

@@ -5,13 +5,17 @@
       "sourceType": "local",
       "vendoredHash": "4961a5373145f5699a463b5d8ba0e34bec48da1c8df1cec6847187f3c8bcda5a"
     },
+    "correctness-review": {
+      "sourceType": "local",
+      "vendoredHash": "f48bd54682a65f1b9147f5ca13394cb7d1532ed007f78e12a348d81592987bde"
+    },
     "pr-comments": {
       "sourceType": "local",
-      "vendoredHash": "daff35ce91078879935f6ba310ab0a0778b4d866e6533ae3edb4476f7a2ef10b"
+      "vendoredHash": "768f7982db33752d249bf73405d03a89d61719fae35bf1b3f8956d118c0afd6e"
     },
     "pr-review": {
       "sourceType": "local",
-      "vendoredHash": "f1723a681d800f04c8c826f62d61e7fb7869bfa4881829583abdf6b5fc1ed7e6"
+      "vendoredHash": "c70beea2efc28efc988bde700e8c018a867b0254d5dc4c6be11eab5fe252092a"
     },
     "type-safety-review": {
       "sourceType": "local",
