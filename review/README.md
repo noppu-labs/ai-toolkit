@@ -15,8 +15,7 @@ noppu-labs/ai-toolkit/review` for other harnesses).
 
 ## OpenCode
 
-The same skills ship as the OpenCode plugin `@noppu-labs/opencode-review`, also published as
-`opencode-review` with the same contents. It targets OpenCode V2.
+The same skills ship as the OpenCode plugin `@noppu-labs/opencode-review`. It targets OpenCode V2.
 
 Install it with the plugin command, or list it under `plugins` in your OpenCode config:
 

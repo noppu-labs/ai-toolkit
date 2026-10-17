@@ -2,15 +2,15 @@ name: release
 
 # Pushing plugin.json changes to main tags and releases each new plugin version
 # (job `release`). Plugins that also ship an npm package (a package.json next to
-# .claude-plugin/) are then built, tested, and published to npm under both the
-# scoped name and the unscoped name, through OIDC trusted publishing: no npm
-# token is stored anywhere. Manual dispatch retries the npm publish for an
+# .claude-plugin/) are then built, tested, and published to npm under their
+# scoped name, through OIDC trusted publishing: no npm token is stored
+# anywhere. Manual dispatch retries the npm publish for an
 # existing <plugin>@<version> tag without moving it. Re-runs are idempotent:
 # name@version pairs already on npm are skipped.
 #
 # Prerequisites (configure once each, outside this repo):
-#   - npm trusted publishers for BOTH package names of each npm plugin, each
-#     pointing at GitHub Actions, repository noppu-labs/ai-toolkit, workflow
+#   - an npm trusted publisher for each npm plugin's package, pointing at
+#     GitHub Actions, repository noppu-labs/ai-toolkit, workflow
 #     `release.yml`, no environment.
 #   - Nothing in the repository settings: npm-publish requests
 #     `id-token: write` in its own permissions, which OIDC publishing and
@@ -303,32 +303,20 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      # Publish the verified tarball under the scoped name, then the same
-      # contents under the unscoped name. Each name is guarded so a re-run or a
-      # retry after a partial failure skips versions already on npm.
-      - name: Publish to npm (both names)
+      # Publish the verified tarball. The guard lets a re-run skip a version
+      # already on npm. There is no unscoped copy: npm rejects names too close
+      # to an existing package, as it did `opencode-review`.
+      - name: Publish to npm
         env:
           PLUGIN: ${{ matrix.target.plugin }}
         run: |
           set -euo pipefail
           set -- artifacts/*.tgz
           [ "$#" -eq 1 ]
-          scoped=$(node -p "require('./$PLUGIN/package.json').name")
+          name=$(node -p "require('./$PLUGIN/package.json').name")
           version=$(node -p "require('./$PLUGIN/package.json').version")
-          unscoped="${scoped#@noppu-labs/}"
-          if npm view "$scoped@$version" version >/dev/null 2>&1; then
-            echo "::notice::$scoped@$version is already on npm; skipping scoped publish"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::notice::$name@$version is already on npm; skipping publish"
           else
             npm publish "./$1" --provenance --access public --tag latest
-          fi
-          rm -rf publish-dir && mkdir publish-dir
-          tar -xzf "$1" -C publish-dir --strip-components=1
-          if npm view "$unscoped@$version" version >/dev/null 2>&1; then
-            echo "::notice::$unscoped@$version is already on npm; skipping unscoped publish"
-          else
-            (
-              cd publish-dir
-              npm pkg set name="$unscoped"
-              npm publish . --provenance --access public --tag latest
-            )
           fi
