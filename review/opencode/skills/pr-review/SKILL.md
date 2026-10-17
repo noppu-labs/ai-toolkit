@@ -81,9 +81,9 @@ Every brief comes from these commands, so `## Not available in this run` notes t
 
 ## Step 3: run the passes
 
-Per PR: one first correctness pass and three stage subagents, all dispatched in the same turn with the `subagent` tool, `agent: "general"`, and `background: true` where the harness allows it, so they run in parallel. Each call is `{ agent: "general", description, prompt, background }`, with the filled template as `prompt`. The first pass is one `correctness-review` subagent, three for a large PR. A three PR stack is three first passes and nine stage subagents when none is large.
+Per PR: one first correctness pass and three stage subagents, all dispatched as `subagent` tool calls in one message, with `agent: "general"` and without `background`. Calls in one message run in parallel and the turn waits for every result, so no report is lost when the session would otherwise go idle, as a headless `opencode run` does. Each call is `{ agent: "general", description, prompt }`, with the filled template as `prompt`. The first pass is one `correctness-review` subagent, three for a large PR. A three PR stack is three first passes and nine stage subagents when none is large.
 
-A subagent cannot spawn subagents, so every prompt below is written for a single agent that loads skills with the `skill` tool and does the rest itself. Hold each report as it arrives. Consolidation waits until every dispatched subagent has reported or stopped; a section is never written from what a subagent was expected to find.
+A subagent cannot spawn subagents, so every prompt below is written for a single agent that loads skills with the `skill` tool and does the rest itself. Hold each report as it returns. Consolidation waits until every dispatched subagent has reported or stopped; a section is never written from what a subagent was expected to find.
 
 ### Correctness, first pass: `correctness-review`
 

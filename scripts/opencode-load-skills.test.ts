@@ -296,4 +296,13 @@ describe("loadSkills", () => {
       expect(readFileSync(skill.path, "utf8")).not.toMatch(/^!`/m);
     }
   });
+
+  // OpenCode truncates tool output past 2,000 lines or 50 KiB, and the skill
+  // tool adds a header and a file list, so each body keeps a margin below both.
+  it("keeps every real skill body clear of OpenCode's tool output limits", () => {
+    for (const skill of loadSkills(PACKAGE_ROOT)) {
+      expect(skill.content.split("\n").length).toBeLessThan(1_500);
+      expect(Buffer.byteLength(skill.content, "utf8")).toBeLessThan(40 * 1024);
+    }
+  });
 });
