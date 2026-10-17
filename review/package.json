@@ -1,6 +1,6 @@
 {
   "name": "@noppu-labs/opencode-review",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "description": "Code review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, correctness review, a three-stage PR review orchestrator, and PR comments",
   "type": "module",
   "license": "MIT",
