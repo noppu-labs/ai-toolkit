@@ -47,15 +47,15 @@ git fetch origin <baseRefName> <headRefOid>
 
 Every consumer of `<HEAD>` takes a commit-ish, so a bare SHA works in the `<BASE>...<HEAD>` diff, in `git rev-parse`, in `git grep`, and in `git worktree add`. If the branch is force-pushed after the `gh` call, the review stays on the commit `gh` reported.
 
-Size each PR once its `<BASE>` and `<HEAD>` resolve, from the diff the stages review, with lockfiles left out:
+Size each PR once its `<BASE>` and `<HEAD>` resolve, with the bundled script, which reads the same diff the stages review:
 
 ```sh
-git diff --numstat <BASE>...<HEAD> -- . ':!*.lock' ':!*package-lock.json' ':!*npm-shrinkwrap.json' ':!*pnpm-lock.yaml' ':!*go.sum' | awk '{ n += $1 + $2 } END { print n + 0 }'
+bash ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/pr-size.sh <BASE> <HEAD>
 ```
 
-A large PR is one where that count of added plus deleted lines is over 1500. Each PR of a stack is sized on its own diff, since its `<BASE>` is the head of the PR below it. Lockfiles are generated, so their lines say nothing about how much there is to review, and a binary file's `-` counts as zero. The number of files plays no part: a change spread over many files but a few hundred lines still fits in one context. The size sets how the first correctness pass runs in step 3. The threshold is a starting point to tune, not a measured value.
+It prints one line, `lines=<n> large=yes|no`, and a PR is large when it prints `large=yes`. Take the verdict as printed and never recount by hand. The script counts added plus deleted lines, is large over 2500, and leaves out lockfiles, binary files, and the unchanged part of a moved or renamed file, so a file moved without edits counts zero. Each PR of a stack is sized on its own diff, since its `<BASE>` is the head of the PR below it. The number of files plays no part: a change spread over many files but a few hundred lines still fits in one context. The size sets how the first correctness pass runs in step 3. The threshold lives in the script and is a starting point to tune, not a measured value.
 
-State the resolved pairs before starting, one line per PR: number, title, base, head, url, the line count with `large` when it is over the threshold, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, or `origin/<baseRefName>` still does not resolve, stop and say which number failed. Do not guess a base ref.
+State the resolved pairs before starting, one line per PR: number, title, base, head, url, the script's line, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, `origin/<baseRefName>` still does not resolve, or the size script fails, stop and say which number failed. Do not guess a base ref.
 
 ## Step 2: structural brief
 
