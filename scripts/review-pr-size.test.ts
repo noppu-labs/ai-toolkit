@@ -70,22 +70,26 @@ describe("pr-size.sh", () => {
     write(cwd, "README.md", "# Other\n");
     commit(cwd);
 
-    expect(run(cwd, "main", "feature").stdout).toBe("lines=9 large=no");
+    expect(run(cwd, "main", "feature").stdout).toBe(
+      "lines=9 code-review=high correctness-review=1",
+    );
   });
 
   it("leaves out lockfiles at any depth", () => {
     const cwd = makeRepo();
-    write(cwd, "composer.lock", lines(3000));
-    write(cwd, "web/yarn.lock", lines(3000));
-    write(cwd, "package-lock.json", lines(3000));
-    write(cwd, "site/package-lock.json", lines(3000));
-    write(cwd, "npm-shrinkwrap.json", lines(3000));
-    write(cwd, "web/pnpm-lock.yaml", lines(3000));
-    write(cwd, "tools/go.sum", lines(3000));
+    write(cwd, "composer.lock", lines(4000));
+    write(cwd, "web/yarn.lock", lines(4000));
+    write(cwd, "package-lock.json", lines(4000));
+    write(cwd, "site/package-lock.json", lines(4000));
+    write(cwd, "npm-shrinkwrap.json", lines(4000));
+    write(cwd, "web/pnpm-lock.yaml", lines(4000));
+    write(cwd, "tools/go.sum", lines(4000));
     write(cwd, "app/New.php", lines(5));
     commit(cwd);
 
-    expect(run(cwd, "main", "feature").stdout).toBe("lines=5 large=no");
+    expect(run(cwd, "main", "feature").stdout).toBe(
+      "lines=5 code-review=high correctness-review=1",
+    );
   });
 
   it("counts a binary file as zero", () => {
@@ -93,7 +97,9 @@ describe("pr-size.sh", () => {
     write(cwd, "public/logo.png", Buffer.from([0, 1, 2, 0, 255, 0, 10, 0]));
     commit(cwd);
 
-    expect(run(cwd, "main", "feature").stdout).toBe("lines=0 large=no");
+    expect(run(cwd, "main", "feature").stdout).toBe(
+      "lines=0 code-review=high correctness-review=1",
+    );
   });
 
   it("counts a file moved without edits as zero", () => {
@@ -102,7 +108,9 @@ describe("pr-size.sh", () => {
     renameSync(join(cwd, "app", "Thing.php"), join(cwd, "src", "Thing.php"));
     commit(cwd);
 
-    expect(run(cwd, "main", "feature").stdout).toBe("lines=0 large=no");
+    expect(run(cwd, "main", "feature").stdout).toBe(
+      "lines=0 code-review=high correctness-review=1",
+    );
   });
 
   it("counts only the edited lines of a moved file", () => {
@@ -112,7 +120,9 @@ describe("pr-size.sh", () => {
     git(cwd, "rm", "-q", "app/Thing.php");
     commit(cwd);
 
-    expect(run(cwd, "main", "feature").stdout).toBe("lines=2 large=no");
+    expect(run(cwd, "main", "feature").stdout).toBe(
+      "lines=2 code-review=high correctness-review=1",
+    );
   });
 
   it("detects moves when the clone turns rename detection off", () => {
@@ -122,20 +132,30 @@ describe("pr-size.sh", () => {
     renameSync(join(cwd, "app", "Thing.php"), join(cwd, "src", "Thing.php"));
     commit(cwd);
 
-    expect(run(cwd, "main", "feature").stdout).toBe("lines=0 large=no");
+    expect(run(cwd, "main", "feature").stdout).toBe(
+      "lines=0 code-review=high correctness-review=1",
+    );
   });
 
-  it("is not large at 2500 lines and is large at 2501", () => {
+  it("steps each decision at its own boundaries", () => {
     const cwd = makeRepo();
-    write(cwd, "app/Big.php", lines(2500));
-    commit(cwd);
+    const steps: readonly [number, string][] = [
+      [200, "lines=200 code-review=high correctness-review=1"],
+      [1, "lines=201 code-review=high correctness-review=3"],
+      [99, "lines=300 code-review=high correctness-review=3"],
+      [1, "lines=301 code-review=xhigh correctness-review=3"],
+      [899, "lines=1200 code-review=xhigh correctness-review=3"],
+      [1, "lines=1201 code-review=xhigh correctness-review=4"],
+      [1799, "lines=3000 code-review=xhigh correctness-review=4"],
+      [1, "lines=3001 code-review=max correctness-review=4"],
+    ];
 
-    expect(run(cwd, "main", "feature").stdout).toBe("lines=2500 large=no");
+    steps.forEach(([count, expected], i) => {
+      write(cwd, `app/Step${i}.php`, lines(count));
+      commit(cwd);
 
-    write(cwd, "app/More.php", lines(1));
-    commit(cwd);
-
-    expect(run(cwd, "main", "feature").stdout).toBe("lines=2501 large=yes");
+      expect(run(cwd, "main", "feature").stdout).toBe(expected);
+    });
   });
 
   it("ignores commits on the base after the merge base", () => {
@@ -143,10 +163,12 @@ describe("pr-size.sh", () => {
     write(cwd, "app/New.php", lines(4));
     commit(cwd);
     git(cwd, "checkout", "-q", "main");
-    write(cwd, "app/Other.php", lines(3000));
+    write(cwd, "app/Other.php", lines(4000));
     commit(cwd);
 
-    expect(run(cwd, "main", "feature").stdout).toBe("lines=4 large=no");
+    expect(run(cwd, "main", "feature").stdout).toBe(
+      "lines=4 code-review=high correctness-review=1",
+    );
   });
 
   it("sizes the whole repository when run from a subdirectory", () => {
@@ -156,7 +178,7 @@ describe("pr-size.sh", () => {
     commit(cwd);
 
     expect(run(join(cwd, "app"), "main", "feature").stdout).toBe(
-      "lines=10 large=no",
+      "lines=10 code-review=high correctness-review=1",
     );
   });
 
