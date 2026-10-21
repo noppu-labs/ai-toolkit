@@ -22,10 +22,8 @@ One PR number, or several forming a stack in merge order. Everything else is res
 For each PR number:
 
 ```sh
-gh pr view <n> --json number,title,baseRefName,headRefName,headRefOid,url,additions,deletions,changedFiles
+gh pr view <n> --json number,title,baseRefName,headRefName,headRefOid,url
 ```
-
-A large PR is one where `additions + deletions > 1500` or `changedFiles > 30`, counted per PR, so each PR of a stack is sized on its own diff. The size sets how the first correctness pass runs in step 3. The numbers are a starting point to tune, not a measured value.
 
 Each PR is reviewed against its own `baseRefName`, never against the trunk. In a stack, PR two's base is PR one's head branch, so reviewing it against `main` would re-review PR one's diff. PR two's `<BASE>` is PR one's resolved `<HEAD>` rather than a separate fetch of `origin/<baseRefName>`, so the two reviews meet at the same commit.
 
@@ -49,7 +47,15 @@ git fetch origin <baseRefName> <headRefOid>
 
 Every consumer of `<HEAD>` takes a commit-ish, so a bare SHA works in the `<BASE>...<HEAD>` diff, in `git rev-parse`, in `git grep`, and in `git worktree add`. If the branch is force-pushed after the `gh` call, the review stays on the commit `gh` reported.
 
-State the resolved pairs before starting, one line per PR: number, title, base, head, url, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, or `origin/<baseRefName>` still does not resolve, stop and say which number failed. Do not guess a base ref.
+Size each PR once its `<BASE>` and `<HEAD>` resolve, from the diff the stages review, with lockfiles left out:
+
+```sh
+git diff --numstat <BASE>...<HEAD> -- . ':!*.lock' ':!*package-lock.json' ':!*npm-shrinkwrap.json' ':!*pnpm-lock.yaml' ':!*go.sum' | awk '{ n += $1 + $2 } END { print n + 0 }'
+```
+
+A large PR is one where that count of added plus deleted lines is over 1500. Each PR of a stack is sized on its own diff, since its `<BASE>` is the head of the PR below it. Lockfiles are generated, so their lines say nothing about how much there is to review, and a binary file's `-` counts as zero. The number of files plays no part: a change spread over many files but a few hundred lines still fits in one context. The size sets how the first correctness pass runs in step 3. The threshold is a starting point to tune, not a measured value.
+
+State the resolved pairs before starting, one line per PR: number, title, base, head, url, the line count with `large` when it is over the threshold, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, or `origin/<baseRefName>` still does not resolve, stop and say which number failed. Do not guess a base ref.
 
 ## Step 2: structural brief
 
