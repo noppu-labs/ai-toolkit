@@ -24,11 +24,13 @@ Production is the same Worker the previews use, with `toolkit.noppu.com` attache
 custom domain. Cloudflare's Git integration builds and deploys it on every push to `main`,
 and the `deploy-pages` workflow is gone.
 
-`wrangler.jsonc` keeps `site/dist` as the assets directory and adds a small script,
-`worker/index.ts`:
+`wrangler.jsonc` stays at the repository root, where the Git integration reads it, keeps
+`site/dist` as the assets directory, and adds a small script, `site/worker/index.ts`. The
+script lives in the site workspace because it ships with the site, and its tests run in the
+site's Node test project:
 
 - `/api/badges/npm-downloads` runs the script first (`run_worker_first: ["/api/*"]`). It sums
-  the all-time downloads of every npm name in `worker/npm-downloads.ts`, fetching npm's point
+  the all-time downloads of every npm name in `site/worker/npm-downloads.ts`, fetching npm's point
   API in windows of at most 365 days because npm silently clamps longer ranges, and answers
   in the shields.io endpoint format. The result is cached at the edge for six hours, and a
   copy is kept for 30 days so an npm outage serves the last good number.
@@ -51,8 +53,9 @@ Worker's package list differs, so a new package cannot be left out of the total.
 
 ### Negative
 
-- The site is no longer purely static files. A broken `worker/index.ts` can fail the deploy,
-  so the script stays small and is unit-tested and covered by the coverage gate.
+- The site is no longer purely static files. A broken `site/worker/index.ts` can fail the
+  deploy, so the script stays small and every branch has a unit test. The site workspace has
+  no coverage gate, so that coverage is kept by review, not enforced by CI.
 - Hosting now depends on a Cloudflare account and its Git integration, configured outside
   this repository, where GitHub Pages needed only the workflow file.
 - The badge depends on npm's downloads API, which reports with about a day's delay.

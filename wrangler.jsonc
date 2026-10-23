@@ -4,7 +4,7 @@
   // Prevents pushes to main from publishing a 2nd public copy.
   "workers_dev": false,
   // Serves the npm downloads badge; every other path is a static asset.
-  "main": "./worker/index.ts",
+  "main": "./site/worker/index.ts",
   "assets": {
     "directory": "./site/dist",
     "binding": "ASSETS",

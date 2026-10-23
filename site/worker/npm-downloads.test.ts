@@ -3,7 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import fc from "fast-check";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import worker from "../worker/index.ts";
+import worker from "./index.ts";
 import {
   type EdgeCache,
   formatCount,
@@ -12,7 +12,7 @@ import {
   NPM_PACKAGES,
   START_DATE,
   sumDownloads,
-} from "../worker/npm-downloads.ts";
+} from "./npm-downloads.ts";
 
 type Badge = {
   schemaVersion: number;
@@ -22,7 +22,11 @@ type Badge = {
   cacheSeconds: number;
 };
 
-const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT: string = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+);
 
 const BADGE_URL: string = "https://toolkit.noppu.com/api/badges/npm-downloads";
 

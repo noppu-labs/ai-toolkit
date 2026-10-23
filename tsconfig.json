@@ -24,7 +24,6 @@
     "scripts",
     "review/opencode",
     "investigate/opencode",
-    "packages/opencode-toolkit-core",
-    "worker"
+    "packages/opencode-toolkit-core"
   ]
 }
