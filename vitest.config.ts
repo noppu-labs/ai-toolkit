@@ -9,6 +9,7 @@ export default defineConfig({
       include: [
         "scripts/**/*.ts",
         "review/opencode/**/*.ts",
+        "investigate/opencode/**/*.ts",
         "packages/opencode-toolkit-core/**/*.ts",
       ],
       reporter: ["text", "json-summary", "json"],

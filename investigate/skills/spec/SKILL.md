@@ -51,7 +51,12 @@ verbatim and unabridged, first. Then paste the completed question into the outer
 prompt's `<QUESTION>` slot. Fill `<BRIEF>` and `<DOC SOURCES>` as `investigate:deep`
 Step 2 describes.
 
-Send one message containing two Agent tool uses with identical prompts.
+In the pasted block, write the `resolution.md` path out in full:
+`${CLAUDE_PLUGIN_ROOT}/skills/brief/references/resolution.md`.
+
+Send the two passes in one message with identical prompts. In Claude Code that is two
+Agent tool uses; in OpenCode it is two foreground `subagent` calls with
+`agent: "general"` and no `background`.
 
 ## Step 4: Synthesise and report
 

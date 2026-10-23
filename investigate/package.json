@@ -1,0 +1,39 @@
+{
+  "name": "@noppu-labs/opencode-investigate",
+  "version": "0.2.0",
+  "description": "Investigation skills: a deterministic structural brief, a deep two-pass investigation, and claim-by-claim spec review",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noppu-labs/ai-toolkit.git",
+    "directory": "investigate"
+  },
+  "homepage": "https://github.com/noppu-labs/ai-toolkit/tree/main/investigate#readme",
+  "bugs": {
+    "url": "https://github.com/noppu-labs/ai-toolkit/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "investigation",
+    "skills"
+  ],
+  "exports": {
+    ".": "./opencode/index.ts",
+    "./server": "./opencode/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "skills/",
+    "opencode/",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@noppu-labs/opencode-toolkit-core": "^0.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -37,6 +37,9 @@ investigate silently without the brief.
 Build one prompt from `references/agent-prompt.md` using the **Module investigation**
 question. Fill `<BRIEF>` with the concatenated briefs.
 
+In the pasted block, write the `resolution.md` path out in full:
+`${CLAUDE_PLUGIN_ROOT}/skills/brief/references/resolution.md`.
+
 Fill `<DOC SOURCES>` with one condensed verdict line for each of the 2 to 4 packages whose
 semantics the target leans on, in the form `investigate:brief` shows under "Doc-source
 verdicts". Take each id from the brief's FETCH BEFORE CLAIMING list, including the pinned
@@ -44,7 +47,9 @@ id of a `PIN to` verdict. A chosen package with no id in that list gets a line t
 read its installed source instead. Most first-party investigations need none; then write
 `none handed over`.
 
-Send one message containing two Agent tool uses with identical prompts.
+Send the two passes in one message with identical prompts. In Claude Code that is two
+Agent tool uses; in OpenCode it is two foreground `subagent` calls with
+`agent: "general"` and no `background`.
 
 ## Step 3: Synthesise by intersection
 
