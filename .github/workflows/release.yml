@@ -21,6 +21,7 @@ on:
     branches: [main]
     paths:
       - "**/.claude-plugin/plugin.json"
+      - "packages/*/package.json"
   workflow_dispatch:
     inputs:
       tag:
@@ -71,7 +72,26 @@ jobs:
               continue
             fi
             tar -czf "dist/$plugin-$version.tgz" "$plugin"
-            echo "$tag" >> dist/pending.txt
+            echo "$tag $plugin" >> dist/pending.txt
+          done
+          for manifest in packages/*/package.json; do
+            name=$(basename "$(dirname "$manifest")")
+            version=$(node -p "JSON.parse(require('fs').readFileSync('$manifest','utf8')).version ?? ''")
+            if [[ -z "$version" ]]; then
+              echo "::notice::$name has no version in package.json; skipping."
+              continue
+            fi
+            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::$name version '$version' is not x.y.z semver."
+              exit 1
+            fi
+            tag="$name@$version"
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "$tag already released; skipping."
+              continue
+            fi
+            tar -czf "dist/$name-$version.tgz" -C packages "$name"
+            echo "$tag packages/$name" >> dist/pending.txt
           done
           echo "count=$(wc -l < dist/pending.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -101,7 +121,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          while IFS= read -r tag; do
+          while read -r tag dir; do
             plugin="${tag%@*}"
             version="${tag#*@}"
             # Extract this tarball's Sigstore bundle from the combined JSONL, matched by subject digest.
@@ -120,9 +140,9 @@ jobs:
             fi
             prev=$(git tag -l "$plugin@*" --sort=-v:refname | head -1)
             if [[ -n "$prev" ]]; then
-              git log "$prev..HEAD" --pretty='- %s (%h)' -- "$plugin/" > notes.md
+              git log "$prev..HEAD" --pretty='- %s (%h)' -- "$dir/" > notes.md
             else
-              git log --pretty='- %s (%h)' -- "$plugin/" > notes.md
+              git log --pretty='- %s (%h)' -- "$dir/" > notes.md
             fi
             [[ -s notes.md ]] || echo "- Maintenance release" > notes.md
             git tag -a "$tag" -m "$plugin plugin $version" "$GITHUB_SHA"
@@ -141,16 +161,22 @@ jobs:
       contents: read
     outputs:
       targets: ${{ steps.select.outputs.targets }}
+      shared: ${{ steps.select.outputs.shared }}
+      plugins: ${{ steps.select.outputs.plugins }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - run: git fetch --tags --force
-      # Output: JSON array of {plugin, tag}. On push, a plugin qualifies when it
-      # has a package.json and the tag for its current plugin.json version points
-      # at this commit (i.e. the release job just created it). On dispatch, the
-      # input tag. An empty array skips the downstream jobs.
+      # Outputs: JSON arrays of {name, dir, tag, kind, plugin} (plugin repeats
+      # name for the downstream jobs). `targets` holds all of them, `shared` the
+      # kind "shared" entries (packages/<name>), `plugins` the kind "plugin"
+      # ones (<name>/). On push, a target qualifies when it has a package.json
+      # and the tag for its current version (plugin.json for a plugin,
+      # package.json for a shared package) points at this commit, i.e. the
+      # release job just created it. On dispatch, the input tag. An empty
+      # `targets` array skips the downstream jobs.
       - name: Select targets
         id: select
         env:
@@ -161,19 +187,26 @@ jobs:
           targets='[]'
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             if [[ ! "$INPUT_TAG" =~ ^[a-z0-9-]+@[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "::error::tag '$INPUT_TAG' is not <plugin>@<x.y.z>."
+              echo "::error::tag '$INPUT_TAG' is not <name>@<x.y.z>."
               exit 1
             fi
             if ! git rev-parse -q --verify "refs/tags/$INPUT_TAG^{commit}" >/dev/null; then
               echo "::error::tag '$INPUT_TAG' does not exist."
               exit 1
             fi
-            plugin="${INPUT_TAG%@*}"
-            if [[ ! -f "$plugin/package.json" ]]; then
-              echo "::error::$plugin has no package.json."
+            name="${INPUT_TAG%@*}"
+            if [[ -f "packages/$name/package.json" ]]; then
+              dir="packages/$name"
+              kind=shared
+            elif [[ -f "$name/package.json" ]]; then
+              dir="$name"
+              kind=plugin
+            else
+              echo "::error::$name has no package.json."
               exit 1
             fi
-            targets=$(jq -nc --arg plugin "$plugin" --arg tag "$INPUT_TAG" '[{plugin: $plugin, tag: $tag}]')
+            targets=$(jq -nc --arg name "$name" --arg dir "$dir" --arg tag "$INPUT_TAG" --arg kind "$kind" \
+              '[{name: $name, plugin: $name, dir: $dir, tag: $tag, kind: $kind}]')
           else
             for pkg in */package.json; do
               plugin="${pkg%%/*}"
@@ -187,10 +220,30 @@ jobs:
                 echo "$tag is not tagged at $GITHUB_SHA; skipping."
                 continue
               fi
-              targets=$(jq -c --arg plugin "$plugin" --arg tag "$tag" '. + [{plugin: $plugin, tag: $tag}]' <<< "$targets")
+              targets=$(jq -c --arg name "$plugin" --arg tag "$tag" \
+                '. + [{name: $name, plugin: $name, dir: $name, tag: $tag, kind: "plugin"}]' <<< "$targets")
+            done
+            for pkg in packages/*/package.json; do
+              name=$(basename "$(dirname "$pkg")")
+              version=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version ?? ''" "$pkg")
+              [[ -n "$version" ]] || continue
+              tag="$name@$version"
+              tag_sha=$(git rev-parse -q --verify "refs/tags/$tag^{commit}" || true)
+              if [[ "$tag_sha" != "$GITHUB_SHA" ]]; then
+                echo "$tag is not tagged at $GITHUB_SHA; skipping."
+                continue
+              fi
+              targets=$(jq -c --arg name "$name" --arg dir "packages/$name" --arg tag "$tag" \
+                '. + [{name: $name, plugin: $name, dir: $dir, tag: $tag, kind: "shared"}]' <<< "$targets")
             done
           fi
-          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          shared=$(jq -c 'map(select(.kind == "shared"))' <<< "$targets")
+          plugins=$(jq -c 'map(select(.kind == "plugin"))' <<< "$targets")
+          {
+            echo "targets=$targets"
+            echo "shared=$shared"
+            echo "plugins=$plugins"
+          } >> "$GITHUB_OUTPUT"
           echo "targets: $targets"
 
   npm-build:

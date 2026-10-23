@@ -33,6 +33,7 @@ jobs:
             [[ "$tag" =~ ^([a-z0-9-]+)@([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
             plugin="${BASH_REMATCH[1]}"
             version="${BASH_REMATCH[2]}"
+            git cat-file -e "$tag:$plugin" || { echo "$tag is not a plugin directory; skipping."; continue; }
             assets=$(gh release view "$tag" --json assets --jq '[.assets[].name] | join(" ")')
             if [[ "$assets" == *.intoto.jsonl* ]]; then
               echo "$tag already has a provenance asset; skipping."
