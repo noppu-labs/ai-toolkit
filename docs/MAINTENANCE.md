@@ -114,6 +114,11 @@ Notes:
   then configures an npm trusted publisher for it (GitHub Actions, repository
   `noppu-labs/ai-toolkit`, workflow `release.yml`, no environment). CI publishes every later
   version.
+- **Some packages also publish an unscoped name.** `UNSCOPED_NAMES` in `release.yml` lists them
+  (`opencode-toolkit-core`, `opencode-investigate`). CI publishes the same tarball contents under
+  that name right after the scoped one, so the unscoped name needs its own trusted publisher too.
+  `opencode-review` has no unscoped copy, because npm rejected the name as too close to an
+  existing package.
 - **A loader fix also bumps its dependents for now.** Until it is confirmed that
   `opencode plugin update` picks up a newer loader under an unchanged plugin version, patch-bump
   each dependent plugin and raise its `@noppu-labs/opencode-toolkit-core` floor in the same change.

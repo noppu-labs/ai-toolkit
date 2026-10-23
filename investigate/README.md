@@ -21,7 +21,8 @@ Skills are namespaced after install, for example `investigate:brief`.
 
 ## OpenCode
 
-The same skills ship as the OpenCode plugin `@noppu-labs/opencode-investigate`. It targets OpenCode V2.
+The same skills ship as the OpenCode plugin `@noppu-labs/opencode-investigate`, also published
+unscoped as `opencode-investigate`. It targets OpenCode V2.
 
 Install it with the plugin command, or list it under `plugins` in your OpenCode config:
 
