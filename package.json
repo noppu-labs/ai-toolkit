@@ -1,7 +1,8 @@
 {
   "type": "module",
   "workspaces": [
-    "site"
+    "site",
+    "packages/opencode-toolkit-core"
   ],
   "scripts": {
     "coverage-ci": "vitest run --coverage",

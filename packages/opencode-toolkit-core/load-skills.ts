@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { makeSkillId, NAMESPACES } from "./naming.ts";
 
 export type LoadedSkill = {
   id: string;
@@ -11,7 +12,14 @@ export type LoadedSkill = {
 
 export type ParsedSkill = { name: string; description: string; body: string };
 
-type RewriteOptions = { packageRoot: string; ids: ReadonlySet<string> };
+export type NameRewriteOptions = {
+  namespace: string;
+  ids: ReadonlySet<string>;
+};
+
+export type RewriteOptions = NameRewriteOptions & { packageRoot: string };
+
+const SKILL_NAME: string = "[a-z0-9]+(?:-[a-z0-9]+)*";
 
 const FRONTMATTER: RegExp = /^---\n([\s\S]*?)\n---[ \t]*(?:\n|$)/;
 
@@ -74,26 +82,51 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// A match that follows ":" is skipped so "review:review:x" cannot turn into
-// "review:x" and then match again on a second pass.
-export function makeSkillReferencePattern(ids: ReadonlySet<string>): RegExp {
-  const alternation: string = [...ids].map(escapeRegExp).join("|");
+function makeNamePart(namespace: string, options: NameRewriteOptions): string {
+  if (namespace !== options.namespace) {
+    return SKILL_NAME;
+  }
 
-  if (alternation === "") {
+  return [...options.ids].map(escapeRegExp).join("|");
+}
+
+// A match that follows ":" is skipped so "review:review:x" cannot turn into
+// "review:x" and then match again on a second pass. Each namespace owns two
+// capture groups, the usage form and the bare form. The package's own
+// namespace matches only its ids; the others match any skill-shaped name.
+export function makeSkillReferencePattern(options: NameRewriteOptions): RegExp {
+  if (options.ids.size === 0) {
     return /(?!)/g;
   }
 
-  return new RegExp(
-    `(?<![\\w:-])/review:(${alternation})(?![\\w-])|(?<![\\w/:-])review:(${alternation})(?![\\w-])`,
-    "g",
-  );
+  const alternatives: string[] = NAMESPACES.map((namespace: string): string => {
+    const name: string = makeNamePart(namespace, options);
+
+    return `(?<![\\w:-])/${namespace}:(${name})(?![\\w-])|(?<![\\w/:-])${namespace}:(${name})(?![\\w-])`;
+  });
+
+  return new RegExp(alternatives.join("|"), "g");
 }
 
-function rewriteSkillNames(body: string, ids: ReadonlySet<string>): string {
-  return body.replace(
-    makeSkillReferencePattern(ids),
-    (_match: string, usage: string | undefined, name: string | undefined) =>
-      usage === undefined ? (name ?? "") : `@${usage}`,
+export function rewriteSkillNames(
+  text: string,
+  options: NameRewriteOptions,
+): string {
+  return text.replace(
+    makeSkillReferencePattern(options),
+    (...args: unknown[]): string => {
+      const groups: (string | undefined)[] = args.slice(
+        1,
+        1 + NAMESPACES.length * 2,
+      ) as (string | undefined)[];
+      const index: number = groups.findIndex(
+        (group: string | undefined): boolean => group !== undefined,
+      );
+      const namespace: string = NAMESPACES[Math.floor(index / 2)] ?? "";
+      const id: string = makeSkillId(namespace, groups[index] ?? "");
+
+      return index % 2 === 0 ? `@${id}` : id;
+    },
   );
 }
 
@@ -101,13 +134,28 @@ function quoteShellToken(token: string): string {
   return `'${token.replaceAll("'", "'\\''")}'`;
 }
 
+function escapeDoubleQuoted(text: string): string {
+  return text.replace(/[\\"$`]/g, "\\$&");
+}
+
+// The first alternative is a token right after an opening double quote: it
+// runs to the closing quote, which stays outside the match.
+const PLUGIN_ROOT_TOKEN: RegExp =
+  /(?<=")\$\{CLAUDE_PLUGIN_ROOT\}(?:(?!\$\{CLAUDE_PLUGIN_ROOT\})[^"\n])*|\$\{CLAUDE_PLUGIN_ROOT\}(?:(?!\$\{CLAUDE_PLUGIN_ROOT\})[^\s`)])*/g;
+
 function rewritePluginRoot(body: string, packageRoot: string): string {
   const quoteable: boolean = NEEDS_QUOTING.test(packageRoot);
 
   return body.replace(
-    /\$\{CLAUDE_PLUGIN_ROOT\}(?:(?!\$\{CLAUDE_PLUGIN_ROOT\})[^\s`)])*/g,
+    PLUGIN_ROOT_TOKEN,
     (match: string, offset: number, whole: string) => {
-      const substituted: string = packageRoot + match.slice(ROOT_TOKEN.length);
+      const suffix: string = match.slice(ROOT_TOKEN.length);
+
+      if (whole[offset - 1] === '"') {
+        return escapeDoubleQuoted(packageRoot) + suffix;
+      }
+
+      const substituted: string = packageRoot + suffix;
       const inLink: boolean = whole[offset - 1] === "(";
 
       return quoteable && !inLink ? quoteShellToken(substituted) : substituted;
@@ -120,7 +168,7 @@ export function rewriteSkillContent(
   options: RewriteOptions,
 ): string {
   return rewritePluginRoot(
-    rewriteSkillNames(body, options.ids),
+    rewriteSkillNames(body, options),
     options.packageRoot,
   );
 }
@@ -164,20 +212,24 @@ function readSkillFile(path: string): ParsedSkill {
   }
 }
 
-export function loadSkills(packageRoot: string): LoadedSkill[] {
-  const ids: string[] = readSkillDirectories(join(packageRoot, "skills"));
-  const idSet: ReadonlySet<string> = new Set(ids);
+export function loadSkills(
+  packageRoot: string,
+  namespace: string,
+): LoadedSkill[] {
+  const dirs: string[] = readSkillDirectories(join(packageRoot, "skills"));
+  const options: NameRewriteOptions = { namespace, ids: new Set(dirs) };
 
-  return ids.map((id: string): LoadedSkill => {
-    const path: string = pickSkillPath(packageRoot, id);
+  return dirs.map((dir: string): LoadedSkill => {
+    const path: string = pickSkillPath(packageRoot, dir);
     const parsed: ParsedSkill = readSkillFile(path);
+    const id: string = makeSkillId(namespace, dir);
 
     return {
       id,
-      name: parsed.name,
-      description: parsed.description,
+      name: id,
+      description: rewriteSkillNames(parsed.description, options),
       path,
-      content: rewriteSkillContent(parsed.body, { packageRoot, ids: idSet }),
+      content: rewriteSkillContent(parsed.body, { ...options, packageRoot }),
     };
   });
 }

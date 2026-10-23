@@ -105,6 +105,18 @@ Notes:
 - **No marketplace-level version**, and don't set `version` on entries in
   `.claude-plugin/marketplace.json`: `plugin.json` silently takes precedence, so a marketplace
   entry version would only drift.
+- **Shared npm packages release the same way.** A change under `packages/opencode-toolkit-core`
+  needs a bump of that package's `package.json` version in the same commit. CI tags it
+  `opencode-toolkit-core@<version>` and publishes it before any plugin that depends on it. A plugin
+  build also packs the loader and fails if it differs from the version already on npm, which is how
+  a change without a bump shows up.
+- **A new npm name is published by hand the first time.** A maintainer publishes its first version,
+  then configures an npm trusted publisher for it (GitHub Actions, repository
+  `noppu-labs/ai-toolkit`, workflow `release.yml`, no environment). CI publishes every later
+  version.
+- **A loader fix also bumps its dependents for now.** Until it is confirmed that
+  `opencode plugin update` picks up a newer loader under an unchanged plugin version, patch-bump
+  each dependent plugin and raise its `@noppu-labs/opencode-toolkit-core` floor in the same change.
 - To see what changed in a plugin between releases:
   `git log laravel@0.1.0..laravel@0.1.1 -- laravel/`.
 - Docs-only changes to this repo (README, this file) don't touch plugin content and need no

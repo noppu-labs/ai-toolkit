@@ -1,0 +1,35 @@
+{
+  "name": "@noppu-labs/opencode-toolkit-core",
+  "version": "0.1.0",
+  "description": "Shared core of the noppu-labs OpenCode plugin packages: the skill loader and the skill naming table",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noppu-labs/ai-toolkit.git",
+    "directory": "packages/opencode-toolkit-core"
+  },
+  "homepage": "https://github.com/noppu-labs/ai-toolkit/tree/main/packages/opencode-toolkit-core#readme",
+  "bugs": {
+    "url": "https://github.com/noppu-labs/ai-toolkit/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "skills"
+  ],
+  "exports": {
+    ".": "./index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.ts",
+    "naming.ts",
+    "load-skills.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
