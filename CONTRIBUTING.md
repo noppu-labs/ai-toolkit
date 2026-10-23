@@ -68,7 +68,7 @@ copies only update when that version changes. Use semver: patch for fixes and wo
 for new skills, rules, or workflows, major for removals or breaking restructures. CI tags and publishes
 releases automatically on merge to `main`; the
 [maintenance guide](docs/MAINTENANCE.md#versioning-and-releasing-plugin-changes) has the
-details.
+details, including how shared npm packages under `packages/` are versioned and published.
 
 Docs-only changes (README, files under `docs/`) need no version bump.
 
