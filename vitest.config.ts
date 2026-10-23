@@ -11,6 +11,7 @@ export default defineConfig({
         "review/opencode/**/*.ts",
         "investigate/opencode/**/*.ts",
         "packages/opencode-toolkit-core/**/*.ts",
+        "worker/**/*.ts",
       ],
       reporter: ["text", "json-summary", "json"],
       reportsDirectory: "./coverage",
