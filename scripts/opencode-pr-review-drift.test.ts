@@ -60,6 +60,43 @@ function fencedAfter(source: string, marker: string): string {
   return source.slice(open + "\n```text\n".length, close);
 }
 
+const STEP_TWO_FALLBACK_NOTE: string =
+  "When the brief comes from the lighter commands, `## Not available in this run` notes that the structural brief came from the fallback commands and carries no graph or language-server detail.";
+
+function stepTwo(source: string): string {
+  const start: number = source.indexOf("\n## Step 2: structural brief\n");
+  const end: number = source.indexOf("\n## Step 3", start);
+
+  if (start < 0 || end < 0) {
+    throw new Error("step 2 not found");
+  }
+
+  return source.slice(start, end);
+}
+
+function swapOnce(source: string, from: string, to: string): string {
+  if (!source.includes(from)) {
+    throw new Error(`declared swap source not found: ${from}`);
+  }
+
+  return source.replace(from, () => to);
+}
+
+function applyStepTwoSwaps(source: string): string {
+  const withPath: string = swapOnce(
+    source,
+    `invoke the \`investigate:brief\` skill to get its script path under \`\${CLAUDE_PLUGIN_ROOT}\`,`,
+    "invoke the `investigate:brief` skill to get its script path from the paths its text shows,",
+  );
+  const listed: string = swapOnce(
+    withPath,
+    "If the `investigate:brief` skill is available (the `investigate` plugin from this marketplace),",
+    "If the `investigate:brief` skill is listed (the `@noppu-labs/opencode-investigate` plugin),",
+  );
+
+  return `${listed}\n${STEP_TWO_FALLBACK_NOTE}\n`;
+}
+
 function expectedOverrideBlock(marker: string): string {
   const block: string = fencedAfter(claude, marker);
   const prepared: string =
@@ -87,6 +124,50 @@ describe("OpenCode pr-review override", () => {
     );
     expect(fencedAfter(override, MARKERS[1] ?? "")).toContain(
       OPENCODE_SECOND_PASS_NOTE,
+    );
+  });
+
+  it("keeps step 2 in step with the Claude skill", () => {
+    expect(stepTwo(override)).toBe(
+      rewriteSkillContent(applyStepTwoSwaps(stepTwo(claude)), {
+        packageRoot: "/pkg",
+        namespace: "review",
+        ids: IDS,
+      }),
+    );
+  });
+
+  it("falls back to the git-only brief when investigate-brief is not listed", () => {
+    const step: string = stepTwo(override);
+
+    expect(step).toContain("If the `investigate-brief` skill is listed");
+    expect(step).toContain(
+      "If it is not, build a lighter one from these commands:",
+    );
+
+    for (const command of [
+      "git diff --stat <BASE>...<HEAD>",
+      "git diff -U0 <BASE>...<HEAD> | grep -E '^@@'",
+      "git diff <BASE>...<HEAD> | grep -E '^\\+(export )?",
+      "git diff <BASE>...<HEAD> -- '*.py' | grep -E",
+      "git grep -nw <symbol> <HEAD>",
+    ]) {
+      expect(step).toContain(command);
+    }
+  });
+
+  it("only notes the fallback brief when it was used", () => {
+    const bullet: string =
+      override
+        .split("\n")
+        .find((line) =>
+          line.startsWith("- `## Not available in this run` names every skill"),
+        ) ?? "";
+
+    expect(bullet).not.toBe("");
+    expect(bullet).toContain("when the brief came from the fallback commands");
+    expect(bullet).not.toContain(
+      "and notes that the structural brief came from the fallback commands.",
     );
   });
 
