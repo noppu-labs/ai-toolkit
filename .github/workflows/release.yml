@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing <plugin>@<version> tag whose npm publish to retry
+        description: Existing <name>@<version> tag whose npm publish to retry
         required: true
         type: string
 
@@ -392,6 +392,7 @@ jobs:
           # semver is not a direct dependency: take the copy bundled with npm,
           # else the one npm ci installed.
           npm_modules="$(npm root -g)/npm/node_modules"
+          # The core's directory name equals its unscoped npm name, as the target name does.
           while read -r shared_version; do
             if node -e "
               const semver = require(require.resolve('semver', { paths: [process.argv[1], process.cwd()] }));
@@ -400,7 +401,6 @@ jobs:
               echo "$core@$shared_version satisfies $range and is published first in this run."
               exit 0
             fi
-          # The core's directory name equals its unscoped npm name, as the target name does.
           done < <(jq -r --arg n "${core#*/}" '.[] | select(.name == $n) | .tag | sub("^[^@]*@"; "")' <<< "$SHARED")
           echo "::error::no published $core satisfies $range"
           exit 1
