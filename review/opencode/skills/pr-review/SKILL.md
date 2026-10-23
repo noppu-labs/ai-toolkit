@@ -59,7 +59,18 @@ State the resolved pairs before starting, one line per PR: number, title, base, 
 
 ## Step 2: structural brief
 
-One brief per PR, plain text, pasted whole into every subagent prompt for that PR. Build it from these commands:
+One brief per PR, plain text, pasted whole into every subagent prompt for that PR.
+
+If the `investigate-brief` skill is listed (the `@noppu-labs/opencode-investigate` plugin), invoke the `investigate-brief` skill to get its script path from the paths its text shows, and build the brief from the script's output plus part of the lighter brief below. Paste the outputs concatenated as the brief.
+
+1. Run the script in a checkout at `<HEAD>`, since it reads the working tree. When the current checkout is already there and clean (`git rev-parse HEAD` equals `git rev-parse <HEAD>` and `git status --porcelain` prints nothing), run it in place: that checkout has its `node_modules` or `vendor` and its gitnexus registration, so the brief is richer. Otherwise create a worktree named after the PR in a scratch directory outside the repository, `git worktree add <scratch>/pr-review-<number> <HEAD>`, and remove it afterwards with `git worktree remove <scratch>/pr-review-<number>`. A fresh worktree has no `node_modules` or `vendor`, so language-server types and callers degrade, and its directory name does not match the gitnexus registry, so the Tools line reads `gitnexus: unavailable (...)` and graph sections are omitted.
+2. Pick the targets from the changed source files: PHP, or JS/TS including `.mjs`, `.cjs`, `.mts`, `.cts`, and not named `*.test.*`, `*.spec.*`, or `*.stories.*`, which the script leaves out. Take the directory of each, then drop every directory that is an ancestor of another on the list. A dropped directory's own changed source files, and changed source files at the repo root, are targeted one file at a time instead of by directory, so `.` is never a target. Directories with no changed sources (manifests, docs, workflows) get no run.
+3. Run the script once per target, with the doc-source gate on, because the correctness stage checks the diff's library calls against the version-checked sources it lists. When context7 cannot be reached, the script marks each lookup `FAILED` and still builds the brief, and the review goes on without docs. A run that still exits non-zero (a deleted directory, no sources) gets no per-directory fallback; item 4 covers its files.
+4. Run the lighter brief's first three commands as well and keep their output, the stat block and the changed-symbol list, next to the script's output. The script details at most 15 symbols per directory, taken in file path order, so the symbol list is what shows the changes it dropped. Run the fourth command for each changed symbol that has no section in the script's output.
+
+When the script's output lists no symbols and `git diff --stat` shows most of the changed lines are in `.py` files, build the brief from the commands below instead, and record under `## Not available in this run` that the structural brief came from the fallback commands.
+
+If it is not, build a lighter one from these commands:
 
 ```sh
 git diff --stat <BASE>...<HEAD>
@@ -83,7 +94,7 @@ Three dots, so only what the branch adds is in scope.
 
 The commands run here produce the brief. Their output goes into the brief, not into a reading pass by the orchestrator. Keep each brief to roughly a page: the stat block, the symbol list, and the caller list.
 
-Every brief comes from these commands, so `## Not available in this run` notes that the structural brief came from the fallback commands and carries no graph or language-server detail.
+When the brief comes from the lighter commands, `## Not available in this run` notes that the structural brief came from the fallback commands and carries no graph or language-server detail.
 
 ## Step 3: run the passes
 
@@ -299,7 +310,7 @@ Rules for the body:
 - A finding two stages both reported stays under each stage that reported it, suffixed `also reported by <stage>`. The orchestrator has not read the diff and does not decide whether two claims at one line are one finding; `pr-comments` shows it once (step 5).
 - `### Correctness` merges the two passes. A finding both passes reported appears once, labelled `both passes`. A finding one pass reported keeps its label, `correctness-review only` or `hand review only`, so the reader knows how much weight it carries. A first-pass finding from a subagent that reviewed by hand because it could not invoke the skill is labelled `hand review only`. Where the passes disagree, both claims are listed under the finding; the orchestrator does not pick a side, since it has not read the diff.
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
-- `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it, and notes that the structural brief came from the fallback commands. If every first-pass subagent returned no report, the first pass is named here with the reason, and the correctness findings carry the `hand review only` label. When some but not all of a split first pass's subagents did not report, the angles they owned are named here, and the findings of the subagents that did report keep `correctness-review only`. When every stage had everything, the section says so in one line besides the brief note rather than being dropped.
+- `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it, and, when the brief came from the fallback commands, notes that the structural brief carries no graph or language-server detail. If every first-pass subagent returned no report, the first pass is named here with the reason, and the correctness findings carry the `hand review only` label. When some but not all of a split first pass's subagents did not report, the angles they owned are named here, and the findings of the subagents that did report keep `correctness-review only`. When every stage had everything, the section says so in one line besides the brief note rather than being dropped.
 - When step 1 fell back to the SHA for a PR, `## Not available in this run` says which trigger applied (`refs/pull/<n>/head` was not fetchable, or the branch moved after the `gh` call) and names the SHA reviewed, so the reader knows the head came from `gh` rather than from the pull ref.
 
 ## Step 5: comments for the author

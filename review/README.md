@@ -37,8 +37,8 @@ names are the six in the table above without the `review:` prefix.
 Differences from the Claude Code plugin:
 
 - `pr-review` uses `correctness-review` instead of `code-review`, and has no Workflow.
-- `investigate:brief` is not available on OpenCode yet, so briefs are built with the fallback
-  commands.
+- `pr-review` builds its brief with `investigate-brief` when `@noppu-labs/opencode-investigate` is
+  installed, and with git-only commands otherwise.
 - The task-output hook is Claude-only.
 
 `npx skills add` also reaches OpenCode, but it leaves `${CLAUDE_PLUGIN_ROOT}` unresolved, so the
