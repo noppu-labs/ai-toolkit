@@ -1,5 +1,5 @@
 import { readFileSync, realpathSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin, Skill } from "@opencode/plugin";
 import { describe, expect, it, vi } from "vitest";
@@ -114,7 +114,7 @@ describe("investigate OpenCode plugin", () => {
     const skills: Skill.Info[] = await loadInvestigateSkills();
 
     for (const skill of skills) {
-      expect(skill.path.startsWith(INVESTIGATE_ROOT)).toBe(true);
+      expect(skill.path.startsWith(INVESTIGATE_ROOT + sep)).toBe(true);
     }
   });
 
@@ -143,6 +143,25 @@ describe("investigate OpenCode plugin", () => {
       expect(text).not.toContain(
         "Send one message containing two Agent tool uses with identical prompts.",
       );
+    }
+  });
+
+  it("hands the passes the resolved resolution.md path", async () => {
+    const skills: Skill.Info[] = await loadInvestigateSkills();
+    const resolution: string = join(
+      INVESTIGATE_ROOT,
+      "skills",
+      "brief",
+      "references",
+      "resolution.md",
+    );
+
+    for (const id of ["investigate-deep", "investigate-spec"]) {
+      const skill: Skill.Info | undefined = skills.find(
+        (candidate: Skill.Info): boolean => candidate.id === id,
+      );
+
+      expect(skill?.content).toContain(resolution);
     }
   });
 });
