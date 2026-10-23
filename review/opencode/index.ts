@@ -1,7 +1,10 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin, Skill } from "@opencode/plugin";
-import { type LoadedSkill, loadSkills } from "./load-skills.ts";
+import {
+  type LoadedSkill,
+  loadSkills,
+} from "../../packages/opencode-toolkit-core/load-skills.ts";
 
 type SkillEditor = Parameters<
   Parameters<Plugin.Context["skill"]["transform"]>[0]
@@ -21,7 +24,8 @@ function makeSkillInfo(skill: LoadedSkill): Skill.Info {
 
 export function makePlugin(
   packageRoot: string,
-  load: (root: string) => LoadedSkill[] = loadSkills,
+  load: (root: string) => LoadedSkill[] = (root: string): LoadedSkill[] =>
+    loadSkills(root, "review"),
 ): Plugin.Plugin {
   return {
     id: "noppu-labs.review",

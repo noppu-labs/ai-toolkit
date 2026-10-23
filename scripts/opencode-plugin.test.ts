@@ -2,11 +2,11 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin, Skill } from "@opencode/plugin";
 import { describe, expect, it, vi } from "vitest";
-import defaultPlugin, { makePlugin } from "../review/opencode/index.ts";
 import {
   type LoadedSkill,
   loadSkills,
-} from "../review/opencode/load-skills.ts";
+} from "../packages/opencode-toolkit-core/load-skills.ts";
+import defaultPlugin, { makePlugin } from "../review/opencode/index.ts";
 
 type SkillEditor = Parameters<
   Parameters<Plugin.Context["skill"]["transform"]>[0]
@@ -76,7 +76,7 @@ describe("makePlugin", () => {
     await makePlugin(PACKAGE_ROOT).setup(ctx);
     run(fake.editor);
 
-    const ids: string[] = loadSkills(PACKAGE_ROOT).map(
+    const ids: string[] = loadSkills(PACKAGE_ROOT, "review").map(
       (skill: LoadedSkill): string => skill.id,
     );
 
@@ -108,7 +108,7 @@ describe("makePlugin", () => {
 
   it("loads once however many editors the transform runs against", async () => {
     const { ctx, run } = makeFakeContext();
-    const load = vi.fn(loadSkills);
+    const load = vi.fn((root: string) => loadSkills(root, "review"));
     const editors: FakeEditor[] = [
       makeFakeEditor(),
       makeFakeEditor(),
@@ -123,7 +123,7 @@ describe("makePlugin", () => {
 
     expect(load).toHaveBeenCalledTimes(1);
 
-    const expected: number = loadSkills(PACKAGE_ROOT).length;
+    const expected: number = loadSkills(PACKAGE_ROOT, "review").length;
 
     for (const fake of editors) {
       expect(fake.added).toHaveLength(expected);

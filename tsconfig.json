@@ -20,5 +20,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["scripts", "review/opencode"]
+  "include": ["scripts", "review/opencode", "packages/opencode-toolkit-core"]
 }

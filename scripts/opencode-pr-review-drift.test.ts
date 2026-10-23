@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseSkillFile,
   rewriteSkillContent,
-} from "../review/opencode/load-skills.ts";
+} from "../packages/opencode-toolkit-core/load-skills.ts";
 
 const REVIEW_ROOT: string = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -67,7 +67,11 @@ function expectedOverrideBlock(marker: string): string {
       ? block.replace(SECOND_PASS_PARAGRAPH, OPENCODE_SECOND_PASS_NOTE)
       : block;
 
-  return rewriteSkillContent(prepared, { packageRoot: "/pkg", ids: IDS });
+  return rewriteSkillContent(prepared, {
+    packageRoot: "/pkg",
+    namespace: "review",
+    ids: IDS,
+  });
 }
 
 describe("OpenCode pr-review override", () => {

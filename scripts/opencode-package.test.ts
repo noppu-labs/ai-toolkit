@@ -70,7 +70,6 @@ describe("npm package contents", () => {
       "README.md",
       "LICENSE",
       "opencode/index.ts",
-      "opencode/load-skills.ts",
       ...listSkillIds(REVIEW_DIR).map(
         (id: string): string => `skills/${id}/SKILL.md`,
       ),

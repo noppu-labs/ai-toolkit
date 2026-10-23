@@ -17,7 +17,8 @@ import {
   makeSkillReferencePattern,
   parseSkillFile,
   rewriteSkillContent,
-} from "../review/opencode/load-skills.ts";
+  rewriteSkillNames,
+} from "../packages/opencode-toolkit-core/load-skills.ts";
 
 const PACKAGE_ROOT: string = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -28,7 +29,21 @@ const PACKAGE_ROOT: string = resolve(
 const IDS: ReadonlySet<string> = new Set(["pr-review", "comment-audit"]);
 
 function rewrite(body: string, packageRoot: string = "/opt/pkg"): string {
-  return rewriteSkillContent(body, { packageRoot, ids: IDS });
+  return rewriteSkillContent(body, {
+    packageRoot,
+    namespace: "review",
+    ids: IDS,
+  });
+}
+
+const INVESTIGATE_IDS: ReadonlySet<string> = new Set(["brief", "deep", "spec"]);
+
+function rewriteInvestigate(body: string): string {
+  return rewriteSkillContent(body, {
+    packageRoot: "/pkg",
+    namespace: "investigate",
+    ids: INVESTIGATE_IDS,
+  });
 }
 
 function makeSkillMarkdown(name: string, marker: string): string {
@@ -111,7 +126,56 @@ describe("rewriteSkillContent", () => {
 
   it("leaves names that are not ids", () => {
     expect(rewrite("review:pr-review-stages")).toBe("review:pr-review-stages");
-    expect(rewrite("investigate:brief")).toBe("investigate:brief");
+    expect(rewrite("review:not-an-id")).toBe("review:not-an-id");
+  });
+
+  it("rewrites other namespaces to the dashed id", () => {
+    expect(rewrite("see investigate:brief")).toBe("see investigate-brief");
+    expect(rewrite("/investigate:deep <path>")).toBe(
+      "@investigate-deep <path>",
+    );
+    expect(rewrite("`investigate:spec`")).toBe("`investigate-spec`");
+    expect(rewrite("(investigate:deep)")).toBe("(investigate-deep)");
+    expect(rewrite("investigate:brief's")).toBe("investigate-brief's");
+    expect(rewrite("investigate:brief.")).toBe("investigate-brief.");
+  });
+
+  it("leaves text that only looks like a reference", () => {
+    for (const text of [
+      "investigate: the brief",
+      "path:line",
+      "file:line",
+      "path:start-end",
+      "laravel:laravel-models",
+      "review:review:pr-review",
+    ]) {
+      expect(rewrite(text)).toBe(text);
+    }
+  });
+
+  it("rewrites the package's own namespace from its ids", () => {
+    expect(rewriteInvestigate("investigate:brief")).toBe("investigate-brief");
+    expect(rewriteInvestigate("/investigate:deep")).toBe("@investigate-deep");
+    expect(rewriteInvestigate("investigate:nope")).toBe("investigate:nope");
+    expect(rewriteInvestigate("review:pr-review")).toBe("pr-review");
+  });
+
+  it("rewrites nothing when the package has no ids", () => {
+    expect(
+      rewriteSkillNames("review:pr-review", {
+        namespace: "review",
+        ids: new Set(),
+      }),
+    ).toBe("review:pr-review");
+  });
+
+  it("rewrites names alone", () => {
+    expect(
+      rewriteSkillNames("review:comment-audit investigate:brief", {
+        namespace: "review",
+        ids: IDS,
+      }),
+    ).toBe("comment-audit investigate-brief");
   });
 
   it("substitutes the plugin root", () => {
@@ -159,6 +223,9 @@ describe("rewriteSkillContent", () => {
         `\${CLAUDE_PLUGIN_ROOT}/a`,
         `(\${CLAUDE_PLUGIN_ROOT}/a)`,
         "review:comment-audit",
+        "investigate:brief",
+        "/investigate:deep",
+        "investigate:review:x",
         "/review:pr-review",
         "review:review:comment-audit",
         "review:pr-review-stages",
@@ -180,7 +247,7 @@ describe("rewriteSkillContent", () => {
     );
   });
 
-  it("leaves text without the token or review: untouched", () => {
+  it("leaves text without the token or a namespace reference untouched", () => {
     fc.assert(
       fc.property(
         fc
@@ -188,7 +255,8 @@ describe("rewriteSkillContent", () => {
           .filter(
             (text: string) =>
               !text.includes(`\${CLAUDE_PLUGIN_ROOT}`) &&
-              !text.includes("review:"),
+              !text.includes("review:") &&
+              !text.includes("investigate:"),
           ),
         (text: string) => {
           expect(rewrite(text)).toBe(text);
@@ -233,11 +301,42 @@ describe("loadSkills", () => {
     const root: string = makeRoot();
     const pathB: string = writeSkill(root, "skills", "b", "bee");
     const pathA: string = writeSkill(root, "skills", "a", "ay");
-    const skills: LoadedSkill[] = loadSkills(root);
+    const skills: LoadedSkill[] = loadSkills(root, "review");
 
     expect(skills.map((skill: LoadedSkill) => skill.id)).toEqual(["a", "b"]);
     expect(skills[0]?.path).toBe(pathA);
     expect(skills[1]?.path).toBe(pathB);
+  });
+
+  it("namespaces ids and names for another package", () => {
+    const root: string = makeRoot();
+
+    writeSkill(root, "skills", "brief", "see investigate:deep");
+    writeSkill(root, "skills", "deep", "x");
+
+    const skills: LoadedSkill[] = loadSkills(root, "investigate");
+
+    expect(skills.map((skill: LoadedSkill) => skill.id)).toEqual([
+      "investigate-brief",
+      "investigate-deep",
+    ]);
+
+    for (const skill of skills) {
+      expect(skill.name).toBe(skill.id);
+    }
+
+    expect(skills[0]?.description).toBe("Use when see investigate-deep");
+    expect(skills[0]?.content).toContain("see investigate-deep");
+  });
+
+  it("throws for an unlisted namespace", () => {
+    const root: string = makeRoot();
+
+    writeSkill(root, "skills", "a", "x");
+
+    expect(() => loadSkills(root, "laravel")).toThrow(
+      /Unknown skill namespace/,
+    );
   });
 
   it("names the file whose SKILL.md cannot be parsed", () => {
@@ -247,7 +346,7 @@ describe("loadSkills", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "SKILL.md"), "no frontmatter here\n");
 
-    expect(() => loadSkills(root)).toThrow(join(dir, "SKILL.md"));
+    expect(() => loadSkills(root, "review")).toThrow(join(dir, "SKILL.md"));
   });
 
   it("prefers an OpenCode override", () => {
@@ -262,7 +361,7 @@ describe("loadSkills", () => {
       "a",
       "override",
     );
-    const skills: LoadedSkill[] = loadSkills(root);
+    const skills: LoadedSkill[] = loadSkills(root, "review");
 
     expect(skills[0]?.path).toBe(overridePath);
     expect(skills[0]?.content).toContain("override");
@@ -272,11 +371,11 @@ describe("loadSkills", () => {
   it("throws naming the skills directory when it is missing", () => {
     const root: string = makeRoot();
 
-    expect(() => loadSkills(root)).toThrow(join(root, "skills"));
+    expect(() => loadSkills(root, "review")).toThrow(join(root, "skills"));
   });
 
   it("loads the real package", () => {
-    const skills: LoadedSkill[] = loadSkills(PACKAGE_ROOT);
+    const skills: LoadedSkill[] = loadSkills(PACKAGE_ROOT, "review");
     const dirs: string[] = readdirSync(join(PACKAGE_ROOT, "skills"), {
       withFileTypes: true,
     })
@@ -284,7 +383,10 @@ describe("loadSkills", () => {
       .map((entry) => entry.name)
       .sort();
     const ids: ReadonlySet<string> = new Set(dirs);
-    const leftover: RegExp = makeSkillReferencePattern(ids);
+    const leftover: RegExp = makeSkillReferencePattern({
+      namespace: "review",
+      ids,
+    });
 
     expect(skills.map((skill: LoadedSkill) => skill.id)).toEqual(dirs);
 
@@ -300,7 +402,7 @@ describe("loadSkills", () => {
   // OpenCode truncates tool output past 2,000 lines or 50 KiB, and the skill
   // tool adds a header and a file list, so each body keeps a margin below both.
   it("keeps every real skill body clear of OpenCode's tool output limits", () => {
-    for (const skill of loadSkills(PACKAGE_ROOT)) {
+    for (const skill of loadSkills(PACKAGE_ROOT, "review")) {
       expect(skill.content.split("\n").length).toBeLessThan(1_500);
       expect(Buffer.byteLength(skill.content, "utf8")).toBeLessThan(40 * 1024);
     }
