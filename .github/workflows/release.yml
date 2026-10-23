@@ -1,19 +1,21 @@
 name: release
 
 # Pushing plugin.json changes to main tags and releases each new plugin version
-# (job `release`). Plugins that also ship an npm package (a package.json next to
+# (job `release`). A package.json change under packages/ does the same for a
+# shared package, and shared packages are tagged, released and published first.
+# Plugins that also ship an npm package (a package.json next to
 # .claude-plugin/) are then built, tested, and published to npm under their
 # scoped name, through OIDC trusted publishing: no npm token is stored
-# anywhere. Manual dispatch retries the npm publish for an
-# existing <plugin>@<version> tag without moving it. Re-runs are idempotent:
+# anywhere. Manual dispatch retries the npm publish for an existing
+# <name>@<version> tag without moving it. Re-runs are idempotent:
 # name@version pairs already on npm are skipped.
 #
 # Prerequisites (configure once each, outside this repo):
-#   - an npm trusted publisher for each npm plugin's package, pointing at
+#   - an npm trusted publisher for each npm package (plugin or shared), pointing at
 #     GitHub Actions, repository noppu-labs/ai-toolkit, workflow
 #     `release.yml`, no environment.
-#   - Nothing in the repository settings: npm-publish requests
-#     `id-token: write` in its own permissions, which OIDC publishing and
+#   - Nothing in the repository settings: npm-publish-shared and
+#     npm-publish request `id-token: write` in its own permissions, which OIDC publishing and
 #     npm --provenance need.
 
 on:
@@ -53,6 +55,8 @@ jobs:
         id: detect
         run: |
           set -euo pipefail
+          # A glob with no match must expand to nothing, not to its own pattern.
+          shopt -s nullglob
           mkdir -p dist
           : > dist/pending.txt
           for manifest in */.claude-plugin/plugin.json; do
@@ -145,7 +149,12 @@ jobs:
               git log --pretty='- %s (%h)' -- "$dir/" > notes.md
             fi
             [[ -s notes.md ]] || echo "- Maintenance release" > notes.md
-            git tag -a "$tag" -m "$plugin plugin $version" "$GITHUB_SHA"
+            if [[ "$dir" == packages/* ]]; then
+              message="$plugin package $version"
+            else
+              message="$plugin plugin $version"
+            fi
+            git tag -a "$tag" -m "$message" "$GITHUB_SHA"
             git push origin "refs/tags/$tag"
             gh release create "$tag" --verify-tag --notes-file notes.md \
               "dist/$plugin-$version.tgz" "$bundle"
@@ -169,8 +178,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - run: git fetch --tags --force
-      # Outputs: JSON arrays of {name, dir, tag, kind, plugin} (plugin repeats
-      # name for the downstream jobs). `targets` holds all of them, `shared` the
+      # Outputs: JSON arrays of {name, dir, tag, kind}. `targets` holds all of them, `shared` the
       # kind "shared" entries (packages/<name>), `plugins` the kind "plugin"
       # ones (<name>/). On push, a target qualifies when it has a package.json
       # and the tag for its current version (plugin.json for a plugin,
@@ -206,7 +214,7 @@ jobs:
               exit 1
             fi
             targets=$(jq -nc --arg name "$name" --arg dir "$dir" --arg tag "$INPUT_TAG" --arg kind "$kind" \
-              '[{name: $name, plugin: $name, dir: $dir, tag: $tag, kind: $kind}]')
+              '[{name: $name, dir: $dir, tag: $tag, kind: $kind}]')
           else
             for pkg in */package.json; do
               plugin="${pkg%%/*}"
@@ -221,7 +229,7 @@ jobs:
                 continue
               fi
               targets=$(jq -c --arg name "$plugin" --arg tag "$tag" \
-                '. + [{name: $name, plugin: $name, dir: $name, tag: $tag, kind: "plugin"}]' <<< "$targets")
+                '. + [{name: $name, dir: $name, tag: $tag, kind: "plugin"}]' <<< "$targets")
             done
             for pkg in packages/*/package.json; do
               name=$(basename "$(dirname "$pkg")")
@@ -234,7 +242,7 @@ jobs:
                 continue
               fi
               targets=$(jq -c --arg name "$name" --arg dir "packages/$name" --arg tag "$tag" \
-                '. + [{name: $name, plugin: $name, dir: $dir, tag: $tag, kind: "shared"}]' <<< "$targets")
+                '. + [{name: $name, dir: $dir, tag: $tag, kind: "shared"}]' <<< "$targets")
             done
           fi
           shared=$(jq -c 'map(select(.kind == "shared"))' <<< "$targets")
@@ -247,7 +255,7 @@ jobs:
           echo "targets: $targets"
 
   npm-build:
-    name: build ${{ matrix.target.plugin }}
+    name: build ${{ matrix.target.name }}
     needs: npm-targets
     if: ${{ !cancelled() && needs.npm-targets.result == 'success' && needs.npm-targets.outputs.targets != '[]' }}
     runs-on: ubuntu-latest
@@ -263,18 +271,27 @@ jobs:
         with:
           ref: refs/tags/${{ matrix.target.tag }}
           persist-credentials: false
+      # A plugin's tag, package.json and plugin.json must agree; a shared
+      # package has no plugin.json.
       - name: Verify versions agree
         env:
-          PLUGIN: ${{ matrix.target.plugin }}
+          DIR: ${{ matrix.target.dir }}
+          KIND: ${{ matrix.target.kind }}
           TAG: ${{ matrix.target.tag }}
         run: |
           set -euo pipefail
-          pkg_version=$(node -p "require('./$PLUGIN/package.json').version")
-          plugin_version=$(node -p "require('./$PLUGIN/.claude-plugin/plugin.json').version")
+          pkg_version=$(node -p "require('./$DIR/package.json').version")
           tag_version="${TAG#*@}"
-          if [[ "$pkg_version" != "$tag_version" || "$plugin_version" != "$tag_version" ]]; then
-            echo "::error::version mismatch: tag $tag_version, package.json $pkg_version, plugin.json $plugin_version."
+          if [[ "$pkg_version" != "$tag_version" ]]; then
+            echo "::error::version mismatch: tag $tag_version, package.json $pkg_version."
             exit 1
+          fi
+          if [[ "$KIND" == "plugin" ]]; then
+            plugin_version=$(node -p "require('./$DIR/.claude-plugin/plugin.json').version")
+            if [[ "$plugin_version" != "$tag_version" ]]; then
+              echo "::error::version mismatch: tag $tag_version, plugin.json $plugin_version."
+              exit 1
+            fi
           fi
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -283,20 +300,91 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Test
         run: npm test -- scripts/opencode-*.test.ts
+      # A plugin's smoke test also installs the loader, so the loader is packed
+      # too, into core-artifacts/ to keep artifacts/ at one tarball for upload.
       - name: Pack
         id: pack
         env:
-          PLUGIN: ${{ matrix.target.plugin }}
+          DIR: ${{ matrix.target.dir }}
+          KIND: ${{ matrix.target.kind }}
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          (cd "$PLUGIN" && npm pack --ignore-scripts --pack-destination ../artifacts)
+          (cd "$DIR" && npm pack --ignore-scripts --pack-destination "$GITHUB_WORKSPACE/artifacts")
           set -- artifacts/*.tgz
           [ "$#" -eq 1 ] && [ -f "$1" ]
           echo "tarball=$PWD/$1" >> "$GITHUB_OUTPUT"
+          core_tarball=""
+          if [[ "$KIND" == "plugin" ]]; then
+            mkdir -p core-artifacts
+            (cd packages/opencode-toolkit-core && npm pack --ignore-scripts --pack-destination "$GITHUB_WORKSPACE/core-artifacts")
+            set -- core-artifacts/*.tgz
+            [ "$#" -eq 1 ] && [ -f "$1" ]
+            core_tarball="$PWD/$1"
+          fi
+          echo "core_tarball=$core_tarball" >> "$GITHUB_OUTPUT"
+      # npm never lets a version be republished, so a version already on npm
+      # must be byte-identical to this tag's tarball (npm pack is reproducible).
+      # Otherwise the tag moved or the version was reused.
+      - name: Verify tarball against npm
+        env:
+          DIR: ${{ matrix.target.dir }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          set -euo pipefail
+          name=$(node -p "require('./$DIR/package.json').name")
+          version=$(node -p "require('./$DIR/package.json').version")
+          published=$(npm view "$name@$version" dist.integrity 2>/dev/null || true)
+          if [[ -z "$published" ]]; then
+            echo "::notice::$name@$version is not on npm yet."
+            exit 0
+          fi
+          local_integrity="sha512-$(openssl dgst -sha512 -binary "$TARBALL" | openssl base64 -A)"
+          if [[ "$published" != "$local_integrity" ]]; then
+            echo "::error::$name@$version on npm differs from this tag's tarball"
+            exit 1
+          fi
+          echo "$name@$version on npm matches this tag's tarball."
+      # A plugin's loader range must resolve to a published version, or to one
+      # this run publishes first (the shared jobs).
+      - name: Check the loader dependency floor
+        if: ${{ matrix.target.kind == 'plugin' }}
+        env:
+          DIR: ${{ matrix.target.dir }}
+          SHARED: ${{ needs.npm-targets.outputs.shared }}
+        run: |
+          set -euo pipefail
+          core="@noppu-labs/opencode-toolkit-core"
+          range=$(node -p "require('./$DIR/package.json').dependencies?.['$core'] ?? ''")
+          if [[ -z "$range" ]]; then
+            echo "::error::$DIR/package.json does not depend on $core"
+            exit 1
+          fi
+          # An unpublished package makes npm view fail (E404) or print nothing.
+          published=$(npm view "$core@$range" version 2>/dev/null || true)
+          if [[ -n "$published" ]]; then
+            echo "$core@$range is published."
+            exit 0
+          fi
+          # semver is not a direct dependency: take the copy bundled with npm,
+          # else the one npm ci installed.
+          npm_modules="$(npm root -g)/npm/node_modules"
+          while read -r shared_version; do
+            if node -e "
+              const semver = require(require.resolve('semver', { paths: [process.argv[1], process.cwd()] }));
+              process.exit(semver.satisfies(process.argv[2], process.argv[3]) ? 0 : 1);
+            " "$npm_modules" "$shared_version" "$range"; then
+              echo "$core@$shared_version satisfies $range and is published first in this run."
+              exit 0
+            fi
+          done < <(jq -r --arg n "${core#*/}" '.[] | select(.name == $n) | .tag | sub("^[^@]*@"; "")' <<< "$SHARED")
+          echo "::error::no published $core satisfies $range"
+          exit 1
       - name: Smoke-test the tarball
         env:
-          OPENCODE_REVIEW_TARBALL: ${{ steps.pack.outputs.tarball }}
+          OPENCODE_PACKAGE_DIR: ${{ matrix.target.dir }}
+          OPENCODE_TARBALL: ${{ steps.pack.outputs.tarball }}
+          OPENCODE_CORE_TARBALL: ${{ steps.pack.outputs.core_tarball }}
         run: npm test -- scripts/opencode-package.test.ts
       - name: Tarball contents
         run: |
@@ -312,14 +400,16 @@ jobs:
           cat checksums-sha256.txt
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: npm-${{ matrix.target.plugin }}
+          name: npm-${{ matrix.target.name }}
           path: artifacts/
           if-no-files-found: error
 
-  npm-publish:
-    name: publish ${{ matrix.target.plugin }}
+  # Shared packages (the loader) publish before any plugin, because a plugin's
+  # dependency on it must resolve on npm when the plugin is installed.
+  npm-publish-shared:
+    name: publish ${{ matrix.target.name }}
     needs: [npm-targets, npm-build]
-    if: ${{ !cancelled() && needs.npm-targets.result == 'success' && needs.npm-targets.outputs.targets != '[]' && needs.npm-build.result == 'success' }}
+    if: ${{ !cancelled() && needs.npm-targets.result == 'success' && needs.npm-targets.outputs.shared != '[]' && needs.npm-build.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -328,7 +418,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJSON(needs.npm-targets.outputs.targets) }}
+        target: ${{ fromJSON(needs.npm-targets.outputs.shared) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -343,7 +433,7 @@ jobs:
           [ "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$(git rev-parse HEAD)" ]
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: npm-${{ matrix.target.plugin }}
+          name: npm-${{ matrix.target.name }}
           path: artifacts
       # The artifact must still match the checksum generated next to the build.
       - name: Verify artifact checksums
@@ -361,13 +451,95 @@ jobs:
       # to an existing package, as it did `opencode-review`.
       - name: Publish to npm
         env:
-          PLUGIN: ${{ matrix.target.plugin }}
+          DIR: ${{ matrix.target.dir }}
         run: |
           set -euo pipefail
           set -- artifacts/*.tgz
           [ "$#" -eq 1 ]
-          name=$(node -p "require('./$PLUGIN/package.json').name")
-          version=$(node -p "require('./$PLUGIN/package.json').version")
+          name=$(node -p "require('./$DIR/package.json').name")
+          version=$(node -p "require('./$DIR/package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::notice::$name@$version is already on npm; skipping publish"
+          else
+            npm publish "./$1" --provenance --access public --tag latest
+          fi
+
+  npm-publish:
+    name: publish ${{ matrix.target.name }}
+    needs: [npm-targets, npm-build, npm-publish-shared]
+    if: ${{ !cancelled() && needs.npm-targets.result == 'success' && needs.npm-targets.outputs.plugins != '[]' && needs.npm-build.result == 'success' && (needs.npm-publish-shared.result == 'success' || needs.npm-publish-shared.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.npm-targets.outputs.plugins) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ matrix.target.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Re-verify tag still points at this commit
+        env:
+          TAG: ${{ matrix.target.tag }}
+        run: |
+          set -euo pipefail
+          [ "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$(git rev-parse HEAD)" ]
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-${{ matrix.target.name }}
+          path: artifacts
+      # The artifact must still match the checksum generated next to the build.
+      - name: Verify artifact checksums
+        working-directory: artifacts
+        run: sha256sum --check checksums-sha256.txt
+      # Trusted publishing needs Node >= 22.14 and npm >= 11.5.1. setup-node
+      # installs the latest Node 24, whose bundled npm is new enough. npm
+      # exchanges the job's OIDC token itself.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # The loader was published by the previous job, but the registry can lag
+      # behind it, so retry before failing.
+      - name: Wait for the loader dependency
+        env:
+          DIR: ${{ matrix.target.dir }}
+        run: |
+          set -euo pipefail
+          core="@noppu-labs/opencode-toolkit-core"
+          range=$(node -p "require('./$DIR/package.json').dependencies?.['$core'] ?? ''")
+          if [[ -z "$range" ]]; then
+            echo "::error::$DIR/package.json does not depend on $core"
+            exit 1
+          fi
+          for attempt in $(seq 1 12); do
+            published=$(npm view "$core@$range" version 2>/dev/null || true)
+            if [[ -n "$published" ]]; then
+              echo "$core@$range is published."
+              exit 0
+            fi
+            echo "$core@$range not on npm yet (attempt $attempt/12)."
+            sleep 10
+          done
+          echo "::error::no published $core satisfies $range"
+          exit 1
+      # Publish the verified tarball. The guard lets a re-run skip a version
+      # already on npm. There is no unscoped copy: npm rejects names too close
+      # to an existing package, as it did `opencode-review`.
+      - name: Publish to npm
+        env:
+          DIR: ${{ matrix.target.dir }}
+        run: |
+          set -euo pipefail
+          set -- artifacts/*.tgz
+          [ "$#" -eq 1 ]
+          name=$(node -p "require('./$DIR/package.json').name")
+          version=$(node -p "require('./$DIR/package.json').version")
           if npm view "$name@$version" version >/dev/null 2>&1; then
             echo "::notice::$name@$version is already on npm; skipping publish"
           else
