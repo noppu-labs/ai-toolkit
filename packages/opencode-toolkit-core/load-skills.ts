@@ -134,13 +134,28 @@ function quoteShellToken(token: string): string {
   return `'${token.replaceAll("'", "'\\''")}'`;
 }
 
+function escapeDoubleQuoted(text: string): string {
+  return text.replace(/[\\"$`]/g, "\\$&");
+}
+
+// The first alternative is a token right after an opening double quote: it
+// runs to the closing quote, which stays outside the match.
+const PLUGIN_ROOT_TOKEN: RegExp =
+  /(?<=")\$\{CLAUDE_PLUGIN_ROOT\}(?:(?!\$\{CLAUDE_PLUGIN_ROOT\})[^"\n])*|\$\{CLAUDE_PLUGIN_ROOT\}(?:(?!\$\{CLAUDE_PLUGIN_ROOT\})[^\s`)])*/g;
+
 function rewritePluginRoot(body: string, packageRoot: string): string {
   const quoteable: boolean = NEEDS_QUOTING.test(packageRoot);
 
   return body.replace(
-    /\$\{CLAUDE_PLUGIN_ROOT\}(?:(?!\$\{CLAUDE_PLUGIN_ROOT\})[^\s`)])*/g,
+    PLUGIN_ROOT_TOKEN,
     (match: string, offset: number, whole: string) => {
-      const substituted: string = packageRoot + match.slice(ROOT_TOKEN.length);
+      const suffix: string = match.slice(ROOT_TOKEN.length);
+
+      if (whole[offset - 1] === '"') {
+        return escapeDoubleQuoted(packageRoot) + suffix;
+      }
+
+      const substituted: string = packageRoot + suffix;
       const inLink: boolean = whole[offset - 1] === "(";
 
       return quoteable && !inLink ? quoteShellToken(substituted) : substituted;

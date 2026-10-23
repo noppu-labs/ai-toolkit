@@ -46,6 +46,10 @@ function rewriteInvestigate(body: string): string {
   });
 }
 
+function unescapeDoubleQuoted(text: string): string {
+  return text.replace(/\\([\\"$`])/g, "$1");
+}
+
 function makeSkillMarkdown(name: string, marker: string): string {
   return `---\nname: ${name}\ndescription: Use when ${marker}\n---\n\n# ${marker}\n`;
 }
@@ -216,12 +220,55 @@ describe("rewriteSkillContent", () => {
     );
   });
 
+  it("keeps a double-quoted token valid when the root has whitespace", () => {
+    expect(
+      rewrite(`node "\${CLAUDE_PLUGIN_ROOT}/x/y.mjs" arg`, "/tmp/Jane Doe/pkg"),
+    ).toBe('node "/tmp/Jane Doe/pkg/x/y.mjs" arg');
+  });
+
+  it("backslash-escapes double-quote metacharacters in the root", () => {
+    expect(
+      rewrite(`node "\${CLAUDE_PLUGIN_ROOT}/x/y.mjs" arg`, '/tmp/a"b$c'),
+    ).toBe('node "/tmp/a\\"b\\$c/x/y.mjs" arg');
+  });
+
+  it("substitutes plainly inside double quotes when the root is plain", () => {
+    expect(rewrite(`node "\${CLAUDE_PLUGIN_ROOT}/x/y.mjs" arg`)).toBe(
+      'node "/opt/pkg/x/y.mjs" arg',
+    );
+  });
+
+  it("round-trips any root through a double-quoted token", () => {
+    const rootChar: fc.Arbitrary<string> = fc.constantFrom(
+      ...'abcXYZ019/._- $"`\\'.split(""),
+    );
+    const root: fc.Arbitrary<string> = fc
+      .array(rootChar, { minLength: 1, maxLength: 12 })
+      .map((chars: string[]): string => `/${chars.join("")}`);
+
+    fc.assert(
+      fc.property(root, (packageRoot: string) => {
+        const out: string = rewrite(
+          `node "\${CLAUDE_PLUGIN_ROOT}/x/y.mjs" arg`,
+          packageRoot,
+        );
+        const span: RegExpMatchArray | null = out.match(/^node "(.*)" arg$/);
+
+        expect(span).not.toBeNull();
+        expect(unescapeDoubleQuoted(span?.[1] ?? "")).toBe(
+          `${packageRoot}/x/y.mjs`,
+        );
+      }),
+    );
+  });
+
   it("is idempotent", () => {
     const piece: fc.Arbitrary<string> = fc.oneof(
       fc.string(),
       fc.constantFrom(
         `\${CLAUDE_PLUGIN_ROOT}/a`,
         `(\${CLAUDE_PLUGIN_ROOT}/a)`,
+        `"\${CLAUDE_PLUGIN_ROOT}/a" b`,
         "review:comment-audit",
         "investigate:brief",
         "/investigate:deep",
