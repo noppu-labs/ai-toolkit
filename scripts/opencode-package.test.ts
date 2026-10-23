@@ -193,7 +193,10 @@ describe("npm package contents", () => {
 // flag while 0.1.0 is unpublished, so --offline was not needed; if npm ever
 // contacts the registry for it, add "--offline" to INSTALL_FLAGS.
 describe("installed tarballs", () => {
-  const packageDir: string = process.env.OPENCODE_PACKAGE_DIR ?? "";
+  const packageDir: string = (process.env.OPENCODE_PACKAGE_DIR ?? "").replace(
+    /\/+$/,
+    "",
+  );
   const tarball: string = process.env.OPENCODE_TARBALL ?? "";
   const coreTarball: string = process.env.OPENCODE_CORE_TARBALL ?? "";
   const isShared: boolean = SHARED_PACKAGES.includes(packageDir);
@@ -202,6 +205,15 @@ describe("installed tarballs", () => {
     skip: !tarball,
     timeout: 300_000,
   }, async () => {
+    expect(
+      [...PLUGIN_PACKAGES, ...SHARED_PACKAGES],
+      "OPENCODE_PACKAGE_DIR must be a known package dir",
+    ).toContain(packageDir);
+
+    if (!isShared) {
+      expect(coreTarball, "OPENCODE_CORE_TARBALL required").not.toBe("");
+    }
+
     const project: string = realpathSync(
       mkdtempSync(join(tmpdir(), "opencode-smoke-")),
     );
