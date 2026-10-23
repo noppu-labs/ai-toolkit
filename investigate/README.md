@@ -40,6 +40,9 @@ Update with `opencode plugin update`.
 Invoke a skill with `@investigate-<skill>`, for example `@investigate-deep`, or pick one from
 `/skills`. The ids are `investigate-brief`, `investigate-deep`, and `investigate-spec`.
 
+By default the brief sends the names of up to 12 imported, non-dev packages to context7.com,
+anonymously unless `CONTEXT7_API_KEY` is set; pass `--no-docs` to skip that call.
+
 The brief script needs Node 20 or later and git on `PATH`. Documentation lookups use whatever
 context7 tool the harness provides and fall back to the installed source when there is none.
 
