@@ -165,6 +165,16 @@ that belongs in `asyncio.to_thread` or an async client; and a module-level
 environment read that raises at import time and so leaves the module untestable.
 These are leads, not rules: each finding still ends with its outcome.
 
+When the diff calls a third-party library or works around one, check the call
+against that library's docs. Take the source from the brief's doc sources: one whose
+verdict starts with USE, or the pinned id when it starts with PIN; any other verdict
+means no usable docs. Ask context7's `query-docs` how the documented API does the
+same thing, and report code that works through a roundabout or undocumented path
+where the docs give a direct one, citing the doc. When the brief lists no usable
+source, or context7 is unavailable or a query fails, read the installed package under
+`node_modules/` or `vendor/` instead, or skip the check and list it under
+`## Skipped`. Missing docs never stop the review.
+
 End every finding with its outcome, one of: crash, wrong data shown, wrong data
 persisted, harmless, question. Harmless means no crash, no wrong data shown or
 persisted, and an effect that clears on retry or reload. Question means the diff

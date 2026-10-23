@@ -65,7 +65,7 @@ If the `investigate:brief` skill is available (the `investigate` plugin from thi
 
 1. Run the script in a checkout at `<HEAD>`, since it reads the working tree. When the current checkout is already there and clean (`git rev-parse HEAD` equals `git rev-parse <HEAD>` and `git status --porcelain` prints nothing), run it in place: that checkout has its `node_modules` or `vendor` and its gitnexus registration, so the brief is richer. Otherwise create a worktree named after the PR in a scratch directory outside the repository, `git worktree add <scratch>/pr-review-<number> <HEAD>`, and remove it afterwards with `git worktree remove <scratch>/pr-review-<number>`. A fresh worktree has no `node_modules` or `vendor`, so language-server types and callers degrade, and its directory name does not match the gitnexus registry, so the Tools line reads `gitnexus: unavailable (...)` and graph sections are omitted.
 2. Pick the targets from the changed source files: PHP, or JS/TS including `.mjs`, `.cjs`, `.mts`, `.cts`, and not named `*.test.*`, `*.spec.*`, or `*.stories.*`, which the script leaves out. Take the directory of each, then drop every directory that is an ancestor of another on the list. A dropped directory's own changed source files, and changed source files at the repo root, are targeted one file at a time instead of by directory, so `.` is never a target. Directories with no changed sources (manifests, docs, workflows) get no run.
-3. Run the script once per target, always with `--no-docs`: a review needs no doc verdicts, and the flag keeps package names from being sent to context7.com. A run that still exits non-zero (a deleted directory, no sources) gets no per-directory fallback; item 4 covers its files.
+3. Run the script once per target, with the doc-source gate on, because the correctness stage checks the diff's library calls against the version-checked sources it lists. When context7 cannot be reached, the script marks each lookup `FAILED` and still builds the brief, and the review goes on without docs. A run that still exits non-zero (a deleted directory, no sources) gets no per-directory fallback; item 4 covers its files.
 4. Run the lighter brief's first three commands as well and keep their output, the stat block and the changed-symbol list, next to the script's output. The script details at most 15 symbols per directory, taken in file path order, so the symbol list is what shows the changes it dropped. Run the fourth command for each changed symbol that has no section in the script's output.
 
 When the script's output lists no symbols and `git diff --stat` shows most of the changed lines are in `.py` files, build the brief from the commands below instead, and record under `## Not available in this run` that the structural brief came from the fallback commands.
@@ -233,6 +233,16 @@ compared with a literal; a collection mutated inside the loop that iterates it; 
 that belongs in `asyncio.to_thread` or an async client; and a module-level
 environment read that raises at import time and so leaves the module untestable.
 These are leads, not rules: each finding still ends with its outcome.
+
+When the diff calls a third-party library or works around one, check the call
+against that library's docs. Take the source from the brief's doc sources: one whose
+verdict starts with USE, or the pinned id when it starts with PIN; any other verdict
+means no usable docs. Ask context7's `query-docs` how the documented API does the
+same thing, and report code that works through a roundabout or undocumented path
+where the docs give a direct one, citing the doc. When the brief lists no usable
+source, or context7 is unavailable or a query fails, read the installed package under
+`node_modules/` or `vendor/` instead, or skip the check and list it under
+`## Skipped`. Missing docs never stop the review.
 
 End every finding with its outcome, one of: crash, wrong data shown, wrong data
 persisted, harmless, question. Harmless means no crash, no wrong data shown or
