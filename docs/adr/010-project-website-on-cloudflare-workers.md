@@ -54,8 +54,8 @@ Worker's package list differs, so a new package cannot be left out of the total.
 ### Negative
 
 - The site is no longer purely static files. A broken `site/worker/index.ts` can fail the
-  deploy, so the script stays small and every branch has a unit test. The site workspace has
-  no coverage gate, so that coverage is kept by review, not enforced by CI.
+  deploy, so the script stays small and is held to the same 95% coverage gate as the root
+  scripts, through its own run (`npm run coverage:worker -w site`) in the tests workflow.
 - Hosting now depends on a Cloudflare account and its Git integration, configured outside
   this repository, where GitHub Pages needed only the workflow file.
 - The badge depends on npm's downloads API, which reports with about a day's delay.
