@@ -1,9 +1,13 @@
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin, Skill } from "@opencode/plugin";
 import { describe, expect, it, vi } from "vitest";
 import investigatePlugin from "../investigate/opencode/index.ts";
+import {
+  parseSkillFile,
+  rewriteSkillContent,
+} from "../packages/opencode-toolkit-core/load-skills.ts";
 
 type SkillEditor = Parameters<
   Parameters<Plugin.Context["skill"]["transform"]>[0]
@@ -86,6 +90,24 @@ describe("investigate OpenCode plugin", () => {
     );
 
     expect(brief?.content).toContain(`node "${script}"`);
+  });
+
+  it("keeps the brief command valid for an install path with a space", () => {
+    const body: string = parseSkillFile(
+      readFileSync(
+        join(INVESTIGATE_ROOT, "skills", "brief", "SKILL.md"),
+        "utf8",
+      ),
+    ).body;
+    const rewritten: string = rewriteSkillContent(body, {
+      packageRoot: "/tmp/Jane Doe/investigate",
+      namespace: "investigate",
+      ids: new Set(["brief", "deep", "spec"]),
+    });
+
+    expect(rewritten).toContain(
+      'node "/tmp/Jane Doe/investigate/skills/brief/scripts/brief.mjs"',
+    );
   });
 
   it("keeps every path under the investigate root", async () => {
