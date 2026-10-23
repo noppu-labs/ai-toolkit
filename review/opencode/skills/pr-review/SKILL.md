@@ -22,10 +22,8 @@ One PR number, or several forming a stack in merge order. Everything else is res
 For each PR number:
 
 ```sh
-gh pr view <n> --json number,title,baseRefName,headRefName,headRefOid,url,additions,deletions,changedFiles
+gh pr view <n> --json number,title,baseRefName,headRefName,headRefOid,url
 ```
-
-A large PR is one where `additions + deletions > 1500` or `changedFiles > 30`, counted per PR, so each PR of a stack is sized on its own diff. The size sets how the first correctness pass runs in step 3. The numbers are a starting point to tune, not a measured value.
 
 Each PR is reviewed against its own `baseRefName`, never against the trunk. In a stack, PR two's base is PR one's head branch, so reviewing it against `main` would re-review PR one's diff. PR two's `<BASE>` is PR one's resolved `<HEAD>` rather than a separate fetch of `origin/<baseRefName>`, so the two reviews meet at the same commit.
 
@@ -49,7 +47,15 @@ git fetch origin <baseRefName> <headRefOid>
 
 Every consumer of `<HEAD>` takes a commit-ish, so a bare SHA works in the `<BASE>...<HEAD>` diff, in `git rev-parse`, in `git grep`, and in `git worktree add`. If the branch is force-pushed after the `gh` call, the review stays on the commit `gh` reported.
 
-State the resolved pairs before starting, one line per PR: number, title, base, head, url, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, or `origin/<baseRefName>` still does not resolve, stop and say which number failed. Do not guess a base ref.
+Size each PR once its `<BASE>` and `<HEAD>` resolve, with the bundled script, which reads the same diff the stages review:
+
+```sh
+bash ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/pr-size.sh <BASE> <HEAD>
+```
+
+It prints one line that starts with `lines=<n>` and ends with `correctness-review=1|3|4`, the number of subagents that run the `correctness-review` first pass: 1 up to 200 lines, 3 up to 1200, and 4 over that. The field between them is for Claude Code and is not used here. Take the count as printed and never recount by hand. The script counts added plus deleted lines and leaves out lockfiles, binary files, and the unchanged part of a moved or renamed file, so a file moved without edits counts zero. Each PR of a stack is sized on its own diff, since its `<BASE>` is the head of the PR below it. The number of files plays no part: a change spread over many files but a few hundred lines still fits in one context. The field sets how the first correctness pass runs in step 3. More subagents spread the same angles over more contexts rather than review more deeply, so the cutoffs are low. The thresholds live in the script and are a starting point to tune, not a measured value.
+
+State the resolved pairs before starting, one line per PR: number, title, base, head, url, the script's line, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, `origin/<baseRefName>` still does not resolve, or the size script fails, stop and say which number failed. Do not guess a base ref.
 
 ## Step 2: structural brief
 
@@ -81,7 +87,7 @@ Every brief comes from these commands, so `## Not available in this run` notes t
 
 ## Step 3: run the passes
 
-Per PR: one first correctness pass and three stage subagents, all dispatched as `subagent` tool calls in one message, with `agent: "general"` and without `background`. Calls in one message run in parallel and the turn waits for every result, so no report is lost when the session would otherwise go idle, as a headless `opencode run` does. Each call is `{ agent: "general", description, prompt }`, with the filled template as `prompt`. The first pass is one `correctness-review` subagent, three for a large PR. A three PR stack is three first passes and nine stage subagents when none is large.
+Per PR: one first correctness pass and three stage subagents, all dispatched as `subagent` tool calls in one message, with `agent: "general"` and without `background`. Calls in one message run in parallel and the turn waits for every result, so no report is lost when the session would otherwise go idle, as a headless `opencode run` does. Each call is `{ agent: "general", description, prompt }`, with the filled template as `prompt`. The first pass is as many `correctness-review` subagents as step 1's `correctness-review=` says, from one to four. A stack of three PRs of up to 200 lines each is three first-pass subagents and nine stage subagents.
 
 A subagent cannot spawn subagents, so every prompt below is written for a single agent that loads skills with the `skill` tool and does the rest itself. Hold each report as it returns. Consolidation waits until every dispatched subagent has reported or stopped; a section is never written from what a subagent was expected to find.
 
@@ -89,8 +95,11 @@ A subagent cannot spawn subagents, so every prompt below is written for a single
 
 Dispatch the first-pass template below as a stage subagent, in the same turn as the other stages. Its slots are filled as in the table under the next heading, plus `<ANGLES>`:
 
-- For a PR that is not large by the step 1 rule, one subagent runs with `<ANGLES>` set to `A,B,C,D,E`.
-- For a large PR, three subagents run, with `<ANGLES>` set to `A,B`, `C`, and `D,E`. The orchestrator merges their three reports into one first-pass report by listing each subagent's findings. It combines two entries only when their `path:line` and outcome are identical, and it never judges whether two different claims are the same finding. An angle a subagent lists under `## Skipped` only because its `<ANGLES>` left it out is dropped from the merge when another subagent ran it. When one or two of the three do not report, the angles they owned go under `## Not available in this run`.
+- `correctness-review=1`: one subagent runs with `<ANGLES>` set to `A,B,C,D,E`.
+- `correctness-review=3`: three subagents run, with `<ANGLES>` set to `A,B`, `C`, and `D,E`.
+- `correctness-review=4`: four subagents run, with `<ANGLES>` set to `A`, `B`, `C`, and `D,E`. E gets no subagent of its own, since it finds nothing when the diff touches no forwarding code.
+
+When more than one subagent runs, the orchestrator merges their reports into one first-pass report by listing each subagent's findings. It combines two entries only when their `path:line` and outcome are identical, and it never judges whether two different claims are the same finding. An angle a subagent lists under `## Skipped` only because its `<ANGLES>` left it out is dropped from the merge when another subagent ran it. When some but not all of them do not report, the angles they owned go under `## Not available in this run`.
 
 The merged report is held for step 4 as the first-pass report. When every first-pass subagent stops without a report, the hand review is the only correctness pass, and `## Not available in this run` says so. A first-pass subagent that could not invoke the skill and reviewed by hand says so under `## Skipped`; its findings carry the `hand review only` label, not `correctness-review only`.
 
@@ -280,7 +289,7 @@ Rules for the body:
 - A finding two stages both reported stays under each stage that reported it, suffixed `also reported by <stage>`. The orchestrator has not read the diff and does not decide whether two claims at one line are one finding; `pr-comments` shows it once (step 5).
 - `### Correctness` merges the two passes. A finding both passes reported appears once, labelled `both passes`. A finding one pass reported keeps its label, `correctness-review only` or `hand review only`, so the reader knows how much weight it carries. A first-pass finding from a subagent that reviewed by hand because it could not invoke the skill is labelled `hand review only`. Where the passes disagree, both claims are listed under the finding; the orchestrator does not pick a side, since it has not read the diff.
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
-- `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it, and notes that the structural brief came from the fallback commands. If every first-pass subagent returned no report, the first pass is named here with the reason, and the correctness findings carry the `hand review only` label. When only one or two of a large PR's three first-pass subagents did not report, the angles they owned are named here, and the findings of the subagents that did report keep `correctness-review only`. When every stage had everything, the section says so in one line besides the brief note rather than being dropped.
+- `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it, and notes that the structural brief came from the fallback commands. If every first-pass subagent returned no report, the first pass is named here with the reason, and the correctness findings carry the `hand review only` label. When some but not all of a split first pass's subagents did not report, the angles they owned are named here, and the findings of the subagents that did report keep `correctness-review only`. When every stage had everything, the section says so in one line besides the brief note rather than being dropped.
 - When step 1 fell back to the SHA for a PR, `## Not available in this run` says which trigger applied (`refs/pull/<n>/head` was not fetchable, or the branch moved after the `gh` call) and names the SHA reviewed, so the reader knows the head came from `gh` rather than from the pull ref.
 
 ## Step 5: comments for the author
