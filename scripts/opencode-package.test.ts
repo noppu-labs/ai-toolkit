@@ -28,7 +28,7 @@ const REPO_ROOT: string = resolve(
   "..",
 );
 
-const PLUGIN_PACKAGES: readonly string[] = ["review"];
+const PLUGIN_PACKAGES: readonly string[] = ["review", "investigate"];
 
 const SHARED_PACKAGES: readonly string[] = ["packages/opencode-toolkit-core"];
 
