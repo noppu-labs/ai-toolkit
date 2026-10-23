@@ -1,6 +1,6 @@
 {
   "name": "@noppu-labs/opencode-investigate",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Investigation skills: a deterministic structural brief, a deep two-pass investigation, and claim-by-claim spec review",
   "type": "module",
   "license": "MIT",
@@ -31,7 +31,7 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@noppu-labs/opencode-toolkit-core": "^0.1.0"
+    "@noppu-labs/opencode-toolkit-core": "^0.1.1"
   },
   "publishConfig": {
     "access": "public"

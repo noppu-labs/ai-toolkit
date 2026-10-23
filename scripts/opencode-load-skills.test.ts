@@ -386,6 +386,16 @@ describe("loadSkills", () => {
     );
   });
 
+  it("throws for an unlisted namespace before any skill exists", () => {
+    const root: string = makeRoot();
+
+    mkdirSync(join(root, "skills"));
+
+    expect(() => loadSkills(root, "laravel")).toThrow(
+      /Unknown skill namespace laravel/,
+    );
+  });
+
   it("names the file whose SKILL.md cannot be parsed", () => {
     const root: string = makeRoot();
     const dir: string = join(root, "skills", "broken");

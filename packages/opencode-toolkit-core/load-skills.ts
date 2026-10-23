@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { makeSkillId, NAMESPACES } from "./naming.ts";
+import { makeSkillId, NAMESPACES, requireNamespace } from "./naming.ts";
 
 export type LoadedSkill = {
   id: string;
@@ -216,6 +216,8 @@ export function loadSkills(
   packageRoot: string,
   namespace: string,
 ): LoadedSkill[] {
+  requireNamespace(namespace);
+
   const dirs: string[] = readSkillDirectories(join(packageRoot, "skills"));
   const options: NameRewriteOptions = { namespace, ids: new Set(dirs) };
 

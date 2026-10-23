@@ -1,6 +1,6 @@
 {
   "name": "@noppu-labs/opencode-toolkit-core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared core of the noppu-labs OpenCode plugin packages: the skill loader and the skill naming table",
   "type": "module",
   "license": "MIT",
