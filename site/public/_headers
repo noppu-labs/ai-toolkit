@@ -1,4 +1,4 @@
-# Read by Cloudflare only: keeps PR previews on toolkit.noppu.dev out of
-# search results without touching production. GitHub Pages ignores this file.
+# Cloudflare reads this file. It keeps PR previews on toolkit.noppu.dev out of
+# search results without touching production.
 https://:preview.toolkit.noppu.dev/*
   X-Robots-Tag: noindex

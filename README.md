@@ -4,6 +4,7 @@
 [![fuzz](https://github.com/noppu-labs/ai-toolkit/actions/workflows/fuzz.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/fuzz.yml)
 [![build](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml/badge.svg)](https://github.com/noppu-labs/ai-toolkit/actions/workflows/release.yml)
 [![attestations](https://img.shields.io/badge/releases-attested-blue?logo=github)](https://github.com/noppu-labs/ai-toolkit/attestations)
+[![npm downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Ftoolkit.noppu.com%2Fapi%2Fbadges%2Fnpm-downloads&logo=npm)](https://www.npmjs.com/org/noppu-labs)
 
 Agent skills for deep code review and grounded investigation in PHP, TypeScript, Python and beyond, plus dedicated Laravel and React packs.
 

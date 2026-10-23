@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted. Hosting superseded by [ADR-010](010-project-website-on-cloudflare-workers.md): the site
+now deploys to Cloudflare Workers, not GitHub Pages.
 
 ## Context
 
