@@ -44,7 +44,7 @@ id of a `PIN to` verdict. A chosen package with no id in that list gets a line t
 read its installed source instead. Most first-party investigations need none; then write
 `none handed over`.
 
-Send one message containing two Agent tool uses with identical prompts.
+Send the two passes in one message with identical prompts. In Claude Code that is two Agent tool uses; in OpenCode it is two foreground `subagent` calls with `agent: "general"` and no `background`.
 
 ## Step 3: Synthesise by intersection
 

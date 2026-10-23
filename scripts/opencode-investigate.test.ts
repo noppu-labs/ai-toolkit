@@ -117,4 +117,32 @@ describe("investigate OpenCode plugin", () => {
       expect(skill.path.startsWith(INVESTIGATE_ROOT)).toBe(true);
     }
   });
+
+  it("tells both harnesses how to send the two passes", () => {
+    for (const id of ["deep", "spec"]) {
+      const text: string = readFileSync(
+        join(INVESTIGATE_ROOT, "skills", id, "SKILL.md"),
+        "utf8",
+      );
+      const paragraph: string | undefined = text
+        .split("\n\n")
+        .find((block: string) => block.includes("identical prompts"));
+
+      expect(paragraph).toBeDefined();
+
+      for (const needle of [
+        "Agent tool",
+        "`subagent`",
+        'agent: "general"',
+        "background",
+        "one message",
+      ]) {
+        expect(paragraph).toContain(needle);
+      }
+
+      expect(text).not.toContain(
+        "Send one message containing two Agent tool uses with identical prompts.",
+      );
+    }
+  });
 });
