@@ -2,8 +2,7 @@
   "type": "module",
   "workspaces": [
     "site",
-    "packages/*",
-    "review"
+    "packages/opencode-toolkit-core"
   ],
   "scripts": {
     "coverage-ci": "vitest run --coverage",
