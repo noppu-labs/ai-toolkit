@@ -15,7 +15,7 @@ name: release
 #     GitHub Actions, repository noppu-labs/ai-toolkit, workflow
 #     `release.yml`, no environment.
 #   - Nothing in the repository settings: npm-publish-shared and
-#     npm-publish request `id-token: write` in its own permissions, which OIDC publishing and
+#     npm-publish request `id-token: write` in their own permissions, which OIDC publishing and
 #     npm --provenance need.
 
 on:
@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Detect unreleased plugin versions
+      - name: Detect unreleased plugin and package versions
         id: detect
         run: |
           set -euo pipefail
@@ -345,6 +345,29 @@ jobs:
             exit 1
           fi
           echo "$name@$version on npm matches this tag's tarball."
+      # The loader packed above is what the smoke test installs, so its bytes
+      # must match what npm serves for that version. Otherwise load-skills.ts
+      # changed without a version bump and users would get the older loader.
+      - name: Verify packed loader against npm
+        if: ${{ steps.pack.outputs.core_tarball != '' }}
+        env:
+          CORE_TARBALL: ${{ steps.pack.outputs.core_tarball }}
+        run: |
+          set -euo pipefail
+          core_dir=packages/opencode-toolkit-core
+          name=$(node -p "require('./$core_dir/package.json').name")
+          version=$(node -p "require('./$core_dir/package.json').version")
+          published=$(npm view "$name@$version" dist.integrity 2>/dev/null || true)
+          if [[ -z "$published" ]]; then
+            echo "::notice::$name@$version is not on npm yet."
+            exit 0
+          fi
+          local_integrity="sha512-$(openssl dgst -sha512 -binary "$CORE_TARBALL" | openssl base64 -A)"
+          if [[ "$published" != "$local_integrity" ]]; then
+            echo "::error::$core_dir differs from published $name@$version; bump its version"
+            exit 1
+          fi
+          echo "$name@$version on npm matches the packed loader."
       # A plugin's loader range must resolve to a published version, or to one
       # this run publishes first (the shared jobs).
       - name: Check the loader dependency floor
@@ -377,6 +400,7 @@ jobs:
               echo "$core@$shared_version satisfies $range and is published first in this run."
               exit 0
             fi
+          # The core's directory name equals its unscoped npm name, as the target name does.
           done < <(jq -r --arg n "${core#*/}" '.[] | select(.name == $n) | .tag | sub("^[^@]*@"; "")' <<< "$SHARED")
           echo "::error::no published $core satisfies $range"
           exit 1

@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin, Skill } from "@opencode/plugin";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -280,7 +280,7 @@ describe("installed tarballs", () => {
     );
 
     for (const skill of added) {
-      expect(skill.path.startsWith(installed)).toBe(true);
+      expect(skill.path.startsWith(installed + sep)).toBe(true);
     }
   });
 });
