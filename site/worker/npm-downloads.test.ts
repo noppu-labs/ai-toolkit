@@ -286,6 +286,9 @@ describe("handleBadgeRequest", () => {
     });
     cache.store.delete(BADGE_URL);
 
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation((): void => {});
     const failing = async (): Promise<Response> =>
       new Response("down", { status: 500 });
     const badge: Badge = await readBadge(
@@ -297,9 +300,17 @@ describe("handleBadgeRequest", () => {
     );
 
     expect(badge.message).toBe("7");
+    expect(logged).toHaveBeenCalledWith(
+      "npm downloads badge: npm request failed",
+      expect.objectContaining({ message: expect.stringMatching(/500/) }),
+    );
+    logged.mockRestore();
   });
 
   it("shows an unavailable badge when npm fails and nothing is cached", async () => {
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation((): void => {});
     const failing = async (): Promise<Response> =>
       new Response("down", { status: 500 });
     const response: Response = await handleBadgeRequest(
@@ -318,6 +329,8 @@ describe("handleBadgeRequest", () => {
       color: "lightgrey",
       cacheSeconds: 300,
     });
+    expect(logged).toHaveBeenCalledTimes(1);
+    logged.mockRestore();
   });
 });
 

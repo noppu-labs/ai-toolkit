@@ -171,7 +171,10 @@ export async function handleBadgeRequest(
     );
 
     return makeBadgeResponse(badge, FRESH_SECONDS);
-  } catch {
+  } catch (error) {
+    // Workers Logs keeps this, so a fallback badge can be traced to its cause.
+    console.error("npm downloads badge: npm request failed", error);
+
     const lastGood: Response | undefined = await deps.cache.match(lastGoodKey);
 
     return (
