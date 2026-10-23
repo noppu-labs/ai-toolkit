@@ -1,12 +1,15 @@
-import { dirname, resolve } from "node:path";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin, Skill } from "@opencode/plugin";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { makePlugin } from "../packages/opencode-toolkit-core/index.ts";
 import {
   type LoadedSkill,
   loadSkills,
 } from "../packages/opencode-toolkit-core/load-skills.ts";
-import defaultPlugin, { makePlugin } from "../review/opencode/index.ts";
+import defaultPlugin from "../review/opencode/index.ts";
 
 type SkillEditor = Parameters<
   Parameters<Plugin.Context["skill"]["transform"]>[0]
@@ -19,6 +22,39 @@ const PACKAGE_ROOT: string = resolve(
   "..",
   "review",
 );
+
+function makeReviewPlugin(
+  load?: (root: string, namespace: string) => LoadedSkill[],
+): Plugin.Plugin {
+  return makePlugin(
+    { id: "noppu-labs.review", namespace: "review", packageRoot: PACKAGE_ROOT },
+    load,
+  );
+}
+
+const fixtureRoots: string[] = [];
+
+afterEach((): void => {
+  for (const root of fixtureRoots.splice(0)) {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function makeInvestigateFixture(): string {
+  const root: string = mkdtempSync(join(tmpdir(), "investigate-fixture-"));
+
+  fixtureRoots.push(root);
+
+  for (const name of ["brief", "deep", "spec"]) {
+    mkdirSync(join(root, "skills", name), { recursive: true });
+    writeFileSync(
+      join(root, "skills", name, "SKILL.md"),
+      `---\nname: ${name}\ndescription: The ${name} skill\n---\n\nBody of ${name}.\n`,
+    );
+  }
+
+  return root;
+}
 
 function makeFakeContext(): {
   ctx: Plugin.Context;
@@ -64,7 +100,7 @@ describe("makePlugin", () => {
   it("registers one transform", async () => {
     const { ctx, transform } = makeFakeContext();
 
-    await makePlugin(PACKAGE_ROOT).setup(ctx);
+    await makeReviewPlugin().setup(ctx);
 
     expect(transform).toHaveBeenCalledTimes(1);
   });
@@ -73,7 +109,7 @@ describe("makePlugin", () => {
     const { ctx, run } = makeFakeContext();
     const fake: FakeEditor = makeFakeEditor();
 
-    await makePlugin(PACKAGE_ROOT).setup(ctx);
+    await makeReviewPlugin().setup(ctx);
     run(fake.editor);
 
     const ids: string[] = loadSkills(PACKAGE_ROOT, "review").map(
@@ -95,7 +131,7 @@ describe("makePlugin", () => {
     const { ctx, run } = makeFakeContext();
     const fake: FakeEditor = makeFakeEditor(["pr-review"]);
 
-    await makePlugin(PACKAGE_ROOT).setup(ctx);
+    await makeReviewPlugin().setup(ctx);
     run(fake.editor);
 
     const ids: string[] = fake.added.map(
@@ -115,7 +151,7 @@ describe("makePlugin", () => {
       makeFakeEditor(),
     ];
 
-    await makePlugin(PACKAGE_ROOT, load).setup(ctx);
+    await makeReviewPlugin(load).setup(ctx);
 
     for (const fake of editors) {
       run(fake.editor);
@@ -130,12 +166,51 @@ describe("makePlugin", () => {
     }
   });
 
+  it("uses the plugin id it is given", () => {
+    expect(
+      makePlugin({
+        id: "noppu-labs.other",
+        namespace: "review",
+        packageRoot: PACKAGE_ROOT,
+      }).id,
+    ).toBe("noppu-labs.other");
+  });
+
+  it("registers review and investigate side by side without collisions", async () => {
+    const { ctx, run } = makeFakeContext();
+    const fake: FakeEditor = makeFakeEditor();
+    const investigateRoot: string = makeInvestigateFixture();
+
+    await makeReviewPlugin().setup(ctx);
+    run(fake.editor);
+
+    const reviewCount: number = fake.added.length;
+
+    await makePlugin({
+      id: "noppu-labs.investigate",
+      namespace: "investigate",
+      packageRoot: investigateRoot,
+    }).setup(ctx);
+    run(fake.editor);
+
+    const ids: string[] = fake.added.map(
+      (skill: Skill.Info): string => skill.id,
+    );
+
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toHaveLength(reviewCount + 3);
+  });
+
   it("rejects when the skills directory is missing", async () => {
     const { ctx } = makeFakeContext();
 
-    await expect(makePlugin("/nonexistent").setup(ctx)).rejects.toThrow(
-      "/nonexistent/skills",
-    );
+    await expect(
+      makePlugin({
+        id: "noppu-labs.review",
+        namespace: "review",
+        packageRoot: "/nonexistent",
+      }).setup(ctx),
+    ).rejects.toThrow("/nonexistent/skills");
   });
 });
 
