@@ -45,8 +45,10 @@ weekly scheduled job runs the same suite at 10,000 runs. The deep run costs noth
 PR critical path.
 
 **Coverage** is collected with the v8 provider and gated at 95% for statements, branches,
-functions, and lines across `scripts/`. The threshold is enforced in the tests workflow,
-with a coverage report commented on each PR.
+functions, and lines across `scripts/` and the TypeScript OpenCode packages, and separately
+for the site's Worker (`site/worker/`, see [ADR-010](010-project-website-on-cloudflare-workers.md)).
+Both thresholds are enforced in the tests workflow, and each run comments its own coverage
+report on the PR.
 
 **Site tests** run in real Chromium through Vitest browser mode with Playwright and
 `vitest-browser-react`, not jsdom. Components render in an actual browser, and queries go

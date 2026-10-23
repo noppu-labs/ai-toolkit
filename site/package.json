@@ -11,6 +11,7 @@
     "og-image": "tsx scripts/og-image.ts",
     "pretest": "tsx scripts/build-catalog.ts",
     "test": "vitest run --browser.headless",
+    "coverage:worker": "vitest run --project unit --coverage worker",
     "pretypecheck": "tsx scripts/build-catalog.ts",
     "typecheck": "tsc --noEmit"
   },

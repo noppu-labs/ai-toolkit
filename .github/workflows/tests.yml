@@ -27,6 +27,16 @@ jobs:
         uses: davelosert/vitest-coverage-report-action@8f86cfb56ed6d5613ea8cdc5259f207fbfd51ece # v2.13.1
         with:
           name: "scripts coverage"
+      # The site's Worker serves production traffic, so it has its own report
+      # and the same thresholds; the root run above does not include site/.
+      - name: Worker tests (with coverage)
+        run: npm run coverage:worker -w site
+      - name: Report Worker coverage
+        if: always()
+        uses: davelosert/vitest-coverage-report-action@8f86cfb56ed6d5613ea8cdc5259f207fbfd51ece # v2.13.1
+        with:
+          name: "worker coverage"
+          working-directory: site
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: false

@@ -58,7 +58,8 @@ export function parseSkillFile(markdown: string): ParsedSkill {
     throw new Error("SKILL.md has no frontmatter block");
   }
 
-  const block: string = match[1] ?? "";
+  // Group 1 is not optional, so it is set on every match.
+  const block: string = match[1] as string;
   const name: string = readFrontmatterField(block, "name");
   const description: string = readFrontmatterField(block, "description");
 
@@ -119,11 +120,13 @@ export function rewriteSkillNames(
         1,
         1 + NAMESPACES.length * 2,
       ) as (string | undefined)[];
+      // The pattern is one alternation, so exactly one group is set on a match,
+      // and its pair of groups maps to one namespace.
       const index: number = groups.findIndex(
         (group: string | undefined): boolean => group !== undefined,
       );
-      const namespace: string = NAMESPACES[Math.floor(index / 2)] ?? "";
-      const id: string = makeSkillId(namespace, groups[index] ?? "");
+      const namespace: string = NAMESPACES[Math.floor(index / 2)] as string;
+      const id: string = makeSkillId(namespace, groups[index] as string);
 
       return index % 2 === 0 ? `@${id}` : id;
     },
@@ -205,8 +208,8 @@ function readSkillFile(path: string): ParsedSkill {
   try {
     return parseSkillFile(readFileSync(path, "utf8"));
   } catch (error) {
-    const message: string =
-      error instanceof Error ? error.message : String(error);
+    // readFileSync and parseSkillFile only throw Error instances.
+    const message: string = (error as Error).message;
 
     throw new Error(`${path}: ${message}`, { cause: error });
   }

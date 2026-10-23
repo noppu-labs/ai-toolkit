@@ -47,6 +47,7 @@ Thumbs.db
 
 # Coverage
 /coverage/
+/site/coverage/
 /coverage.cobertura.xml
 
 # Storybook

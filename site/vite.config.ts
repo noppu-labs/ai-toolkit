@@ -14,6 +14,21 @@ export default defineConfig({
     },
   },
   test: {
+    // Measured by `npm run coverage:worker`: the Worker runs in production, so
+    // it is held to the same thresholds as the root scripts.
+    coverage: {
+      provider: "v8",
+      include: ["worker/**/*.ts"],
+      exclude: ["worker/**/*.test.ts"],
+      reporter: ["text", "json-summary", "json"],
+      reportsDirectory: "./coverage",
+      thresholds: {
+        statements: 95,
+        branches: 95,
+        functions: 95,
+        lines: 95,
+      },
+    },
     projects: [
       {
         extends: true,

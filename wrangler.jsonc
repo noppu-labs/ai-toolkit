@@ -13,16 +13,19 @@
     // Serves site/public/404.html instead of an empty 404.
     "not_found_handling": "404-page"
   },
-  // Only /api/* runs the script, so sampling every request stays cheap.
+  // Matches the dashboard's settings, so deploys do not drift from them. Only
+  // /api/* runs the script, so sampling every request stays cheap.
   "observability": {
-    "enabled": true,
     "logs": {
       "enabled": true,
-      "head_sampling_rate": 1
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
     },
     "traces": {
       "enabled": true,
-      "head_sampling_rate": 1
+      "head_sampling_rate": 1,
+      "persist": true
     }
   },
   // wrangler preview refuses to run without this block, even empty.
