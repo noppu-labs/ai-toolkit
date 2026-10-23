@@ -6,14 +6,15 @@ name: release
 # Plugins that also ship an npm package (a package.json next to
 # .claude-plugin/) are then built, tested, and published to npm under their
 # scoped name, through OIDC trusted publishing: no npm token is stored
-# anywhere. Manual dispatch retries the npm publish for an existing
+# anywhere. Packages listed in UNSCOPED_NAMES are also published under their
+# unscoped name, from the same verified tarball. Manual dispatch retries the npm publish for an existing
 # <name>@<version> tag without moving it. Re-runs are idempotent:
 # name@version pairs already on npm are skipped.
 #
 # Prerequisites (configure once each, outside this repo):
-#   - an npm trusted publisher for each npm package (plugin or shared), pointing at
-#     GitHub Actions, repository noppu-labs/ai-toolkit, workflow
-#     `release.yml`, no environment.
+#   - an npm trusted publisher for each npm package (plugin or shared), and for
+#     each unscoped name in UNSCOPED_NAMES, pointing at GitHub Actions,
+#     repository noppu-labs/ai-toolkit, workflow `release.yml`, no environment.
 #   - Nothing in the repository settings: npm-publish-shared and
 #     npm-publish request `id-token: write` in their own permissions, which OIDC publishing and
 #     npm --provenance need.
@@ -33,6 +34,11 @@ on:
 
 permissions:
   contents: read
+
+# Unscoped npm names that mirror a scoped package. `opencode-review` is not
+# here: npm rejected it as too close to an existing package.
+env:
+  UNSCOPED_NAMES: "opencode-toolkit-core opencode-investigate"
 
 concurrency:
   group: release
@@ -470,9 +476,9 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      # Publish the verified tarball. The guard lets a re-run skip a version
-      # already on npm. There is no unscoped copy: npm rejects names too close
-      # to an existing package, as it did `opencode-review`.
+      # Publish the verified tarball, then the same contents under the unscoped
+      # name when UNSCOPED_NAMES lists it. Each name is guarded, so a re-run
+      # skips a version already on npm.
       - name: Publish to npm
         env:
           DIR: ${{ matrix.target.dir }}
@@ -487,6 +493,21 @@ jobs:
           else
             npm publish "./$1" --provenance --access public --tag latest
           fi
+          unscoped="${name#@*/}"
+          if [[ " $UNSCOPED_NAMES " != *" $unscoped "* ]]; then
+            exit 0
+          fi
+          if npm view "$unscoped@$version" version >/dev/null 2>&1; then
+            echo "::notice::$unscoped@$version is already on npm; skipping unscoped publish"
+            exit 0
+          fi
+          rm -rf unscoped && mkdir unscoped
+          tar -xzf "$1" -C unscoped --strip-components=1
+          (
+            cd unscoped
+            npm pkg set name="$unscoped"
+            npm publish . --ignore-scripts --provenance --access public --tag latest
+          )
 
   npm-publish:
     name: publish ${{ matrix.target.name }}
@@ -552,9 +573,9 @@ jobs:
           done
           echo "::error::no published $core satisfies $range"
           exit 1
-      # Publish the verified tarball. The guard lets a re-run skip a version
-      # already on npm. There is no unscoped copy: npm rejects names too close
-      # to an existing package, as it did `opencode-review`.
+      # Publish the verified tarball, then the same contents under the unscoped
+      # name when UNSCOPED_NAMES lists it. Each name is guarded, so a re-run
+      # skips a version already on npm.
       - name: Publish to npm
         env:
           DIR: ${{ matrix.target.dir }}
@@ -569,3 +590,18 @@ jobs:
           else
             npm publish "./$1" --provenance --access public --tag latest
           fi
+          unscoped="${name#@*/}"
+          if [[ " $UNSCOPED_NAMES " != *" $unscoped "* ]]; then
+            exit 0
+          fi
+          if npm view "$unscoped@$version" version >/dev/null 2>&1; then
+            echo "::notice::$unscoped@$version is already on npm; skipping unscoped publish"
+            exit 0
+          fi
+          rm -rf unscoped && mkdir unscoped
+          tar -xzf "$1" -C unscoped --strip-components=1
+          (
+            cd unscoped
+            npm pkg set name="$unscoped"
+            npm publish . --ignore-scripts --provenance --access public --tag latest
+          )
