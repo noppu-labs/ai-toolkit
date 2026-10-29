@@ -4,6 +4,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -85,17 +86,14 @@ function collapseLimit(
   return narrowed ? null : COLLAPSED_ROWS[deviceOf(desktop)];
 }
 
-/** The plugin of `skill` when its group collapses it out of view, for expanding that group. */
+/** Whether `skill`'s group collapses it out of view. */
 function pastTheFold(
   skills: readonly CatalogSkill[],
-  skill: CatalogSkill | null,
+  skill: CatalogSkill,
   collapseAt: number,
-): string[] {
-  if (skill === null) {
-    return [];
-  }
+): boolean {
   const siblings = skills.filter((other) => other.plugin === skill.plugin);
-  return siblings.indexOf(skill) >= collapseAt ? [skill.plugin] : [];
+  return siblings.indexOf(skill) >= collapseAt;
 }
 
 function isShown(groups: readonly SkillGroup[], skill: CatalogSkill): boolean {
@@ -261,12 +259,10 @@ function useStepper(
   return { previous, next };
 }
 
-/** Plugins whose long groups the visitor opened with "Show more" (or Previous and Next). */
-function useExpandedGroups(
-  initial: () => string[],
-): [ReadonlySet<string>, (plugin: string) => void] {
+/** Plugins whose long groups are open: by "Show more", Previous and Next, or a phone deep link past the fold. */
+function useExpandedGroups(): [ReadonlySet<string>, (plugin: string) => void] {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
-    () => new Set(initial()),
+    () => new Set(),
   );
   const expand = useCallback((plugin: string): void => {
     setExpanded((current) => new Set(current).add(plugin));
@@ -301,12 +297,27 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
     closeSheet,
   } = useCatalogState(skills, pluginNames, desktop);
 
+  const [expanded, expand] = useExpandedGroups();
+
   // `pinned` below keeps the selected skill's group open. On phones the
   // selection ends when the sheet closes, so a deep link past the fold also
-  // opens its group, for focus to return to the row.
-  const [expanded, expand] = useExpandedGroups(() =>
-    desktop ? [] : pastTheFold(skills, chosen, COLLAPSED_ROWS.phone),
-  );
+  // opens its group, for focus to return to the row. That is decided once, on
+  // the first render with the browser's values: the hydration render has the
+  // build's, with no skill and no desktop.
+  const deepLinkSeen = useRef(false);
+  useEffect(() => {
+    if (prerendering || deepLinkSeen.current) {
+      return;
+    }
+    deepLinkSeen.current = true;
+    if (
+      !desktop &&
+      chosen !== null &&
+      pastTheFold(skills, chosen, COLLAPSED_ROWS.phone)
+    ) {
+      expand(chosen.plugin);
+    }
+  }, [prerendering, desktop, chosen, skills, expand]);
 
   const queried = useMemo(
     () => skills.filter((skill) => matchesQuery(skill, query)),
