@@ -5,15 +5,15 @@ import { ThemeSync } from "@/components/ThemeSync";
 import { LOGO_FACE_SRC } from "@/lib/assets";
 import { usePreferencesStore } from "@/stores/usePreferencesStore";
 import { resetPreferences } from "@/test/preferences";
-import { SiteHeader } from "./SiteHeader.tsx";
+import { SiteHeader, type SiteHeaderProps } from "./SiteHeader.tsx";
 
 const SECTIONS = ["Install", "Plugins", "Skills", "Security"] as const;
 
-function renderHeader(): void {
+function renderHeader(props: SiteHeaderProps = {}): void {
   render(
     <>
       <ThemeSync />
-      <SiteHeader />
+      <SiteHeader {...props} />
     </>,
   );
 }
@@ -99,6 +99,22 @@ describe("SiteHeader on wide screens", () => {
     );
     expect(hrefs).toEqual(["#install", "#plugins", "#skills", "#security"]);
     await expect.element(menuButton).not.toBeInTheDocument();
+  });
+
+  it("links to the home page's sections from other pages", async () => {
+    renderHeader({ sectionBase: "/" });
+
+    await expect
+      .element(page.getByRole("link", { name: /^AI Toolkit/ }))
+      .toHaveAttribute("href", "/");
+    const nav = page.getByRole("navigation", { name: "Main" });
+    const hrefs = SECTIONS.map((name) =>
+      nav
+        .getByRole("link", { name, exact: true })
+        .element()
+        .getAttribute("href"),
+    );
+    expect(hrefs).toEqual(["/#install", "/#plugins", "/#skills", "/#security"]);
   });
 
   it("names the maker under the brand", async () => {

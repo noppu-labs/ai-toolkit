@@ -22,6 +22,9 @@ const NAV_LINKS = [
   { label: "Security", href: "#security" },
 ] as const;
 
+/** `""` on the home page, whose sections are in the document; `"/"` on the other pages. */
+type SectionBase = "" | "/";
+
 const FOCUS_RING =
   "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
@@ -32,8 +35,10 @@ const GITHUB_BUTTON = cn(
 
 function MobileMenu({
   anchor,
+  sectionBase,
 }: {
   anchor: RefObject<HTMLElement | null>;
+  sectionBase: SectionBase;
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -111,7 +116,7 @@ function MobileMenu({
                         "flex min-h-15 items-center gap-3.5 rounded-base text-foreground no-underline",
                         FOCUS_RING,
                       )}
-                      href={link.href}
+                      href={`${sectionBase}${link.href}`}
                       onClick={closeAfterLink}
                     >
                       <span
@@ -152,7 +157,13 @@ function MobileMenu({
   );
 }
 
-export function SiteHeader(): ReactElement {
+export interface SiteHeaderProps {
+  sectionBase?: SectionBase;
+}
+
+export function SiteHeader({
+  sectionBase = "",
+}: SiteHeaderProps): ReactElement {
   const headerRef = useRef<HTMLElement>(null);
 
   return (
@@ -167,7 +178,7 @@ export function SiteHeader(): ReactElement {
             "flex min-h-11 items-center gap-2.5 rounded-base no-underline md:gap-3",
             FOCUS_RING,
           )}
-          href="#top"
+          href={sectionBase === "" ? "#top" : "/"}
         >
           <Logo
             className="size-10 shadow-shadow-sm md:size-12 md:shadow-shadow-md"
@@ -193,7 +204,7 @@ export function SiteHeader(): ReactElement {
                       "inline-flex min-h-11 items-center rounded-base border-2 border-transparent px-3 py-2 font-base no-underline hover:border-edge hover:bg-secondary-background",
                       FOCUS_RING,
                     )}
-                    href={link.href}
+                    href={`${sectionBase}${link.href}`}
                   >
                     {link.label}
                   </a>
@@ -213,7 +224,7 @@ export function SiteHeader(): ReactElement {
             GitHub
             <ArrowUpRight aria-hidden="true" strokeWidth={2.5} />
           </a>
-          <MobileMenu anchor={headerRef} />
+          <MobileMenu anchor={headerRef} sectionBase={sectionBase} />
         </div>
       </div>
     </header>

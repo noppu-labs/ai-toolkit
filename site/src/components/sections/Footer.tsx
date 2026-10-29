@@ -21,7 +21,7 @@ const FOOTER_LINKS: { label: string; href: string; icon?: ReactElement }[] = [
   },
 ];
 
-/** The skip link's target, `<main id="main">` in `App.tsx`. */
+/** The skip link's target, `<main id="main">` in `PageFrame.tsx`. */
 const MAIN_ID = "main";
 
 function handleBackToTop(): void {
