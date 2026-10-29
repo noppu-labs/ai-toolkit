@@ -26,9 +26,9 @@ export interface PrerenderedPage {
 
 /** `index.html` carries these too; its test keeps the two in step. */
 export const HOME_HEAD: PageHead = {
-  title: "Claude Code skills: code review, Laravel, React · AI Toolkit",
+  title: "Agent skills for Claude Code, OpenCode and more · AI Toolkit",
   description:
-    "Claude Code skills for deep code review and grounded investigation in PHP, TypeScript, Python and beyond, plus dedicated Laravel and React packs.",
+    "Deep code review and grounded investigation in PHP, TypeScript, Python and beyond, plus Laravel and React packs. For Claude Code, OpenCode and other agents.",
   path: "/",
 };
 
@@ -56,8 +56,8 @@ export function pageHead(page: SitePage): PageHead {
   }
   const { skill } = page;
   return {
-    title: `${skill.name} — Claude Code skill · AI Toolkit`,
-    description: `${skill.summary} A Claude Code skill in the ${skill.plugin} plugin of AI Toolkit.`,
+    title: `${skill.name} agent skill · AI Toolkit`,
+    description: `${skill.summary} Part of AI Toolkit's ${skill.plugin} plugin for Claude Code, OpenCode and other agents.`,
     path: skillPath(skill.name),
   };
 }

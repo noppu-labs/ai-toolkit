@@ -55,8 +55,8 @@ describe("pageHead", () => {
   it("names the skill and its plugin on a skill page", () => {
     expect(pageHead({ kind: "skill", skill: dtos, siblings: [enums] })).toEqual(
       {
-        title: "laravel-dtos — Claude Code skill · AI Toolkit",
-        description: `${dtos.summary} A Claude Code skill in the laravel plugin of AI Toolkit.`,
+        title: "laravel-dtos agent skill · AI Toolkit",
+        description: `${dtos.summary} Part of AI Toolkit's laravel plugin for Claude Code, OpenCode and other agents.`,
         path: "/skills/laravel-dtos",
       },
     );
