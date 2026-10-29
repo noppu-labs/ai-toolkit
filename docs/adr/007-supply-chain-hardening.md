@@ -22,9 +22,12 @@ The hardening measures, most of which are visible in `.github/`:
 
 **Workflows.** Every GitHub Action is pinned to a full commit SHA with the version in a
 trailing comment; tags are mutable, SHAs are not. Workflow-level permissions default to
-`contents: read` (or `{}`), and jobs that need more request it explicitly. The release
-job is the only place with write access, scoped as described in
-[ADR-006](006-release-automation-and-provenance.md).
+`contents: read` (or `{}`), and jobs that need more request it explicitly. Write
+permissions go only where they are used: `contents`, `id-token` and `attestations` to the
+release job, scoped as described in [ADR-006](006-release-automation-and-provenance.md),
+and to the one-off backfill-release-assets job; `id-token` to the npm publish jobs;
+`security-events` and `id-token` to the Scorecard job; `pull-requests` to the tests
+workflow, for its coverage comments; and `statuses` to the preview checks job.
 
 **Dependencies.** Dependabot runs weekly for both `github-actions` and `npm` ecosystems.
 Because actions are SHA-pinned, action updates flow through reviewable PRs like any other

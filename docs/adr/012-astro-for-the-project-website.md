@@ -114,7 +114,7 @@ the repo's rules, with no overrides (ADR-004). Two rules miss `.astro` files:
 `useSortedClasses` on the markup's `class` attributes, and `useConst` in the frontmatter.
 `.astro` files therefore hold only layout, data loading through typed helpers and island
 wiring, and markup with Tailwind classes stays in `.tsx`. The flag also brings the SVG and
-HTML files in `site/public/` under Biome's formatter. Its HTML linter reports
+HTML files in `site/public/` under Biome's formatter and linter. Its HTML linter reports
 `noUnknownAttribute` on the font preloads' `crossorigin`, which is valid HTML, and
 `Base.astro` annotates that one site with a reasoned `biome-ignore`, as ADR-004 allows.
 
@@ -153,12 +153,14 @@ address was submitted to Google Search Console, the new one has to be submitted 
 `.github/workflows/preview-checks.yml` tests them on each pull request's Cloudflare preview.
 Workers Builds runs outside GitHub Actions, so no job can wait for it with `needs:`. The
 workflow starts instead when the "Workers Builds: ai-toolkit" check succeeds on a pull
-request (a `check_run` event). It reads the preview's address from the check's
+request (a `check_run` event), and only if that check run comes from the
+`cloudflare-workers-and-pages` GitHub App. It reads the preview's address from the check's
 `details_url`, and waits up to a minute for the preview to serve the pull request's commit,
-which each Workers Builds build names in a `build-commit` meta tag. It then checks that
-`/skills/<name>` answers 200, that the forms with a trailing slash or `.html` redirect there
-with a 307, that an unknown path gets the 404 page, that the preview sends `noindex`, and
-that `/sitemap.xml` redirects to the index with a 301.
+which each Workers Builds build names in a `build-commit` meta tag. Cloudflare documents that
+`drop-trailing-slash` redirects `/skills/<name>/` to `/skills/<name>` with a 307. The checks
+expect that, and also expect `/skills/<name>` to answer 200, `/skills/<name>.html` to
+redirect to it, an unknown path to get the 404 page, the preview to send `noindex`, and
+`/sitemap.xml` to redirect to the index with a 301.
 
 GitHub runs a `check_run` workflow only from the default branch. The workflow therefore
 checks out the default branch's tests, with `persist-credentials: false`, and never the pull
@@ -167,14 +169,16 @@ write commit statuses: the untrusted-checkout pattern that OpenSSF Scorecard's
 Dangerous-Workflow check flags in `pull_request_target` and `workflow_run` workflows
 (ADR-007). Because the run belongs to the default branch, its own check attaches there too,
 so the workflow reports as a commit status, "Cloudflare preview checks", on the pull
-request's head commit. When a newer push has replaced the preview, the run posts success
-only if GitHub's compare API says the preview's commit is ahead of the one it was asked to
-test.
+request's head commit. A failing preview fails only that status: the tests step may fail
+without failing the run, whose own check would otherwise show red on the default branch.
+When a newer push has replaced the preview, the run posts success only if GitHub's compare
+API says the preview's commit is ahead of the one it was asked to test.
 
 ### Dependencies
 
 Each package in the lockfile is part of the supply chain ADR-007 hardens, since CI and
-Cloudflare's build install it. Astro is a deliberate exception to keeping that set small.
+Cloudflare's build install it. Each one Astro adds is one more package that Dependabot
+updates and review must trust, under ADR-007's pinning and Scorecard checks.
 `jq '.packages | length' package-lock.json` goes from 577 before the move to 784 after it.
 That counts every entry in the lockfile's `packages` map: the root, the two workspaces and
 their two links, and every installed package path, nested copies included. By distinct
@@ -207,14 +211,14 @@ the `site` workspace.
   such a change. While `useSortedClasses` and `useConst` miss `.astro` files, Tailwind
   classes and logic stay out of them.
 - Astro's major versions run from 1.0 in August 2022 to 7.0 in June 2026, with 6.0 in March
-  2026. A major upgrade, each one its own pull request, can come more than once a year.
+  2026. Each major upgrade is its own pull request, and 2026 has had two.
 - `.astro` frontmatter and the props passed in `.astro` markup are not type-checked. A wrong
   prop, or a type annotation that does not match its value, still builds, and only a
   built-site test that looks at the rendered page can catch it.
 - Sections with `client:idle` hydrate a moment after load. Until then their buttons do
   nothing, and the install section, plugin cards and skill detail show the default install
-  method rather than a saved one. The built-site tests require every island to hydrate
-  within 2 seconds of the `load` event.
+  method rather than a saved one. The built-site tests require every island to start
+  hydrating within 2 seconds of the `load` event.
 - The built-site tests run the production build. There React reports mismatched text or
   elements during hydration (error #418), but it leaves a mismatched attribute as the build
   wrote it and logs nothing. A hook that gives an attribute another value on the hydration
@@ -230,3 +234,7 @@ the `site` workspace.
 - The preview workflow depends on Workers Builds linking its check to a URL that contains
   `previews/<alias>/builds/`. If Cloudflare changes that link, the workflow fails with an
   error and tests nothing until it is updated.
+- The workflow also finds the check by its name and its GitHub App, and that is the one
+  dependency that fails silently. If the Worker is renamed, or the app's slug is not
+  `cloudflare-workers-and-pages`, every run skips its job without posting a status, so
+  nothing on a pull request says that its preview went untested.
