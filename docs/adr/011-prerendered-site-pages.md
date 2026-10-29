@@ -83,6 +83,13 @@ command, and the box would have repeated them for crawlers.
   before then is lost.
 - Without JavaScript, the search box, plugin chips, theme toggle, phone menu and Copy buttons
   do nothing. Every link, command and description still works.
-- Cloudflare's build command is configured in its dashboard, outside this repository. It
-  must run the site workspace's `npm run build`; a bare `vite build` would deploy the site
-  without its pages.
+- Until the script runs, the page shows the build's defaults. A visitor with a dark OS sees
+  the dark colours, set by the no-flash script, but the light theme's toggle icon. A visitor
+  who chose the skills CLI sees the Claude Code install commands.
+- Catalog rows are links, so Space scrolls the page instead of opening a row. Enter opens
+  it, as before.
+- Cloudflare's build command is configured in its dashboard, outside this repository, and
+  must run the site workspace's `npm run build`. A command that skipped only the prerender
+  step would deploy the site without its skill pages or sitemap, and `robots.txt` would
+  point at a missing file. A bare `vite build` fails outright, because only `prebuild`
+  generates the catalog.
