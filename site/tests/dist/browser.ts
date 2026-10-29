@@ -123,62 +123,93 @@ export async function openPage(
   }
 }
 
-/** How far past the viewport's width an element's right edge may sit: rounding. */
+/** How far past its limit an element's right edge may sit: rounding. */
 const EDGE_TOLERANCE = 1;
 
 /**
- * The elements under `#root` whose right edge lies past the viewport, each as
- * `tag#id.classes (right edge N)`, at most 10.
+ * The elements under `#root` that stick out to the right, each as
+ * `tag#id.classes (right edge N, past M: what ends at M)`, at most 10.
  *
- * The page frame (the outermost element under `#root` whose `overflow-x` is
- * `auto`, `scroll`, `hidden` or `clip`) clips whatever sticks out sideways, so
- * `scrollWidth` never grows and text cut off on a phone goes unnoticed. That
- * clip is a safety net this check must see through, so it exempts nothing.
- * A component's own clip is a decision about its content: an element inside
- * such an ancestor (below the frame) may extend past the viewport, as a
- * scrolling code block or a full-bleed strip does. The ancestor itself is
- * still checked, so a clipping container that is too wide is caught.
+ * An element must end within its nearest ancestor whose `overflow-x` is
+ * `hidden` or `clip`, which would cut it off. Cards clip for their rounded
+ * corners, so text running past a card's edge is caught even when the card
+ * fits the screen. The page frame, the outermost such ancestor under `#root`,
+ * clips whatever sticks out of the page, so `scrollWidth` never grows and text
+ * cut off on a phone goes unnoticed. An element whose only clipping ancestor
+ * is the frame, or that has none, must therefore end within the viewport.
+ *
+ * Two kinds of element are exempt: those inside an ancestor whose `overflow-x`
+ * is `auto` or `scroll`, which the visitor scrolls sideways (the plugin chips
+ * on a phone), and those inside an `aria-hidden="true"` subtree, such as the
+ * decorative band, whose strip runs past the page on purpose. The scrolling
+ * ancestor itself is still checked.
+ *
+ * Throws when the page has no `#root`.
  */
 export function pastTheRightEdge(page: Page): Promise<string[]> {
   return page.evaluate((tolerance: number): string[] => {
-    const limit = document.documentElement.clientWidth + tolerance;
     const root = document.querySelector("#root");
-    const clipsSideways = (element: Element): boolean =>
-      ["auto", "scroll", "hidden", "clip"].includes(
-        getComputedStyle(element).overflowX,
-      );
-    // Every clipping ancestor under `#root` but the outermost, which is the frame.
-    const clippedByComponent = (element: Element): boolean => {
-      const clipping: Element[] = [];
-      for (
-        let node = element.parentElement;
-        node !== null && node !== root;
-        node = node.parentElement
-      ) {
-        if (clipsSideways(node)) {
-          clipping.push(node);
-        }
-      }
-      return clipping.length > 1;
-    };
-    const describe = (element: Element, right: number): string => {
+    if (root === null) {
+      throw new Error(`${location.pathname} has no #root`);
+    }
+    interface Limit {
+      right: number;
+      name: string;
+    }
+    const label = (element: Element): string => {
       const id = element.id === "" ? "" : `#${element.id}`;
       const classes = (element.getAttribute("class") ?? "")
         .split(/\s+/)
         .filter((name) => name !== "")
         .join(".");
-      const label = classes === "" ? "" : `.${classes}`.slice(0, 80);
-      return `${element.localName}${id}${label} (right edge ${Math.round(right)})`;
+      return `${element.localName}${id}${classes === "" ? "" : `.${classes}`.slice(0, 80)}`;
     };
-    return [...document.querySelectorAll("#root *")]
-      .filter(
-        (element) =>
-          element.getBoundingClientRect().right > limit &&
-          !clippedByComponent(element),
-      )
-      .slice(0, 10)
-      .map((element) =>
-        describe(element, element.getBoundingClientRect().right),
+    const overflowX = (element: Element): string =>
+      getComputedStyle(element).overflowX;
+    const ancestors = (element: Element): Element[] => {
+      const found: Element[] = [];
+      for (
+        let node = element.parentElement;
+        node !== null && node !== root;
+        node = node.parentElement
+      ) {
+        found.push(node);
+      }
+      return found;
+    };
+    const viewport: Limit = {
+      right: document.documentElement.clientWidth,
+      name: "the viewport",
+    };
+    // Where the element must end, or `null` when it sits in a sideways scroller.
+    const limitOf = (element: Element): Limit | null => {
+      const above = ancestors(element);
+      if (above.some((node) => ["auto", "scroll"].includes(overflowX(node)))) {
+        return null;
+      }
+      const clipping = above.filter((node) =>
+        ["hidden", "clip"].includes(overflowX(node)),
       );
+      // The outermost is the frame, which stands for the viewport.
+      const nearest = clipping.length > 1 ? clipping[0] : undefined;
+      return nearest === undefined
+        ? viewport
+        : {
+            right: nearest.getBoundingClientRect().right,
+            name: `the right edge of ${label(nearest)}`,
+          };
+    };
+    return [...root.querySelectorAll("*")]
+      .filter((element) => element.closest('[aria-hidden="true"]') === null)
+      .flatMap((element): string[] => {
+        const limit = limitOf(element);
+        const { right } = element.getBoundingClientRect();
+        return limit !== null && right > limit.right + tolerance
+          ? [
+              `${label(element)} (right edge ${Math.round(right)}, past ${Math.round(limit.right)}: ${limit.name})`,
+            ]
+          : [];
+      })
+      .slice(0, 10);
   }, EDGE_TOLERANCE);
 }
