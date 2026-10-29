@@ -81,8 +81,10 @@ command, and the box would have repeated them for crawlers.
   scrolls again once the app is on screen.
 - On load, the app replaces the prerendered markup. Anything typed into the search box
   before then is lost.
-- Without JavaScript, the search box, plugin chips, theme toggle, phone menu and Copy buttons
-  do nothing. Every link, command and description still works.
+- Visitors whose browser runs JavaScript, nearly all of them, keep every control as before.
+  For a visitor or crawler that does not run it, the search box, plugin chips, theme toggle,
+  phone menu and Copy buttons do nothing, though every link, command and description works.
+  Before this decision, such a visitor got an empty page.
 - Until the script runs, the page shows the build's defaults. A visitor with a dark OS sees
   the dark colours, set by the no-flash script, but the light theme's toggle icon. A visitor
   who chose the skills CLI sees the Claude Code install commands.
