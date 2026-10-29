@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  ABOVE_THE_FOLD_FONTS,
-  type EmittedAsset,
-  fontPreloadTags,
-} from "./preload-fonts.ts";
+import { ABOVE_THE_FOLD_FONTS } from "../src/lib/font-files.ts";
+import { type EmittedAsset, fontPreloadTags } from "./preload-fonts.ts";
 
 const ASSETS: EmittedAsset[] = [
   { type: "chunk", fileName: "assets/index-abc.js" },

@@ -6,11 +6,7 @@ import type {
   ResolvedConfig,
   Rolldown,
 } from "vite";
-
-export const ABOVE_THE_FOLD_FONTS: readonly string[] = [
-  "space-grotesk-latin-wght-normal.woff2",
-  "jetbrains-mono-latin-wght-normal.woff2",
-];
+import { ABOVE_THE_FOLD_FONTS } from "../src/lib/font-files.ts";
 
 /** The fields of a Rolldown output file this plugin reads. */
 export type EmittedAsset =

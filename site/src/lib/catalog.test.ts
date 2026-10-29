@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { FIXTURE_CATALOG } from "@/test/fixture-catalog";
 import type { PluginEntry } from "../catalog-types.ts";
 import {
   ALL_PLUGINS,
   type CatalogSkill,
+  catalogCounts,
   catalogSkills,
   findSkill,
   groupSkills,
@@ -53,6 +55,15 @@ describe("catalogSkills", () => {
     expect(skills.find((skill) => skill.name === "a1")?.summary).toBe(
       "About a1.",
     );
+  });
+});
+
+describe("catalogCounts", () => {
+  it("counts the plugins and the skills across them", () => {
+    expect(catalogCounts(FIXTURE_CATALOG)).toEqual({
+      pluginCount: 2,
+      skillCount: 3,
+    });
   });
 });
 

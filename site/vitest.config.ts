@@ -49,6 +49,22 @@ export default defineConfig({
           include: ["src/**/*.test.{ts,tsx}"],
         },
       },
+      {
+        extends: true,
+        test: {
+          // The built site, served by `astro preview` and driven by Playwright:
+          // `npm run build` first.
+          name: "dist",
+          environment: "node",
+          include: ["tests/dist/**/*.test.ts"],
+          globalSetup: ["tests/dist/global-setup.ts"],
+          // Vitest 5.0.5 crashes printing an error thrown by a global setup
+          // loaded from this cache (`code.charCodeAt is not a function`), which
+          // would hide the setup's "run npm run build" message.
+          fsModuleCache: false,
+          testTimeout: 30000,
+        },
+      },
     ],
   },
 });

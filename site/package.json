@@ -14,7 +14,8 @@
     "preview": "astro preview",
     "og-image": "tsx scripts/og-image.ts",
     "pretest": "tsx scripts/build-catalog.ts",
-    "test": "vitest run --browser.headless",
+    "test": "vitest run --browser.headless --project unit --project components",
+    "test:dist": "vitest run --project dist",
     "coverage:worker": "vitest run --project unit --coverage worker",
     "pretypecheck": "tsx scripts/build-catalog.ts",
     "typecheck": "astro sync && tsc --noEmit"

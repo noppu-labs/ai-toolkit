@@ -23,7 +23,7 @@ const NAV_LINKS = [
 ] as const;
 
 /** `""` on the home page, whose sections are in the document; `"/"` on the other pages. */
-type SectionBase = "" | "/";
+export type SectionBase = "" | "/";
 
 const FOCUS_RING =
   "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
