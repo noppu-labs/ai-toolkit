@@ -29,9 +29,11 @@ The site is an Astro 7 project (`astro` ^7.4.4, with `@astrojs/react` and
 page by default, gives each page its own head, has typed content collections and official
 sitemap and RSS packages, and renders React components, so the existing ones carry over.
 
-React Router 8 and TanStack Start would also have kept the components. React Router 8 has no
-official Markdown, sitemap or RSS support, so the site would maintain all three itself.
-TanStack Start had its first stable release on 2026-10-12, 17 days before Astro was chosen.
+React Router 8 and TanStack Start would also have kept the components, and both were
+rejected. React Router 8 has no official Markdown, sitemap or RSS support, so the site would
+maintain all three itself. TanStack Start was too new to build on: its first stable release
+came out on 2026-10-12, the move from its release candidates removed APIs, and its docs say
+nothing about RSS.
 
 ### Pages and islands
 
