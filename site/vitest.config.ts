@@ -65,6 +65,22 @@ export default defineConfig({
           testTimeout: 30000,
         },
       },
+      {
+        extends: true,
+        test: {
+          // Cloudflare's preview of a PR branch, which applies URL rules that
+          // `astro preview` does not. Needs PREVIEW_URL and EXPECTED_COMMIT:
+          // `npm run test:preview`.
+          name: "preview",
+          environment: "node",
+          include: ["tests/preview/**/*.test.ts"],
+          globalSetup: ["tests/preview/global-setup.ts"],
+          // Same Vitest 5.0.5 crash as the `dist` project, which would hide the
+          // setup's message about the missing variable.
+          fsModuleCache: false,
+          testTimeout: 30000,
+        },
+      },
     ],
   },
 });

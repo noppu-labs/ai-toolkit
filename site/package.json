@@ -13,6 +13,7 @@
     "og-image": "tsx scripts/og-image.ts",
     "test": "vitest run --browser.headless --project unit --project components",
     "test:dist": "vitest run --project dist",
+    "test:preview": "vitest run --project preview",
     "coverage:worker": "vitest run --project unit --coverage worker",
     "typecheck": "astro sync && tsc --noEmit"
   },

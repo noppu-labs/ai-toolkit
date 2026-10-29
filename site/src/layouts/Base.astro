@@ -4,6 +4,7 @@ import { SiteFrame } from "../components/SiteFrame.tsx";
 import { Footer } from "../components/sections/Footer.tsx";
 import type { SectionBase } from "../components/sections/SiteHeader.tsx";
 import { HeaderIsland } from "../islands/HeaderIsland.tsx";
+import { buildCommit } from "../lib/build-info.ts";
 import { ABOVE_THE_FOLD_FONT_URLS } from "../lib/fonts.ts";
 import {
   canonicalUrl,
@@ -21,6 +22,9 @@ interface Props {
 
 const { head, sectionBase }: Props = Astro.props;
 const canonical: string = canonicalUrl(head.path);
+// Set only by a Workers Builds build: the preview checks read it to know which
+// commit a preview serves.
+const commit: string | null = buildCommit(process.env);
 ---
 
 <!doctype html>
@@ -57,6 +61,7 @@ const canonical: string = canonicalUrl(head.path);
     <meta property="og:image:alt" content={SOCIAL_CARD.alt}>
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image:alt" content={SOCIAL_CARD.alt}>
+    {commit !== null && <meta name="build-commit" content={commit}>}
     {ABOVE_THE_FOLD_FONT_URLS.map((url) => (
       // biome-ignore lint/suspicious/noUnknownAttribute: an Astro element, not a React one, so it takes HTML's attribute name.
       <link rel="preload" as="font" type="font/woff2" href={url} crossorigin>
