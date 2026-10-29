@@ -56,6 +56,23 @@ function settle(page: Page): Promise<void> {
   });
 }
 
+/** Waits until Astro has handed the catalog island to React, which hydrates it next. */
+async function catalogHydrating(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () =>
+      document.querySelector(
+        'astro-island[component-export="CatalogIsland"]:not([ssr])',
+      ) !== null,
+  );
+}
+
+/** Waits until Astro has handed every island to React. */
+async function hydrated(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => document.querySelector("astro-island[ssr]") === null,
+  );
+}
+
 /** Has `afterEach` close the page. */
 function track(page: OpenedPage): OpenedPage {
   opened.push(page);
@@ -319,6 +336,12 @@ describe("the home page", () => {
     const { page, errors } = await open(`/?skill=${skill}#skills`, PHONE);
     const sheet = page.getByRole("dialog", { name: skill });
     await sheet.waitFor();
+    // The fragment's late scroll leaves focus in the modal sheet.
+    expect(
+      await page.evaluate(
+        () => document.activeElement?.closest("[role=dialog]") != null,
+      ),
+    ).toBe(true);
 
     await page.keyboard.press("Escape");
 
@@ -358,6 +381,56 @@ describe("the home page", () => {
     });
 
     expect(Math.abs(await belowHeader(page, "#skills"))).toBeLessThanOrEqual(2);
+    expect(errors).toEqual([]);
+  });
+
+  it("leaves focus where the visitor put it while a fragment waits to land", async () => {
+    const { page, errors } = track(
+      await openPage("/#skills", {
+        storage: SKILLS_CLI_SAVED,
+        waitForHydration: false,
+      }),
+    );
+    const search = page.getByRole("searchbox", { name: "Filter skills" });
+
+    await catalogHydrating(page);
+    await search.focus();
+    await hydrated(page);
+    await settle(page);
+
+    expect(await isFocused(search)).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  it("leaves the page where the visitor scrolled it while a fragment waits to land", async () => {
+    // The footer's script is held until the visitor has scrolled, so the
+    // fragment's late scroll, which waits for every island, is still pending.
+    const footer = Promise.withResolvers<void>();
+    let held = false;
+    const { page, errors } = track(
+      await openPage("/#skills", {
+        reducedMotion: true,
+        waitForHydration: false,
+        beforeLoad: async (opening: Page): Promise<void> => {
+          await opening.route("**/_astro/Footer.*.js", async (route) => {
+            held = true;
+            await footer.promise;
+            await route.continue();
+          });
+        },
+      }),
+    );
+
+    // The desktop pane appears on the catalog's first render with the
+    // browser's values, so the catalog's effects have run by then.
+    await page.getByRole("complementary", { name: "Skill details" }).waitFor();
+    await page.mouse.wheel(0, -600);
+    footer.resolve();
+    await hydrated(page);
+    await settle(page);
+
+    expect(held).toBe(true);
+    expect(await belowHeader(page, "#skills")).toBeGreaterThan(300);
     expect(errors).toEqual([]);
   });
 

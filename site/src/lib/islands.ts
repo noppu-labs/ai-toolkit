@@ -1,9 +1,14 @@
-/** Astro marks an island `ssr` until its component has hydrated, then removes the attribute. */
+/**
+ * Astro marks an island `ssr` until it hands the component to React, then
+ * removes the attribute. React hydrates the island after that, in a transition.
+ */
 const UNHYDRATED_ISLAND = "astro-island[ssr]";
 
 /**
- * Resolves once every Astro island under `root` has hydrated, or after
- * `timeoutMs`, so an island that never hydrates holds nothing up for long.
+ * Resolves once Astro has started hydrating every island under `root`, or
+ * after `timeoutMs`, so an island that never hydrates holds nothing up for
+ * long. React may still be rendering the islands then: `useScrollToHashOnLoad`
+ * also waits for the main thread to go idle.
  */
 export function whenIslandsHydrated(
   root: ParentNode = document,

@@ -19,6 +19,8 @@ export interface OpenPageOptions {
   storageBlocked?: boolean;
   /** Wait until every island has hydrated (only with JavaScript on). */
   waitForHydration?: boolean;
+  /** Runs on the new page before it loads `path`, for example to route its requests. */
+  beforeLoad?: (page: Page) => Promise<void>;
 }
 
 export interface OpenedPage {
@@ -105,6 +107,7 @@ export async function openPage(
     page.on("pageerror", (error) => {
       errors.push(`pageerror: ${error.message}`);
     });
+    await options.beforeLoad?.(page);
     const response = await page.goto(path);
     if (javaScript && waitForHydration) {
       await page.waitForFunction(
