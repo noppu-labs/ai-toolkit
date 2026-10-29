@@ -567,7 +567,7 @@ describe("SkillsCatalog detail pane (desktop)", () => {
     const copyLink = pane.getByRole("button", { name: "Copy link to deep" });
     await copyLink.click();
     expect(writeText).toHaveBeenLastCalledWith(
-      `${window.location.origin}/?skill=deep#skills`,
+      `${window.location.origin}/skills/deep/`,
     );
     await expect.element(copyLink).toMatchTextContent("Link copied!");
   });

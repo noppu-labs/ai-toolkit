@@ -41,6 +41,16 @@ function requireString(value: unknown, label: string): string {
   return value;
 }
 
+/** The Agent Skills naming rule; the site also writes each skill's page to `skills/<name>/`. */
+function requireSkillName(name: string, relPath: string): string {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
+    throw new Error(
+      `${relPath}: skill name "${name}" must be lowercase letters, digits and single hyphens; it becomes the URL /skills/<name>/`,
+    );
+  }
+  return name;
+}
+
 function countEntries(dir: string): number {
   return existsSync(dir) ? readdirSync(dir).length : 0;
 }
@@ -60,7 +70,10 @@ function readSkills(pluginDir: string, pluginDirName: string): SkillEntry[] {
     }
     const fields = parseFrontmatter(readFileSync(skillPath, "utf8"), relPath);
     return {
-      name: requireString(fields.name, `${relPath}: frontmatter "name"`),
+      name: requireSkillName(
+        requireString(fields.name, `${relPath}: frontmatter "name"`),
+        relPath,
+      ),
       description: requireString(
         fields.description,
         `${relPath}: frontmatter "description"`,
@@ -91,7 +104,7 @@ function readPlugin(rootDir: string, plugin: MarketplacePlugin): PluginEntry {
   };
 }
 
-/** The site links to a skill by its name alone (`?skill=<name>`), so no two plugins may share one. */
+/** The site links to a skill by its name alone (`?skill=<name>`, `/skills/<name>/`), so no two plugins may share one. */
 function requireUniqueSkillNames(plugins: readonly PluginEntry[]): void {
   const owners = new Map<string, string>();
   for (const plugin of plugins) {

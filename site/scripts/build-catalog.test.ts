@@ -76,6 +76,17 @@ describe("buildCatalog", () => {
     expect(() => buildCatalog(root)).toThrow(/alpha/);
   });
 
+  it("throws when a skill name could not be a URL path segment", () => {
+    root = makeRepo();
+    writeFileSync(
+      join(root, "demo", "skills", "alpha", "SKILL.md"),
+      "---\nname: Bad/Name\ndescription: First skill\n---\n",
+    );
+    expect(() => buildCatalog(root)).toThrow(
+      /lowercase letters, digits and single hyphens/,
+    );
+  });
+
   it("throws when a skill directory has no SKILL.md", () => {
     root = makeRepo();
     mkdirSync(join(root, "demo", "skills", "empty"), { recursive: true });

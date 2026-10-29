@@ -3,6 +3,7 @@ import {
   MARKETPLACE_ADD_COMMAND,
   pluginInstallCommand,
 } from "@/lib/install-methods";
+import { HOME_HEAD } from "@/lib/pages";
 import { PLUGIN_ORDER } from "@/lib/plugins";
 import { REPO_URL } from "@/lib/repo";
 import { SITE_URL } from "@/lib/site";
@@ -25,6 +26,13 @@ function meta(key: string): string | null {
 }
 
 describe("index.html sharing tags", () => {
+  it("carries the home page's title and description, which the prerender swaps per page", () => {
+    expect(doc.title).toBe(HOME_HEAD.title);
+    expect(meta("og:title")).toBe(HOME_HEAD.title);
+    expect(meta("description")).toBe(HOME_HEAD.description);
+    expect(meta("og:description")).toBe(HOME_HEAD.description);
+  });
+
   it("points the canonical link and og:url at the site root", () => {
     expect(
       doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
