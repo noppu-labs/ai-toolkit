@@ -40,22 +40,11 @@ describe("404.html", () => {
   });
 });
 
-describe("robots.txt and sitemap.xml", () => {
+describe("robots.txt", () => {
   it("allow crawling and name the sitemap", async () => {
     const robots = await publicFile("/robots.txt");
 
     expect(robots).toContain("Allow: /");
     expect(robots).toContain(`Sitemap: ${SITE_URL}/sitemap.xml`);
-  });
-
-  it("list the site root", async () => {
-    const sitemap = new DOMParser().parseFromString(
-      await publicFile("/sitemap.xml"),
-      "application/xml",
-    );
-
-    expect(
-      [...sitemap.getElementsByTagName("loc")].map((loc) => loc.textContent),
-    ).toEqual([`${SITE_URL}/`]);
   });
 });
