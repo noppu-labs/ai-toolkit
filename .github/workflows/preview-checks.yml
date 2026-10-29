@@ -12,7 +12,8 @@ name: preview-checks
 
 on:
   check_run:
-    types: [completed]
+    # Both, because Workers Builds may create its check run already completed, which GitHub reports as `created`.
+    types: [created, completed]
 
 permissions: {}
 
@@ -77,9 +78,11 @@ jobs:
         id: tests
         env:
           EXPECTED_COMMIT: ${{ github.event.check_run.head_sha }}
+          PREVIEW_COMMIT_FILE: ${{ runner.temp }}/preview-commit
           RESULTS: ${{ runner.temp }}/preview-results.json
-        # The JSON report tells a run that skipped everything (a newer commit
-        # replaced this one) from a run that passed: both exit 0.
+        # The JSON report tells a run that skipped everything (the preview
+        # serves another commit) from a run that passed: both exit 0. The
+        # commit file says which commit the preview served.
         run: npm run test:preview -w site -- --reporter=default --reporter=json --outputFile.json="$RESULTS"
       # Runs on every outcome, so the pending status never outlives the job.
       - name: Post the final status
@@ -88,6 +91,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           JOB_STATUS: ${{ job.status }}
           TESTS_OUTCOME: ${{ steps.tests.outcome }}
+          PREVIEW_COMMIT_FILE: ${{ runner.temp }}/preview-commit
           RESULTS: ${{ runner.temp }}/preview-results.json
         run: |
           state=failure
@@ -99,8 +103,18 @@ jobs:
           elif [ "$TESTS_OUTCOME" = "success" ]; then
             state=success
             description="passed"
+            # Every test skipped: green only when the preview serves a commit
+            # ahead of this one. An older, unrelated or unreadable commit means
+            # this one went untested.
             if jq -e '.numPassedTests == 0 and .numFailedTests == 0 and .numPendingTests > 0' "$RESULTS" > /dev/null 2>&1; then
-              description="skipped: newer commit"
+              state=failure
+              description="preview serves another commit"
+              preview_commit=$(cat "$PREVIEW_COMMIT_FILE" 2> /dev/null || true)
+              if [[ "$preview_commit" =~ ^[0-9a-f]{40}$ ]] \
+                && [ "$(gh api "repos/$GITHUB_REPOSITORY/compare/$HEAD_SHA...$preview_commit" --jq .status 2> /dev/null)" = "ahead" ]; then
+                state=success
+                description="skipped: newer commit"
+              fi
             fi
           fi
           gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \

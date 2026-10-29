@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { TestProject } from "vitest/node";
 import { isCommitSha } from "../../src/lib/build-info.ts";
@@ -6,7 +7,7 @@ declare module "vitest" {
   export interface ProvidedContext {
     /** The preview's origin, with no trailing slash. */
     previewUrl: string;
-    /** Whether the preview serves a commit other than `EXPECTED_COMMIT`: a newer push replaced it. */
+    /** Whether the preview serves a commit other than `EXPECTED_COMMIT`, which the tests then skip. */
     previewIsNewer: boolean;
   }
 }
@@ -68,9 +69,21 @@ async function waitForCommit(
 }
 
 /**
+ * Records the commit the preview serves in the file `PREVIEW_COMMIT_FILE`
+ * names, if set. When every test skips, the workflow checks that this commit
+ * is ahead of `EXPECTED_COMMIT` before it reports the skip as a success.
+ */
+async function recordCommit(commit: string): Promise<void> {
+  const file = process.env.PREVIEW_COMMIT_FILE?.trim();
+  if (file) {
+    await writeFile(file, commit);
+  }
+}
+
+/**
  * Finds out which commit the preview serves, so the tests judge the commit
- * under test: they run when it matches, skip when a newer push has replaced
- * it, and the run fails when the page names no valid commit.
+ * under test: they run when it matches, skip when the preview serves another
+ * commit, and the run fails when the page names no valid commit.
  */
 export default async function setup(project: TestProject): Promise<void> {
   const previewUrl = requiredEnv("PREVIEW_URL").replace(/\/+$/, "");
@@ -95,6 +108,7 @@ export default async function setup(project: TestProject): Promise<void> {
   if (seen.commit === null) {
     throw new Error(`${previewUrl}${seen.problem}`);
   }
+  await recordCommit(seen.commit);
   project.provide("previewUrl", previewUrl);
   project.provide("previewIsNewer", seen.commit !== expected);
 }
