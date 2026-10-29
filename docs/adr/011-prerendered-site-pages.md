@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted. Builds on [ADR-008](008-project-website-on-github-pages.md) (content pipeline) and
+Superseded by [ADR-012](012-astro-for-the-project-website.md), which builds the site with
+Astro and keeps this decision's URLs, skill pages and head values. Builds on
+[ADR-008](008-project-website-on-github-pages.md) (content pipeline) and
 [ADR-010](010-project-website-on-cloudflare-workers.md) (hosting).
 
 ## Context

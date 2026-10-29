@@ -6,7 +6,8 @@ skills in sync with their upstreams.
 
 ## Prerequisites
 
-- Node.js >= 20 (CI runs on 24)
+- Node.js >= 22.23.4, the minimum for the site's Astro build. Node 24 is recommended: CI
+  runs it, and `.node-version` pins it for Cloudflare's builds.
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), needed only for the Python
   checks on the comment-audit helper
 - An authenticated [`gh` CLI](https://cli.github.com/), needed only for the skill sync
