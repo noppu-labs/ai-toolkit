@@ -1,7 +1,7 @@
-import { type CatalogSkill, findSkill } from "./catalog.ts";
+import type { CatalogSkill } from "./catalog.ts";
 import { skillPath } from "./site.ts";
 
-/** What a page's `<head>` names: the prerender writes it over the home page's in `index.html`. */
+/** What a page's `<head>` names; `Base.astro` writes it into the title, description and social tags. */
 export interface PageHead {
   title: string;
   description: string;
@@ -18,13 +18,7 @@ export type SitePage =
       siblings: CatalogSkill[];
     };
 
-/** A page as the build writes it: its head, and the app's markup for its root. */
-export interface PrerenderedPage {
-  head: PageHead;
-  html: string;
-}
-
-/** `index.html` carries these too; its test keeps the two in step. */
+/** The home page's head; `tests/dist/head.test.ts` checks the built page against it. */
 export const HOME_HEAD: PageHead = {
   title: "Agent skills for Claude Code, OpenCode and more · AI Toolkit",
   description:
@@ -32,22 +26,16 @@ export const HOME_HEAD: PageHead = {
   path: "/",
 };
 
-function skillPage(
-  skill: CatalogSkill,
+/** A page per skill, in the given order, each with the plugin's other skills in catalog order. */
+export function skillPages(
   skills: readonly CatalogSkill[],
-): SitePage {
-  return {
-    kind: "skill",
+): { skill: CatalogSkill; siblings: CatalogSkill[] }[] {
+  return skills.map((skill) => ({
     skill,
     siblings: skills.filter(
       (other) => other.plugin === skill.plugin && other !== skill,
     ),
-  };
-}
-
-/** Every page the build writes: the home page, then one per skill in the given order. */
-export function sitePages(skills: readonly CatalogSkill[]): SitePage[] {
-  return [{ kind: "home" }, ...skills.map((skill) => skillPage(skill, skills))];
+  }));
 }
 
 export function pageHead(page: SitePage): PageHead {
@@ -60,23 +48,4 @@ export function pageHead(page: SitePage): PageHead {
     description: `${skill.summary} Part of AI Toolkit's ${skill.plugin} plugin for Claude Code, OpenCode and other agents.`,
     path: skillPath(skill.name),
   };
-}
-
-function decoded(segment: string): string | null {
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return null;
-  }
-}
-
-/** The page at `pathname`; anything that names no skill is the home page, as the dev server serves `index.html` there. */
-export function pageAt(
-  pathname: string,
-  skills: readonly CatalogSkill[],
-): SitePage {
-  const segment = /^\/skills\/([^/]+)\/?$/.exec(pathname)?.[1];
-  const name = segment === undefined ? null : decoded(segment);
-  const skill = name === null ? null : findSkill(skills, name);
-  return skill === null ? { kind: "home" } : skillPage(skill, skills);
 }

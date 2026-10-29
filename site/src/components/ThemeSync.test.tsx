@@ -36,14 +36,14 @@ beforeAll(async () => {
     const meta = document.createElement("meta");
     meta.name = "theme-color";
     meta.media = media;
-    // As index.html's no-flash script leaves them on a dark first paint.
+    // As the no-flash script (`src/scripts/no-flash.js`) leaves them on a dark first paint.
     meta.dataset.color = content;
     meta.content = DARK;
     document.head.append(meta);
 
     return meta;
   });
-  // The module reads the metas when it loads, so it is imported after they exist.
+  // ThemeSync reads the metas inside its effect, so they must exist before it renders; the import follows them.
   ({ ThemeSync } = await import("./ThemeSync.tsx"));
 });
 

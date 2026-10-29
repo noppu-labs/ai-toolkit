@@ -66,10 +66,8 @@ __pycache__/
 
 # Site (generated at build time)
 /site/dist/
-/site/dist-server/
 /site/node_modules/
 /site/.astro/
-/site/src/generated/
 
 # Local planning docs (kept out of the public repo)
 /docs/superpowers/

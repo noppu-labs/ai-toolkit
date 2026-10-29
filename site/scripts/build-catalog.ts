@@ -1,22 +1,13 @@
-#!/usr/bin/env -S npx tsx
 /**
- * Generates site/src/generated/catalog.json from the repository's plugin
- * manifests and SKILL.md frontmatter. Fails loudly on malformed input so a
- * broken skill file breaks CI instead of silently vanishing from the site.
+ * Builds the site's catalog from the repository's plugin manifests and
+ * SKILL.md frontmatter. Fails loudly on malformed input so a broken skill file
+ * breaks CI instead of silently vanishing from the site.
  */
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Catalog, PluginEntry, SkillEntry } from "../src/catalog-types.ts";
 import { REPO_URL } from "../src/lib/repo.ts";
 import { parseFrontmatter } from "./frontmatter.ts";
-import { isMainModule } from "./main-module.ts";
 
 interface MarketplacePlugin {
   name: string;
@@ -41,7 +32,7 @@ function requireString(value: unknown, label: string): string {
   return value;
 }
 
-/** The Agent Skills naming rule; the site also writes each skill's page to `skills/<name>.html`. */
+/** The Agent Skills naming rule; the site writes each skill's page at that path. */
 function requireSkillName(name: string, relPath: string): string {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
     throw new Error(
@@ -136,19 +127,4 @@ export function buildCatalog(rootDir: string): Catalog {
     ),
     plugins,
   };
-}
-
-if (isMainModule(import.meta.url)) {
-  const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-  const catalog = buildCatalog(rootDir);
-  const outDir = join(rootDir, "site", "src", "generated");
-  mkdirSync(outDir, { recursive: true });
-  writeFileSync(
-    join(outDir, "catalog.json"),
-    `${JSON.stringify(catalog, null, 2)}\n`,
-  );
-  const skillCount = catalog.plugins.reduce((n, p) => n + p.skills.length, 0);
-  console.log(
-    `catalog.json written: ${catalog.plugins.length} plugins, ${skillCount} skills`,
-  );
 }

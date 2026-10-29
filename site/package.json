@@ -7,17 +7,13 @@
   },
   "scripts": {
     "browsers:install": "playwright install chromium --with-deps",
-    "prebuild": "tsx scripts/build-catalog.ts",
     "build": "astro build",
-    "predev": "tsx scripts/build-catalog.ts",
     "dev": "astro dev",
     "preview": "astro preview",
     "og-image": "tsx scripts/og-image.ts",
-    "pretest": "tsx scripts/build-catalog.ts",
     "test": "vitest run --browser.headless --project unit --project components",
     "test:dist": "vitest run --project dist",
     "coverage:worker": "vitest run --project unit --coverage worker",
-    "pretypecheck": "tsx scripts/build-catalog.ts",
     "typecheck": "astro sync && tsc --noEmit"
   },
   "dependencies": {

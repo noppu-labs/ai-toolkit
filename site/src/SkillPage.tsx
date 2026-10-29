@@ -1,7 +1,5 @@
 import { ChevronRight } from "lucide-react";
-import { type ReactElement, useId } from "react";
-import { SkillDetailBody } from "./components/catalog/SkillDetail.tsx";
-import { PageFrame } from "./components/PageFrame.tsx";
+import { type ReactElement, type ReactNode, useId } from "react";
 import type { CatalogSkill } from "./lib/catalog.ts";
 import { pluginColorClass } from "./lib/plugins.ts";
 import { skillPath } from "./lib/site.ts";
@@ -15,12 +13,14 @@ interface SkillPageProps {
   skill: CatalogSkill;
   /** The plugin's other skills, in catalog order. */
   siblings: readonly CatalogSkill[];
+  /** What follows the skill's name inside the article: the page's `SkillDetailBody` island. */
+  children: ReactNode;
 }
 
 function Breadcrumb({ skill }: { skill: CatalogSkill }): ReactElement {
   return (
     <nav aria-label="Breadcrumb">
-      <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[13px] font-bold md:text-sm">
+      <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 font-bold font-mono text-[13px] md:text-sm">
         <li>
           <a className={CRUMB_LINK} href="/#skills">
             Skills
@@ -66,10 +66,10 @@ function MoreSkills({
               href={skillPath(skill.name)}
             >
               <span className="flex min-w-0 flex-1 flex-col gap-0.75 md:gap-1">
-                <span className="font-mono text-sm font-bold break-words underline-offset-3 group-hover/row:underline group-hover/row:decoration-2 md:text-[15px]">
+                <span className="break-words font-bold font-mono text-sm underline-offset-3 group-hover/row:underline group-hover/row:decoration-2 md:text-[15px]">
                   {skill.name}
                 </span>
-                <span className="text-sm leading-[1.35] text-muted-foreground md:text-[15px] md:leading-[1.4]">
+                <span className="text-muted-foreground text-sm leading-[1.35] md:text-[15px] md:leading-[1.4]">
                   {skill.summary}
                 </span>
               </span>
@@ -86,40 +86,42 @@ function MoreSkills({
   );
 }
 
-/** A skill's own page: what the catalog's pane shows, at a URL search engines can index. */
-export function SkillPage({ skill, siblings }: SkillPageProps): ReactElement {
+/** A skill's own page, inside the layout's frame: what the catalog's pane shows, at a URL search engines can index. */
+export function SkillPage({
+  skill,
+  siblings,
+  children,
+}: SkillPageProps): ReactElement {
   const titleId = useId();
 
   return (
-    <PageFrame sectionBase="/">
-      <div className="mx-auto max-w-200 px-4 pt-8 pb-14 sm:px-6 md:pt-14 md:pb-22">
-        <Breadcrumb skill={skill} />
-        <article
-          aria-labelledby={titleId}
-          className="mt-4 overflow-hidden rounded-[12px] border-3 border-edge bg-background shadow-shadow-xl md:mt-5"
+    <div className="mx-auto max-w-200 px-4 pt-8 pb-14 sm:px-6 md:pt-14 md:pb-22">
+      <Breadcrumb skill={skill} />
+      <article
+        aria-labelledby={titleId}
+        className="mt-4 overflow-hidden rounded-[12px] border-3 border-edge bg-background shadow-shadow-xl md:mt-5"
+      >
+        <div
+          className={cn(
+            "flex items-center border-border border-b-3 px-4.5 py-3.5 text-black",
+            pluginColorClass(skill.plugin),
+          )}
         >
-          <div
-            className={cn(
-              "flex items-center border-b-3 border-border px-4.5 py-3.5 text-black",
-              pluginColorClass(skill.plugin),
-            )}
+          <span className="font-bold font-mono text-sm">{skill.plugin}</span>
+        </div>
+        <div className="px-5 pt-5 pb-5.5 md:px-7 md:pt-7 md:pb-7">
+          <h1
+            className="break-words font-mono text-[28px] leading-[1.15] md:text-[36px]"
+            id={titleId}
           >
-            <span className="font-mono text-sm font-bold">{skill.plugin}</span>
-          </div>
-          <div className="px-5 pt-5 pb-5.5 md:px-7 md:pt-7 md:pb-7">
-            <h1
-              className="font-mono text-[28px] leading-[1.15] break-words md:text-[36px]"
-              id={titleId}
-            >
-              {skill.name}
-            </h1>
-            <SkillDetailBody skill={skill} surface="pane" />
-          </div>
-        </article>
-        {siblings.length > 0 ? (
-          <MoreSkills plugin={skill.plugin} skills={siblings} />
-        ) : null}
-      </div>
-    </PageFrame>
+            {skill.name}
+          </h1>
+          {children}
+        </div>
+      </article>
+      {siblings.length > 0 ? (
+        <MoreSkills plugin={skill.plugin} skills={siblings} />
+      ) : null}
+    </div>
   );
 }
