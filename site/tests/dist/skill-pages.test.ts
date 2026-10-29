@@ -7,7 +7,12 @@ import { canonicalUrl } from "../../src/lib/head.ts";
 import { pageHead, skillPages } from "../../src/lib/pages.ts";
 import { skillPath } from "../../src/lib/site.ts";
 import { pluginSkillsHref } from "../../src/lib/url-state.ts";
-import { type OpenedPage, type OpenPageOptions, openPage } from "./browser.ts";
+import {
+  type OpenedPage,
+  type OpenPageOptions,
+  openPage,
+  pastTheRightEdge,
+} from "./browser.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const PAGES = skillPages(catalogSkills(buildCatalog(REPO_ROOT).plugins));
@@ -192,6 +197,8 @@ describe("a skill page with scripts", () => {
           document.documentElement.clientWidth,
       ),
     ).toBe(true);
+    // The frame clips sideways overflow instead of scrolling it.
+    expect(await pastTheRightEdge(page)).toEqual([]);
     expect(errors).toEqual([]);
   });
 

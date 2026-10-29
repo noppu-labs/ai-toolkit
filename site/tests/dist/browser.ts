@@ -119,3 +119,63 @@ export async function openPage(
     throw error;
   }
 }
+
+/** How far past the viewport's width an element's right edge may sit: rounding. */
+const EDGE_TOLERANCE = 1;
+
+/**
+ * The elements under `#root` whose right edge lies past the viewport, each as
+ * `tag#id.classes (right edge N)`, at most 10.
+ *
+ * The page frame (the outermost element under `#root` whose `overflow-x` is
+ * `auto`, `scroll`, `hidden` or `clip`) clips whatever sticks out sideways, so
+ * `scrollWidth` never grows and text cut off on a phone goes unnoticed. That
+ * clip is a safety net this check must see through, so it exempts nothing.
+ * A component's own clip is a decision about its content: an element inside
+ * such an ancestor (below the frame) may extend past the viewport, as a
+ * scrolling code block or a full-bleed strip does. The ancestor itself is
+ * still checked, so a clipping container that is too wide is caught.
+ */
+export function pastTheRightEdge(page: Page): Promise<string[]> {
+  return page.evaluate((tolerance: number): string[] => {
+    const limit = document.documentElement.clientWidth + tolerance;
+    const root = document.querySelector("#root");
+    const clipsSideways = (element: Element): boolean =>
+      ["auto", "scroll", "hidden", "clip"].includes(
+        getComputedStyle(element).overflowX,
+      );
+    // Every clipping ancestor under `#root` but the outermost, which is the frame.
+    const clippedByComponent = (element: Element): boolean => {
+      const clipping: Element[] = [];
+      for (
+        let node = element.parentElement;
+        node !== null && node !== root;
+        node = node.parentElement
+      ) {
+        if (clipsSideways(node)) {
+          clipping.push(node);
+        }
+      }
+      return clipping.length > 1;
+    };
+    const describe = (element: Element, right: number): string => {
+      const id = element.id === "" ? "" : `#${element.id}`;
+      const classes = (element.getAttribute("class") ?? "")
+        .split(/\s+/)
+        .filter((name) => name !== "")
+        .join(".");
+      const label = classes === "" ? "" : `.${classes}`.slice(0, 80);
+      return `${element.localName}${id}${label} (right edge ${Math.round(right)})`;
+    };
+    return [...document.querySelectorAll("#root *")]
+      .filter(
+        (element) =>
+          element.getBoundingClientRect().right > limit &&
+          !clippedByComponent(element),
+      )
+      .slice(0, 10)
+      .map((element) =>
+        describe(element, element.getBoundingClientRect().right),
+      );
+  }, EDGE_TOLERANCE);
+}

@@ -10,7 +10,12 @@ import {
 } from "../../src/lib/catalog.ts";
 import { pluginInstallCommand } from "../../src/lib/install-methods.ts";
 import { PLUGIN_ORDER, sortPlugins } from "../../src/lib/plugins.ts";
-import { type OpenedPage, type OpenPageOptions, openPage } from "./browser.ts";
+import {
+  type OpenedPage,
+  type OpenPageOptions,
+  openPage,
+  pastTheRightEdge,
+} from "./browser.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const PLUGINS: PluginEntry[] = buildCatalog(REPO_ROOT).plugins;
@@ -304,6 +309,8 @@ describe("the home page", () => {
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(360);
+    // The frame clips sideways overflow instead of scrolling it.
+    expect(await pastTheRightEdge(page)).toEqual([]);
     expect(errors).toEqual([]);
   });
 
