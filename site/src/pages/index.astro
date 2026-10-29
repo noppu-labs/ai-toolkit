@@ -1,0 +1,8 @@
+---
+import type { Catalog } from "../catalog-types.ts";
+import { loadCatalog } from "../lib/load-catalog.ts";
+
+const catalog: Catalog = await loadCatalog();
+---
+
+<h1>{catalog.plugins.length} plugins</h1>

@@ -87,6 +87,15 @@
       "enabled": false
     }
   },
+  "html": {
+    "experimentalFullSupportEnabled": true,
+    "formatter": {
+      "enabled": true
+    },
+    "linter": {
+      "enabled": true
+    }
+  },
   "assist": {
     "actions": {
       "source": {

@@ -1,87 +1,85 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="canonical" href="https://toolkit.noppu.com/" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://toolkit.noppu.com/">
     <title>Agent skills for Claude Code, OpenCode and more · AI Toolkit</title>
     <meta
       name="description"
       content="Deep code review and grounded investigation in PHP, TypeScript, Python and beyond, plus Laravel and React packs. For Claude Code, OpenCode and other agents."
-    />
+    >
     <meta
       name="theme-color"
       media="(prefers-color-scheme: light)"
       content="#fff4f9"
-    />
+    >
     <meta
       name="theme-color"
       media="(prefers-color-scheme: dark)"
       content="#2a2229"
-    />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Noppu Labs AI Toolkit" />
-    <meta property="og:url" content="https://toolkit.noppu.com/" />
+    >
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Noppu Labs AI Toolkit">
+    <meta property="og:url" content="https://toolkit.noppu.com/">
     <meta
       property="og:title"
       content="Agent skills for Claude Code, OpenCode and more · AI Toolkit"
-    />
+    >
     <meta
       property="og:description"
       content="Deep code review and grounded investigation in PHP, TypeScript, Python and beyond, plus Laravel and React packs. For Claude Code, OpenCode and other agents."
-    />
-    <meta property="og:image" content="https://toolkit.noppu.com/og-image.png" />
-    <meta property="og:image:type" content="image/png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
+    >
+    <meta property="og:image" content="https://toolkit.noppu.com/og-image.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta
       property="og:image:alt"
       content="AI Toolkit by Noppu Labs: agent skills for deep code review and grounded investigation, beside the pink axolotl mascot."
-    />
-    <meta name="twitter:card" content="summary_large_image" />
+    >
+    <meta name="twitter:card" content="summary_large_image">
     <meta
       name="twitter:image:alt"
       content="AI Toolkit by Noppu Labs: agent skills for deep code review and grounded investigation, beside the pink axolotl mascot."
-    />
+    >
     <!-- No-flash theme: the preferences store's key, else (only while that key is unset) the legacy
          next-themes key, else the OS. Both theme-color metas take the chosen colour; each keeps
          its own in data-color for ThemeSync. -->
     <script>
-      (() => {
-        let theme;
-        try {
-          const stored = localStorage.getItem("ai-toolkit-preferences");
-          theme =
-            stored === null
-              ? localStorage.getItem("theme")
-              : JSON.parse(stored)?.state?.theme;
-        } catch {}
-        const dark =
-          theme === "dark" ||
-          (theme !== "light" &&
-            matchMedia("(prefers-color-scheme: dark)").matches);
-        const root = document.documentElement;
-        root.classList.toggle("dark", dark);
-        root.style.colorScheme = dark ? "dark" : "light";
+    (() => {
+      let theme;
+      try {
+        const stored = localStorage.getItem("ai-toolkit-preferences");
+        theme =
+          stored === null
+            ? localStorage.getItem("theme")
+            : JSON.parse(stored)?.state?.theme;
+      } catch {}
+      const dark =
+        theme === "dark" ||
+        (theme !== "light" &&
+          matchMedia("(prefers-color-scheme: dark)").matches);
+      const root = document.documentElement;
+      root.classList.toggle("dark", dark);
+      root.style.colorScheme = dark ? "dark" : "light";
 
-        const metas = [
-          ...document.querySelectorAll('meta[name="theme-color"]'),
-        ];
+      const metas = [...document.querySelectorAll('meta[name="theme-color"]')];
+      for (const meta of metas) {
+        meta.dataset.color = meta.content;
+      }
+      const scheme = dark ? "dark" : "light";
+      const color = metas.find((meta) => meta.media.includes(scheme))?.dataset
+        .color;
+      if (color !== undefined) {
         for (const meta of metas) {
-          meta.dataset.color = meta.content;
+          meta.content = color;
         }
-        const scheme = dark ? "dark" : "light";
-        const color = metas.find((meta) => meta.media.includes(scheme))
-          ?.dataset.color;
-        if (color !== undefined) {
-          for (const meta of metas) {
-            meta.content = color;
-          }
-        }
-      })();
+      }
+    })();
     </script>
   </head>
   <body>
