@@ -1,0 +1,34 @@
+---
+import { SkillDetailBody } from "../../components/catalog/SkillDetail.tsx";
+import Base from "../../layouts/Base.astro";
+import { type CatalogSkill, catalogSkills } from "../../lib/catalog.ts";
+import { loadCatalog } from "../../lib/load-catalog.ts";
+import { pageHead, skillPages } from "../../lib/pages.ts";
+import { SkillPage } from "../../SkillPage.tsx";
+
+interface Props {
+  skill: CatalogSkill;
+  siblings: CatalogSkill[];
+}
+
+interface SkillPath {
+  params: { name: string };
+  props: Props;
+}
+
+export async function getStaticPaths(): Promise<SkillPath[]> {
+  const { plugins } = await loadCatalog();
+  return skillPages(catalogSkills(plugins)).map(({ skill, siblings }) => ({
+    params: { name: skill.name },
+    props: { skill, siblings },
+  }));
+}
+
+const { skill, siblings }: Props = Astro.props;
+---
+
+<Base head={pageHead({ kind: "skill", skill, siblings })} sectionBase="/">
+  <SkillPage skill={skill} siblings={siblings}>
+    <SkillDetailBody client:idle skill={skill} surface="pane" />
+  </SkillPage>
+</Base>
