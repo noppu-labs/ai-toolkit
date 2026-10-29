@@ -1,4 +1,6 @@
-export const prefersReducedMotionQuery: MediaQueryList = window.matchMedia(
+import { matchMediaOrNever } from "./media.ts";
+
+export const prefersReducedMotionQuery: MediaQueryList = matchMediaOrNever(
   "(prefers-reduced-motion: reduce)",
 );
 

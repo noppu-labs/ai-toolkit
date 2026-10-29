@@ -3,11 +3,12 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
-import { noscriptInstall } from "./scripts/noscript-install.ts";
 import { preloadFonts } from "./scripts/preload-fonts.ts";
 
-export default defineConfig({
-  plugins: [react(), tailwindcss(), noscriptInstall(), preloadFonts()],
+export default defineConfig(({ isSsrBuild }) => ({
+  plugins: [react(), tailwindcss(), preloadFonts()],
+  // The SSR bundle only feeds scripts/prerender.ts, so it needs no copy of public/.
+  build: { copyPublicDir: !isSsrBuild },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -53,4 +54,4 @@ export default defineConfig({
       },
     ],
   },
-});
+}));

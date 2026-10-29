@@ -20,6 +20,7 @@ describe the repo as it is, so if the code and an ADR disagree, fix one of them.
 | [008](008-project-website-on-github-pages.md)       | Project website generated from repo content         | Accepted |
 | [009](009-plugin-workflows-beside-skills.md)        | Plugin workflows beside prose skills                | Accepted |
 | [010](010-project-website-on-cloudflare-workers.md) | Project website on Cloudflare Workers               | Accepted |
+| [011](011-prerendered-site-pages.md)                | Prerendered site pages                              | Accepted |
 
 ## How the pieces fit together
 

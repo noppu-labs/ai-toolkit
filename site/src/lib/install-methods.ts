@@ -1,5 +1,3 @@
-// Relative, so vite.config.ts can load it through scripts/noscript-install.ts without the `@` alias.
-
 import type { InstallMethod } from "@/stores/usePreferencesStore";
 import { REPO_SLUG } from "./repo.ts";
 

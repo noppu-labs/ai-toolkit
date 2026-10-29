@@ -129,7 +129,7 @@ describe("App", () => {
       .poll(() => (scrollIntoView.mock.contexts[0] as Element | undefined)?.id)
       .toBe("skills");
     await expect
-      .element(page.getByRole("button", { name: /^deep\b/ }))
+      .element(page.getByRole("link", { name: /^deep\b/ }))
       .toHaveAttribute("aria-current", "true");
     await expect
       .element(page.getByRole("complementary", { name: "Skill details" }))

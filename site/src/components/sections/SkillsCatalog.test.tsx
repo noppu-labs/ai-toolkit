@@ -102,7 +102,36 @@ function chip(name: string): ReturnType<typeof page.getByRole> {
 }
 
 function row(name: string): ReturnType<typeof page.getByRole> {
-  return page.getByRole("button", { name: new RegExp(`^${name}\\b`) });
+  return page.getByRole("link", { name: new RegExp(`^${name}\\b`) });
+}
+
+/**
+ * Records whether the next click had its default prevented by the time it bubbled to
+ * `window` (after React's root listener), then prevents it, so no click navigates the
+ * test page away.
+ */
+function recordClick(): { prevented: () => boolean | null } {
+  let prevented: boolean | null = null;
+  window.addEventListener(
+    "click",
+    (event: MouseEvent): void => {
+      prevented = event.defaultPrevented;
+      event.preventDefault();
+    },
+    { once: true },
+  );
+  return { prevented: (): boolean | null => prevented };
+}
+
+function click(element: Element, init: MouseEventInit = {}): void {
+  element.dispatchEvent(
+    new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      ...init,
+    }),
+  );
 }
 
 function rowNames(): string[] {
@@ -330,6 +359,39 @@ describe("SkillsCatalog list", () => {
       .element(page.getByRole("list", { name: "investigate 3 skills" }))
       .toBeVisible();
   });
+
+  it("links each row to the skill's own page", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+
+    await expect.element(row("deep")).toHaveAttribute("href", "/skills/deep");
+  });
+
+  it("selects a skill in place on a plain click", async () => {
+    await onDesktop();
+    render(<SkillsCatalog plugins={PLUGINS} />);
+    await expect.element(row("deep")).toBeVisible();
+
+    const recorded = recordClick();
+    click(row("deep").element());
+
+    expect(recorded.prevented()).toBe(true);
+    expect(readSearchParam(SKILL_PARAM)).toBe("deep");
+  });
+
+  it.each(["ctrlKey", "metaKey", "shiftKey", "altKey"] as const)(
+    "leaves a %s click to the browser",
+    async (key) => {
+      await onDesktop();
+      render(<SkillsCatalog plugins={PLUGINS} />);
+      await expect.element(row("deep")).toBeVisible();
+
+      const recorded = recordClick();
+      click(row("deep").element(), { [key]: true });
+
+      expect(recorded.prevented()).toBe(false);
+      expect(readSearchParam(SKILL_PARAM)).toBeNull();
+    },
+  );
 
   it("shows each skill's plain summary, falling back to the description's first sentence", async () => {
     await onDesktop();
@@ -567,7 +629,7 @@ describe("SkillsCatalog detail pane (desktop)", () => {
     const copyLink = pane.getByRole("button", { name: "Copy link to deep" });
     await copyLink.click();
     expect(writeText).toHaveBeenLastCalledWith(
-      `${window.location.origin}/?skill=deep#skills`,
+      `${window.location.origin}/skills/deep`,
     );
     await expect.element(copyLink).toMatchTextContent("Link copied!");
   });

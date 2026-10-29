@@ -1,8 +1,10 @@
+import { matchMediaOrNever } from "./media.ts";
+
 export const RESOLVED_THEMES = ["light", "dark"] as const;
 export type ResolvedTheme = (typeof RESOLVED_THEMES)[number];
 
 /** The one OS colour-scheme query the page reads and listens to. */
-export const prefersDarkQuery: MediaQueryList = window.matchMedia(
+export const prefersDarkQuery: MediaQueryList = matchMediaOrNever(
   "(prefers-color-scheme: dark)",
 );
 

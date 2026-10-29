@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { skillShareUrl } from "./site.ts";
+import { skillPath, skillShareUrl } from "./site.ts";
 
-describe("skillShareUrl", () => {
-  it("links to the catalog on this origin with the skill open", () => {
-    expect(skillShareUrl("pr-review")).toBe(
-      `${window.location.origin}/?skill=pr-review#skills`,
-    );
+describe("skillPath", () => {
+  it("is the skill's own page, without a trailing slash", () => {
+    expect(skillPath("pr-review")).toBe("/skills/pr-review");
   });
 
   it("encodes the name", () => {
-    expect(skillShareUrl("a b&c")).toBe(
-      `${window.location.origin}/?skill=a+b%26c#skills`,
+    expect(skillPath("a b&c")).toBe("/skills/a%20b%26c");
+  });
+});
+
+describe("skillShareUrl", () => {
+  it("links to the skill's page on this origin", () => {
+    expect(skillShareUrl("pr-review")).toBe(
+      `${window.location.origin}/skills/pr-review`,
     );
   });
 });

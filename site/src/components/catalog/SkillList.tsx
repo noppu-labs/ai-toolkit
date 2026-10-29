@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import {
+  type MouseEvent,
   type ReactElement,
   useCallback,
   useEffect,
@@ -12,6 +13,7 @@ import {
   type SkillGroup,
 } from "@/lib/catalog";
 import { pluginColorClass } from "@/lib/plugins";
+import { skillPath } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { CountBadge } from "./CountBadge.tsx";
 
@@ -31,24 +33,46 @@ interface SkillRowProps extends Pick<SkillListProps, "paneId" | "onSelect"> {
   current: boolean;
 }
 
+/** A click with a modifier key, or not the main button, which the browser should follow as a link. */
+function opensElsewhere(event: MouseEvent<HTMLAnchorElement>): boolean {
+  return (
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
+}
+
+/**
+ * A real link to the skill's page, so crawlers and modified clicks reach it; a plain
+ * click (or Enter) shows the skill in place instead.
+ */
 function SkillRow({
   skill,
   current,
   paneId,
   onSelect,
 }: SkillRowProps): ReactElement {
-  const handleClick = useCallback((): void => {
-    onSelect(skill);
-  }, [onSelect, skill]);
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>): void => {
+      if (opensElsewhere(event)) {
+        return;
+      }
+      event.preventDefault();
+      onSelect(skill);
+    },
+    [onSelect, skill],
+  );
 
   return (
     <li className="border-edge not-last:border-b-2">
-      <button
+      <a
         aria-controls={paneId ?? undefined}
         aria-current={current ? "true" : undefined}
         aria-haspopup={paneId === null ? "dialog" : undefined}
         className={cn(
-          "group/row flex min-h-16 w-full cursor-pointer items-center gap-2.5 px-3 py-2.5 text-left outline-hidden focus-visible:ring-3 focus-visible:ring-inset md:gap-3.5 md:px-4 md:py-3",
+          "group/row flex min-h-16 w-full cursor-pointer items-center gap-2.5 px-3 py-2.5 text-left no-underline outline-hidden focus-visible:ring-3 focus-visible:ring-inset md:gap-3.5 md:px-4 md:py-3",
           current
             ? cn(
                 "text-black focus-visible:ring-black",
@@ -57,8 +81,8 @@ function SkillRow({
             : "text-foreground hover:bg-secondary-background focus-visible:ring-ring",
         )}
         data-skill-row={skill.name}
+        href={skillPath(skill.name)}
         onClick={handleClick}
-        type="button"
       >
         <span className="flex min-w-0 flex-1 flex-col gap-0.75 md:gap-1">
           <span className="break-words font-bold font-mono text-sm underline-offset-3 group-hover/row:underline group-hover/row:decoration-2 md:text-[15px]">
@@ -73,7 +97,7 @@ function SkillRow({
           className="size-4.5 shrink-0"
           strokeWidth={2.5}
         />
-      </button>
+      </a>
     </li>
   );
 }

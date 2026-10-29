@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { noscriptInstallHtml } from "../scripts/noscript-install.ts";
 import primitives from "./css/tokens/primitives.css?raw";
 
 /** The `--palette-*` custom properties a stylesheet or style attribute declares. */
@@ -32,23 +31,14 @@ describe("colours copied from primitives.css", () => {
     expect(palette.get("--palette-black")).toBe("oklch(0 0 0)");
   });
 
-  it.each([
-    ["404.html", notFoundPage],
-    [
-      "the noscript install box",
-      async (): Promise<string> => noscriptInstallHtml(),
-    ],
-  ])(
-    "%s declares palette tokens with the palette's values, and no other opaque colour",
-    async (_, read) => {
-      const copy = await read();
-      const copied = paletteDeclarations(copy);
+  it("404.html declares palette tokens with the palette's values, and no other opaque colour", async () => {
+    const copy = await notFoundPage();
+    const copied = paletteDeclarations(copy);
 
-      expect(copied.size).toBeGreaterThan(0);
-      for (const [name, value] of copied) {
-        expect(value, name).toBe(palette.get(name));
-      }
-      expect(opaqueColours(copy)).toHaveLength(copied.size);
-    },
-  );
+    expect(copied.size).toBeGreaterThan(0);
+    for (const [name, value] of copied) {
+      expect(value, name).toBe(palette.get(name));
+    }
+    expect(opaqueColours(copy)).toHaveLength(copied.size);
+  });
 });

@@ -2,9 +2,10 @@ import { useEffect } from "react";
 import { goToSection, hashTarget } from "@/lib/scroll";
 
 /**
- * The browser looks for a URL fragment's target (`/#skills`) before React has
- * rendered it, so the page would open at the top. Once the app is on screen,
- * this scrolls to the target instead.
+ * The browser jumps to a URL fragment's target (`/#skills`) in the prerendered
+ * page, which the app then replaces, and the catalog collapsing its long groups
+ * moves what sits below it. Once the app is on screen, this scrolls to the
+ * target again.
  */
 export function useScrollToHashOnLoad(): void {
   useEffect(() => {
