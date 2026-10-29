@@ -23,7 +23,7 @@ const template = readFileSync(TEMPLATE_PATH, "utf8");
 const SKILL_HEAD: PageHead = {
   title: 'a "b" & <c> $&',
   description: "d $& e",
-  path: "/skills/x/",
+  path: "/skills/x",
 };
 
 function count(text: string, needle: string): number {
@@ -50,8 +50,8 @@ describe("pageDocument", () => {
       "<title>a &quot;b&quot; &amp; &lt;c&gt; $&amp;</title>",
     );
     expect(count(document, 'content="d $&amp; e"')).toBe(2);
-    expect(document).toContain(`href="${SITE_URL}/skills/x/"`);
-    expect(document).toContain(`content="${SITE_URL}/skills/x/"`);
+    expect(document).toContain(`href="${SITE_URL}/skills/x"`);
+    expect(document).toContain(`content="${SITE_URL}/skills/x"`);
     expect(document).toContain('<div id="root"><p>hi</p></div>');
     expect(document).toContain(`content="${SITE_URL}/og-image.png"`);
     expect(document).not.toContain(HOME_HEAD.title);
@@ -87,22 +87,26 @@ describe("pageDocument", () => {
 describe("outputFile", () => {
   it.each([
     ["/", "index.html"],
-    ["/skills/x/", "skills/x/index.html"],
+    ["/skills/x", "skills/x.html"],
   ])("writes %s to %s", (path, file) => {
     expect(outputFile(path)).toBe(file);
   });
 
-  it.each(["/skills/x", "skills/x/", "/skills/../x/", "/skills//x/"])(
-    "refuses %s",
-    (path) => {
-      expect(() => outputFile(path)).toThrow(path);
-    },
-  );
+  it.each([
+    "/skills/x/",
+    "skills/x",
+    "/skills/../x",
+    "/skills//x",
+    "/skills/index",
+    "/skills/404",
+  ])("refuses %s", (path) => {
+    expect(() => outputFile(path)).toThrow(path);
+  });
 });
 
 describe("sitemapXml", () => {
   it("lists each page's canonical URL, in order", () => {
-    const xml = sitemapXml(["/", "/skills/x/"]);
+    const xml = sitemapXml(["/", "/skills/x"]);
 
     expect(xml).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?>\n/);
     expect(xml).toContain(
@@ -110,7 +114,7 @@ describe("sitemapXml", () => {
     );
     expect([...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1])).toEqual([
       `${SITE_URL}/`,
-      `${SITE_URL}/skills/x/`,
+      `${SITE_URL}/skills/x`,
     ]);
   });
 });
@@ -128,11 +132,11 @@ describe("writeSite", () => {
     expect(readFileSync(join(dir, "index.html"), "utf8")).toContain(
       '<div id="root"><p>home</p></div>',
     );
-    const skill = readFileSync(join(dir, "skills/x/index.html"), "utf8");
+    const skill = readFileSync(join(dir, "skills/x.html"), "utf8");
     expect(skill).toContain('<div id="root"><p>x</p></div>');
-    expect(skill).toContain(`href="${SITE_URL}/skills/x/"`);
+    expect(skill).toContain(`href="${SITE_URL}/skills/x"`);
     expect(readFileSync(join(dir, "sitemap.xml"), "utf8")).toBe(
-      sitemapXml(["/", "/skills/x/"]),
+      sitemapXml(["/", "/skills/x"]),
     );
   });
 
@@ -145,7 +149,7 @@ describe("writeSite", () => {
       { head: SKILL_HEAD, html: "<p>x</p>" },
     ]);
 
-    const skill = readFileSync(join(dir, "skills/x/index.html"), "utf8");
+    const skill = readFileSync(join(dir, "skills/x.html"), "utf8");
     expect(skill).not.toContain("<p>home</p>");
   });
 });

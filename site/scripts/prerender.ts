@@ -1,7 +1,7 @@
 #!/usr/bin/env -S npx tsx
 /**
  * Writes the prerendered site into `dist/`: the home page over the built `index.html`,
- * `skills/<name>/index.html` per skill, and `sitemap.xml`. Runs after `vite build` and
+ * `skills/<name>.html` per skill, and `sitemap.xml`. Runs after `vite build` and
  * the SSR build of `src/entry-server.tsx` (see the `build` script). Fails loudly when
  * `index.html` no longer carries the home page's head, rather than shipping it on every page.
  */
@@ -88,16 +88,27 @@ export function pageDocument(template: string, page: PrerenderedPage): string {
   );
 }
 
-/** The file under `dist/` that serves a page's path: `/skills/x/` → `skills/x/index.html`. */
+/**
+ * The file under `dist/` that serves a page's path: `/skills/x` → `skills/x.html`. Cloudflare
+ * serves `x.html` at `/skills/x`, and redirects `/skills/x/` and `/skills/x.html` there.
+ * It reads `index.html` as its folder's page and `404.html` as its folder's not-found page,
+ * so a page cannot take either name.
+ */
 export function outputFile(path: string): string {
-  const segments = path.split("/").slice(1, -1);
+  if (path === "/") {
+    return "index.html";
+  }
+  const segments = path.split("/").slice(1);
+  const name = segments.at(-1);
   if (
-    !/^\/(?:[^/]+\/)*$/.test(path) ||
-    segments.some((segment) => segment === "." || segment === "..")
+    !/^(?:\/[^/]+)+$/.test(path) ||
+    segments.some((segment) => segment === "." || segment === "..") ||
+    name === "index" ||
+    name === "404"
   ) {
     throw new Error(`prerender: cannot write a page at "${path}"`);
   }
-  return `${path.slice(1)}index.html`;
+  return `${path.slice(1)}.html`;
 }
 
 export function sitemapXml(paths: readonly string[]): string {

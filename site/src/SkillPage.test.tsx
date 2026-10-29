@@ -74,7 +74,7 @@ describe("SkillPage", () => {
       .toBeVisible();
     await expect
       .element(page.getByRole("link", { name: /^laravel-enums/ }))
-      .toHaveAttribute("href", "/skills/laravel-enums/");
+      .toHaveAttribute("href", "/skills/laravel-enums");
   });
 
   it("lists no other skills when the plugin has none", async () => {

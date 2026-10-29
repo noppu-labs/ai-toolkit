@@ -363,7 +363,7 @@ describe("SkillsCatalog list", () => {
   it("links each row to the skill's own page", async () => {
     render(<SkillsCatalog plugins={PLUGINS} />);
 
-    await expect.element(row("deep")).toHaveAttribute("href", "/skills/deep/");
+    await expect.element(row("deep")).toHaveAttribute("href", "/skills/deep");
   });
 
   it("selects a skill in place on a plain click", async () => {
@@ -629,7 +629,7 @@ describe("SkillsCatalog detail pane (desktop)", () => {
     const copyLink = pane.getByRole("button", { name: "Copy link to deep" });
     await copyLink.click();
     expect(writeText).toHaveBeenLastCalledWith(
-      `${window.location.origin}/skills/deep/`,
+      `${window.location.origin}/skills/deep`,
     );
     await expect.element(copyLink).toMatchTextContent("Link copied!");
   });

@@ -3,7 +3,7 @@ export const SITE_URL = "https://toolkit.noppu.com";
 
 /** A skill's own page, which the build prerenders. */
 export function skillPath(skill: string): string {
-  return `/skills/${encodeURIComponent(skill)}/`;
+  return `/skills/${encodeURIComponent(skill)}`;
 }
 
 /**

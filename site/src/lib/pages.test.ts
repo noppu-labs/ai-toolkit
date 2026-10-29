@@ -57,7 +57,7 @@ describe("pageHead", () => {
       {
         title: "laravel-dtos — Claude Code skill · AI Toolkit",
         description: `${dtos.summary} A Claude Code skill in the laravel plugin of AI Toolkit.`,
-        path: "/skills/laravel-dtos/",
+        path: "/skills/laravel-dtos",
       },
     );
   });

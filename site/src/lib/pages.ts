@@ -5,7 +5,7 @@ import { skillPath } from "./site.ts";
 export interface PageHead {
   title: string;
   description: string;
-  /** Root-relative with a trailing slash: `/` or `/skills/<name>/`. */
+  /** Root-relative, with no trailing slash past the root: `/` or `/skills/<name>`. */
   path: string;
 }
 

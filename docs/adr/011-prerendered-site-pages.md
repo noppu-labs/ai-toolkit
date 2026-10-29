@@ -30,8 +30,10 @@ The build renders every page to HTML in Node. `npm run build -w site` runs three
 `scripts/prerender.ts` writes three things into `dist/`:
 
 - The home page over `index.html`.
-- One `skills/<name>/index.html` per skill. Cloudflare serves it at `/skills/<name>/`, and
-  307-redirects `/skills/<name>` there.
+- One `skills/<name>.html` per skill. Cloudflare serves it at `/skills/<name>`, and
+  307-redirects `/skills/<name>/` and `/skills/<name>.html` there. Page URLs have no
+  trailing slash past the root, because it looks cleaner. Every link, canonical link and
+  sitemap entry uses that one form.
 - `sitemap.xml`, listing every page.
 
 Each page's head comes from swapping the home page's title, description, canonical link and
