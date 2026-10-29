@@ -13,5 +13,6 @@ export function useMediaQuery(query: string): boolean {
     (): boolean => window.matchMedia(query).matches,
     [query],
   );
-  return useSyncExternalStore(subscribe, read);
+  // At build time no query matches, so the prerendered page has the phone layout.
+  return useSyncExternalStore(subscribe, read, (): boolean => false);
 }

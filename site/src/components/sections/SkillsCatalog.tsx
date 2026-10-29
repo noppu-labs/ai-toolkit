@@ -15,6 +15,7 @@ import { SkillPane } from "@/components/catalog/SkillPane";
 import { SkillSheet } from "@/components/catalog/SkillSheet";
 import { Button } from "@/components/ui/button";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { usePrerendering } from "@/hooks/usePrerendering";
 import { useSearchParam } from "@/hooks/useSearchParam";
 import {
   ALL_PLUGINS,
@@ -282,6 +283,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
   const paneId = useId();
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const leftDesktop = useLeftDesktop(desktop);
+  const prerendering = usePrerendering();
 
   const skills = useMemo(() => catalogSkills(plugins), [plugins]);
   const pluginNames = useMemo(
@@ -314,7 +316,11 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
     () => queried.filter((skill) => inPlugin(skill, plugin)),
     [queried, plugin],
   );
-  const collapseAt = collapseLimit(query, plugin, desktop);
+  // The prerendered HTML lists every skill, so crawlers find a link to each
+  // skill's page; visitors' browsers collapse the long groups as before.
+  const collapseAt = prerendering
+    ? null
+    : collapseLimit(query, plugin, desktop);
   const groups = useMemo(
     () =>
       groupSkills(filtered, pluginNames, {

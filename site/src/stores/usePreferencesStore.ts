@@ -165,9 +165,12 @@ export const usePreferencesStore = create<PreferencesStore>()(
 );
 
 // Another tab changed the preferences: adopt them, so this tab neither lags nor
-// overwrites them with its own stale state on its next write.
-window.addEventListener("storage", (event: StorageEvent): void => {
-  if (event.key === PREFERENCES_STORAGE_KEY) {
-    void usePreferencesStore.persist.rehydrate();
-  }
-});
+// overwrites them with its own stale state on its next write. The build's
+// prerender runs in Node, which has no window and no other tabs.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event: StorageEvent): void => {
+    if (event.key === PREFERENCES_STORAGE_KEY) {
+      void usePreferencesStore.persist.rehydrate();
+    }
+  });
+}

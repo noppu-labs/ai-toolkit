@@ -20,6 +20,8 @@ export function useResolvedTheme(): ResolvedTheme {
   const prefersDark = useSyncExternalStore(
     theme === "system" ? subscribeToSystemTheme : subscribeToNothing,
     systemPrefersDark,
+    // The build prerenders the light theme; the no-flash script picks the colours before paint.
+    (): boolean => false,
   );
   if (theme === "system") {
     return prefersDark ? "dark" : "light";
