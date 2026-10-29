@@ -70,8 +70,9 @@ async function waitForCommit(
 
 /**
  * Records the commit the preview serves in the file `PREVIEW_COMMIT_FILE`
- * names, if set. When every test skips, the workflow checks that this commit
- * is ahead of `EXPECTED_COMMIT` before it reports the skip as a success.
+ * names, if set, whether or not it is `EXPECTED_COMMIT`. The workflow reports
+ * a passing run as tested only when this commit is `EXPECTED_COMMIT`, and as a
+ * skip only when it is ahead of it.
  */
 async function recordCommit(commit: string): Promise<void> {
   const file = process.env.PREVIEW_COMMIT_FILE?.trim();

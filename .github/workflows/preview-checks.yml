@@ -31,11 +31,15 @@ jobs:
     permissions:
       contents: read
       statuses: write
+    # Keyed on the commit rather than the pull request, so an older commit's
+    # build that finishes late never cancels the run for the head commit. Runs
+    # for one commit (a check run can arrive as both `created` and `completed`)
+    # wait their turn, so none is cut short to post "cancelled".
     # On the job, so that other apps' check_run events, which the `if` skips,
-    # never cancel a real run.
+    # never hold up a real run.
     concurrency:
-      group: preview-${{ github.event.check_run.pull_requests[0].number }}
-      cancel-in-progress: true
+      group: preview-${{ github.event.check_run.head_sha }}
+      cancel-in-progress: false
     env:
       HEAD_SHA: ${{ github.event.check_run.head_sha }}
       STATUS_CONTEXT: Cloudflare preview checks
@@ -76,14 +80,15 @@ jobs:
             -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
       - name: Test the preview
         id: tests
+        # The job's own check attaches to the default branch, so a failing
+        # preview must not fail the job. The final step reports this step's
+        # outcome on the pull request's commit instead.
+        continue-on-error: true
         env:
           EXPECTED_COMMIT: ${{ github.event.check_run.head_sha }}
+          # Setup writes the commit the preview served here.
           PREVIEW_COMMIT_FILE: ${{ runner.temp }}/preview-commit
-          RESULTS: ${{ runner.temp }}/preview-results.json
-        # The JSON report tells a run that skipped everything (the preview
-        # serves another commit) from a run that passed: both exit 0. The
-        # commit file says which commit the preview served.
-        run: npm run test:preview -w site -- --reporter=default --reporter=json --outputFile.json="$RESULTS"
+        run: npm run test:preview -w site
       # Runs on every outcome, so the pending status never outlives the job.
       - name: Post the final status
         if: always()
@@ -92,7 +97,6 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           TESTS_OUTCOME: ${{ steps.tests.outcome }}
           PREVIEW_COMMIT_FILE: ${{ runner.temp }}/preview-commit
-          RESULTS: ${{ runner.temp }}/preview-results.json
         run: |
           state=failure
           description="failed"
@@ -101,17 +105,17 @@ jobs:
           elif [ "$TESTS_OUTCOME" = "skipped" ]; then
             description="did not run: an earlier step failed"
           elif [ "$TESTS_OUTCOME" = "success" ]; then
-            state=success
-            description="passed"
-            # Every test skipped: green only when the preview serves a commit
-            # ahead of this one. An older, unrelated or unreadable commit means
-            # this one went untested.
-            if jq -e '.numPassedTests == 0 and .numFailedTests == 0 and .numPendingTests > 0' "$RESULTS" > /dev/null 2>&1; then
-              state=failure
-              description="preview serves another commit"
-              preview_commit=$(cat "$PREVIEW_COMMIT_FILE" 2> /dev/null || true)
-              if [[ "$preview_commit" =~ ^[0-9a-f]{40}$ ]] \
-                && [ "$(gh api "repos/$GITHUB_REPOSITORY/compare/$HEAD_SHA...$preview_commit" --jq .status 2> /dev/null)" = "ahead" ]; then
+            # The tests ran only if the preview served this commit, and
+            # skipped if it served another. A skip is green only when that
+            # commit is ahead of this one: an older, unrelated or unreadable
+            # commit means this one went untested.
+            description="preview serves another commit"
+            preview_commit=$(cat "$PREVIEW_COMMIT_FILE" 2> /dev/null || true)
+            if [[ "$preview_commit" =~ ^[0-9a-f]{40}$ ]]; then
+              if [ "$preview_commit" = "$HEAD_SHA" ]; then
+                state=success
+                description="passed"
+              elif [ "$(gh api "repos/$GITHUB_REPOSITORY/compare/$HEAD_SHA...$preview_commit" --jq .status 2> /dev/null)" = "ahead" ]; then
                 state=success
                 description="skipped: newer commit"
               fi
