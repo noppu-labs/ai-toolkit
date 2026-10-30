@@ -41,10 +41,10 @@ describe("404.html", () => {
 });
 
 describe("robots.txt", () => {
-  it("allow crawling and name the sitemap", async () => {
+  it("allows crawling and names the sitemap", async () => {
     const robots = await publicFile("/robots.txt");
 
     expect(robots).toContain("Allow: /");
-    expect(robots).toContain(`Sitemap: ${SITE_URL}/sitemap.xml`);
+    expect(robots).toContain(`Sitemap: ${SITE_URL}/sitemap-index.xml`);
   });
 });

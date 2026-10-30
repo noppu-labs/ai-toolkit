@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import catalog from "../generated/catalog.json";
 import {
   firstSentence,
   SKILL_SUMMARIES,
@@ -7,26 +6,7 @@ import {
   skillSummary,
 } from "./skill-summaries.ts";
 
-const catalogKeys: string[] = catalog.plugins.flatMap((plugin) =>
-  plugin.skills.map((skill) => `${plugin.name}/${skill.name}`),
-);
-
-const summaryKeys: string[] = Object.entries(SKILL_SUMMARIES).flatMap(
-  ([plugin, skills]) =>
-    Object.keys(skills).map((skill) => `${plugin}/${skill}`),
-);
-
 describe("locales/en/skills.json", () => {
-  it("has a summary for every skill in the catalog", () => {
-    const missing = catalogKeys.filter((key) => !summaryKeys.includes(key));
-    expect(missing).toEqual([]);
-  });
-
-  it("has no summary for a skill the catalog does not have", () => {
-    const orphans = summaryKeys.filter((key) => !catalogKeys.includes(key));
-    expect(orphans).toEqual([]);
-  });
-
   it("keeps every summary to one plain, non-empty line", () => {
     const summaries = Object.values(SKILL_SUMMARIES).flatMap((skills) =>
       Object.values(skills),

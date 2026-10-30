@@ -1,4 +1,11 @@
-# Cloudflare reads this file. It keeps PR previews on toolkit.noppu.dev out of
-# search results without touching production.
+# Cloudflare reads this file and applies it to static assets only; /api/* runs
+# the Worker first. The first rule sets security headers on every page, and the
+# second keeps PR previews on toolkit.noppu.dev out of search results without
+# touching production.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  X-Frame-Options: DENY
 https://:preview.toolkit.noppu.dev/*
   X-Robots-Tag: noindex

@@ -6,7 +6,8 @@ skills in sync with their upstreams.
 
 ## Prerequisites
 
-- Node.js >= 20 (CI runs on 24)
+- Node.js >= 22.23.4, the minimum for the site's Astro build. Node 24 is recommended: CI
+  runs it, and `.node-version` pins it for Cloudflare's builds.
 - [uv](https://docs.astral.sh/uv/getting-started/installation/), needed only for the Python
   checks on the comment-audit helper
 - An authenticated [`gh` CLI](https://cli.github.com/), needed only for the skill sync
@@ -46,6 +47,16 @@ PATH="/tmp/py38:$PATH" REVIEW_PYTHON=/tmp/py38/python3 npx vitest run scripts/re
 
 Optionally, `uv run pre-commit install` runs the Python checks on every commit, plus a few
 file-hygiene hooks that CI does not run (`.pre-commit-config.yaml`).
+
+## Running the site
+
+The site in `site/` is an Astro project. Start it with `npm run dev -w site`. Astro 7
+detaches `astro dev` into a background process when it detects an AI coding agent on macOS
+or Linux, or when you pass `--background`. Manage that server with `astro dev stop`,
+`astro dev status` and `astro dev logs`, run through npm as `npm run dev -w site -- stop`
+(likewise `status` and `logs`), and set `ASTRO_DEV_BACKGROUND=0` to keep the server in the
+foreground. See Astro's
+[background mode](https://docs.astro.build/en/guides/build-with-ai/#background-mode).
 
 ## Editing skills
 

@@ -1,5 +1,5 @@
 import { skillSummary } from "@/lib/skill-summaries";
-import type { PluginEntry, SkillEntry } from "../catalog-types.ts";
+import type { Catalog, PluginEntry, SkillEntry } from "../catalog-types.ts";
 import { sortPlugins, sortSkills } from "./plugins.ts";
 
 /** The plugin filter that shows every plugin. */
@@ -20,6 +20,20 @@ export interface SkillGroup {
   skills: CatalogSkill[];
   /** The rows on screen: all of `skills`, or the first few while the group is collapsed. */
   shown: CatalogSkill[];
+}
+
+/** The totals the hero and the band quote. */
+export function catalogCounts(catalog: Catalog): {
+  pluginCount: number;
+  skillCount: number;
+} {
+  return {
+    pluginCount: catalog.plugins.length,
+    skillCount: catalog.plugins.reduce(
+      (total, plugin) => total + plugin.skills.length,
+      0,
+    ),
+  };
 }
 
 export function catalogSkills(plugins: readonly PluginEntry[]): CatalogSkill[] {

@@ -40,6 +40,12 @@ site's Node test project:
 A test reads every `package.json` and `release.yml`'s `UNSCOPED_NAMES` and fails if the
 Worker's package list differs, so a new package cannot be left out of the total.
 
+`assets.html_handling` is `drop-trailing-slash`. Astro writes each skill's page as
+`skills/<name>/index.html` ([ADR-012](012-astro-for-the-project-website.md)), and
+Cloudflare's default, `auto-trailing-slash`, would serve it at `/skills/<name>/`. This
+setting serves it at `/skills/<name>` and redirects `/skills/<name>/` there, so no URL past
+the root ends in a slash.
+
 ## Consequences
 
 ### Positive

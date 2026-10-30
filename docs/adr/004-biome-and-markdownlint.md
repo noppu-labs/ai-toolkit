@@ -21,7 +21,9 @@ defeats the point of having rules.
 Two linters, one config file each:
 
 - **Biome** covers JavaScript, TypeScript, and CSS: linting, formatting, and import
-  organizing in a single tool. CI runs `biome ci .` in the quality workflow.
+  organizing in a single tool. CI runs `biome ci .` in the quality workflow. The `html`
+  block in `biome.json` also turns on Biome's experimental HTML support, so it formats and
+  lints HTML, `.astro` and SVG files (see [ADR-012](012-astro-for-the-project-website.md)).
 - **markdownlint-cli2** covers all Markdown, which in this repo means most of the product.
   Biome's Markdown and YAML formatters, new in 2.6, are switched off in `biome.json`:
   markdownlint owns Markdown, and YAML stays hand-formatted.

@@ -1,16 +1,27 @@
 {
   "extends": "../tsconfig.json",
+  "contentMappers": [
+    { "package": "@astrojs/ts-content-mapper", "extensions": [".astro"] }
+  ],
   "compilerOptions": {
     "target": "es2025",
     "module": "preserve",
     "moduleResolution": "bundler",
     "lib": ["es2025", "dom", "dom.iterable"],
-    "types": ["vite/client", "node"],
+    "types": ["astro/client", "node"],
     "jsx": "react-jsx",
     "resolveJsonModule": true,
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "scripts", "worker", "vite.config.ts"]
+  "include": [
+    "src",
+    "scripts",
+    "worker",
+    "tests",
+    "astro.config.ts",
+    "vitest.config.ts",
+    ".astro/types.d.ts"
+  ]
 }

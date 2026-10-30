@@ -27,7 +27,7 @@ interface PreferencesActions {
 
 type PreferencesStore = PreferencesState & PreferencesActions;
 
-/** Also read by the no-flash script in `index.html`; keep the two in step. */
+/** Also read by the no-flash script in `src/scripts/no-flash.js`; keep the two in step. */
 export const PREFERENCES_STORAGE_KEY = "ai-toolkit-preferences";
 /** The key next-themes stored the theme under; `migrateLegacyTheme` adopts it once, then removes it. */
 export const LEGACY_THEME_KEY = "theme";
@@ -165,8 +165,8 @@ export const usePreferencesStore = create<PreferencesStore>()(
 );
 
 // Another tab changed the preferences: adopt them, so this tab neither lags nor
-// overwrites them with its own stale state on its next write. The build's
-// prerender runs in Node, which has no window and no other tabs.
+// overwrites them with its own stale state on its next write. The build renders
+// this module in Node, which has no window and no other tabs.
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (event: StorageEvent): void => {
     if (event.key === PREFERENCES_STORAGE_KEY) {

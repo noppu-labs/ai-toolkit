@@ -3,12 +3,9 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
-import { preloadFonts } from "./scripts/preload-fonts.ts";
 
-export default defineConfig(({ isSsrBuild }) => ({
-  plugins: [react(), tailwindcss(), preloadFonts()],
-  // The SSR bundle only feeds scripts/prerender.ts, so it needs no copy of public/.
-  build: { copyPublicDir: !isSsrBuild },
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -52,6 +49,38 @@ export default defineConfig(({ isSsrBuild }) => ({
           include: ["src/**/*.test.{ts,tsx}"],
         },
       },
+      {
+        extends: true,
+        test: {
+          // The built site, served by `astro preview` and driven by Playwright:
+          // `npm run build` first.
+          name: "dist",
+          environment: "node",
+          include: ["tests/dist/**/*.test.ts"],
+          globalSetup: ["tests/dist/global-setup.ts"],
+          // Vitest 5.0.5 crashes printing an error thrown by a global setup
+          // loaded from this cache (`code.charCodeAt is not a function`), which
+          // would hide the setup's "run npm run build" message.
+          fsModuleCache: false,
+          testTimeout: 30000,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          // Cloudflare's preview of a PR branch, which applies URL rules that
+          // `astro preview` does not. Needs PREVIEW_URL and EXPECTED_COMMIT:
+          // `npm run test:preview`.
+          name: "preview",
+          environment: "node",
+          include: ["tests/preview/**/*.test.ts"],
+          globalSetup: ["tests/preview/global-setup.ts"],
+          // Same Vitest 5.0.5 crash as the `dist` project, which would hide the
+          // setup's message about the missing variable.
+          fsModuleCache: false,
+          testTimeout: 30000,
+        },
+      },
     ],
   },
-}));
+});

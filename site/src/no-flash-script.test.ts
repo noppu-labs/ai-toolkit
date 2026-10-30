@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { THEME_COLORS } from "@/lib/head";
 import {
   LEGACY_THEME_KEY,
   PREFERENCES_STORAGE_KEY,
@@ -6,7 +7,7 @@ import {
   usePreferencesStore,
 } from "@/stores/usePreferencesStore";
 import { resetPreferences } from "@/test/preferences";
-import indexHtml from "../index.html?raw";
+import SCRIPT from "./scripts/no-flash.js?raw";
 
 interface Setup {
   /** localStorage contents; `null` makes every read throw, as with storage blocked. */
@@ -21,16 +22,15 @@ interface Applied {
   themeColors: { content: string; color: string | undefined }[];
 }
 
-const SCRIPT: string = (() => {
-  const doc = new DOMParser().parseFromString(indexHtml, "text/html");
-  const inline = [...doc.querySelectorAll("script:not([src])")];
-  if (inline.length !== 1 || inline[0] === undefined) {
-    throw new Error(
-      `Expected one inline script in index.html, found ${inline.length}`,
-    );
-  }
-  return inline[0].textContent;
-})();
+/** The head the script meets while the page parses: the layout's two theme-color metas. */
+const PAGE = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="${THEME_COLORS.light}">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="${THEME_COLORS.dark}">
+  </head>
+  <body></body>
+</html>`;
 
 function runScript({ storage, osDark }: Setup): Applied {
   const localStorage = {
@@ -44,8 +44,8 @@ function runScript({ storage, osDark }: Setup): Applied {
   const matchMedia = (query: string): { matches: boolean } => ({
     matches: query === "(prefers-color-scheme: dark)" && osDark,
   });
-  // A fresh, inert copy of index.html, so the script meets the real metas.
-  const doc = new DOMParser().parseFromString(indexHtml, "text/html");
+  // A fresh, inert page, so each run starts from the metas as the build writes them.
+  const doc = new DOMParser().parseFromString(PAGE, "text/html");
   new Function("localStorage", "matchMedia", "document", SCRIPT)(
     localStorage,
     matchMedia,
@@ -71,14 +71,14 @@ function persisted(theme: Theme): Record<string, string> {
   return { [PREFERENCES_STORAGE_KEY]: value };
 }
 
-const LIGHT_COLOR = "#fff4f9";
-const DARK_COLOR = "#2a2229";
+const LIGHT_COLOR: string = THEME_COLORS.light;
+const DARK_COLOR: string = THEME_COLORS.dark;
 
 afterEach(() => {
   resetPreferences();
 });
 
-describe("index.html no-flash script", () => {
+describe("the no-flash script", () => {
   it.each([
     ["dark", false, true],
     ["light", true, false],

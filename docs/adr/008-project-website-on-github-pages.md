@@ -3,7 +3,9 @@
 ## Status
 
 Accepted. Hosting superseded by [ADR-010](010-project-website-on-cloudflare-workers.md): the site
-now deploys to Cloudflare Workers, not GitHub Pages.
+now deploys to Cloudflare Workers, not GitHub Pages. Framework superseded by
+[ADR-012](012-astro-for-the-project-website.md): the site now builds with Astro, which reads
+the catalog below through a content collection.
 
 ## Context
 
@@ -25,18 +27,20 @@ for the interactive bits. It is fully static and deploys to GitHub Pages.
 Base UI is the primitive layer the neobrutalism components are built on, and the static
 design needs no animation library.
 
-The content pipeline is the important part. A build-time script,
-`site/scripts/build-catalog.ts`, walks the repository and generates
-`site/src/generated/catalog.json` from three inputs:
+The content pipeline is the important part. `site/scripts/build-catalog.ts` walks the
+repository and builds the catalog from three inputs:
 
 - `.claude-plugin/marketplace.json` for the plugin list,
 - each plugin's `plugin.json` for name, description, and version,
 - each skill's `SKILL.md` frontmatter for the per-skill name and description.
 
-The script fails loudly on malformed input. A skill with broken frontmatter breaks the
-site build (and therefore the `quality` CI check) instead of silently vanishing from the
-catalog. The generator runs as a pre-script before `build`, `dev`, `test`, and
-`typecheck`, so the catalog can never be stale within a command.
+The site reads the catalog only through the loader of the `catalog` content collection
+(`site/src/content.config.ts`), which calls the script's `buildCatalog` and checks the result
+against a Zod schema. The script fails loudly on malformed input. A skill with broken
+frontmatter breaks the site build (and therefore the `quality` CI check) instead of silently
+vanishing from the catalog. Astro runs the loader whenever `astro build`, `astro dev` or
+`astro sync` starts, and the site's typecheck runs `astro sync` first, so each of those
+commands starts from the current SKILL.md files.
 
 Deployment is a separate workflow (`deploy-pages.yml`) that builds the site on every push
 to `main` and publishes `site/dist` through the official Pages actions. Site deploys are
@@ -63,8 +67,8 @@ Site components are tested in real Chromium via Vitest browser mode (see
 - The site is only as informative as the frontmatter. A skill with a lazy one-line
   description gets a lazy catalog entry; the pipeline moves the writing burden, it does
   not remove it.
-- Every site-related command pays the catalog generation cost up front. It is currently
-  fast, but it scales with skill count.
+- Every site build, dev server and typecheck pays the catalog generation cost up front. It
+  is currently fast, but it scales with skill count.
 - Pages deploys track `main`, so the site can describe an unreleased state of a plugin
   until the corresponding version is bumped. In practice the window is small; consumers
   who care about exact contents have the release tarballs.

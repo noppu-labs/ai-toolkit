@@ -11,7 +11,9 @@
     // Only the badge API runs the script before assets are matched.
     "run_worker_first": ["/api/*"],
     // Serves site/public/404.html instead of an empty 404.
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    // Astro writes skills/<name>/index.html; this serves it at /skills/<name>.
+    "html_handling": "drop-trailing-slash"
   },
   // Matches the dashboard's settings, so deploys do not drift from them. Only
   // /api/* runs the script, so sampling every request stays cheap.

@@ -12,9 +12,9 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { ABOVE_THE_FOLD_FONTS } from "../src/lib/font-files.ts";
 import { SITE_URL } from "../src/lib/site.ts";
 import { isMainModule } from "./main-module.ts";
-import { ABOVE_THE_FOLD_FONTS } from "./preload-fonts.ts";
 
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;

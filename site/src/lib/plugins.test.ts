@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import catalog from "../generated/catalog.json";
 import {
   isLanguageAgnostic,
   PLUGIN_ORDER,
@@ -12,14 +11,6 @@ import {
 
 const named = (...names: string[]): { name: string }[] =>
   names.map((name) => ({ name }));
-
-describe("PLUGIN_ORDER", () => {
-  it("names every catalog plugin", () => {
-    expect([...PLUGIN_ORDER].sort()).toEqual(
-      catalog.plugins.map((plugin) => plugin.name).sort(),
-    );
-  });
-});
 
 describe("sortPlugins", () => {
   it("puts the known plugins in the site order", () => {
@@ -81,13 +72,6 @@ describe("sortSkills", () => {
         (s) => s.name,
       ),
     ).toEqual(["pr-review", "aa-new", "zz-new"]);
-  });
-
-  it("puts pr-review first in the real catalog", () => {
-    const review = catalog.plugins.find((p) => p.name === "review");
-    expect(sortSkills("review", review?.skills ?? [])[0]?.name).toBe(
-      "pr-review",
-    );
   });
 });
 

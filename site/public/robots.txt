@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://toolkit.noppu.com/sitemap.xml
+Sitemap: https://toolkit.noppu.com/sitemap-index.xml

@@ -1,0 +1,79 @@
+---
+import "../css/app.css";
+import { SiteFrame } from "../components/SiteFrame.tsx";
+import { Footer } from "../components/sections/Footer.tsx";
+import type { SectionBase } from "../components/sections/SiteHeader.tsx";
+import { HeaderIsland } from "../islands/HeaderIsland.tsx";
+import { buildCommit } from "../lib/build-info.ts";
+import { ABOVE_THE_FOLD_FONT_URLS } from "../lib/fonts.ts";
+import {
+  canonicalUrl,
+  SITE_NAME,
+  SOCIAL_CARD,
+  THEME_COLORS,
+} from "../lib/head.ts";
+import type { PageHead } from "../lib/pages.ts";
+import noFlash from "../scripts/no-flash.js?raw";
+
+interface Props {
+  head: PageHead;
+  sectionBase: SectionBase;
+}
+
+const { head, sectionBase }: Props = Astro.props;
+const canonical: string = canonicalUrl(head.path);
+// Set only by a Workers Builds build: the preview checks read it to know which
+// commit a preview serves.
+const commit: string | null = buildCommit(process.env);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="canonical" href={canonical}>
+    <title>{head.title}</title>
+    <meta name="description" content={head.description}>
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: light)"
+      content={THEME_COLORS.light}
+    >
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: dark)"
+      content={THEME_COLORS.dark}
+    >
+    <script is:inline set:html={noFlash} />
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content={SITE_NAME}>
+    <meta property="og:url" content={canonical}>
+    <meta property="og:title" content={head.title}>
+    <meta property="og:description" content={head.description}>
+    <meta property="og:image" content={SOCIAL_CARD.url}>
+    <meta property="og:image:type" content={SOCIAL_CARD.type}>
+    <meta property="og:image:width" content={String(SOCIAL_CARD.width)}>
+    <meta property="og:image:height" content={String(SOCIAL_CARD.height)}>
+    <meta property="og:image:alt" content={SOCIAL_CARD.alt}>
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image:alt" content={SOCIAL_CARD.alt}>
+    {commit !== null && <meta name="build-commit" content={commit}>}
+    {ABOVE_THE_FOLD_FONT_URLS.map((url) => (
+      // biome-ignore lint/suspicious/noUnknownAttribute: an Astro element, not a React one, so it takes HTML's attribute name.
+      <link rel="preload" as="font" type="font/woff2" href={url} crossorigin>
+    ))}
+  </head>
+  <body>
+    <div id="root">
+      <SiteFrame>
+        <HeaderIsland client:load slot="header" sectionBase={sectionBase} />
+        <Footer client:idle slot="footer" />
+        <slot />
+      </SiteFrame>
+    </div>
+  </body>
+</html>
