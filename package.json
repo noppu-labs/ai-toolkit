@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
-    "@opencode/plugin": "2.1.0",
+    "@opencode/plugin": "2.1.4",
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.5",
     "fast-check": "^4.10.2",
