@@ -48,6 +48,16 @@ PATH="/tmp/py38:$PATH" REVIEW_PYTHON=/tmp/py38/python3 npx vitest run scripts/re
 Optionally, `uv run pre-commit install` runs the Python checks on every commit, plus a few
 file-hygiene hooks that CI does not run (`.pre-commit-config.yaml`).
 
+## Running the site
+
+The site in `site/` is an Astro project. Start it with `npm run dev -w site`. Astro 7
+detaches `astro dev` into a background process when it detects an AI coding agent on macOS
+or Linux, or when you pass `--background`. Manage that server with `astro dev stop`,
+`astro dev status` and `astro dev logs`, run through npm as `npm run dev -w site -- stop`
+(likewise `status` and `logs`), and set `ASTRO_DEV_BACKGROUND=0` to keep the server in the
+foreground. See Astro's
+[background mode](https://docs.astro.build/en/guides/build-with-ai/#background-mode).
+
 ## Editing skills
 
 Most skills are vendored from upstream repos, and each plugin's `skills-lock.json` records
