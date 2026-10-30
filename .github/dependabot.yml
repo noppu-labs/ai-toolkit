@@ -8,6 +8,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # The nightly 7.1.0-dev.* builds sort above -beta; ignore them until 7.1.0 ships.
+      - dependency-name: typescript
+        versions:
+          - ">=7.1.0-dev.0 <7.1.0"
     groups:
       vitest:
         patterns:

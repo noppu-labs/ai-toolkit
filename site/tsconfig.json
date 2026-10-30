@@ -1,5 +1,8 @@
 {
   "extends": "../tsconfig.json",
+  "contentMappers": [
+    { "package": "@astrojs/ts-content-mapper", "extensions": [".astro"] }
+  ],
   "compilerOptions": {
     "target": "es2025",
     "module": "preserve",

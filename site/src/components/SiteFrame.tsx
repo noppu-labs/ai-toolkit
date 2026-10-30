@@ -1,8 +1,10 @@
 import type { ReactElement, ReactNode } from "react";
 
 interface SiteFrameProps {
-  header: ReactNode;
-  footer: ReactNode;
+  // Astro passes these through named slots, which the content mapper does not map to props, so
+  // they are optional in the type. Base.astro always fills both.
+  header?: ReactNode;
+  footer?: ReactNode;
   children: ReactNode;
 }
 

@@ -25,7 +25,7 @@
     "fast-check": "^4.10.2",
     "markdownlint-cli2": "^0.24.0",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2",
+    "typescript": "7.1.0-beta",
     "vitest": "^5.0.0"
   },
   "overrides": {

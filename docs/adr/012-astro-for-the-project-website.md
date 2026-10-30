@@ -119,10 +119,27 @@ HTML files in `site/public/` under Biome's formatter and linter. Its HTML linter
 `Base.astro` annotates that one site with a reasoned `biome-ignore`, as ADR-004 allows.
 
 `astro check` is not used. `@astrojs/check` 0.9.12 requires TypeScript `^5.0.0 || ^6.0.0`,
-and the repo is on TypeScript 7.0.2, whose package has no JavaScript compiler API. The
-site's typecheck is `astro sync && tsc --noEmit`: `astro sync` runs the loader and writes the
-collection's types, and `tsc` checks the site's `.ts` and `.tsx` files. `.astro` frontmatter
-only calls typed helpers that `tsc` checks.
+and TypeScript 7's package has no JavaScript compiler API. The site's typecheck is
+`astro sync && tsc --noEmit --runExternalCode`. `astro sync` runs the loader and writes the
+collection's types. `tsc` checks the `.ts` and `.tsx` files, and the `.astro` files too:
+`site/tsconfig.json` lists `@astrojs/ts-content-mapper` under `contentMappers` for the
+`.astro` extension, and the mapper turns each file into TSX that `tsc` checks. That option
+needs the TypeScript 7.1 beta, so the root `package.json` pins `typescript` to the exact
+prerelease `7.1.0-beta`, which the root `tsc --noEmit` shares. The mapper is the first check
+to read the layout, and it found three type errors in `Base.astro` that no other check
+reported, now fixed.
+
+`tsc` refuses a content mapper without `--runExternalCode` (error TS18068), because the mapper
+is code from `node_modules` that the compiler runs. The flag runs `@astrojs/ts-content-mapper`
+and its dependencies, pinned by the lockfile, which is the trust `astro build` already
+extends to the same install. The only workflow that typechecks the site is `quality.yml`. It
+installs with `npm ci --ignore-scripts`, has `contents: read` permissions and references no
+secrets, so nothing the mapper runs can reach a credential.
+
+Astro's named slots are not mapped, so `SiteFrame`'s `header` and `footer` props, which
+`Base.astro` fills through slots, are optional in the type. Dependabot ignores the nightly
+`7.1.0-dev.*` builds, which sort above `-beta`, until 7.1.0 ships. Then `typescript` is pinned
+to `7.1.0` and the ignore goes.
 
 `.node-version` pins Node 24, which Workers Builds reads, and `site/package.json` requires
 Node 22.23.4 or later (`engines`), Astro 7's minimum. CI runs Node 24.
@@ -213,9 +230,10 @@ the `site` workspace.
   classes and logic stay out of them.
 - Astro's major versions run from 1.0 in August 2022 to 7.0 in June 2026, with 6.0 in March
   2026. Each major upgrade is its own pull request, and 2026 has had two.
-- `.astro` frontmatter and the props passed in `.astro` markup are not type-checked. A wrong
-  prop, or a type annotation that does not match its value, still builds, and only a
-  built-site test that looks at the rendered page can catch it.
+- The `.astro` type check rests on a prerelease TypeScript and an experimental mapper at
+  0.2.0, so a release of either can start or stop reporting errors. Dependency updates run
+  the typecheck in CI, which would show it. The exact pin keeps the beta from moving on its
+  own.
 - Sections with `client:idle` hydrate a moment after load. Until then their buttons do
   nothing, and the install section, plugin cards and skill detail show the default install
   method rather than a saved one. The built-site tests require every island to start
