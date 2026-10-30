@@ -26,8 +26,8 @@ export function Band({ skillCount }: BandProps): ReactElement {
     // `overflow-x: clip` stops the wider, rotated strip from causing a
     // horizontal page scroll without clipping it vertically.
     <div aria-hidden="true" className="overflow-x-clip py-3">
-      <div className="-mx-5 -rotate-1 overflow-hidden border-border border-y-2 bg-ink">
-        <div className="flex justify-center gap-8 whitespace-nowrap py-4.5 font-heading text-[22px] text-white uppercase tracking-[0.04em]">
+      <div className="-mx-5 -rotate-1 overflow-hidden border-y-2 border-border bg-ink">
+        <div className="flex justify-center gap-8 py-4.5 text-[22px] font-heading tracking-[0.04em] whitespace-nowrap text-white uppercase">
           {phrases.map((phrase, index) => (
             <Fragment key={phrase}>
               <span>{phrase}</span>

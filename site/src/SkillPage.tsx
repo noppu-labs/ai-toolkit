@@ -20,7 +20,7 @@ interface SkillPageProps {
 function Breadcrumb({ skill }: { skill: CatalogSkill }): ReactElement {
   return (
     <nav aria-label="Breadcrumb">
-      <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 font-bold font-mono text-[13px] md:text-sm">
+      <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[13px] font-bold md:text-sm">
         <li>
           <a className={CRUMB_LINK} href="/#skills">
             Skills
@@ -66,10 +66,10 @@ function MoreSkills({
               href={skillPath(skill.name)}
             >
               <span className="flex min-w-0 flex-1 flex-col gap-0.75 md:gap-1">
-                <span className="break-words font-bold font-mono text-sm underline-offset-3 group-hover/row:underline group-hover/row:decoration-2 md:text-[15px]">
+                <span className="font-mono text-sm font-bold break-words underline-offset-3 group-hover/row:underline group-hover/row:decoration-2 md:text-[15px]">
                   {skill.name}
                 </span>
-                <span className="text-muted-foreground text-sm leading-[1.35] md:text-[15px] md:leading-[1.4]">
+                <span className="text-sm leading-[1.35] text-muted-foreground md:text-[15px] md:leading-[1.4]">
                   {skill.summary}
                 </span>
               </span>
@@ -100,15 +100,15 @@ export function SkillPage({ skill, siblings }: SkillPageProps): ReactElement {
         >
           <div
             className={cn(
-              "flex items-center border-border border-b-3 px-4.5 py-3.5 text-black",
+              "flex items-center border-b-3 border-border px-4.5 py-3.5 text-black",
               pluginColorClass(skill.plugin),
             )}
           >
-            <span className="font-bold font-mono text-sm">{skill.plugin}</span>
+            <span className="font-mono text-sm font-bold">{skill.plugin}</span>
           </div>
           <div className="px-5 pt-5 pb-5.5 md:px-7 md:pt-7 md:pb-7">
             <h1
-              className="break-words font-mono text-[28px] leading-[1.15] md:text-[36px]"
+              className="font-mono text-[28px] leading-[1.15] break-words md:text-[36px]"
               id={titleId}
             >
               {skill.name}

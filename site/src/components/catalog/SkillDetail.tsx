@@ -41,7 +41,7 @@ export function SkillPosition({
   className,
 }: SkillPositionProps): ReactElement {
   return (
-    <span className={cn("font-bold font-mono text-[13px]", className)}>
+    <span className={cn("font-mono text-[13px] font-bold", className)}>
       {position ?? "–"} of {total}
     </span>
   );
@@ -74,13 +74,13 @@ function AgentText({ text }: { text: string }): ReactElement {
   }, []);
 
   return (
-    <div className="mt-4 rounded-[8px] border-2 border-edge border-dashed px-3 py-2.5 md:mt-4.5 md:px-3.5 md:py-3">
-      <p className="font-bold font-mono text-[11px] text-muted-foreground uppercase tracking-[0.08em]">
+    <div className="mt-4 rounded-[8px] border-2 border-dashed border-edge px-3 py-2.5 md:mt-4.5 md:px-3.5 md:py-3">
+      <p className="font-mono text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
         What your agent reads
       </p>
       <p
         className={cn(
-          "mt-1.5 text-[13.5px] text-muted-foreground leading-normal md:text-sm md:leading-[1.55]",
+          "mt-1.5 text-[13.5px] leading-normal text-muted-foreground md:text-sm md:leading-[1.55]",
           !expanded && "line-clamp-4",
         )}
         id={textId}
@@ -92,7 +92,7 @@ function AgentText({ text }: { text: string }): ReactElement {
         <button
           aria-controls={textId}
           aria-expanded={expanded}
-          className="mt-1.5 inline-flex min-h-8 items-center rounded-sm font-bold text-foreground text-sm underline underline-offset-3 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-1.5 inline-flex min-h-8 items-center rounded-sm text-sm font-bold text-foreground underline underline-offset-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
           onClick={handleToggle}
           type="button"
         >
@@ -117,7 +117,7 @@ function SkillInstall({ plugin }: { plugin: string }): ReactElement {
 
   return (
     <div className="mt-4 rounded-[8px] border-2 border-border bg-terminal px-3 py-2.5 md:mt-4.5 md:px-3.5 md:py-3">
-      <span className="mb-1.5 block font-bold text-terminal-foreground/75 text-xs uppercase tracking-[0.08em] md:mb-2">
+      <span className="mb-1.5 block text-xs font-bold tracking-[0.08em] text-terminal-foreground/75 uppercase md:mb-2">
         Install {plugin} · {INSTALL_METHOD_LABELS[method].short}
       </span>
       {/* A Copy button per command: a multi-line paste reaches Claude Code as one prompt. */}
@@ -136,7 +136,7 @@ function SkillInstall({ plugin }: { plugin: string }): ReactElement {
             />
             <CopyButton
               aria-label={step.copyLabel}
-              className="h-9 shrink-0 border-border bg-white px-2.5 font-heading text-[13px] text-black shadow-none hover:translate-x-0 hover:translate-y-0 focus-visible:ring-offset-terminal md:px-3 [&>svg]:hidden"
+              className="h-9 shrink-0 border-border bg-white px-2.5 text-[13px] font-heading text-black shadow-none hover:translate-x-0 hover:translate-y-0 focus-visible:ring-offset-terminal md:px-3 [&>svg]:hidden"
               content={step.command}
               copiedLabel="Copied!"
               key={method}
@@ -146,7 +146,7 @@ function SkillInstall({ plugin }: { plugin: string }): ReactElement {
         ))}
       </ol>
       <button
-        className="mt-2 inline-flex min-h-8 items-center rounded-sm font-bold text-[13px] text-terminal-foreground underline underline-offset-3 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-terminal-foreground"
+        className="mt-2 inline-flex min-h-8 items-center rounded-sm text-[13px] font-bold text-terminal-foreground underline underline-offset-3 focus-visible:ring-2 focus-visible:ring-terminal-foreground focus-visible:outline-hidden"
         onClick={handleSwitch}
         type="button"
       >
@@ -173,11 +173,11 @@ export function SkillDetailBody({
       <p className="mt-2.5 text-[17px] leading-normal md:mt-3 md:text-lg">
         {skill.summary}
       </p>
-      <p className="mt-3 text-muted-foreground text-sm md:mt-3.5">
+      <p className="mt-3 text-sm text-muted-foreground md:mt-3.5">
         Invoked as{" "}
         <code
           className={cn(
-            "break-all rounded-sm border-2 border-edge px-1.5 py-0.5 font-bold font-mono text-foreground",
+            "rounded-sm border-2 border-edge px-1.5 py-0.5 font-mono font-bold break-all text-foreground",
             inPane ? "bg-secondary-background" : "bg-background",
           )}
         >
@@ -193,7 +193,7 @@ export function SkillDetailBody({
         <CopyButton
           aria-label={`Copy link to ${skill.name}`}
           className={cn(
-            "h-12 px-2 font-heading text-[15px] shadow-shadow-md [&>svg]:hidden",
+            "h-12 px-2 text-[15px] font-heading shadow-shadow-md [&>svg]:hidden",
             inPane
               ? "bg-secondary-background focus-visible:ring-offset-background"
               : "bg-background focus-visible:ring-offset-secondary-background",
@@ -205,7 +205,7 @@ export function SkillDetailBody({
         <a
           className={cn(
             buttonVariants({ variant: "default" }),
-            "h-12 gap-1.5 px-2 font-heading text-[15px] shadow-shadow-md",
+            "h-12 gap-1.5 px-2 text-[15px] font-heading shadow-shadow-md",
             inPane
               ? "ring-offset-background"
               : "ring-offset-secondary-background",

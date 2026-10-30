@@ -33,7 +33,7 @@ const FOCUS_ON_INK =
 
 export function Footer(): ReactElement {
   return (
-    <footer className="border-border border-t-3 bg-ink text-white">
+    <footer className="border-t-3 border-border bg-ink text-white">
       <div className="mx-auto flex max-w-300 flex-wrap items-center justify-between gap-6 px-4 pt-8 pb-7 sm:px-6 md:gap-8 md:py-14">
         <div className="flex items-center gap-3 md:gap-4">
           <Logo
@@ -43,11 +43,11 @@ export function Footer(): ReactElement {
             size="lg"
           />
           <p className="flex flex-col gap-0.75 md:gap-1">
-            <span className="font-heading text-[19px] tracking-[-0.02em] md:text-2xl">
+            <span className="text-[19px] font-heading tracking-[-0.02em] md:text-2xl">
               AI Toolkit{" "}
               <span className="font-medium text-white/85">by Noppu Labs</span>
             </span>
-            <span className="font-mono text-white/85 text-xs leading-[1.4] md:text-[13px] md:leading-normal">
+            <span className="font-mono text-xs leading-[1.4] text-white/85 md:text-[13px] md:leading-normal">
               Deep code review and grounded investigation for coding agents.
             </span>
           </p>
@@ -68,7 +68,7 @@ export function Footer(): ReactElement {
           ))}
         </ul>
         <button
-          className={`-mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-base border-2 border-border bg-main font-heading text-[15px] text-main-foreground shadow-[3px_3px_0px_0px_var(--color-white)] md:hidden [&_svg]:size-4 ${FOCUS_ON_INK}`}
+          className={`-mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-base border-2 border-border bg-main text-[15px] font-heading text-main-foreground shadow-[3px_3px_0px_0px_var(--color-white)] md:hidden [&_svg]:size-4 ${FOCUS_ON_INK}`}
           onClick={handleBackToTop}
           type="button"
         >

@@ -105,12 +105,12 @@ function MobileMenu({
           <Popover.Popup
             aria-label="Menu"
             finalFocus={finalFocus}
-            className="max-h-(--available-height) w-(--anchor-width) overflow-y-auto border-edge border-b-3 bg-secondary-background px-4 pt-2 pb-4.5 text-foreground shadow-[0_6px_0_0_var(--shadow-color)] outline-hidden"
+            className="max-h-(--available-height) w-(--anchor-width) overflow-y-auto border-b-3 border-edge bg-secondary-background px-4 pt-2 pb-4.5 text-foreground shadow-[0_6px_0_0_var(--shadow-color)] outline-hidden"
           >
             <nav aria-label="Main">
               <ul>
                 {NAV_LINKS.map((link, index) => (
-                  <li className="border-edge border-b-2" key={link.href}>
+                  <li className="border-b-2 border-edge" key={link.href}>
                     <a
                       className={cn(
                         "flex min-h-15 items-center gap-3.5 rounded-base text-foreground no-underline",
@@ -121,11 +121,11 @@ function MobileMenu({
                     >
                       <span
                         aria-hidden="true"
-                        className="font-bold font-mono text-[13px] text-muted-foreground"
+                        className="font-mono text-[13px] font-bold text-muted-foreground"
                       >
                         {String(index + 1).padStart(2, "0")}
                       </span>
-                      <span className="flex-1 font-heading text-2xl tracking-tight">
+                      <span className="flex-1 text-2xl font-heading tracking-tight">
                         {link.label}
                       </span>
                       <ChevronRight
@@ -141,7 +141,7 @@ function MobileMenu({
             <a
               className={cn(
                 GITHUB_BUTTON,
-                "mt-4 flex h-13 w-full gap-2.5 text-[17px] [&_svg:first-child]:size-5 [&_svg]:size-4",
+                "mt-4 flex h-13 w-full gap-2.5 text-[17px] [&_svg]:size-4 [&_svg:first-child]:size-5",
               )}
               href={REPO_URL}
               onClick={closeAfterLink}
@@ -168,7 +168,7 @@ export function SiteHeader({
 
   return (
     <header
-      className="sticky top-0 z-10 flex min-h-header border-edge border-b-2 bg-background"
+      className="sticky top-0 z-10 flex min-h-header border-b-2 border-edge bg-background"
       ref={headerRef}
     >
       {/* `flex-wrap`: text-only zoom can outgrow the row without moving the `md` breakpoint; the header then grows rather than clipping. */}
@@ -186,10 +186,10 @@ export function SiteHeader({
             size="sm"
           />
           <span className="flex flex-col leading-[1.05]">
-            <span className="font-heading text-lg tracking-tight md:text-xl">
+            <span className="text-lg font-heading tracking-tight md:text-xl">
               AI Toolkit
             </span>
-            <span className="hidden font-mono text-muted-foreground text-xs md:block">
+            <span className="hidden font-mono text-xs text-muted-foreground md:block">
               by Noppu Labs
             </span>
           </span>
@@ -216,7 +216,7 @@ export function SiteHeader({
           <a
             className={cn(
               GITHUB_BUTTON,
-              "ml-2 hidden h-11 px-4 text-base md:inline-flex [&_svg:first-child]:size-4.5 [&_svg]:size-3.5",
+              "ml-2 hidden h-11 px-4 text-base md:inline-flex [&_svg]:size-3.5 [&_svg:first-child]:size-4.5",
             )}
             href={REPO_URL}
           >

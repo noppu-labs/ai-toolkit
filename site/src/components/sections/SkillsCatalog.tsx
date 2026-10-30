@@ -342,13 +342,13 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
     // biome-ignore lint/correctness/useUniqueElementIds: the in-page anchor the nav links to; the section renders once.
     <section
       aria-labelledby={headingId}
-      className="scroll-mt-header border-edge border-y-3 bg-secondary-background outline-hidden"
+      className="scroll-mt-header border-y-3 border-edge bg-secondary-background outline-hidden"
       id="skills"
       // Focusable from script, so following a plugin card's skills link moves focus here.
       tabIndex={-1}
     >
       <div className="mx-auto max-w-300 px-4 pt-10 pb-10 sm:px-6 md:pt-22 md:pb-24">
-        <p className="font-bold font-mono text-xs uppercase tracking-[0.08em] md:text-sm">
+        <p className="font-mono text-xs font-bold tracking-[0.08em] uppercase md:text-sm">
           03 — Skills
         </p>
         <h2
@@ -372,19 +372,19 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
 
             <output
               aria-live="polite"
-              className="mt-4 mb-3 block font-bold text-[13px] text-muted-foreground md:text-sm"
+              className="mt-4 mb-3 block text-[13px] font-bold text-muted-foreground md:text-sm"
             >
               {pluralize(filtered.length, "skill")}
               <span className="sr-only"> shown</span>
             </output>
 
             {filtered.length === 0 ? (
-              <div className="rounded-[10px] border-2 border-current border-dashed p-6 text-center md:p-8">
-                <p className="font-medium text-base md:text-lg">
+              <div className="rounded-[10px] border-2 border-dashed border-current p-6 text-center md:p-8">
+                <p className="text-base font-medium md:text-lg">
                   No skills match your filter.
                 </p>
                 <Button
-                  className="mt-3 h-11 px-4.5 font-heading text-[15px] shadow-shadow-md focus-visible:ring-offset-secondary-background md:mt-3.5"
+                  className="mt-3 h-11 px-4.5 text-[15px] font-heading shadow-shadow-md focus-visible:ring-offset-secondary-background md:mt-3.5"
                   onClick={clearFilter}
                 >
                   Clear filter

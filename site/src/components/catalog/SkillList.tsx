@@ -85,10 +85,10 @@ function SkillRow({
         onClick={handleClick}
       >
         <span className="flex min-w-0 flex-1 flex-col gap-0.75 md:gap-1">
-          <span className="break-words font-bold font-mono text-sm underline-offset-3 group-hover/row:underline group-hover/row:decoration-2 md:text-[15px]">
+          <span className="font-mono text-sm font-bold break-words underline-offset-3 group-hover/row:underline group-hover/row:decoration-2 md:text-[15px]">
             {skill.name}
           </span>
-          <span className="truncate text-muted-foreground text-sm leading-[1.35] md:whitespace-normal md:text-[15px] md:text-current md:leading-[1.4] md:opacity-85">
+          <span className="truncate text-sm leading-[1.35] text-muted-foreground md:text-[15px] md:leading-[1.4] md:whitespace-normal md:text-current md:opacity-85">
             {skill.summary}
           </span>
         </span>
@@ -138,7 +138,7 @@ function SkillGroupList({
         >
           {group.plugin}
           <CountBadge
-            className="h-6 min-w-6 bg-foreground text-background text-xs md:h-6.5 md:min-w-6.5 md:text-[13px]"
+            className="h-6 min-w-6 bg-foreground text-xs text-background md:h-6.5 md:min-w-6.5 md:text-[13px]"
             count={group.skills.length}
           />
         </h3>
@@ -160,7 +160,7 @@ function SkillGroupList({
           <li>
             <button
               className={cn(
-                "h-12 w-full cursor-pointer font-heading text-[15px] text-black outline-hidden focus-visible:ring-3 focus-visible:ring-black focus-visible:ring-inset",
+                "h-12 w-full cursor-pointer text-[15px] font-heading text-black outline-hidden focus-visible:ring-3 focus-visible:ring-black focus-visible:ring-inset",
                 pluginColorClass(group.plugin),
               )}
               onClick={handleExpand}

@@ -70,7 +70,7 @@ export function SkillSheet({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/50 transition-opacity data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-none" />
         <Dialog.Popup
-          className="fixed inset-x-0 bottom-0 mx-auto max-h-[86dvh] max-w-xl overflow-y-auto overscroll-contain rounded-t-[18px] border-border border-t-3 bg-secondary-background px-4 pt-2.5 pb-6 text-foreground shadow-[0_-6px_0_0_var(--sheet-accent)] outline-hidden transition-transform duration-200 data-ending-style:translate-y-full data-starting-style:translate-y-full motion-reduce:transition-none min-[36rem]:border-x-3"
+          className="fixed inset-x-0 bottom-0 mx-auto max-h-[86dvh] max-w-xl overflow-y-auto overscroll-contain rounded-t-[18px] border-t-3 border-border bg-secondary-background px-4 pt-2.5 pb-6 text-foreground shadow-[0_-6px_0_0_var(--sheet-accent)] outline-hidden transition-transform duration-200 data-ending-style:translate-y-full data-starting-style:translate-y-full motion-reduce:transition-none min-[36rem]:border-x-3"
           finalFocus={returnFocus}
           style={accent}
         >
@@ -84,7 +84,7 @@ export function SkillSheet({
                 <div className="flex min-w-0 items-center gap-2.5">
                   <span
                     className={cn(
-                      "rounded-base border-2 border-border px-2.5 py-0.75 font-bold font-mono text-black text-xs",
+                      "rounded-base border-2 border-border px-2.5 py-0.75 font-mono text-xs font-bold text-black",
                       pluginColorClass(shown.plugin),
                     )}
                   >
@@ -98,7 +98,7 @@ export function SkillSheet({
                 </div>
                 <Dialog.Close
                   aria-label="Close"
-                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-base border-2 border-edge bg-background text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background"
+                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-base border-2 border-edge bg-background text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background focus-visible:outline-hidden"
                 >
                   <X
                     aria-hidden="true"
@@ -107,7 +107,7 @@ export function SkillSheet({
                   />
                 </Dialog.Close>
               </div>
-              <Dialog.Title className="mt-2.5 break-words font-mono text-2xl leading-[1.15]">
+              <Dialog.Title className="mt-2.5 font-mono text-2xl leading-[1.15] break-words">
                 {shown.name}
               </Dialog.Title>
               <SkillDetailBody skill={shown} surface="sheet" />
