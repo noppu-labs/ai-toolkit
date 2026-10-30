@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -14,11 +14,8 @@
     "rules": {
       "preset": "recommended",
       "nursery": {
-        "useSortedClasses": "error",
         "useExplicitType": "error",
-        "noDuplicateSelectors": "error",
-        "noComponentHookFactories": "error",
-        "useExpect": "off"
+        "useTailwindSortedClasses": "error"
       },
       "complexity": {
         "noImportantStyles": "error",
@@ -54,9 +51,17 @@
         "noMisplacedAssertion": "error",
         "noForIn": "error",
         "noNestedPromises": "error",
-        "noLeakedRender": "error"
+        "noLeakedRender": "error",
+        "noDuplicateSelectors": "error",
+        "useExpect": "off"
+      },
+      "correctness": {
+        "noComponentHookFactories": "error"
       }
     }
+  },
+  "tailwind": {
+    "stylesheet": "./site/src/css/app.css"
   },
   "javascript": {
     "formatter": {
@@ -70,6 +75,16 @@
     },
     "formatter": {
       "enabled": true
+    }
+  },
+  "markdown": {
+    "formatter": {
+      "enabled": false
+    }
+  },
+  "yaml": {
+    "formatter": {
+      "enabled": false
     }
   },
   "assist": {

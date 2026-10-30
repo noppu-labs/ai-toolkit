@@ -69,7 +69,7 @@ function SeeSkillsLink({ plugin }: { plugin: PluginEntry }): ReactElement {
 
   return (
     <a
-      className="flex min-h-11 items-center justify-between gap-2 rounded-base border-2 border-edge bg-background px-3 py-2 font-heading text-[15px] text-foreground no-underline transition-all hover:translate-x-0.75 hover:translate-y-0.75 hover:shadow-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background md:px-3.5 md:shadow-shadow-md"
+      className="flex min-h-11 items-center justify-between gap-2 rounded-base border-2 border-edge bg-background px-3 py-2 text-[15px] font-heading text-foreground no-underline transition-all hover:translate-x-0.75 hover:translate-y-0.75 hover:shadow-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background focus-visible:outline-hidden md:px-3.5 md:shadow-shadow-md"
       href={pluginSkillsHref(plugin.name)}
       onClick={handleClick}
     >
@@ -92,14 +92,14 @@ function PluginCard({
     <article className="flex flex-col overflow-hidden rounded-xl border-3 border-edge bg-secondary-background shadow-[5px_5px_0_0_var(--shadow-color)] md:shadow-shadow-lg">
       <div
         className={cn(
-          "flex items-center justify-between gap-2 border-border border-b-3 px-3.5 py-3 text-black md:gap-3 md:px-5.5 md:py-4.5",
+          "flex items-center justify-between gap-2 border-b-3 border-border px-3.5 py-3 text-black md:gap-3 md:px-5.5 md:py-4.5",
           pluginColorClass(plugin.name),
         )}
       >
-        <h3 className="break-all font-mono text-[21px] md:text-[26px]">
+        <h3 className="font-mono text-[21px] break-all md:text-[26px]">
           {plugin.name}
         </h3>
-        <Badge className="bg-white px-2 py-0.5 font-bold font-mono text-black text-xs md:px-2.5 md:py-1 md:text-[13px]">
+        <Badge className="bg-white px-2 py-0.5 font-mono text-xs font-bold text-black md:px-2.5 md:py-1 md:text-[13px]">
           v{plugin.version}
         </Badge>
       </div>
@@ -113,7 +113,7 @@ function PluginCard({
         >
           {chipLabels(plugin).map((label) => (
             <li
-              className="rounded-full border-2 border-edge bg-background px-2.5 py-0.75 font-bold text-[13px] md:px-3 md:py-1.25 md:text-sm"
+              className="rounded-full border-2 border-edge bg-background px-2.5 py-0.75 text-[13px] font-bold md:px-3 md:py-1.25 md:text-sm"
               key={label}
             >
               {label}
@@ -139,7 +139,7 @@ function PluginCard({
               />
               <CopyButton
                 aria-label={step.copyLabel}
-                className="h-11 shrink-0 border-border bg-white px-2.5 font-heading text-[13px] text-black shadow-none hover:translate-x-0 hover:translate-y-0 focus-visible:ring-offset-terminal md:h-10 md:px-3 [&>svg]:hidden"
+                className="h-11 shrink-0 border-border bg-white px-2.5 text-[13px] font-heading text-black shadow-none hover:translate-x-0 hover:translate-y-0 focus-visible:ring-offset-terminal md:h-10 md:px-3 [&>svg]:hidden"
                 content={step.command}
                 copiedLabel="Copied!"
                 key={method}
@@ -166,7 +166,7 @@ function MethodPicker({
   return (
     <div className="flex w-full items-center justify-between gap-2.5 rounded-[8px] border-2 border-edge bg-secondary-background py-1.5 pr-1.5 pl-3 md:w-auto md:pl-3.5 md:shadow-shadow-md">
       <span
-        className="font-heading text-[13px] text-muted-foreground md:text-sm"
+        className="text-[13px] font-heading text-muted-foreground md:text-sm"
         id={labelId}
       >
         Install with
@@ -179,7 +179,7 @@ function MethodPicker({
       >
         {INSTALL_METHODS.map((id) => (
           <Radio.Root
-            className="inline-flex h-9 cursor-pointer items-center whitespace-nowrap rounded-base border-2 border-edge bg-background px-3 font-heading text-[13px] text-foreground outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background data-checked:border-border data-checked:bg-main data-checked:text-main-foreground data-checked:shadow-shadow-sm md:h-10 md:px-3.5 md:text-sm"
+            className="inline-flex h-9 cursor-pointer items-center rounded-base border-2 border-edge bg-background px-3 text-[13px] font-heading whitespace-nowrap text-foreground outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background data-checked:border-border data-checked:bg-main data-checked:text-main-foreground data-checked:shadow-shadow-sm md:h-10 md:px-3.5 md:text-sm"
             key={id}
             value={id}
           >
@@ -220,7 +220,7 @@ export function PluginCards({ plugins }: PluginCardsProps): ReactElement {
     >
       <div className="flex flex-wrap items-end justify-between gap-4.5 md:gap-6">
         <div className="min-w-0 flex-[1_1_520px]">
-          <p className="font-bold font-mono text-xs uppercase tracking-[0.08em] md:text-sm">
+          <p className="font-mono text-xs font-bold tracking-[0.08em] uppercase md:text-sm">
             02 — Plugins
           </p>
           <h2
@@ -229,12 +229,12 @@ export function PluginCards({ plugins }: PluginCardsProps): ReactElement {
           >
             Review anywhere. Go deep on your stack.
           </h2>
-          <p className="mt-5 hidden max-w-180 text-lg text-muted-foreground leading-[1.55] md:block">
-            <code className="font-bold font-mono">review</code> and{" "}
-            <code className="font-bold font-mono">investigate</code> work across
+          <p className="mt-5 hidden max-w-180 text-lg leading-[1.55] text-muted-foreground md:block">
+            <code className="font-mono font-bold">review</code> and{" "}
+            <code className="font-mono font-bold">investigate</code> work across
             PHP, TypeScript, Python and beyond.{" "}
-            <code className="font-bold font-mono">laravel</code> and{" "}
-            <code className="font-bold font-mono">inertia-react</code> add
+            <code className="font-mono font-bold">laravel</code> and{" "}
+            <code className="font-mono font-bold">inertia-react</code> add
             stack-specific skills, agents and rules.
           </p>
         </div>

@@ -23,11 +23,13 @@ Two linters, one config file each:
 - **Biome** covers JavaScript, TypeScript, and CSS: linting, formatting, and import
   organizing in a single tool. CI runs `biome ci .` in the quality workflow.
 - **markdownlint-cli2** covers all Markdown, which in this repo means most of the product.
+  Biome's Markdown and YAML formatters, new in 2.6, are switched off in `biome.json`:
+  markdownlint owns Markdown, and YAML stays hand-formatted.
 
 The Biome config starts from the recommended preset and opts into stricter rules on top:
 the react and test domains set to "all", a cognitive-complexity ceiling of 10, secret
 detection, `noAwaitInLoops`, `noBarrelFile`, `noEnum`, `noHexColors`, and a handful of
-nursery rules such as `useSortedClasses` and `useExplicitType`. A single rule
+nursery rules such as `useTailwindSortedClasses` and `useExplicitType`. A single rule
 (`useExpect`) is switched off; everything else runs at the preset level or stricter.
 
 There are no path overrides. The same rules apply to the sync CLI, the test helpers, and

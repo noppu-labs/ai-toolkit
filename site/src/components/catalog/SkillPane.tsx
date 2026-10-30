@@ -47,16 +47,16 @@ export function SkillPane({
         <>
           <div
             className={cn(
-              "flex items-center justify-between gap-2.5 border-border border-b-3 px-4.5 py-3.5 text-black",
+              "flex items-center justify-between gap-2.5 border-b-3 border-border px-4.5 py-3.5 text-black",
               pluginColorClass(skill.plugin),
             )}
           >
-            <span className="font-bold font-mono text-sm">{skill.plugin}</span>
+            <span className="font-mono text-sm font-bold">{skill.plugin}</span>
             <SkillPosition position={position} total={total} />
           </div>
           <div className="px-5 pt-5">
             <h3
-              className="break-words font-mono text-[26px] leading-[1.15]"
+              className="font-mono text-[26px] leading-[1.15] break-words"
               id={titleId}
             >
               {skill.name}

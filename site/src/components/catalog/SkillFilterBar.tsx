@@ -54,7 +54,7 @@ export function SkillFilterBar({
   );
 
   return (
-    <div className="sticky top-header z-5 -mx-4 border-edge border-b-2 bg-secondary-background pt-2.5 pb-2 sm:-mx-6 lg:mx-0 lg:pt-3 lg:pb-3.5 lg:shadow-[0.5rem_0_0_0_var(--secondary-background)]">
+    <div className="sticky top-header z-5 -mx-4 border-b-2 border-edge bg-secondary-background pt-2.5 pb-2 sm:-mx-6 lg:mx-0 lg:pt-3 lg:pb-3.5 lg:shadow-[0.5rem_0_0_0_var(--secondary-background)]">
       <div className="relative px-4 sm:px-6 lg:px-0">
         <label className="sr-only" htmlFor={inputId}>
           Filter skills
@@ -65,7 +65,7 @@ export function SkillFilterBar({
           strokeWidth={2.5}
         />
         <input
-          className="h-11 w-full rounded-base border-2 border-edge bg-background pr-3 pl-10 font-base text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background md:h-12 md:pr-3.5 md:pl-10.5 md:shadow-shadow-md"
+          className="h-11 w-full rounded-base border-2 border-edge bg-background pr-3 pl-10 text-base font-base text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background focus-visible:outline-hidden md:h-12 md:pr-3.5 md:pl-10.5 md:shadow-shadow-md"
           id={inputId}
           onChange={handleQueryChange}
           placeholder={
@@ -79,7 +79,7 @@ export function SkillFilterBar({
       </div>
       <ToggleGroup
         aria-label="Filter by plugin"
-        className="mt-2.5 w-full flex-nowrap gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] sm:px-6 md:flex-wrap md:gap-2.5 md:overflow-x-visible lg:mt-2 lg:px-0"
+        className="mt-2.5 w-full [scrollbar-width:none] flex-nowrap gap-2 overflow-x-auto px-4 py-1 sm:px-6 md:flex-wrap md:gap-2.5 md:overflow-x-visible lg:mt-2 lg:px-0"
         onValueChange={handlePluginChange}
         spacing={2}
         value={[plugin]}
@@ -87,7 +87,7 @@ export function SkillFilterBar({
         {chips.map(({ name, count }) => (
           <ToggleGroupItem
             className={cn(
-              "group/chip h-10 gap-2 rounded-full bg-background pr-1.25 pl-3.5 font-bold font-mono text-[13px] text-foreground shadow-none focus-visible:ring-offset-secondary-background data-pressed:text-black data-pressed:shadow-shadow-md md:h-11 md:gap-2.5 md:pr-1.5 md:pl-4 md:text-sm",
+              "group/chip h-10 gap-2 rounded-full bg-background pr-1.25 pl-3.5 font-mono text-[13px] font-bold text-foreground shadow-none focus-visible:ring-offset-secondary-background data-pressed:text-black data-pressed:shadow-shadow-md md:h-11 md:gap-2.5 md:pr-1.5 md:pl-4 md:text-sm",
               count === 0 && "opacity-50",
               // "all" is no plugin, so it falls back to the main colour.
               pluginPressedColorClass(name),

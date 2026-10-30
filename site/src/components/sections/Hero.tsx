@@ -31,7 +31,7 @@ export function Hero({
       id="top"
     >
       <div className="min-w-0 flex-[999_1_520px]">
-        <span className="inline-flex items-center gap-2 rounded-full border-2 border-edge bg-secondary-background px-2.5 py-1 font-bold font-mono text-xs md:px-3 md:py-1.5 md:text-[13px] md:shadow-shadow-sm">
+        <span className="inline-flex items-center gap-2 rounded-full border-2 border-edge bg-secondary-background px-2.5 py-1 font-mono text-xs font-bold md:px-3 md:py-1.5 md:text-[13px] md:shadow-shadow-sm">
           <span
             aria-hidden="true"
             className="size-2 shrink-0 rounded-full border-2 border-border bg-plugin-investigate md:size-2.5"
@@ -49,7 +49,7 @@ export function Hero({
           </span>{" "}
           and grounded investigation.
         </h1>
-        <p className="mt-4 max-w-150 text-base text-muted-foreground leading-normal md:mt-7 md:text-xl">
+        <p className="mt-4 max-w-150 text-base leading-normal text-muted-foreground md:mt-7 md:text-xl">
           {description}
         </p>
         <div className="mt-5.5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4 md:mt-9">
@@ -84,7 +84,7 @@ export function Hero({
               src={LOGO_SRC}
               width={420}
             />
-            <figcaption className="mt-1.5 flex items-center justify-between gap-2 font-bold font-mono text-xs md:mt-2 md:text-sm">
+            <figcaption className="mt-1.5 flex items-center justify-between gap-2 font-mono text-xs font-bold md:mt-2 md:text-sm">
               <span>{REPO_SLUG}</span>
               <span className="rounded-base border-2 border-border bg-white px-2 py-0.75 md:px-2.5 md:py-1">
                 {pluralize(pluginCount, "plugin")}
@@ -93,10 +93,10 @@ export function Hero({
           </figure>
           <div
             aria-hidden="true"
-            className="absolute -top-5.5 -right-1.5 flex size-19 rotate-12 flex-col items-center justify-center rounded-full border-3 border-border bg-plugin-review font-heading text-main-foreground leading-none shadow-shadow-md md:-top-6.5 md:-right-4.5 md:size-26 md:shadow-shadow"
+            className="absolute -top-5.5 -right-1.5 flex size-19 rotate-12 flex-col items-center justify-center rounded-full border-3 border-border bg-plugin-review leading-none font-heading text-main-foreground shadow-shadow-md md:-top-6.5 md:-right-4.5 md:size-26 md:shadow-shadow"
           >
             <span className="text-[26px] md:text-[34px]">{skillCount}</span>
-            <span className="text-[11px] uppercase tracking-[0.06em] md:text-[13px]">
+            <span className="text-[11px] tracking-[0.06em] uppercase md:text-[13px]">
               skills
             </span>
           </div>

@@ -95,7 +95,7 @@ function Step({
 }): ReactElement {
   return (
     <li>
-      <div className="mb-2 flex items-center gap-2 font-heading text-[15px] md:gap-2.5 md:text-base">
+      <div className="mb-2 flex items-center gap-2 text-[15px] font-heading md:gap-2.5 md:text-base">
         <span
           aria-hidden="true"
           className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-border bg-main text-[13px] text-main-foreground md:size-6.5"
@@ -110,13 +110,13 @@ function Step({
         </span>
       </div>
       {/* A Copy button per command: a multi-line paste reaches Claude Code as one prompt. */}
-      <ul className="flex flex-col gap-1.5 rounded-base border-2 border-border bg-terminal px-3 py-2 text-[13px] text-terminal-foreground leading-[1.55] md:px-4 md:py-2.5 md:text-sm md:leading-[1.8]">
+      <ul className="flex flex-col gap-1.5 rounded-base border-2 border-border bg-terminal px-3 py-2 text-[13px] leading-[1.55] text-terminal-foreground md:px-4 md:py-2.5 md:text-sm md:leading-[1.8]">
         {step.commands.map((command) => (
           <li className="flex items-center gap-2" key={command}>
             <CommandLine className="min-w-0 flex-1" command={command} />
             <CopyButton
               aria-label={`Copy ${command}`}
-              className="h-9 shrink-0 border-border bg-white px-2.5 font-heading text-[13px] text-black shadow-none hover:translate-x-0 hover:translate-y-0 focus-visible:ring-offset-terminal [&>svg]:hidden"
+              className="h-9 shrink-0 border-border bg-white px-2.5 text-[13px] font-heading text-black shadow-none hover:translate-x-0 hover:translate-y-0 focus-visible:ring-offset-terminal [&>svg]:hidden"
               content={command}
               copiedLabel="Copied!"
               label="Copy"
@@ -154,7 +154,7 @@ export function InstallSection(): ReactElement {
       id="install"
     >
       <div className="min-w-0 flex-[1_1_320px]">
-        <p className="font-bold font-mono text-xs uppercase tracking-[0.08em] md:text-sm">
+        <p className="font-mono text-xs font-bold tracking-[0.08em] uppercase md:text-sm">
           01 — Install
         </p>
         <h2
@@ -163,11 +163,11 @@ export function InstallSection(): ReactElement {
         >
           Two ways in.
         </h2>
-        <p className="mt-3 text-base text-muted-foreground leading-normal md:mt-5 md:text-lg md:leading-[1.55]">
+        <p className="mt-3 text-base leading-normal text-muted-foreground md:mt-5 md:text-lg md:leading-[1.55]">
           Add the marketplace in Claude Code and install the plugins you need,
           or pull single plugins with the Vercel skills CLI.
         </p>
-        <p className="mt-4 hidden text-base text-muted-foreground leading-[1.55] md:block">
+        <p className="mt-4 hidden text-base leading-[1.55] text-muted-foreground md:block">
           Your choice sticks: the plugin cards show commands for the same
           method.
         </p>
@@ -177,7 +177,7 @@ export function InstallSection(): ReactElement {
         <Tabs onValueChange={handleValueChange} value={installMethod}>
           <TabsList
             aria-label="Install method"
-            className="grid h-auto w-full grid-cols-2 gap-2 rounded-none border-0 border-edge border-b-3 bg-background p-2.5 md:flex md:flex-wrap md:justify-start md:gap-2.5 md:p-3.5"
+            className="grid h-auto w-full grid-cols-2 gap-2 rounded-none border-0 border-b-3 border-edge bg-background p-2.5 md:flex md:flex-wrap md:justify-start md:gap-2.5 md:p-3.5"
           >
             {INSTALL_METHODS.map((id) => (
               <TabsTrigger
@@ -196,7 +196,7 @@ export function InstallSection(): ReactElement {
           </TabsList>
           {INSTALL_METHODS.map((id) => (
             <TabsContent
-              className="mt-0 p-3.5 focus-visible:ring-inset focus-visible:ring-offset-0 md:p-5"
+              className="mt-0 p-3.5 focus-visible:ring-offset-0 focus-visible:ring-inset md:p-5"
               key={id}
               value={id}
             >
@@ -206,14 +206,14 @@ export function InstallSection(): ReactElement {
                 ))}
               </ol>
               {INSTALL_METHOD_TABS[id].hint === undefined ? null : (
-                <p className="mt-3.5 text-muted-foreground text-sm leading-normal md:mt-4.5">
+                <p className="mt-3.5 text-sm leading-normal text-muted-foreground md:mt-4.5">
                   {INSTALL_METHOD_TABS[id].hint}
                 </p>
               )}
             </TabsContent>
           ))}
         </Tabs>
-        <p className="border-edge border-t-3 bg-plugin-review px-3.5 py-3 text-[13px] text-main-foreground leading-normal md:px-5 md:py-3.5 md:text-sm">
+        <p className="border-t-3 border-edge bg-plugin-review px-3.5 py-3 text-[13px] leading-normal text-main-foreground md:px-5 md:py-3.5 md:text-sm">
           {active.note}
         </p>
       </div>

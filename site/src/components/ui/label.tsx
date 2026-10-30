@@ -13,7 +13,7 @@ function Label({
       data-slot="label"
       htmlFor={htmlFor}
       className={cn(
-        "font-heading text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 peer-data-disabled:cursor-not-allowed peer-data-disabled:opacity-70",
+        "text-sm leading-none font-heading peer-disabled:cursor-not-allowed peer-disabled:opacity-70 peer-data-disabled:cursor-not-allowed peer-data-disabled:opacity-70",
         className,
       )}
       {...props}
