@@ -87,7 +87,7 @@ async function recordCommit(commit: string): Promise<void> {
  * commit, and the run fails when the page names no valid commit.
  */
 export default async function setup(project: TestProject): Promise<void> {
-  const previewUrl = requiredEnv("PREVIEW_URL").replace(/\/+$/, "");
+  const previewUrl = new URL(requiredEnv("PREVIEW_URL")).origin;
   const expected = requiredEnv("EXPECTED_COMMIT");
   // An abbreviated SHA would never match, and every test would skip.
   if (!isCommitSha(expected)) {
