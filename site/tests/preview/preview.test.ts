@@ -45,6 +45,19 @@ describe("Cloudflare's preview", () => {
     expect(response.headers.get("x-robots-tag")).toBe("noindex");
   });
 
+  it("sends the security headers on the home page", async () => {
+    const response = await get("/");
+
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("referrer-policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
+    expect(response.headers.get("permissions-policy")).toBe(
+      "camera=(), microphone=(), geolocation=()",
+    );
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+  });
+
   it("redirects the old sitemap URL to the sitemap index, which it serves", async () => {
     const old = await get("/sitemap.xml");
     const index = await get("/sitemap-index.xml");

@@ -149,7 +149,8 @@ address was submitted to Google Search Console, the new one has to be submitted 
 ### Preview checks
 
 `astro preview` does not apply Cloudflare's URL rules: the dropped trailing slash,
-`_redirects`, and the `X-Robots-Tag: noindex` header that `_headers` adds on previews.
+`_redirects`, and the headers that `_headers` adds: the security headers on every page and
+`X-Robots-Tag: noindex` on previews.
 `.github/workflows/preview-checks.yml` tests them on each pull request's Cloudflare preview.
 Workers Builds runs outside GitHub Actions, so no job can wait for it with `needs:`. The
 workflow starts instead when the "Workers Builds: ai-toolkit" check succeeds on a pull
@@ -159,8 +160,8 @@ request (a `check_run` event), and only if that check run comes from the
 which each Workers Builds build names in a `build-commit` meta tag. Cloudflare documents that
 `drop-trailing-slash` redirects `/skills/<name>/` to `/skills/<name>` with a 307. The checks
 expect that, and also expect `/skills/<name>` to answer 200, `/skills/<name>.html` to
-redirect to it, an unknown path to get the 404 page, the preview to send `noindex`, and
-`/sitemap.xml` to redirect to the index with a 301.
+redirect to it, an unknown path to get the 404 page, the preview to send `noindex` and the
+security headers, and `/sitemap.xml` to redirect to the index with a 301.
 
 GitHub runs a `check_run` workflow only from the default branch. The workflow therefore
 checks out the default branch's tests, with `persist-credentials: false`, and never the pull
