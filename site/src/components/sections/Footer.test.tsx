@@ -8,6 +8,7 @@ import { Footer } from "./Footer.tsx";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  useConsentStore.setState(useConsentStore.getInitialState(), true);
 });
 
 describe("Footer", () => {
@@ -48,7 +49,6 @@ describe("Footer", () => {
     await page.getByRole("button", { name: "Cookie settings" }).click();
 
     expect(useConsentStore.getState().panel).toBe("settings");
-    useConsentStore.setState(useConsentStore.getInitialState(), true);
   });
 
   it("sets the maker in a lighter weight than the project name", async () => {
