@@ -1,5 +1,6 @@
 ---
 import "../css/app.css";
+import { ConsentBanner } from "../components/ConsentBanner.tsx";
 import { SiteFrame } from "../components/SiteFrame.tsx";
 import { Footer } from "../components/sections/Footer.tsx";
 import type { SectionBase } from "../components/sections/SiteHeader.tsx";
@@ -85,6 +86,7 @@ const commit: string | null = buildCommit(process.env);
         <Footer client:idle slot="footer" />
         <slot />
       </SiteFrame>
+      <ConsentBanner client:idle />
     </div>
   </body>
 </html>

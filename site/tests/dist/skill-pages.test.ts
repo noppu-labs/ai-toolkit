@@ -116,7 +116,7 @@ describe.each(PAGES)(
       ]);
     });
 
-    it("hydrates the header, the skill's detail and the footer only", async () => {
+    it("hydrates the header, the skill's detail, the footer and the consent banner only", async () => {
       const islands = await opened.page
         .locator("astro-island")
         .evaluateAll((elements) =>
@@ -127,6 +127,7 @@ describe.each(PAGES)(
         "HeaderIsland",
         "SkillDetail",
         "Footer",
+        "ConsentBanner",
       ]);
       expect(await opened.page.locator("astro-island h1").count()).toBe(0);
     });

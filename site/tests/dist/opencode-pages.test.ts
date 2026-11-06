@@ -161,7 +161,7 @@ describe.each(PLUGINS)(
       }
     });
 
-    it("hydrates the header, the install box and the footer only", async () => {
+    it("hydrates the header, the install box, the footer and the consent banner only", async () => {
       const islands = await opened.page
         .locator("astro-island")
         .evaluateAll((elements) =>
@@ -172,6 +172,7 @@ describe.each(PLUGINS)(
         "HeaderIsland",
         "InstallBox",
         "Footer",
+        "ConsentBanner",
       ]);
       expect(await opened.page.locator("astro-island h1").count()).toBe(0);
     });
