@@ -94,7 +94,8 @@ requirements:
     - OpenCode V2 2.0.22 or later
     - >-
       A Claude or GPT-5.6+ model, through its official API or a proxy such as OpenRouter. Other
-      models only get the cache readout.
+      models get only the cache readout unless `cacheProfiles` maps them to the `anthropic` or
+      `openai` profile.
   config:
     path: ~/.config/opencode/opencode.jsonc
     language: jsonc

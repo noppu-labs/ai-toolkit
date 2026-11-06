@@ -118,8 +118,9 @@ faq:
       sends to `ask`.
   - q: What does a review cost?
     a: >-
-      One reviewer call per `ask`, or two when System One hands the request to a reasoning
-      reviewer. A lower reasoning `variant` or a higher `confidenceThreshold` reduces the spend.
+      Usually one reviewer call per `ask`. A hand-off from System One to a reasoning reviewer adds
+      a second, and an invalid answer is retried. Spend grows with how many actions your policy
+      sends to `ask`, and a lower reasoning `variant` makes each call cheaper.
   - q: Can it run without anyone watching?
     a: >-
       Yes. With `escalationMode: "deny"`, anything the reviewer is unsure about is rejected with a
