@@ -20,7 +20,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
     "@opencode/plugin": "2.1.4",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "^5.0.5",
     "fast-check": "^4.10.2",
     "markdownlint-cli2": "^0.24.0",
