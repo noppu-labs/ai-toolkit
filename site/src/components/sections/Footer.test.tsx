@@ -29,6 +29,7 @@ describe("Footer", () => {
       .elements()
       .map((link) => [link.textContent, link.getAttribute("href")]);
     expect(links).toEqual([
+      ["OpenCode plugins", "/opencode"],
       ["GitHub", "https://github.com/noppu-labs/ai-toolkit"],
       ["License", "https://github.com/noppu-labs/ai-toolkit/blob/main/LICENSE"],
       [
@@ -62,19 +63,38 @@ describe("Footer", () => {
     );
   });
 
-  it("sets the links in a 2×2 grid on phones", async () => {
+  it("opens only the external links in a new tab", async () => {
+    render(<Footer />);
+
+    const opencode = page.getByRole("link", { name: "OpenCode plugins" });
+    await expect.element(opencode).toBeVisible();
+    expect(opencode.element()).not.toHaveAttribute("target");
+    expect(opencode.element()).not.toHaveAttribute("rel");
+    await expect
+      .element(page.getByRole("link", { name: "GitHub" }))
+      .toHaveAttribute("target", "_blank");
+  });
+
+  it("sets the OpenCode link on the first row on phones, over a 2×2 grid of the external links", async () => {
     await page.viewport(390, 844);
     render(<Footer />);
 
     const links = page.getByRole("contentinfo").getByRole("link");
     await expect.element(links.first()).toBeVisible();
-    const boxes = links.elements().map((link) => link.getBoundingClientRect());
-    const columns = new Set(boxes.map((box) => Math.round(box.left)));
-    const rows = new Set(boxes.map((box) => Math.round(box.top)));
+    const [first, ...external] = links
+      .elements()
+      .map((link) => link.getBoundingClientRect());
+    const columns = new Set(external.map((box) => Math.round(box.left)));
+    const rows = new Set(external.map((box) => Math.round(box.top)));
+    expect(external).toHaveLength(4);
     expect(columns.size).toBe(2);
     expect(rows.size).toBe(2);
-    for (const box of boxes) {
-      expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(first?.bottom ?? Number.NaN).toBeLessThanOrEqual(
+      Math.min(...external.map((box) => box.top)),
+    );
+    expect(first?.width ?? 0).toBeGreaterThan((external[0]?.width ?? 0) * 1.5);
+    for (const box of [first, ...external]) {
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
     }
   });
 

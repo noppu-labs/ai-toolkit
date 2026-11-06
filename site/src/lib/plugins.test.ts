@@ -102,12 +102,21 @@ describe("plugin colours", () => {
     expect(pluginColorClass("investigate")).toBe("bg-plugin-investigate");
     expect(pluginColorClass("laravel")).toBe("bg-plugin-laravel");
     expect(pluginColorClass("inertia-react")).toBe("bg-plugin-inertia-react");
+    expect(pluginColorClass("opencode-permission-reviewer")).toBe(
+      "bg-plugin-opencode-permission-reviewer",
+    );
+    expect(pluginColorClass("opencode-cache-manager")).toBe(
+      "bg-plugin-opencode-cache-manager",
+    );
     expect(pluginColorClass("unknown")).toBe("bg-main");
   });
 
   it("maps pressed toggles to the same accent", () => {
     expect(pluginPressedColorClass("laravel")).toContain(
       "data-pressed:bg-plugin-laravel",
+    );
+    expect(pluginPressedColorClass("opencode-cache-manager")).toBe(
+      "aria-pressed:bg-plugin-opencode-cache-manager data-pressed:bg-plugin-opencode-cache-manager",
     );
     expect(pluginPressedColorClass("unknown")).toContain(
       "data-pressed:bg-main",

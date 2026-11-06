@@ -104,6 +104,6 @@
     }
   },
   "files": {
-    "includes": ["**", "!review/workflows"]
+    "includes": ["**", "!review/workflows", "!site/src/content/opencode"]
   }
 }

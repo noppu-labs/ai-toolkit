@@ -11,6 +11,8 @@ export interface PluginEntry {
   agentCount: number;
   ruleCount: number;
   skills: SkillEntry[];
+  /** The npm package of the plugin's OpenCode build, when it has one. */
+  opencodePackage?: string;
 }
 
 export interface Catalog {

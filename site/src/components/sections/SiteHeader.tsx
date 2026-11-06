@@ -12,15 +12,36 @@ import { GitHubMark } from "@/components/GitHubMark";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { OPENCODE_PATH } from "@/lib/opencode";
 import { REPO_URL } from "@/lib/repo";
 import { cn } from "@/lib/utils";
 
-const NAV_LINKS = [
-  { label: "Install", href: "#install" },
-  { label: "Plugins", href: "#plugins" },
-  { label: "Skills", href: "#skills" },
-  { label: "Security", href: "#security" },
-] as const;
+interface NavLink {
+  label: string;
+  href: string;
+  /** A `section` link points into the home page; a `page` link is a path of its own. */
+  kind: "section" | "page";
+}
+
+const NAV_LINKS: readonly NavLink[] = [
+  { label: "Install", href: "#install", kind: "section" },
+  { label: "Plugins", href: "#plugins", kind: "section" },
+  { label: "OpenCode", href: OPENCODE_PATH, kind: "page" },
+  { label: "Skills", href: "#skills", kind: "section" },
+  { label: "Security", href: "#security", kind: "section" },
+];
+
+function linkHref(link: NavLink, sectionBase: SectionBase): string {
+  return link.kind === "section" ? `${sectionBase}${link.href}` : link.href;
+}
+
+/** `"page"` on the OpenCode hub and its plugin pages, for the OpenCode link only. */
+function ariaCurrent(link: NavLink, currentPath: string): "page" | undefined {
+  const onOpenCode =
+    currentPath === OPENCODE_PATH ||
+    currentPath.startsWith(`${OPENCODE_PATH}/`);
+  return link.href === OPENCODE_PATH && onOpenCode ? "page" : undefined;
+}
 
 /** `""` on the home page, whose sections are in the document; `"/"` on the other pages. */
 export type SectionBase = "" | "/";
@@ -36,9 +57,11 @@ const GITHUB_BUTTON = cn(
 function MobileMenu({
   anchor,
   sectionBase,
+  currentPath,
 }: {
   anchor: RefObject<HTMLElement | null>;
   sectionBase: SectionBase;
+  currentPath: string;
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -116,7 +139,8 @@ function MobileMenu({
                         "flex min-h-15 items-center gap-3.5 rounded-base text-foreground no-underline",
                         FOCUS_RING,
                       )}
-                      href={`${sectionBase}${link.href}`}
+                      aria-current={ariaCurrent(link, currentPath)}
+                      href={linkHref(link, sectionBase)}
                       onClick={closeAfterLink}
                     >
                       <span
@@ -159,10 +183,13 @@ function MobileMenu({
 
 export interface SiteHeaderProps {
   sectionBase?: SectionBase;
+  /** The page's path, to mark the nav link of the section it belongs to. */
+  currentPath?: string;
 }
 
 export function SiteHeader({
   sectionBase = "",
+  currentPath = "",
 }: SiteHeaderProps): ReactElement {
   const headerRef = useRef<HTMLElement>(null);
 
@@ -172,10 +199,10 @@ export function SiteHeader({
       ref={headerRef}
     >
       {/* `flex-wrap`: text-only zoom can outgrow the row without moving the `md` breakpoint; the header then grows rather than clipping. */}
-      <div className="mx-auto flex w-full max-w-300 items-center justify-between gap-2 pr-3 pl-4 sm:px-6 md:flex-wrap md:gap-3 md:py-2">
+      <div className="mx-auto flex w-full max-w-300 items-center justify-between gap-2 pr-3 pl-4 sm:px-6 md:flex-wrap md:gap-2 md:px-4 md:py-2 lg:gap-3 lg:px-6">
         <a
           className={cn(
-            "flex min-h-11 items-center gap-2.5 rounded-base no-underline md:gap-3",
+            "flex min-h-11 items-center gap-2.5 rounded-base no-underline md:gap-2.5 lg:gap-3",
             FOCUS_RING,
           )}
           href={sectionBase === "" ? "#top" : "/"}
@@ -196,15 +223,16 @@ export function SiteHeader({
         </a>
         <div className="flex items-center gap-2 md:flex-wrap md:gap-1">
           <nav aria-label="Main" className="hidden md:block">
-            <ul className="flex items-center gap-1 md:flex-wrap">
+            <ul className="flex items-center gap-0.5 md:flex-wrap lg:gap-1">
               {NAV_LINKS.map((link) => (
                 <li key={link.href}>
                   <a
                     className={cn(
-                      "inline-flex min-h-11 items-center rounded-base border-2 border-transparent px-3 py-2 font-base no-underline hover:border-edge hover:bg-secondary-background",
+                      "inline-flex min-h-11 items-center rounded-base border-2 border-transparent px-1.5 py-2 font-base no-underline hover:border-edge hover:bg-secondary-background lg:px-3",
                       FOCUS_RING,
                     )}
-                    href={`${sectionBase}${link.href}`}
+                    aria-current={ariaCurrent(link, currentPath)}
+                    href={linkHref(link, sectionBase)}
                   >
                     {link.label}
                   </a>
@@ -212,11 +240,11 @@ export function SiteHeader({
               ))}
             </ul>
           </nav>
-          <ThemeToggle className="size-11 shadow-shadow-sm md:ml-2 md:shadow-shadow-md [&_svg]:size-5" />
+          <ThemeToggle className="size-11 shadow-shadow-sm md:ml-1 md:shadow-shadow-md lg:ml-2 [&_svg]:size-5" />
           <a
             className={cn(
               GITHUB_BUTTON,
-              "ml-2 hidden h-11 px-4 text-base md:inline-flex [&_svg]:size-3.5 [&_svg:first-child]:size-4.5",
+              "ml-2 hidden h-11 px-3 text-base md:inline-flex lg:px-4 [&_svg]:size-3.5 [&_svg:first-child]:size-4.5",
             )}
             href={REPO_URL}
           >
@@ -224,7 +252,11 @@ export function SiteHeader({
             GitHub
             <ArrowUpRight aria-hidden="true" strokeWidth={2.5} />
           </a>
-          <MobileMenu anchor={headerRef} sectionBase={sectionBase} />
+          <MobileMenu
+            anchor={headerRef}
+            currentPath={currentPath}
+            sectionBase={sectionBase}
+          />
         </div>
       </div>
     </header>

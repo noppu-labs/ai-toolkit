@@ -33,10 +33,16 @@ describe("the home page, before any script runs", () => {
 
   it("lays the sections out in the header's order", async () => {
     const ids = await opened.page
-      .locator("#install, #plugins, #skills, #security")
+      .locator("#install, #plugins, #opencode, #skills, #security")
       .evaluateAll((sections) => sections.map((section) => section.id));
 
-    expect(ids).toEqual(["install", "plugins", "skills", "security"]);
+    expect(ids).toEqual([
+      "install",
+      "plugins",
+      "opencode",
+      "skills",
+      "security",
+    ]);
   });
 
   it("links every skill's page once", async () => {
@@ -62,6 +68,7 @@ describe("the home page, before any script runs", () => {
       "HeaderIsland",
       "InstallSection",
       "PluginCards",
+      "OpenCodeSection",
       "CatalogIsland",
       "SecuritySection",
       "Footer",

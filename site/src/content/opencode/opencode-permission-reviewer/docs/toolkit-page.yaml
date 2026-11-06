@@ -1,0 +1,148 @@
+# The page for this plugin on toolkit.noppu.com:
+# https://toolkit.noppu.com/opencode/opencode-permission-reviewer
+# noppu-labs/ai-toolkit copies this file, and the images it names, at each npm release.
+# Format: https://github.com/noppu-labs/ai-toolkit/blob/main/docs/opencode-pages.md
+schemaVersion: 1
+title: OpenCode Permission Reviewer
+seo:
+  title: "OpenCode Permission Reviewer: auto-approve safe actions"
+  description: >-
+    An OpenCode plugin that sends permission prompts to an AI reviewer. Routine actions run,
+    risky ones are blocked, and unclear ones come to you.
+tagline: >-
+  An AI reviewer for every permission prompt. Routine actions go through, risky ones are blocked
+  with a reason the agent can act on, and the rest come to you.
+summary: >-
+  An AI reviewer answers OpenCode's permission prompts. Routine actions go through, risky ones are
+  blocked with a reason, and the rest come to you.
+chips:
+  - OpenCode V1 + V2
+  - TUI overlay
+  - runs headless
+  - audit log
+image:
+  src: images/social-preview.png
+  alt: >-
+    Permission Reviewer, an OpenCode plugin: an AI reviewer for every permission prompt. A request
+    from the agent goes to the reviewer, which weighs the task, the policy and the evidence, then
+    allows it, denies it or asks you.
+install:
+  hosts:
+    - label: OpenCode V2
+      commands:
+        - opencode plugin add @noppu-labs/opencode-permission-reviewer
+    - label: OpenCode V1
+      commands:
+        - bunx @noppu-labs/opencode-permission-reviewer init --host auto --npm --tui --yes
+      note: >-
+        On V1, `opencode plugin` registers the server plugin but not the TUI overlay, so the
+        package's own CLI registers both.
+  note: >-
+    Restart OpenCode after installing. Reviewer settings go in
+    `~/.config/opencode/permission-reviewer.jsonc`.
+highlights:
+  heading: Your agent stops waiting on routine prompts.
+  items:
+    - label: rules
+      title: Your policy runs first
+      body: >-
+        `allow` rules continue and `deny` rules stay blocked without reaching the reviewer. Only
+        prompts that resolve to `ask` are reviewed.
+    - label: isolation
+      title: A reviewer with no tools
+      body: >-
+        LLM reviewers run in a scratch session with every operational tool denied. System One
+        reviewers expose no tools at all.
+    - label: safety
+      title: Critical actions need you
+      body: >-
+        An action the reviewer rates as critical is never approved automatically. A reviewer
+        failure leads to asking you or denying, never to an approval.
+    - label: evidence
+      title: Read-only evidence
+      body: >-
+        The reviewer gets bounded, sanitized facts about SSH commands, local scripts and Git
+        state, with common credential formats redacted.
+    - label: audit
+      title: One record per review
+      body: Each review writes one JSONL audit record. Remote commands are stored as SHA-256 hashes.
+    - label: headless
+      title: Runs unattended
+      body: >-
+        Reviews happen inside the OpenCode server, so `opencode serve`, `opencode run` and API
+        clients work too. With `escalationMode: "deny"`, nothing waits on a person.
+howItWorks:
+  heading: How each prompt is reviewed.
+  steps:
+    - >-
+      A deterministic emergency brake rejects unmistakable root destruction and direct credential
+      export without calling a model.
+    - >-
+      The plugin gathers evidence: the recent transcript, what you asked for, and read-only
+      details about the command.
+    - >-
+      A reviewer with no tools returns an outcome, a risk level, an authorization level, a
+      rationale and its confidence.
+    - >-
+      Rules in code decide whether that answer stands. Invalid output, low confidence or a risky
+      action you didn't authorize comes to you, or is denied under `escalationMode: "deny"`.
+  figure:
+    src: images/result-attribution.svg
+    alt: >-
+      Three result strips: System One approves a scratch cleanup, a reasoning model approves a
+      force-push after System One escalates it, and a command that pipes a remote script into a
+      shell is blocked.
+    caption: Each result says who decided, then why.
+requirements:
+  items:
+    - Bun 1.3.14 or later
+    - OpenCode V1 1.18.29 or later, or OpenCode V2 2.0.22 or later
+    - "`git` on `PATH`, for read-only Git details"
+    - A reviewer model that follows JSON schemas reliably, or a System One API key
+    - >-
+      At least one permission rule that resolves to `ask`. On V2, an action that no rule matches
+      is `ask` by default.
+  config:
+    path: ~/.config/opencode/permission-reviewer.jsonc
+    language: jsonc
+    code: |
+      {
+        "model": "provider/model",
+        "variant": "medium",
+        "timeoutMs": 120000
+      }
+faq:
+  - q: Does it replace my permission rules?
+    a: >-
+      No. Your `allow` and `deny` rules apply first. The reviewer only answers prompts your policy
+      sends to `ask`.
+  - q: What does a review cost?
+    a: >-
+      Usually one reviewer call per `ask`. A hand-off from System One to a reasoning reviewer adds
+      a second, and an invalid answer is retried. Spend grows with how many actions your policy
+      sends to `ask`, and a lower reasoning `variant` makes each call cheaper.
+  - q: Can it run without anyone watching?
+    a: >-
+      Yes. With `escalationMode: "deny"`, anything the reviewer is unsure about is rejected with a
+      reason, so unattended agents never wait on a prompt.
+  - q: Which models can review?
+    a: >-
+      Any model configured in OpenCode that follows JSON schemas reliably, or a System One model.
+      System One can hand its hard calls to a reasoning model you configure.
+  - q: Does it work on OpenCode V1 and V2?
+    a: >-
+      Yes, on V1 from 1.18.29 and V2 from 2.0.22. On V1, install with the package's own CLI so the
+      TUI overlay is registered too.
+links:
+  - label: Configuration
+    href: https://github.com/noppu-labs/opencode-permission-reviewer/blob/main/docs/CONFIGURATION.md
+  - label: Reviewer models
+    href: https://github.com/noppu-labs/opencode-permission-reviewer/blob/main/docs/REVIEWER-MODELS.md
+  - label: How it works
+    href: https://github.com/noppu-labs/opencode-permission-reviewer/blob/main/docs/HOW-IT-WORKS.md
+  - label: Safety
+    href: https://github.com/noppu-labs/opencode-permission-reviewer/blob/main/docs/SAFETY.md
+  - label: Compatibility
+    href: https://github.com/noppu-labs/opencode-permission-reviewer/blob/main/docs/COMPATIBILITY.md
+  - label: Changelog
+    href: https://github.com/noppu-labs/opencode-permission-reviewer/blob/main/CHANGELOG.md

@@ -9,16 +9,23 @@ import {
   groupSkills,
 } from "../../src/lib/catalog.ts";
 import { pluginInstallCommand } from "../../src/lib/install-methods.ts";
+import { OPENCODE_PATH, opencodePluginPath } from "../../src/lib/opencode.ts";
 import { PLUGIN_ORDER, sortPlugins } from "../../src/lib/plugins.ts";
 import {
   type OpenedPage,
   type OpenPageOptions,
   openPage,
   pastTheRightEdge,
+  settle,
 } from "./browser.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const PLUGINS: PluginEntry[] = buildCatalog(REPO_ROOT).plugins;
+/** The standalone OpenCode plugins, whose pages the home page links to. */
+const OPENCODE_PLUGINS = [
+  "opencode-permission-reviewer",
+  "opencode-cache-manager",
+] as const;
 const SKILLS: CatalogSkill[] = catalogSkills(PLUGINS);
 
 const DESKTOP = { width: 1440, height: 900 } as const;
@@ -38,23 +45,6 @@ const opened: OpenedPage[] = [];
 afterEach(async () => {
   await Promise.all(opened.splice(0).map((page) => page.close()));
 });
-
-/**
- * Waits until the main thread has gone idle twice. Astro drops an island's `ssr`
- * attribute as soon as React starts hydrating it, so this is what lets each
- * hydration render, its effects and the re-render with the browser's values
- * (and any error they log) finish.
- */
-function settle(page: Page): Promise<void> {
-  return page.evaluate(async (): Promise<void> => {
-    const idle = (): Promise<void> =>
-      new Promise((resolve) => {
-        requestIdleCallback(() => resolve());
-      });
-    await idle();
-    await idle();
-  });
-}
 
 /** Waits until Astro has handed the catalog island to React, which hydrates it next. */
 async function catalogHydrating(page: Page): Promise<void> {
@@ -316,6 +306,19 @@ describe("the home page", () => {
         .getByRole("complementary", { name: "Skill details" })
         .textContent(),
     ).toContain(`investigate${place} of ${investigate.length}`);
+    expect(errors).toEqual([]);
+  });
+
+  it("links to the OpenCode hub and to both plugin pages", async () => {
+    const { page, errors } = await open("/");
+    const hrefs = await page
+      .locator("a")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+
+    expect(hrefs).toContain(OPENCODE_PATH);
+    for (const name of OPENCODE_PLUGINS) {
+      expect(hrefs).toContain(opencodePluginPath(name));
+    }
     expect(errors).toEqual([]);
   });
 

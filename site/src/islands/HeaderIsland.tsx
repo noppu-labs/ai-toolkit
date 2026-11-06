@@ -5,13 +5,15 @@ import { ThemeSync } from "@/components/ThemeSync";
 /** The header, with the theme sync every page runs, hydrated as one island. */
 export function HeaderIsland({
   sectionBase,
+  currentPath,
 }: {
   sectionBase: SectionBase;
+  currentPath: string;
 }): ReactElement {
   return (
     <>
       <ThemeSync />
-      <SiteHeader sectionBase={sectionBase} />
+      <SiteHeader currentPath={currentPath} sectionBase={sectionBase} />
     </>
   );
 }
