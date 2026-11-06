@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import { prefersReducedMotionQuery } from "@/lib/scroll";
+import { useConsentStore } from "@/stores/useConsentStore";
 import { stubMediaQuery } from "@/test/media";
 import { Footer } from "./Footer.tsx";
 
@@ -37,7 +38,17 @@ describe("Footer", () => {
         "https://github.com/noppu-labs/ai-toolkit/blob/main/CONTRIBUTING.md",
       ],
       ["Releases", "https://github.com/noppu-labs/ai-toolkit/releases"],
+      ["Privacy", "/privacy"],
     ]);
+  });
+
+  it("reopens the consent banner from Cookie settings", async () => {
+    render(<Footer />);
+
+    await page.getByRole("button", { name: "Cookie settings" }).click();
+
+    expect(useConsentStore.getState().panel).toBe("settings");
+    useConsentStore.setState(useConsentStore.getInitialState(), true);
   });
 
   it("sets the maker in a lighter weight than the project name", async () => {
@@ -75,25 +86,25 @@ describe("Footer", () => {
       .toHaveAttribute("target", "_blank");
   });
 
-  it("sets the OpenCode link on the first row on phones, over a 2×2 grid of the external links", async () => {
+  it("sets the OpenCode link on the first row on phones, over a 2×3 grid of the other items", async () => {
     await page.viewport(390, 844);
     render(<Footer />);
 
-    const links = page.getByRole("contentinfo").getByRole("link");
-    await expect.element(links.first()).toBeVisible();
-    const [first, ...external] = links
+    const items = page.getByRole("contentinfo").getByRole("listitem");
+    await expect.element(items.first()).toBeVisible();
+    const [first, ...others] = items
       .elements()
-      .map((link) => link.getBoundingClientRect());
-    const columns = new Set(external.map((box) => Math.round(box.left)));
-    const rows = new Set(external.map((box) => Math.round(box.top)));
-    expect(external).toHaveLength(4);
+      .map((item) => item.firstElementChild?.getBoundingClientRect());
+    const columns = new Set(others.map((box) => Math.round(box?.left ?? 0)));
+    const rows = new Set(others.map((box) => Math.round(box?.top ?? 0)));
+    expect(others).toHaveLength(6);
     expect(columns.size).toBe(2);
-    expect(rows.size).toBe(2);
+    expect(rows.size).toBe(3);
     expect(first?.bottom ?? Number.NaN).toBeLessThanOrEqual(
-      Math.min(...external.map((box) => box.top)),
+      Math.min(...others.map((box) => box?.top ?? 0)),
     );
-    expect(first?.width ?? 0).toBeGreaterThan((external[0]?.width ?? 0) * 1.5);
-    for (const box of [first, ...external]) {
+    expect(first?.width ?? 0).toBeGreaterThan((others[0]?.width ?? 0) * 1.5);
+    for (const box of [first, ...others]) {
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
     }
   });
