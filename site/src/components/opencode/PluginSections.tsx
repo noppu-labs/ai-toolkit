@@ -138,6 +138,7 @@ export function HowItWorks({
         </ol>
         {figure === undefined ? null : (
           <figure className="m-0 flex min-w-0 flex-col gap-2.5 rounded-xl border-3 border-edge bg-black p-3 shadow-shadow-lg md:p-3.5">
+            {/* Keep this an <img>: an inlined SVG would escape the browser's image sandbox and the CSP on /_astro/*. */}
             <img
               alt={figure.alt}
               className="block h-auto w-full"

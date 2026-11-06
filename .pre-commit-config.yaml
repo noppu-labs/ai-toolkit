@@ -10,8 +10,8 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: trailing-whitespace
-        # Holds skills vendored from upstream (`sourceType: "github"` in each skills-lock.json);
-        # fix those upstream, not here.
+        # Holds skills vendored from upstream (`sourceType: "github"` in each skills-lock.json)
+        # and the OpenCode plugin pages synced from each plugin's repo; fix those upstream, not here.
         exclude: ^(laravel|inertia-react|site/src/content/opencode)/
       - id: end-of-file-fixer
         exclude: ^(laravel|inertia-react|site/src/content/opencode)/

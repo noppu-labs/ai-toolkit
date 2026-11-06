@@ -19,7 +19,8 @@ next release of the plugin, and after a maintainer merges the sync pull request.
 ## Fields
 
 Every field is required unless the table says optional. Unknown keys are rejected. Text
-fields are trimmed, and the limits count characters. A list's limit counts its items.
+fields are trimmed, except `requirements.config.code`, which keeps its whitespace. The limits
+count characters, and a list's limit counts its items.
 
 | Field | Limit |
 | --- | --- |
@@ -33,7 +34,7 @@ fields are trimmed, and the limits count characters. A list's limit counts its i
 | `image.src` | Image path, `.png`, `.jpg` or `.jpeg`, at least 1200 × 600 |
 | `image.alt` | 10 to 250 characters |
 | `install.hosts` | 1 to 3 hosts |
-| `install.hosts[].label` | 1 to 24 characters |
+| `install.hosts[].label` | 1 to 24 characters, different for each host |
 | `install.hosts[].commands` | 1 to 3 items of 1 to 200 characters |
 | `install.hosts[].note` | Optional, 1 to 200 characters |
 | `install.note` | Optional, 1 to 200 characters |
@@ -51,7 +52,7 @@ fields are trimmed, and the limits count characters. A list's limit counts its i
 | `requirements.items` | 1 to 8 items of 3 to 200 characters |
 | `requirements.config` | Optional |
 | `requirements.config.path` | 1 to 120 characters |
-| `requirements.config.language` | `json`, `jsonc` or `sh` |
+| `requirements.config.language` | `json`, `jsonc` or `sh`. Reserved for syntax highlighting, which the page doesn't do |
 | `requirements.config.code` | Not empty, at most 40 lines |
 | `faq` | Optional, 0 to 8 entries |
 | `faq[].q` | 5 to 120 characters |
@@ -63,8 +64,17 @@ fields are trimmed, and the limits count characters. A list's limit counts its i
 ## Text
 
 Text is literal. The only formatting is inline code between backticks, so `cacheProfiles`
-renders as code. HTML, Markdown links, emphasis and any other markup show up as typed. An
-unmatched backtick shows as a backtick.
+renders as code, and only in these fields:
+
+- `tagline` and `summary`
+- `install.note` and `install.hosts[].note`
+- `highlights.heading`, `highlights.items[].title` and `highlights.items[].body`
+- `howItWorks.heading`, `howItWorks.steps` and `howItWorks.figure.caption`
+- `requirements.items`
+- `faq[].q` and `faq[].a`
+
+Every other field shows backticks as typed. HTML, Markdown links, emphasis and any other
+markup show up as typed everywhere. An unmatched backtick shows as a backtick.
 
 ## Images
 
@@ -82,10 +92,14 @@ its edges.
 `howItWorks.figure.src` also takes `.svg`. The sync rejects an SVG that has any of these:
 
 - a `<script>` element, or an event-handler attribute such as `onload`
-- a `javascript:` URL
+- a `javascript:` URL, also with a tab or line break inside it
 - a `<foreignObject>` element
 - an internal DTD subset or an entity declaration
-- an encoding other than UTF-8
+- UTF-16, bytes that aren't valid UTF-8, or an XML declaration naming another encoding
+- a control character other than tab, line feed and carriage return
+
+Element names match with any namespace prefix, such as `<svg:script>`. The first three checks
+run after character references are decoded, so `&#106;avascript:` counts as `javascript:`.
 
 ## Example
 
@@ -175,9 +189,20 @@ links:
 
 4. Run `npm run sync:opencode -w site`. It fills in the rest of the entry and copies the
    files. Commit both.
+5. Update the copy that counts or names the plugins, since the sync doesn't touch it: the
+   hub's lede in `site/src/components/opencode/HubHero.tsx`, the hub's meta description
+   (`OPENCODE_HUB_HEAD` in `site/src/lib/pages.ts`) and the home page's OpenCode section in
+   `site/src/components/sections/OpenCodeSection.tsx`.
 
 The sync stops with an error that names the plugin and the field when something is wrong,
 and it writes nothing for that plugin.
+
+## Removing a plugin
+
+Delete the plugin's entry from `site/opencode-lock.json` and its folder under
+`site/src/content/opencode/`. The sync only writes the plugins the lock lists, so it never
+deletes a folder whose entry is gone. Until the folder is deleted, `--check` and the site
+build fail. Then update the same three places as in step 5 of adding one.
 
 ## Previewing an unreleased manifest
 

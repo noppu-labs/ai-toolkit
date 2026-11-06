@@ -25,7 +25,8 @@ Each plugin repo keeps `docs/toolkit-page.yaml` and the images it names. The man
 the page's head values, tagline, install commands, highlights, steps, requirements, FAQ and
 links. Its fields, limits and text rules are in [docs/opencode-pages.md](../opencode-pages.md).
 A Zod schema in `site/src/lib/opencode-schema.ts` checks every field, rejects unknown keys,
-and sets each field's length range, so a manifest cannot overflow the layout it fills.
+and caps the length of each text the page shows and the size of each list, so the layout
+only has to fit text and lists up to known sizes.
 
 ### A sync from npm `latest`, with a lockfile
 
@@ -34,7 +35,10 @@ fetches the repo's files at the tag `v<version>`: `package.json`, the manifest a
 images. It checks that `package.json` carries the expected package name and the same version
 as the tag, and that each image is a permitted type, at most 1 MiB, and (for the hero image)
 at least 1200 × 600. An SVG figure is rejected if it could run script or load another
-document. The files are copied to `site/src/content/opencode/<name>/`, and
+document, or if a browser could decode it differently from the check: UTF-16, bytes that
+aren't valid UTF-8, an XML declaration naming another encoding, or a control character other
+than tab, line feed and carriage return. The files are copied to
+`site/src/content/opencode/<name>/`, and
 `site/opencode-lock.json` records each plugin's version, tag, commit, license and a SHA-256
 hash per file.
 
@@ -55,9 +59,10 @@ maintainer's look at the copy diff and the preview, in addition to green checks.
 
 The plugin repos' files are untrusted input, so two jobs share the work. The `sync` job
 fetches and parses them with a read-only token and hands the result on as artifacts. The
-`pr` job holds the write token and only commits those files, pushes and calls `gh`, so the
-token never meets the fetched content. A third job, `result`, fails the run when the sync
-failed for a plugin, after the other plugins' updates have reached the pull request.
+`pr` job holds the write token. It commits and pushes those files and posts the sync's
+summary with `gh`, and it never parses or runs them. A third job, `result`, fails the run
+when the sync failed for a plugin, after the other plugins' updates have reached the pull
+request.
 
 ### Checks in CI
 
@@ -88,7 +93,8 @@ comparison in the site's unit tests. Together they make the lock the only way co
 - The build is offline and reproducible from the commit. Every change to a page arrives as a
   reviewable diff of the copies.
 - A new plugin page needs a lock entry, a manifest in the plugin's repo and no code here.
-- The workflow needs no secret, and the token with write access never reads fetched content.
+- The workflow needs no secret, and the job that holds the write token never parses or runs
+  fetched content.
 
 ### Negative
 

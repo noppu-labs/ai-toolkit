@@ -10,8 +10,8 @@ name: opencode-sync
 #
 # The plugin repos' files are untrusted input, so two jobs share the work.
 # `sync` fetches and parses them with a read-only token and hands the result
-# on as artifacts. `pr` holds the write token and only commits those files,
-# pushes and calls gh, so the token never meets that input.
+# on as artifacts. `pr` holds the write token. It commits and pushes those
+# files and posts the sync's summary with gh, and it never parses or runs them.
 #
 # GitHub holds the checks of a pull request opened with GITHUB_TOKEN until a
 # maintainer approves them in the PR's Checks tab.

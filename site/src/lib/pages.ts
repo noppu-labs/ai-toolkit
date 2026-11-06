@@ -8,7 +8,7 @@ import { breadcrumbJsonLd } from "./structured-data.ts";
 export interface PageHead {
   title: string;
   description: string;
-  /** Root-relative, with no trailing slash past the root: `/` or `/skills/<name>`. */
+  /** Root-relative, with no trailing slash past the root: `/`, `/skills/<name>`, `/opencode` or `/opencode/<name>`. */
   path: string;
   /** The link preview's image; the site's social card when left out. */
   image?: SocialImage;

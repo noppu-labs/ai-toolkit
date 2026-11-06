@@ -82,9 +82,10 @@ CLI are in [opencode-pages.md](opencode-pages.md), and the reasons are in
   open the Cloudflare preview for the new pages. The lock's hashes and the `--check` step
   catch a copy that no longer matches the lock.
 - While the pull request is open, every sync that changes something adds a commit to it.
-  Commits pushed to `chore/opencode-sync` by hand are kept. After it merges, the next release
-  starts a fresh branch from `main`. If it is closed without merging, the next run opens it
-  again for as long as that release is missing from `main`.
+  Commits pushed to `chore/opencode-sync` by hand are kept, but the next sync that changes
+  something replaces any edit they made to `site/opencode-lock.json` or the copies. After it
+  merges, the next release starts a fresh branch from `main`. If it is closed without
+  merging, the next run opens it again for as long as that release is missing from `main`.
 - A red scheduled run means the sync failed for at least one plugin. The sync job's log names
   the plugin and the field, such as a text field over its limit or an image path outside
   `docs/`. The other plugins' updates still reach the pull request, and the failed plugin
