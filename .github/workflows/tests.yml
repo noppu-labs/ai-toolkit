@@ -59,6 +59,8 @@ jobs:
         run: npm run browsers:install -w site
       - name: Site tests
         run: npm run test -w site
+      - name: OpenCode pages pin released versions
+        run: npm run sync:opencode -w site -- --check
       - name: Site build
         run: npm run build -w site
       - name: Built-site tests
