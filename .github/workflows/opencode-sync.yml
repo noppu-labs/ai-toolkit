@@ -4,8 +4,9 @@ name: opencode-sync
 # (`npm run sync:opencode -w site`) and opens a pull request from the
 # chore/opencode-sync branch when anything changed. While that PR is open, each
 # sync that changes something adds a commit on top, so commits pushed there by
-# hand are kept. Once the PR is merged or closed, the next release starts a
-# fresh branch from main.
+# hand are kept. Once it is merged, the next release starts a fresh branch from
+# main. A PR closed without merging is opened again on the next run, for as
+# long as that release is still missing from main.
 #
 # The plugin repos' files are untrusted input, so two jobs share the work.
 # `sync` fetches and parses them with a read-only token and hands the result
@@ -130,8 +131,12 @@ jobs:
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           synced="$RUNNER_TEMP/opencode-sync"
           body="$RUNNER_TEMP/opencode-sync.md"
-          state=$(gh pr view "$branch" --json state -q .state || true)
-          if [ "$state" = "OPEN" ]; then
+          # Counts open PRs from this repo's branch, since a fork's PR can use
+          # the same name. A failed lookup stops the step before anything is
+          # deleted.
+          open=$(gh pr list --head "$branch" --state open --json number,isCrossRepository \
+            --jq 'map(select(.isCrossRepository | not)) | length')
+          if [ "$open" != 0 ]; then
             git fetch origin "$branch"
             git switch -C "$branch" "origin/$branch"
           else
@@ -153,7 +158,7 @@ jobs:
           git commit -m "chore(site): sync OpenCode plugin pages"
           printf '\n%s\n' "GitHub holds this PR's checks until a maintainer approves them: open the Checks tab and approve the workflows." >> "$body"
           git push "$remote" "$branch"
-          if [ "$state" = "OPEN" ]; then
+          if [ "$open" != 0 ]; then
             gh pr edit "$branch" --body-file "$body"
           else
             gh pr create --base main --head "$branch" \
