@@ -38,7 +38,7 @@ export const OPENCODE_HUB_HEAD: PageHead = {
   title:
     "OpenCode plugins for permission review and prompt caching · AI Toolkit",
   description:
-    "OpenCode plugins from Noppu Labs: an AI permission reviewer, a prompt cache manager for Claude and GPT-5.6+, and the toolkit's review and investigate skills.",
+    "Four OpenCode plugins from Noppu Labs: an AI permission reviewer, a prompt cache manager, and the toolkit's review and investigate packages.",
   path: OPENCODE_PATH,
 };
 

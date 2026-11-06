@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { buildCatalog } from "../../scripts/build-catalog.ts";
 import { readSyncedPlugins } from "../../scripts/opencode/content.ts";
 import { catalogSkills } from "../../src/lib/catalog.ts";
-import { opencodePluginPath } from "../../src/lib/opencode.ts";
+import { OPENCODE_PATH, opencodePluginPath } from "../../src/lib/opencode.ts";
 import { SITE_URL, skillPath } from "../../src/lib/site.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
@@ -36,13 +36,14 @@ describe("the built site's files", () => {
     ).toEqual([]);
   });
 
-  it("lists the home page, every skill's page and every OpenCode plugin's page in the sitemap, none past the root with a trailing slash", () => {
+  it("lists the home page, the OpenCode hub, every skill's page and every OpenCode plugin's page in the sitemap, none past the root with a trailing slash", () => {
     const urls = locs(built("sitemap-0.xml"));
 
     expect(OPENCODE_PLUGIN_NAMES.length).toBeGreaterThan(0);
     expect(urls.toSorted()).toEqual(
       [
         `${SITE_URL}/`,
+        `${SITE_URL}${OPENCODE_PATH}`,
         ...SKILL_NAMES.map((name) => `${SITE_URL}${skillPath(name)}`),
         ...OPENCODE_PLUGIN_NAMES.map(
           (name) => `${SITE_URL}${opencodePluginPath(name)}`,

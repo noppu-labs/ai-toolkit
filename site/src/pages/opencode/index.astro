@@ -1,0 +1,50 @@
+---
+import type { Catalog } from "../../catalog-types.ts";
+import { HubHero } from "../../components/opencode/HubHero.tsx";
+import {
+  HubSection,
+  InstallBand,
+} from "../../components/opencode/HubSections.tsx";
+import { OpenCodeCards } from "../../components/opencode/OpenCodeCards.tsx";
+import { ToolkitOpenCodeCards } from "../../components/opencode/ToolkitOpenCodeCards.tsx";
+import Base from "../../layouts/Base.astro";
+import { loadCatalog } from "../../lib/load-catalog.ts";
+import {
+  loadOpenCodePlugins,
+  type OpenCodePage,
+} from "../../lib/load-opencode.ts";
+import type { OpenCodePlugin } from "../../lib/opencode.ts";
+import {
+  type OpenCodeCard,
+  openCodeCard,
+  type ToolkitOpenCodeCard,
+  toolkitOpenCodeCards,
+} from "../../lib/opencode-cards.ts";
+import { OPENCODE_HUB_HEAD } from "../../lib/pages.ts";
+
+const plugins: OpenCodePlugin<OpenCodePage>[] = await loadOpenCodePlugins();
+const { plugins: toolkitPlugins }: Catalog = await loadCatalog();
+const cards: OpenCodeCard[] = plugins.map((plugin) =>
+  openCodeCard(plugin, true),
+);
+const toolkitCards: ToolkitOpenCodeCard[] =
+  toolkitOpenCodeCards(toolkitPlugins);
+---
+
+<Base head={OPENCODE_HUB_HEAD} sectionBase="/">
+  <HubHero />
+  <HubSection
+    eyebrow="01 — Standalone"
+    heading="Fewer prompts, cheaper sessions."
+  >
+    <OpenCodeCards client:idle cards={cards} />
+  </HubSection>
+  <HubSection
+    eyebrow="02 — Toolkit skills"
+    heading="The toolkit's skills, on OpenCode."
+    lede="The same skills as the Claude Code plugins, packaged for OpenCode V2."
+  >
+    <ToolkitOpenCodeCards client:idle cards={toolkitCards} />
+  </HubSection>
+  <InstallBand href="/#install" />
+</Base>

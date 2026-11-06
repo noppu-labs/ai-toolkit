@@ -224,3 +224,111 @@ describe("a plugin page with scripts", () => {
     expect(errors).toEqual([]);
   });
 });
+
+describe("the OpenCode hub", () => {
+  const HUB_TITLE =
+    "OpenCode plugins for permission review and prompt caching · AI Toolkit";
+  const opened: OpenedPage[] = [];
+
+  afterEach(async () => {
+    await Promise.all(opened.splice(0).map((page) => page.close()));
+  });
+
+  async function openHub(javaScript: boolean): Promise<OpenedPage> {
+    const hub = await openPage(OPENCODE_PATH, { javaScript });
+    opened.push(hub);
+    hub.page.setDefaultTimeout(5000);
+    if (javaScript) {
+      await settle(hub.page);
+    }
+    return hub;
+  }
+
+  it("is served with its own title, description and canonical URL", async () => {
+    const { page, response } = await openHub(false);
+    const description = await page
+      .locator('meta[name="description"]')
+      .getAttribute("content");
+
+    expect(response?.status()).toBe(200);
+    expect(await page.title()).toBe(HUB_TITLE);
+    expect(description).toContain("permission reviewer");
+    expect(description).toContain("cache manager");
+    expect(description).toContain("review and investigate");
+    expect(description?.length).toBeLessThanOrEqual(160);
+    expect(
+      await page.locator('link[rel="canonical"]').getAttribute("href"),
+    ).toBe(canonicalUrl(OPENCODE_PATH));
+  });
+
+  it("has one h1 and the two section headings", async () => {
+    const { page } = await openHub(false);
+
+    expect(await page.locator("h1").count()).toBe(1);
+    expect(await page.locator("h1").textContent()).toBe(
+      "Plugins for OpenCode.",
+    );
+    expect(await page.locator("main h2").allTextContents()).toEqual([
+      "Fewer prompts, cheaper sessions.",
+      "The toolkit's skills, on OpenCode.",
+    ]);
+  });
+
+  it("links to both plugin pages, the toolkit's skills and the install section", async () => {
+    const { page } = await openHub(false);
+    const hrefs = await page
+      .locator("main a")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+
+    for (const { name } of PLUGINS) {
+      expect(hrefs).toContain(opencodePluginPath(name));
+    }
+    expect(hrefs).toContain("/?plugin=review#skills");
+    expect(hrefs).toContain("/?plugin=investigate#skills");
+    expect(hrefs).toContain("/#install");
+  });
+
+  it("lists exactly the toolkit's review and investigate packages", async () => {
+    const { page } = await openHub(false);
+    const commands = await page.locator("main code").allTextContents();
+
+    expect(commands).toEqual(
+      expect.arrayContaining([
+        "opencode plugin add @noppu-labs/opencode-review",
+        "opencode plugin add @noppu-labs/opencode-investigate",
+      ]),
+    );
+    expect(
+      commands.filter((command) =>
+        /opencode-(review|investigate)$/.test(command),
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("loads each plugin's social image", async () => {
+    const { page } = await openHub(false);
+    const sources = await page
+      .locator("main article img")
+      .evaluateAll((images) =>
+        images.map((image) => image.getAttribute("src")),
+      );
+
+    expect(sources).toHaveLength(PLUGINS.length);
+    const responses = await Promise.all(
+      sources.map((src) => fetch(new URL(src ?? "", inject("baseUrl")))),
+    );
+    expect(responses.map((response) => response.status)).toEqual(
+      sources.map(() => 200),
+    );
+    expect(
+      responses.map((response) => response.headers.get("content-type")),
+    ).toEqual(sources.map(() => expect.stringMatching(/^image\//)));
+  });
+
+  it("hydrates with no console errors", async () => {
+    const { page, errors } = await openHub(true);
+
+    expect(await page.locator("astro-island[ssr]").count()).toBe(0);
+    expect(errors).toEqual([]);
+  });
+});
