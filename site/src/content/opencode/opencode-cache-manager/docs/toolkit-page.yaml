@@ -1,0 +1,139 @@
+# The page for this plugin on toolkit.noppu.com:
+# https://toolkit.noppu.com/opencode/opencode-cache-manager
+# noppu-labs/ai-toolkit copies this file, and the images it names, at each npm release.
+# Format: https://github.com/noppu-labs/ai-toolkit/blob/main/docs/opencode-pages.md
+schemaVersion: 1
+title: OpenCode Cache Manager
+seo:
+  title: 'OpenCode Cache Manager: prompt cache TTL and keepalive'
+  description: >-
+    An OpenCode plugin for Claude and GPT-5.6+ prompt caching: pick a 5m, 1h or hybrid TTL per
+    session, and keep idle caches warm with pings.
+tagline: >-
+  Take control of your prompt cache. Pick a 5m, 1h or hybrid TTL per session, and keep idle
+  caches warm with pings so they don't expire while you're away.
+summary: >-
+  Pick a 5m, 1h or hybrid prompt-cache TTL per session, and keep idle caches warm with keepalive
+  pings. Tuned for Claude and GPT-5.6+.
+chips:
+  - OpenCode V2
+  - Claude + GPT-5.6+
+  - keepalive pings
+  - sidebar readout
+image:
+  src: images/social-preview.png
+  alt: >-
+    Cache Manager, an OpenCode plugin: take control of your prompt cache. After 15 minutes away,
+    the default 5m cache has expired and the next prompt rewrites it at 1.25x. With keepalive,
+    pings keep it warm and the next prompt reads it at about 0.1x.
+install:
+  hosts:
+    - label: OpenCode V2
+      commands:
+        - opencode plugin add @noppu-labs/opencode-cache-manager
+  note: >-
+    Also published unscoped as `opencode-cache-manager`. Run `/cache-manager` in the TUI to change
+    a session's settings.
+highlights:
+  heading: Stop paying to rewrite the cache.
+  items:
+    - label: ttl
+      title: A TTL per session
+      body: >-
+        Switch any session to `5m`, `1h` or `hybrid` with `/cache-manager`. On Claude, `hybrid`
+        caches tools and the system prompt for an hour and the message tail for 5 minutes.
+    - label: keepalive
+      title: Keepalive pings
+      body: >-
+        A hidden ping goes out shortly before the cache expires and restarts its TTL. Nothing is
+        added to the conversation, and a ping costs about one cache read.
+    - label: limits
+      title: Pings that stop themselves
+      body: >-
+        Keepalive stops after 5 pings in one idle stretch by default, and stops early when a ping
+        misses the cache, so a provider that doesn't reuse it can't run up paid pings.
+    - label: sidebar
+      title: Cache status in the sidebar
+      body: >-
+        The OpenCode sidebar shows how much of the context is cached, when it expires, the next
+        ping and what keepalive has saved.
+    - label: openai
+      title: GPT-5.6+ too
+      body: >-
+        On GPT-5.6+, `1h` asks for OpenAI's 12-hour cache, and one-off requests such as titles
+        stop paying for cache writes.
+    - label: proxies
+      title: Works through proxies
+      body: >-
+        It handles the Anthropic Messages API, OpenAI Chat Completions and the OpenAI Responses
+        API, on the official endpoints and through proxies such as OpenRouter and OmniRoute.
+howItWorks:
+  heading: What happens to each request.
+  steps:
+    - >-
+      OpenCode builds the request. On Claude it marks its own cache breakpoints, always with a
+      5-minute TTL.
+    - >-
+      The plugin rewrites the outgoing request to the session's mode, and adds the extended-TTL
+      header Claude needs for `1h` and `hybrid`.
+    - >-
+      It reads the cache usage in each response. When the provider reports which TTL it granted,
+      the sidebar and the ping schedule use that one.
+    - >-
+      When the session goes idle, it schedules a ping just before the cache would expire. Your
+      next real request cancels it.
+  figure:
+    src: images/sidebar.svg
+    alt: >-
+      The Cache section of the OpenCode sidebar: status warm, 92% cached (141k of 153k tokens),
+      expires 14:52, TTL 1h detected, next ping 14:42, 2 of 5 pings used with the last one a hit,
+      $0.42 saved over 2 rewrites.
+    caption: The sidebar's Cache section during an idle stretch.
+requirements:
+  items:
+    - OpenCode V2 2.0.22 or later
+    - >-
+      A Claude or GPT-5.6+ model, through its official API or a proxy such as OpenRouter. Other
+      models only get the cache readout.
+  config:
+    path: ~/.config/opencode/opencode.jsonc
+    language: jsonc
+    code: |
+      {
+        "plugins": [
+          {
+            "package": "@noppu-labs/opencode-cache-manager",
+            "options": {
+              "defaultMode": "1h",
+              "keepalive": { "enabled": true, "maxPings": 5, "minContextTokens": 50000 }
+            }
+          }
+        ]
+      }
+faq:
+  - q: Do keepalive pings cost money?
+    a: >-
+      Yes. Each ping is a real request that reads the whole context from cache, at about 0.1x the
+      input price. It saves money when you come back after a long gap, and costs money for
+      sessions you never return to.
+  - q: Which models does it manage?
+    a: >-
+      Claude and OpenAI GPT-5.6+, through their official APIs or proxies such as OpenRouter.
+      Another model that takes Claude- or OpenAI-style cache breakpoints can be managed the same
+      way through the `cacheProfiles` option. For the rest it only shows how much of each prompt
+      was cached, and never pings.
+  - q: Can I use it with OpenCode's `warming` option?
+    a: >-
+      Use one or the other. With `warming: true` on as well, both would ping the same session and
+      you'd pay for every ping twice.
+  - q: Does it work on OpenCode V1?
+    a: No. It needs OpenCode V2 2.0.22 or later.
+links:
+  - label: Supported providers
+    href: https://github.com/noppu-labs/opencode-cache-manager/blob/main/docs/SUPPORTED_PROVIDERS.md
+  - label: Settings
+    href: https://github.com/noppu-labs/opencode-cache-manager#settings
+  - label: Example configs
+    href: https://github.com/noppu-labs/opencode-cache-manager/tree/main/docs/examples
+  - label: Upgrading
+    href: https://github.com/noppu-labs/opencode-cache-manager/blob/main/docs/UPGRADE.md
