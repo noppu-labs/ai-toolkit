@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import {
   type KeyboardEvent,
   type ReactElement,
@@ -34,6 +35,10 @@ function handleAllow(): void {
 
 function handleDecline(): void {
   recordConsent("denied");
+  useConsentStore.getState().closePanel();
+}
+
+function handleClose(): void {
   useConsentStore.getState().closePanel();
 }
 
@@ -119,11 +124,23 @@ export function ConsentBanner(): ReactElement | null {
       ref={banner}
       tabIndex={-1}
     >
-      <h2 className="text-xl tracking-[-0.02em]" id={headingId}>
-        {panel === "prompt"
-          ? "Mind if we count this visit?"
-          : "Cookie settings"}
-      </h2>
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-xl tracking-[-0.02em]" id={headingId}>
+          {panel === "prompt"
+            ? "Mind if we count this visit?"
+            : "Cookie settings"}
+        </h2>
+        {panel === "settings" && (
+          <Button
+            aria-label="Close"
+            onClick={handleClose}
+            size="icon-xs"
+            variant="neutral"
+          >
+            <X aria-hidden="true" />
+          </Button>
+        )}
+      </div>
       <p className="text-sm leading-normal text-muted-foreground">
         Google Analytics would set cookies that show which pages get read and
         where visitors come from. It stays off unless you allow it.{" "}

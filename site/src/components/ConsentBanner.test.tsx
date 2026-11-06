@@ -13,6 +13,14 @@ function banner(): Locator {
   });
 }
 
+function pressEscape(): Promise<void> {
+  return userEvent.keyboard("{Escape}");
+}
+
+function clickClose(): Promise<void> {
+  return banner().getByRole("button", { name: "Close" }).click();
+}
+
 afterEach(() => {
   opener?.remove();
   opener = undefined;
@@ -69,8 +77,13 @@ describe("ConsentBanner", () => {
     expect(document.activeElement).toBe(document.body);
   });
 
-  it("takes focus from settings, says the current choice and hands focus back on close", async () => {
-    // biome-ignore lint/suspicious/noDocumentCookie: a visitor who chose earlier.
+  it.each([
+    ["Escape", pressEscape],
+    ["the Close button", clickClose],
+  ])(
+    "takes focus from settings, says the current choice and hands focus back when closed with %s",
+    async (_, close) => {
+      // biome-ignore lint/suspicious/noDocumentCookie: a visitor who chose earlier.
       document.cookie = `${CONSENT_COOKIE}=granted; Path=/`;
       opener = document.body.appendChild(document.createElement("button"));
       opener.focus();
@@ -82,7 +95,7 @@ describe("ConsentBanner", () => {
       await expect
         .element(banner().getByText("Analytics is on for you."))
         .toBeVisible();
-      await userEvent.keyboard("{Escape}");
+      await close();
       await expect.element(banner()).not.toBeInTheDocument();
       expect(document.activeElement).toBe(opener);
       expect(getConsentChoice(document.cookie)).toBe("granted");
@@ -94,8 +107,19 @@ describe("ConsentBanner", () => {
     render(<ConsentBanner />);
     await expect.element(banner()).toBeVisible();
 
-    await userEvent.keyboard("{Escape}");
+    await pressEscape();
 
     await expect.element(banner()).toBeVisible();
+  });
+
+  it("offers no Close button while the prompt still needs an answer", async () => {
+    useConsentStore.getState().openPrompt();
+
+    render(<ConsentBanner />);
+
+    await expect.element(banner()).toBeVisible();
+    await expect
+      .element(banner().getByRole("button", { name: "Close" }))
+      .not.toBeInTheDocument();
   });
 });
