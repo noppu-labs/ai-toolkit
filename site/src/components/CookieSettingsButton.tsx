@@ -6,7 +6,6 @@ function handleOpen(): void {
   useConsentStore.getState().openSettings();
 }
 
-/** The privacy page's way back to the consent choice. */
 export function CookieSettingsButton(): ReactElement {
   return (
     <Button onClick={handleOpen} variant="neutral">

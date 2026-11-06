@@ -2,10 +2,7 @@ import { SITE_URL } from "./site.ts";
 
 export type ConsentChoice = "granted" | "denied";
 
-interface PageLocation {
-  hostname: string;
-  protocol: string;
-}
+type PageLocation = Pick<Location, "hostname" | "protocol">;
 
 declare global {
   interface Window {
@@ -132,7 +129,6 @@ function stopAnalytics(): void {
   }
 }
 
-/** Stores the visitor's choice and applies it to the current page. */
 export function recordConsent(choice: ConsentChoice): void {
   // biome-ignore lint/suspicious/noDocumentCookie: the Cookie Store API is not in Safari before 18.4 or Firefox before 140.
   document.cookie = makeConsentCookie(choice, window.location);

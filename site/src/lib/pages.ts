@@ -33,7 +33,6 @@ export const HOME_HEAD: PageHead = {
   path: "/",
 };
 
-/** The OpenCode hub's head. */
 export const OPENCODE_HUB_HEAD: PageHead = {
   title:
     "OpenCode plugins for permission review and prompt caching · AI Toolkit",
@@ -42,7 +41,6 @@ export const OPENCODE_HUB_HEAD: PageHead = {
   path: OPENCODE_PATH,
 };
 
-/** The privacy page's head. */
 export const PRIVACY_HEAD: PageHead = {
   title: "Privacy · AI Toolkit",
   description:
