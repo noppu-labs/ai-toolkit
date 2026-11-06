@@ -11,6 +11,7 @@
     "dev": "astro dev",
     "preview": "astro preview",
     "og-image": "tsx scripts/og-image.ts",
+    "sync:opencode": "tsx scripts/opencode/cli.ts",
     "test": "vitest run --browser.headless --project unit --project components",
     "test:dist": "vitest run --project dist",
     "test:preview": "vitest run --project preview",

@@ -12,9 +12,9 @@ repos:
       - id: trailing-whitespace
         # Holds skills vendored from upstream (`sourceType: "github"` in each skills-lock.json);
         # fix those upstream, not here.
-        exclude: ^(laravel|inertia-react)/
+        exclude: ^(laravel|inertia-react|site/src/content/opencode)/
       - id: end-of-file-fixer
-        exclude: ^(laravel|inertia-react)/
+        exclude: ^(laravel|inertia-react|site/src/content/opencode)/
       - id: check-shebang-scripts-are-executable
         # TypeScript and .mjs entry points run through tsx/node, never directly.
         exclude: \.(ts|mjs)$

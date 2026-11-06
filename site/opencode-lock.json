@@ -1,0 +1,13 @@
+{
+  "lockfileVersion": 1,
+  "plugins": {
+    "opencode-permission-reviewer": {
+      "repo": "noppu-labs/opencode-permission-reviewer",
+      "package": "@noppu-labs/opencode-permission-reviewer"
+    },
+    "opencode-cache-manager": {
+      "repo": "noppu-labs/opencode-cache-manager",
+      "package": "@noppu-labs/opencode-cache-manager"
+    }
+  }
+}
