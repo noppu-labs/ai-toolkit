@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitOf, newWorld, setLatest } from "./fixtures.ts";
+import { commitOf, newWorld } from "./fixtures.ts";
 import {
   fetchRepoFile,
   MAX_FILE_BYTES,
@@ -10,7 +10,10 @@ import {
 describe("npmLatestVersion", () => {
   it("reads latest from the dist-tags of a scoped package", async () => {
     const world = newWorld();
-    setLatest(world, "@noppu-labs/opencode-x", "1.2.3");
+    world.routes.set(
+      "https://registry.npmjs.org/-/package/@noppu-labs%2Fopencode-x/dist-tags",
+      { body: JSON.stringify({ latest: "1.2.3" }) },
+    );
     await expect(
       npmLatestVersion("@noppu-labs/opencode-x", world.fetcher),
     ).resolves.toBe("1.2.3");

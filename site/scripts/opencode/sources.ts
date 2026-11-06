@@ -18,7 +18,7 @@ export async function npmLatestVersion(
   pkg: string,
   fetcher: Fetcher,
 ): Promise<string> {
-  const url = `${NPM_REGISTRY}/-/package/${pkg.replace("/", "%2F")}/dist-tags`;
+  const url = `${NPM_REGISTRY}/-/package/${pkg.replaceAll("/", "%2F")}/dist-tags`;
   const response = await fetcher(url);
   if (response.status !== 200) {
     throw new Error(`${pkg}: npm registry returned ${response.status}`);

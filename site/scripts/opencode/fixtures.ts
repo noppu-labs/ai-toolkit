@@ -99,7 +99,7 @@ export function newWorld(): World {
 
 export function setLatest(world: World, pkg: string, version: string): void {
   world.routes.set(
-    `https://registry.npmjs.org/-/package/${pkg.replace("/", "%2F")}/dist-tags`,
+    `https://registry.npmjs.org/-/package/${pkg.replaceAll("/", "%2F")}/dist-tags`,
     { body: JSON.stringify({ latest: version }) },
   );
 }
