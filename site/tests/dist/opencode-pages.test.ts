@@ -221,7 +221,8 @@ describe("a plugin page with scripts", () => {
     await page.getByRole("tab", { name: "OpenCode V1" }).click();
 
     await expect.poll(() => commandOf(page, v1Command).isVisible()).toBe(true);
-    expect(await commandOf(page, v2Command).isVisible()).toBe(false);
+    // Base UI leaves both panels unhidden for a moment after the click.
+    await expect.poll(() => commandOf(page, v2Command).isVisible()).toBe(false);
     expect(
       await page
         .getByRole("tab", { name: "OpenCode V1" })
