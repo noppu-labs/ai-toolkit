@@ -114,7 +114,7 @@ export function startAnalytics(): void {
   document.head.append(tag);
 }
 
-function stopAnalytics(): void {
+export function stopAnalytics(): void {
   if (!isAnalyticsHost(window.location.hostname)) {
     return;
   }

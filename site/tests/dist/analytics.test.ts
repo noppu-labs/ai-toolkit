@@ -5,6 +5,8 @@ import { type OpenedPage, openPage, settle } from "./browser.ts";
 
 const PRODUCTION = "https://toolkit.noppu.com";
 const MEASUREMENT_ID = "G-MHP3L2JTTP";
+const GA_COOKIES = ["_ga", `_ga_${MEASUREMENT_ID.slice(2)}`];
+const CONSENT_COOKIE = "noppu_analytics_consent";
 
 interface GoogleTraffic {
   urls: string[];
@@ -37,12 +39,27 @@ async function routeProduction(page: Page): Promise<GoogleTraffic> {
   return traffic;
 }
 
+function makeSharedCookie(name: string, value: string): Cookie {
+  return {
+    name,
+    value,
+    domain: ".noppu.com",
+    path: "/",
+    expires: -1,
+    httpOnly: false,
+    secure: true,
+    sameSite: "Lax",
+  };
+}
+
 async function openProduction(
   path = "/",
+  cookies: Cookie[] = [],
 ): Promise<OpenedPage & { traffic: GoogleTraffic }> {
   let traffic: GoogleTraffic = { urls: [] };
   opened = await openPage(`${PRODUCTION}${path}`, {
     beforeLoad: async (page: Page): Promise<void> => {
+      await page.context().addCookies(cookies);
       traffic = await routeProduction(page);
     },
   });
@@ -68,6 +85,57 @@ async function getCookie(
   const cookies = await page.context().cookies(PRODUCTION);
 
   return cookies.find((cookie) => cookie.name === name);
+}
+
+/** Google's real tag would have written these; the stand-in does not. */
+function addGaCookies(page: Page): Promise<void> {
+  return page
+    .context()
+    .addCookies(GA_COOKIES.map((name) => makeSharedCookie(name, "GA1")));
+}
+
+async function getGaCookieNames(page: Page): Promise<string[]> {
+  const cookies = await page.context().cookies(PRODUCTION);
+
+  return cookies
+    .map((cookie) => cookie.name)
+    .filter((name) => GA_COOKIES.includes(name));
+}
+
+function getDisableFlag(page: Page): Promise<unknown> {
+  return page.evaluate(
+    (id) => (window as unknown as Record<string, unknown>)[`ga-disable-${id}`],
+    MEASUREMENT_ID,
+  );
+}
+
+/** Headless pages rarely change visibility on their own, so this stands in for the visitor coming back. */
+function fireReturn(page: Page, eventName: string): Promise<void> {
+  return page.evaluate((name) => {
+    const target = name === "pageshow" ? window : document;
+    target.dispatchEvent(new Event(name));
+  }, eventName);
+}
+
+function waitForTag(page: Page): Promise<void> {
+  return page
+    .locator('script[src*="googletagmanager"]')
+    .waitFor({ state: "attached" });
+}
+
+/** A tab of the same browser as `first`, with its tag already started. */
+async function openRunningTab(first: Page): Promise<Page> {
+  const tab = await first.context().newPage();
+  await routeProduction(tab);
+  await tab.goto(`${PRODUCTION}/opencode`);
+  await waitForTag(tab);
+
+  return tab;
+}
+
+async function allowAnalytics(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Allow analytics" }).click();
+  await waitForTag(page);
 }
 
 describe("analytics on the production host", () => {
@@ -154,40 +222,49 @@ describe("analytics on the production host", () => {
     const { page, traffic } = await openProduction();
     await page.getByRole("button", { name: "Allow analytics" }).click();
     await expect.poll(() => traffic.urls.length).toBe(1);
-    // Google's real tag would have written these; the stand-in does not.
-    await page.context().addCookies(
-      ["_ga", `_ga_${MEASUREMENT_ID.slice(2)}`].map((name) => ({
-        name,
-        value: "GA1",
-        domain: ".noppu.com",
-        path: "/",
-      })),
-    );
+    await addGaCookies(page);
 
     await page.getByRole("button", { name: "Cookie settings" }).click();
     await page.getByRole("button", { name: "No thanks" }).click();
 
-    expect(
-      await page.evaluate(
-        (id) =>
-          (window as unknown as Record<string, unknown>)[`ga-disable-${id}`],
-        MEASUREMENT_ID,
-      ),
-    ).toBe(true);
+    expect(await getDisableFlag(page)).toBe(true);
     expect((await getQueuedCommands(page)).at(-1)).toEqual([
       "consent",
       "update",
       { analytics_storage: "denied" },
     ]);
-    expect(await getCookie(page, "_ga")).toBeUndefined();
-    expect(
-      await getCookie(page, `_ga_${MEASUREMENT_ID.slice(2)}`),
-    ).toBeUndefined();
+    expect(await getGaCookieNames(page)).toEqual([]);
 
     await page.goto(`${PRODUCTION}/opencode`);
     await settle(page);
 
     expect(traffic.urls.length).toBe(1);
+  });
+
+  it.each([
+    ["declined", [makeSharedCookie(CONSENT_COOKIE, "denied")]],
+    ["never answered, or whose answer lapsed", []],
+  ])(
+    "deletes Google's cookies on load for a visitor who %s",
+    async (_, cookies) => {
+      const { page, traffic } = await openProduction("/", [
+        ...cookies,
+        ...GA_COOKIES.map((name) => makeSharedCookie(name, "GA1")),
+      ]);
+
+      await expect.poll(() => getGaCookieNames(page)).toEqual([]);
+      expect(traffic.urls).toEqual([]);
+    },
+  );
+
+  it("keeps Google's cookies on load for a visitor who allowed analytics", async () => {
+    const { page, traffic } = await openProduction("/", [
+      makeSharedCookie(CONSENT_COOKIE, "granted"),
+      ...GA_COOKIES.map((name) => makeSharedCookie(name, "GA1")),
+    ]);
+
+    await expect.poll(() => traffic.urls.length).toBe(1);
+    expect(await getGaCookieNames(page)).toEqual(GA_COOKIES);
   });
 
   it("logs no errors while asking and starting", async () => {
@@ -197,6 +274,82 @@ describe("analytics on the production host", () => {
     await expect.poll(() => traffic.urls.length).toBe(1);
 
     expect(errors).toEqual([]);
+  });
+});
+
+describe("analytics after the answer changes in another tab", () => {
+  it.each(["visibilitychange", "pageshow"])(
+    "stops the tag and clears Google's cookies on %s",
+    async (eventName) => {
+      const { page } = await openProduction();
+      await allowAnalytics(page);
+      const tab = await openRunningTab(page);
+      await page.getByRole("button", { name: "Cookie settings" }).click();
+      await page.getByRole("button", { name: "No thanks" }).click();
+      await addGaCookies(page);
+
+      expect(await getDisableFlag(tab)).toBe(false);
+
+      await fireReturn(tab, eventName);
+
+      expect(await getDisableFlag(tab)).toBe(true);
+      expect((await getQueuedCommands(tab)).at(-1)).toEqual([
+        "consent",
+        "update",
+        { analytics_storage: "denied" },
+      ]);
+      expect(await getGaCookieNames(tab)).toEqual([]);
+    },
+  );
+
+  it("treats a lapsed answer like a withdrawal", async () => {
+    const { page } = await openProduction();
+    await allowAnalytics(page);
+    await page.context().clearCookies({ name: CONSENT_COOKIE });
+
+    await fireReturn(page, "pageshow");
+
+    expect(await getDisableFlag(page)).toBe(true);
+  });
+
+  it("leaves the tag running while the answer is still an allow", async () => {
+    const { page } = await openProduction();
+    await allowAnalytics(page);
+    await addGaCookies(page);
+
+    await fireReturn(page, "visibilitychange");
+    await fireReturn(page, "pageshow");
+
+    expect(await getDisableFlag(page)).toBe(false);
+    expect(await getGaCookieNames(page)).toEqual(GA_COOKIES);
+  });
+
+  it("waits until the tab is visible again", async () => {
+    const { page } = await openProduction();
+    await allowAnalytics(page);
+    await page.context().clearCookies({ name: CONSENT_COOKIE });
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { value: "hidden" });
+    });
+
+    await fireReturn(page, "visibilitychange");
+
+    expect(await getDisableFlag(page)).toBe(false);
+  });
+
+  it("never starts the tag when the answer becomes an allow elsewhere", async () => {
+    const { page, traffic } = await openProduction("/", [
+      makeSharedCookie(CONSENT_COOKIE, "denied"),
+    ]);
+    await page
+      .context()
+      .addCookies([makeSharedCookie(CONSENT_COOKIE, "granted")]);
+
+    await fireReturn(page, "visibilitychange");
+    await fireReturn(page, "pageshow");
+
+    expect(await getQueuedCommands(page)).toEqual([]);
+    expect(traffic.urls).toEqual([]);
   });
 });
 
