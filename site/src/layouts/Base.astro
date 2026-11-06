@@ -1,5 +1,6 @@
 ---
 import "../css/app.css";
+import { ConsentBanner } from "../components/ConsentBanner.tsx";
 import { SiteFrame } from "../components/SiteFrame.tsx";
 import { Footer } from "../components/sections/Footer.tsx";
 import type { SectionBase } from "../components/sections/SiteHeader.tsx";
@@ -75,6 +76,7 @@ const commit: string | null = buildCommit(process.env);
   </head>
   <body>
     <div id="root">
+      <ConsentBanner client:idle />
       <SiteFrame>
         <HeaderIsland
           client:load

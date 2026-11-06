@@ -5,17 +5,26 @@ import { Logo } from "@/components/Logo";
 import { OPENCODE_PATH } from "@/lib/opencode";
 import { REPO_URL } from "@/lib/repo";
 import { goToTop } from "@/lib/scroll";
+import { PRIVACY_PATH } from "@/lib/site";
+import { useConsentStore } from "@/stores/useConsentStore";
 
 interface FooterLink {
   label: string;
   href: string;
   /** Opens in a new tab: the link leaves the site. */
   external: boolean;
+  /** Takes the whole row on phones. */
+  wide?: boolean;
   icon?: ReactElement;
 }
 
 const FOOTER_LINKS: FooterLink[] = [
-  { label: "OpenCode plugins", href: OPENCODE_PATH, external: false },
+  {
+    label: "OpenCode plugins",
+    href: OPENCODE_PATH,
+    external: false,
+    wide: true,
+  },
   { label: "GitHub", href: REPO_URL, external: true, icon: <GitHubMark /> },
   {
     label: "License",
@@ -32,6 +41,7 @@ const FOOTER_LINKS: FooterLink[] = [
     href: `${REPO_URL}/releases`,
     external: true,
   },
+  { label: "Privacy", href: PRIVACY_PATH, external: false },
 ];
 
 /** The skip link's target, `<main id="main">` in `SiteFrame.tsx`. */
@@ -41,8 +51,14 @@ function handleBackToTop(): void {
   goToTop(MAIN_ID);
 }
 
+function handleCookieSettings(): void {
+  useConsentStore.getState().openSettings();
+}
+
 const FOCUS_ON_INK =
   "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-ink";
+
+const FOOTER_ITEM = `flex min-h-11 items-center justify-center gap-2 rounded-base border-2 border-white px-3.5 py-2.5 font-bold transition-colors hover:bg-white hover:text-black md:inline-flex ${FOCUS_ON_INK}`;
 
 export function Footer(): ReactElement {
   return (
@@ -68,11 +84,11 @@ export function Footer(): ReactElement {
         <ul className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:flex-wrap">
           {FOOTER_LINKS.map((link) => (
             <li
-              className={link.external ? undefined : "col-span-2 md:col-span-1"}
+              className={link.wide ? "col-span-2 md:col-span-1" : undefined}
               key={link.href}
             >
               <a
-                className={`flex min-h-11 items-center justify-center gap-2 rounded-base border-2 border-white px-3.5 py-2.5 font-bold transition-colors hover:bg-white hover:text-black md:inline-flex ${FOCUS_ON_INK}`}
+                className={FOOTER_ITEM}
                 href={link.href}
                 {...(link.external
                   ? { rel: "noreferrer", target: "_blank" }
@@ -83,6 +99,15 @@ export function Footer(): ReactElement {
               </a>
             </li>
           ))}
+          <li>
+            <button
+              className={`${FOOTER_ITEM} w-full cursor-pointer md:w-auto`}
+              onClick={handleCookieSettings}
+              type="button"
+            >
+              Cookie settings
+            </button>
+          </li>
         </ul>
         <button
           className={`-mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-base border-2 border-border bg-main text-[15px] font-heading text-main-foreground shadow-[3px_3px_0px_0px_var(--color-white)] md:hidden [&_svg]:size-4 ${FOCUS_ON_INK}`}

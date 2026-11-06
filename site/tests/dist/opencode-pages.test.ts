@@ -161,7 +161,7 @@ describe.each(PLUGINS)(
       }
     });
 
-    it("hydrates the header, the install box and the footer only", async () => {
+    it("hydrates the header, the install box, the footer and the consent banner only", async () => {
       const islands = await opened.page
         .locator("astro-island")
         .evaluateAll((elements) =>
@@ -169,6 +169,7 @@ describe.each(PLUGINS)(
         );
 
       expect(islands.map(componentName)).toEqual([
+        "ConsentBanner",
         "HeaderIsland",
         "InstallBox",
         "Footer",
@@ -220,7 +221,8 @@ describe("a plugin page with scripts", () => {
     await page.getByRole("tab", { name: "OpenCode V1" }).click();
 
     await expect.poll(() => commandOf(page, v1Command).isVisible()).toBe(true);
-    expect(await commandOf(page, v2Command).isVisible()).toBe(false);
+    // Base UI leaves both panels unhidden for a moment after the click.
+    await expect.poll(() => commandOf(page, v2Command).isVisible()).toBe(false);
     expect(
       await page
         .getByRole("tab", { name: "OpenCode V1" })
