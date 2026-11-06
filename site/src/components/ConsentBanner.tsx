@@ -77,8 +77,10 @@ export function ConsentBanner(): ReactElement | null {
     } else {
       stopAnalytics();
     }
-    if (choice === null) {
-      useConsentStore.getState().openPrompt();
+    // A Cookie settings click can beat this island's hydration.
+    const { panel: current, openPrompt } = useConsentStore.getState();
+    if (choice === null && current === "closed") {
+      openPrompt();
     }
 
     // The answer can change in another tab, or on another page before the visitor goes Back.

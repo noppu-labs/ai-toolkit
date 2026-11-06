@@ -267,6 +267,39 @@ describe("analytics on the production host", () => {
     expect(await getGaCookieNames(page)).toEqual(GA_COOKIES);
   });
 
+  it("keeps Cookie settings open and focused when it is clicked before the banner hydrates", async () => {
+    const banner = Promise.withResolvers<void>();
+    opened = await openPage(`${PRODUCTION}/`, {
+      waitForHydration: false,
+      beforeLoad: async (opening: Page): Promise<void> => {
+        await routeProduction(opening);
+        await opening.route("**/_astro/ConsentBanner.*.js", async (route) => {
+          await banner.promise;
+          await route.fallback();
+        });
+      },
+    });
+    const { page, errors } = opened;
+    await page.waitForFunction(
+      () =>
+        document.querySelector('astro-island[component-url*="Footer"][ssr]') ===
+        null,
+    );
+    await settle(page);
+
+    await page.getByRole("button", { name: "Cookie settings" }).click();
+    banner.resolve();
+
+    const settings = page.getByRole("region", { name: "Cookie settings" });
+    await settings.waitFor({ timeout: 5000 });
+    await expect
+      .poll(() =>
+        settings.evaluate((element) => element === document.activeElement),
+      )
+      .toBe(true);
+    expect(errors).toEqual([]);
+  });
+
   it("logs no errors while asking and starting", async () => {
     const { page, errors, traffic } = await openProduction();
 
