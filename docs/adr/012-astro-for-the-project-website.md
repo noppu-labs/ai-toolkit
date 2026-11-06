@@ -5,6 +5,7 @@
 Accepted. Supersedes [ADR-011](011-prerendered-site-pages.md), keeping its URLs, skill pages
 and head values. Builds on [ADR-008](008-project-website-on-github-pages.md) (content
 pipeline) and [ADR-010](010-project-website-on-cloudflare-workers.md) (hosting).
+[ADR-013](013-opencode-plugin-pages-from-plugin-manifests.md) adds the OpenCode plugin pages.
 
 ## Context
 

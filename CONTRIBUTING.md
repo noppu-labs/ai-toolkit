@@ -58,6 +58,9 @@ or Linux, or when you pass `--background`. Manage that server with `astro dev st
 foreground. See Astro's
 [background mode](https://docs.astro.build/en/guides/build-with-ai/#background-mode).
 
+The pages under `/opencode` come from manifests in the plugin repos. The manifest format and
+the sync are in [docs/opencode-pages.md](docs/opencode-pages.md).
+
 ## Editing skills
 
 Most skills are vendored from upstream repos, and each plugin's `skills-lock.json` records

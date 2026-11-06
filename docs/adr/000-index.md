@@ -8,20 +8,21 @@ describe the repo as it is, so if the code and an ADR disagree, fix one of them.
 
 ## Index
 
-| ADR                                                 | Title                                               | Status                |
-|-----------------------------------------------------|-----------------------------------------------------|-----------------------|
-| [001](001-plugin-marketplace-monorepo.md)           | Single-repo plugin marketplace                      | Accepted              |
-| [002](002-vendored-skills-with-lockfile.md)         | Vendored skills with a lockfile                     | Accepted              |
-| [003](003-typescript-for-repo-tooling.md)           | TypeScript with maximum strictness for repo tooling | Accepted              |
-| [004](004-biome-and-markdownlint.md)                | Biome and markdownlint, with no overrides           | Accepted              |
-| [005](005-testing-strategy.md)                      | Testing with Vitest and fast-check property tests   | Accepted              |
-| [006](006-release-automation-and-provenance.md)     | Automated releases with build provenance            | Accepted              |
-| [007](007-supply-chain-hardening.md)                | Supply-chain hardening along OpenSSF guidelines     | Accepted              |
-| [008](008-project-website-on-github-pages.md)       | Project website generated from repo content         | Accepted              |
-| [009](009-plugin-workflows-beside-skills.md)        | Plugin workflows beside prose skills                | Accepted              |
-| [010](010-project-website-on-cloudflare-workers.md) | Project website on Cloudflare Workers               | Accepted              |
-| [011](011-prerendered-site-pages.md)                | Prerendered site pages                              | Superseded by ADR-012 |
-| [012](012-astro-for-the-project-website.md)         | Astro for the project website                       | Accepted              |
+| ADR                                                       | Title                                               | Status                |
+|-----------------------------------------------------------|-----------------------------------------------------|-----------------------|
+| [001](001-plugin-marketplace-monorepo.md)                 | Single-repo plugin marketplace                      | Accepted              |
+| [002](002-vendored-skills-with-lockfile.md)               | Vendored skills with a lockfile                     | Accepted              |
+| [003](003-typescript-for-repo-tooling.md)                 | TypeScript with maximum strictness for repo tooling | Accepted              |
+| [004](004-biome-and-markdownlint.md)                      | Biome and markdownlint, with no overrides           | Accepted              |
+| [005](005-testing-strategy.md)                            | Testing with Vitest and fast-check property tests   | Accepted              |
+| [006](006-release-automation-and-provenance.md)           | Automated releases with build provenance            | Accepted              |
+| [007](007-supply-chain-hardening.md)                      | Supply-chain hardening along OpenSSF guidelines     | Accepted              |
+| [008](008-project-website-on-github-pages.md)             | Project website generated from repo content         | Accepted              |
+| [009](009-plugin-workflows-beside-skills.md)              | Plugin workflows beside prose skills                | Accepted              |
+| [010](010-project-website-on-cloudflare-workers.md)       | Project website on Cloudflare Workers               | Accepted              |
+| [011](011-prerendered-site-pages.md)                      | Prerendered site pages                              | Superseded by ADR-012 |
+| [012](012-astro-for-the-project-website.md)               | Astro for the project website                       | Accepted              |
+| [013](013-opencode-plugin-pages-from-plugin-manifests.md) | OpenCode plugin pages from plugin manifests         | Accepted              |
 
 ## How the pieces fit together
 

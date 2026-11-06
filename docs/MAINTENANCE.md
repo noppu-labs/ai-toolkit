@@ -62,6 +62,36 @@ run `seed <plugin>/<name>`), and finish with `verify`.
 3. Add skills per the section above, `npm run sync -- seed <plugin>/<skill>`, then `verify`.
 4. Run `claude plugin validate <plugin>` and `claude plugin validate .`.
 
+## The OpenCode sync pull request
+
+The pages under `/opencode` are copies of each plugin's `docs/toolkit-page.yaml` and images,
+taken at its latest npm release. `.github/workflows/opencode-sync.yml` runs the sync every day
+and opens a pull request from `chore/opencode-sync` when a copy changed. The format and the
+CLI are in [opencode-pages.md](opencode-pages.md), and the reasons are in
+[ADR-013](adr/013-opencode-plugin-pages-from-plugin-manifests.md).
+
+- The workflow needs the repository setting "Allow GitHub Actions to create and approve pull
+  requests" (Settings, Actions, General). With it off, the run fails when it tries to open
+  the pull request.
+- The pull request changes `site/opencode-lock.json` and the folders under
+  `site/src/content/opencode/`. Its description lists each plugin's old and new version and
+  commit, and how many files changed.
+- GitHub holds the checks of a pull request opened with `GITHUB_TOKEN`. Open its Checks tab
+  and approve the workflows, or nothing runs.
+- To review it, read the diff of the copies, since that is the text that will go live, and
+  open the Cloudflare preview for the new pages. The lock's hashes and the `--check` step
+  catch a copy that no longer matches the lock.
+- While the pull request is open, every sync that changes something adds a commit to it.
+  Commits pushed to `chore/opencode-sync` by hand are kept. After it merges, the next release
+  starts a fresh branch from `main`. If it is closed without merging, the next run opens it
+  again for as long as that release is missing from `main`.
+- A red scheduled run means the sync failed for at least one plugin. The sync job's log names
+  the plugin and the field, such as a text field over its limit or an image path outside
+  `docs/`. The other plugins' updates still reach the pull request, and the failed plugin
+  keeps its last synced page until its repo publishes a fix.
+- A fix to a manifest reaches the site only through a new npm release of the plugin, so a
+  page-only fix needs a patch release.
+
 ## Versioning and releasing plugin changes
 
 Each plugin's `.claude-plugin/plugin.json` `version` is what consumers' update checks compare
