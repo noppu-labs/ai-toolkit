@@ -27,8 +27,8 @@ const STORED_ITEMS: StoredItem[] = [
   {
     name: "noppu_analytics_consent",
     kind: "Cookie, set when you choose",
-    kept: "6 months",
-    purpose: "Remembers your answer across noppu.com sites.",
+    kept: "Up to 6 months",
+    purpose: "Remembers your answer.",
   },
   {
     name: "ai-toolkit-preferences",
@@ -128,8 +128,9 @@ export function PrivacyPolicy({
             <ExternalLink href="https://support.google.com/analytics/answer/16871531">
               uses them for coarse location and spam detection
             </ExternalLink>
-            , then discards them. Google deletes analytics data automatically,
-            about 14 months after collection at the latest.
+            , then discards them. Google keeps event and user-level data for up
+            to about 14 months, and aggregated figures, such as visits per page,
+            can stay in reports for longer.
           </p>
           <p>
             Read{" "}
@@ -144,7 +145,11 @@ export function PrivacyPolicy({
         <Section heading="If you don't">
           <p>
             Google's script never loads. We store your answer so that we don't
-            ask again for 6 months.
+            ask again for up to 6 months.{" "}
+            <ExternalLink href="https://webkit.org/tracking-prevention/">
+              Safari can clear it after 7 days without a visit
+            </ExternalLink>
+            , so we may ask sooner.
           </p>
         </Section>
       </div>
@@ -199,17 +204,19 @@ export function PrivacyPolicy({
 
         <Section heading="noppu.com">
           <p>
-            noppu.com and this site share one Google Analytics property and one
-            consent cookie, so your answer applies to both, and visits to both
-            can be linked as one visitor's.
+            These cookies are set on noppu.com, so sites under that domain can
+            read them. noppu.com doesn't run Google Analytics yet. When it does,
+            it will use the same property and honour the same answer, and visits
+            to both can be linked as one visitor's.
           </p>
         </Section>
 
         <Section heading="Your choices">
           <p>
             You can change your answer at any time. Turning analytics off stops
-            measurement straight away and deletes Google's cookies from your
-            browser.
+            new measurement straight away and deletes Google's cookies from your
+            browser. Anything already queued may still go out within seconds,
+            and other open tabs of this site stop when you return to them.
           </p>
           <div>{children}</div>
           <p>
