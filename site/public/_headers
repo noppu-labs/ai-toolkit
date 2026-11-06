@@ -1,11 +1,15 @@
 # Cloudflare reads this file and applies it to static assets only; /api/* runs
-# the Worker first. The first rule sets security headers on every page, and the
-# second keeps PR previews on toolkit.noppu.dev out of search results without
-# touching production.
+# the Worker first. The first rule sets security headers on every page. The
+# second sandboxes the build's emitted assets: an SVG figure opened directly
+# then runs nothing on the site's origin, and a CSP on a script, stylesheet or
+# font loaded by a page has no effect. The third keeps PR previews on
+# toolkit.noppu.dev out of search results without touching production.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   X-Frame-Options: DENY
+/_astro/*
+  Content-Security-Policy: default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox
 https://:preview.toolkit.noppu.dev/*
   X-Robots-Tag: noindex

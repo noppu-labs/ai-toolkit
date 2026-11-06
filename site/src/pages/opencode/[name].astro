@@ -1,0 +1,116 @@
+---
+import { getImage } from "astro:assets";
+import type { GetImageResult } from "astro";
+import type { Catalog } from "../../catalog-types.ts";
+import { InstallBox } from "../../components/opencode/InstallBox.tsx";
+import { MoreOpenCodePlugins } from "../../components/opencode/MoreOpenCodePlugins.tsx";
+import { PluginHero } from "../../components/opencode/PluginHero.tsx";
+import {
+  Highlights,
+  HowItWorks,
+  Questions,
+  Requirements,
+} from "../../components/opencode/PluginSections.tsx";
+import Base from "../../layouts/Base.astro";
+import { canonicalUrl, type SocialImage } from "../../lib/head.ts";
+import { loadCatalog } from "../../lib/load-catalog.ts";
+import {
+  loadOpenCodePlugins,
+  type OpenCodePage,
+} from "../../lib/load-opencode.ts";
+import {
+  githubRepoUrl,
+  npmPackageUrl,
+  type OpenCodePlugin,
+} from "../../lib/opencode.ts";
+import { openCodeCard } from "../../lib/opencode-cards.ts";
+import { opencodePluginHead } from "../../lib/pages.ts";
+import { pluginColorClass } from "../../lib/plugins.ts";
+
+interface Props {
+  plugin: OpenCodePlugin<OpenCodePage>;
+  /** The other synced plugins, in hub order. */
+  others: OpenCodePlugin<OpenCodePage>[];
+}
+
+interface PluginPath {
+  params: { name: string };
+  props: Props;
+}
+
+export async function getStaticPaths(): Promise<PluginPath[]> {
+  const plugins = await loadOpenCodePlugins();
+  return plugins.map((plugin) => ({
+    params: { name: plugin.name },
+    props: { plugin, others: plugins.filter((other) => other !== plugin) },
+  }));
+}
+
+const { plugin, others }: Props = Astro.props;
+const page: OpenCodePage = plugin.page;
+const accentClass: string = pluginColorClass(plugin.name);
+
+// The link preview's image: the hero image, cropped to the 2:1 card size.
+const social: GetImageResult = await getImage({
+  src: page.image.src,
+  format: "png",
+  width: 1200,
+  height: 600,
+});
+const image: SocialImage = {
+  url: canonicalUrl(social.src),
+  type: "image/png",
+  width: 1200,
+  height: 600,
+  alt: page.image.alt,
+};
+
+const { plugins: toolkitPlugins }: Catalog = await loadCatalog();
+---
+
+<Base head={opencodePluginHead(plugin, image)} sectionBase="/">
+  <PluginHero
+    accentClass={accentClass}
+    image={{
+      src: page.image.src.src,
+      width: page.image.src.width,
+      height: page.image.src.height,
+      alt: page.image.alt,
+    }}
+    license={plugin.license}
+    name={plugin.name}
+    packageUrl={npmPackageUrl(plugin.package)}
+    repoUrl={githubRepoUrl(plugin.repo)}
+    tagline={page.tagline}
+    title={page.title}
+    version={plugin.version}
+  >
+    <InstallBox
+      client:idle
+      accentClass={accentClass}
+      hosts={page.install.hosts}
+      note={page.install.note}
+      plugin={plugin.name}
+    />
+  </PluginHero>
+  <Highlights
+    accentClass={accentClass}
+    heading={page.highlights.heading}
+    items={page.highlights.items}
+  />
+  <HowItWorks
+    figure={page.howItWorks.figure}
+    heading={page.howItWorks.heading}
+    steps={page.howItWorks.steps}
+  />
+  <Requirements
+    config={page.requirements.config}
+    items={page.requirements.items}
+    links={page.links}
+  />
+  <Questions faq={page.faq} />
+  <MoreOpenCodePlugins
+    plugins={others.map((other) => openCodeCard(other, false))}
+    toolkitPlugins={toolkitPlugins}
+  />
+</Base>

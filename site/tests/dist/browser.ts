@@ -123,6 +123,23 @@ export async function openPage(
   }
 }
 
+/**
+ * Waits until the main thread has gone idle twice. Astro drops an island's `ssr`
+ * attribute as soon as React starts hydrating it, so this is what lets each
+ * hydration render, its effects and the re-render with the browser's values
+ * (and any error they log) finish.
+ */
+export function settle(page: Page): Promise<void> {
+  return page.evaluate(async (): Promise<void> => {
+    const idle = (): Promise<void> =>
+      new Promise((resolve) => {
+        requestIdleCallback(() => resolve());
+      });
+    await idle();
+    await idle();
+  });
+}
+
 /** How far past its limit an element's right edge may sit: rounding. */
 const EDGE_TOLERANCE = 1;
 

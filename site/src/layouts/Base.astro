@@ -10,6 +10,7 @@ import {
   canonicalUrl,
   SITE_NAME,
   SOCIAL_CARD,
+  type SocialImage,
   THEME_COLORS,
 } from "../lib/head.ts";
 import type { PageHead } from "../lib/pages.ts";
@@ -22,6 +23,7 @@ interface Props {
 
 const { head, sectionBase }: Props = Astro.props;
 const canonical: string = canonicalUrl(head.path);
+const image: SocialImage = head.image ?? SOCIAL_CARD;
 // Set only by a Workers Builds build: the preview checks read it to know which
 // commit a preview serves.
 const commit: string | null = buildCommit(process.env);
@@ -54,13 +56,17 @@ const commit: string | null = buildCommit(process.env);
     <meta property="og:url" content={canonical}>
     <meta property="og:title" content={head.title}>
     <meta property="og:description" content={head.description}>
-    <meta property="og:image" content={SOCIAL_CARD.url}>
-    <meta property="og:image:type" content={SOCIAL_CARD.type}>
-    <meta property="og:image:width" content={String(SOCIAL_CARD.width)}>
-    <meta property="og:image:height" content={String(SOCIAL_CARD.height)}>
-    <meta property="og:image:alt" content={SOCIAL_CARD.alt}>
+    <meta property="og:image" content={image.url}>
+    <meta property="og:image:type" content={image.type}>
+    <meta property="og:image:width" content={String(image.width)}>
+    <meta property="og:image:height" content={String(image.height)}>
+    <meta property="og:image:alt" content={image.alt}>
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image:alt" content={SOCIAL_CARD.alt}>
+    <meta name="twitter:image:alt" content={image.alt}>
+    {head.jsonLd !== undefined && (
+      // biome-ignore lint/suspicious/noUnknownAttribute: an Astro directive, which Biome reads as a React prop inside an expression.
+      <script type="application/ld+json" set:html={head.jsonLd} />
+    )}
     {commit !== null && <meta name="build-commit" content={commit}>}
     {ABOVE_THE_FOLD_FONT_URLS.map((url) => (
       // biome-ignore lint/suspicious/noUnknownAttribute: an Astro element, not a React one, so it takes HTML's attribute name.

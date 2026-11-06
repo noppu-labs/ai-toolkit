@@ -58,6 +58,23 @@ describe("Cloudflare's preview", () => {
     expect(response.headers.get("x-frame-options")).toBe("DENY");
   });
 
+  it("sandboxes an emitted SVG opened directly", async () => {
+    const html = await (
+      await get("/opencode/opencode-permission-reviewer")
+    ).text();
+    // The How it works figure, which the page shows through an <img>.
+    const svg = /<img\b[^>]*\bsrc="(\/_astro\/[^"]+\.svg)"/.exec(html)?.[1];
+    expect(svg).toBeDefined();
+
+    const response = await get(svg ?? "");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toMatch(/^image\/svg\+xml/);
+    expect(response.headers.get("content-security-policy")).toBe(
+      "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox",
+    );
+  });
+
   it("redirects the old sitemap URL to the sitemap index, which it serves", async () => {
     const old = await get("/sitemap.xml");
     const index = await get("/sitemap-index.xml");
