@@ -1,8 +1,11 @@
 name: opencode-sync
 
 # Once a day, syncs the OpenCode plugin pages from each plugin's npm release
-# (`npm run sync:opencode -w site`) and opens or updates a pull request from
-# the chore/opencode-sync branch when anything changed.
+# (`npm run sync:opencode -w site`) and opens a pull request from the
+# chore/opencode-sync branch when anything changed. While that PR is open, each
+# sync that changes something adds a commit on top, so commits pushed there by
+# hand are kept. Once the PR is merged or closed, the next release starts a
+# fresh branch from main.
 #
 # The plugin repos' files are untrusted input, so two jobs share the work.
 # `sync` fetches and parses them with a read-only token and hands the result
@@ -63,9 +66,9 @@ jobs:
           if [ -n "$status" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-      # An artifact is rooted at the deepest folder its paths share. These two
-      # paths share site/, where `pr` unpacks them, and the summary in
-      # RUNNER_TEMP goes in an artifact of its own.
+      # An artifact is rooted at the deepest folder its paths share, so this
+      # one holds opencode-lock.json and src/content/opencode/ from site/. The
+      # summary in RUNNER_TEMP goes in an artifact of its own.
       - name: Upload the synced files
         if: steps.run.outputs.changed == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -99,51 +102,61 @@ jobs:
           ref: main
           persist-credentials: false
           fetch-depth: 0
-      # Cleared first, so files the sync removed stay removed.
-      - name: Clear the synced folder
-        run: |
-          set -euo pipefail
-          rm -rf site/src/content/opencode
+      # Unpacked outside the workspace, so the branch is chosen before the
+      # synced files go in.
       - name: Download the synced files
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: opencode-sync
-          path: site
+          path: ${{ runner.temp }}/opencode-sync
       - name: Download the summary
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: opencode-sync-summary
           path: ${{ runner.temp }}
-      # `same` means the branch already holds this tree on current main, so
-      # nothing is pushed and the PR is left as it is.
-      - name: Commit the synced files
+      # A new commit on the open PR's branch is a fast-forward that touches
+      # only the synced paths. Rebuilding the branch on main would hold its
+      # checks for approval again whenever main moved, and GitHub can refuse
+      # this token a push that carries main's workflow changes. The synced
+      # folder is replaced whole, so files the sync removed stay removed;
+      # `same=true` means there was nothing to commit.
+      - name: Commit to the sync branch and open or update the PR
         id: commit
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -C chore/opencode-sync
-          git add -- site/opencode-lock.json site/src/content/opencode
-          git commit -m "chore(site): sync OpenCode plugin pages"
-          git fetch origin chore/opencode-sync || true
-          if git rev-parse --verify --quiet refs/remotes/origin/chore/opencode-sync >/dev/null &&
-            git diff --quiet origin/chore/opencode-sync HEAD; then
-            echo "same=true" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Push and open or update the PR
-        if: steps.commit.outputs.same != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          branch=chore/opencode-sync
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          synced="$RUNNER_TEMP/opencode-sync"
           body="$RUNNER_TEMP/opencode-sync.md"
-          printf '\n%s\n' "GitHub holds this PR's checks until a maintainer approves them: open the Checks tab and approve the workflows." >> "$body"
-          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" chore/opencode-sync
-          state=$(gh pr view chore/opencode-sync --json state -q .state || true)
+          state=$(gh pr view "$branch" --json state -q .state || true)
           if [ "$state" = "OPEN" ]; then
-            gh pr edit chore/opencode-sync --body-file "$body"
+            git fetch origin "$branch"
+            git switch -C "$branch" "origin/$branch"
           else
-            gh pr create --base main --head chore/opencode-sync \
+            if git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null; then
+              git push "$remote" --delete "$branch"
+            fi
+            git switch -C "$branch"
+          fi
+          rm -rf site/src/content/opencode
+          cp "$synced/opencode-lock.json" site/opencode-lock.json
+          cp -R "$synced/src/content/opencode" site/src/content/opencode
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- site/opencode-lock.json site/src/content/opencode
+          if git diff --cached --quiet; then
+            echo "same=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "chore(site): sync OpenCode plugin pages"
+          printf '\n%s\n' "GitHub holds this PR's checks until a maintainer approves them: open the Checks tab and approve the workflows." >> "$body"
+          git push "$remote" "$branch"
+          if [ "$state" = "OPEN" ]; then
+            gh pr edit "$branch" --body-file "$body"
+          else
+            gh pr create --base main --head "$branch" \
               --title "chore(site): sync OpenCode plugin pages" --body-file "$body"
           fi
 
