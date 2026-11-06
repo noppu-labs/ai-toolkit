@@ -44,6 +44,28 @@ describe("CommandLine", () => {
     expect(container.querySelectorAll("code > wbr")).toHaveLength(1);
   });
 
+  it("breaks after the scope of an npm package name", async () => {
+    const { container } = await render(
+      <CommandLine command="opencode plugin add @noppu-labs/opencode-permission-reviewer" />,
+    );
+
+    const words = [...container.querySelectorAll("code > span")].map(
+      (span) => span.textContent,
+    );
+    expect(words).toEqual([
+      "opencode",
+      "plugin",
+      "add",
+      "@noppu-labs/",
+      "opencode-permission-reviewer",
+    ]);
+    const wbr = container.querySelector("code > wbr");
+    expect(wbr?.previousElementSibling?.textContent).toBe("@noppu-labs/");
+    for (const span of container.querySelectorAll("code > span")) {
+      expect(getComputedStyle(span).whiteSpace).toBe("nowrap");
+    }
+  });
+
   it("indents wrapped lines past the prompt", async () => {
     await page.viewport(320, 600);
     const { container } = await render(

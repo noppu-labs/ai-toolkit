@@ -29,6 +29,8 @@ const COLOR_CLASSES: Readonly<Record<string, string>> = {
   investigate: "bg-plugin-investigate",
   laravel: "bg-plugin-laravel",
   "inertia-react": "bg-plugin-inertia-react",
+  "opencode-permission-reviewer": "bg-plugin-opencode-permission-reviewer",
+  "opencode-cache-manager": "bg-plugin-opencode-cache-manager",
 };
 
 const PRESSED_COLOR_CLASSES: Readonly<Record<string, string>> = {
@@ -38,6 +40,10 @@ const PRESSED_COLOR_CLASSES: Readonly<Record<string, string>> = {
   laravel: "aria-pressed:bg-plugin-laravel data-pressed:bg-plugin-laravel",
   "inertia-react":
     "aria-pressed:bg-plugin-inertia-react data-pressed:bg-plugin-inertia-react",
+  "opencode-permission-reviewer":
+    "aria-pressed:bg-plugin-opencode-permission-reviewer data-pressed:bg-plugin-opencode-permission-reviewer",
+  "opencode-cache-manager":
+    "aria-pressed:bg-plugin-opencode-cache-manager data-pressed:bg-plugin-opencode-cache-manager",
 };
 
 const FALLBACK_COLOR_CLASS = "bg-main";

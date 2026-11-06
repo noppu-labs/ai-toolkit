@@ -50,6 +50,8 @@
   --color-plugin-investigate: var(--palette-lime);
   --color-plugin-laravel: var(--palette-coral);
   --color-plugin-inertia-react: var(--palette-periwinkle);
+  --color-plugin-opencode-permission-reviewer: var(--palette-lavender);
+  --color-plugin-opencode-cache-manager: var(--palette-aqua);
 
   /* Radius scale derived from the base radius (`rounded-sm`, `rounded-xl`, …). */
   --radius-sm: calc(var(--border-radius) - 4px);

@@ -16,6 +16,7 @@ const pluginSchema = z.object({
   agentCount: z.number().int().nonnegative(),
   ruleCount: z.number().int().nonnegative(),
   skills: z.array(skillSchema),
+  opencodePackage: z.string().exactOptional(),
 });
 
 /**

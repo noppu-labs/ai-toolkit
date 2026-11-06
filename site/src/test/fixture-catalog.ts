@@ -50,6 +50,7 @@ export const FIXTURE_REVIEW_PLUGIN: PluginEntry = {
   version: "0.8.1",
   agentCount: 0,
   ruleCount: 0,
+  opencodePackage: "@noppu-labs/opencode-review",
   skills: [
     {
       name: "comment-audit",

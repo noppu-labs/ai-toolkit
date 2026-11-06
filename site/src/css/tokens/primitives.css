@@ -34,4 +34,6 @@
   --palette-lime: oklch(0.8494 0.2069 128.89);
   --palette-coral: oklch(0.7318 0.165 28.31);
   --palette-periwinkle: oklch(0.7395 0.106 263.6);
+  --palette-lavender: oklch(0.7836 0.1272 298.41);
+  --palette-aqua: oklch(0.8447 0.1075 185.68);
 }

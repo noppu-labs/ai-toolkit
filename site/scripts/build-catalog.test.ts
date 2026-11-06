@@ -122,6 +122,37 @@ describe("buildCatalog", () => {
     );
   });
 
+  it("sets opencodePackage from a package.json with the opencode-plugin keyword", () => {
+    root = makeRepo();
+    writeFileSync(
+      join(root, "demo", "package.json"),
+      JSON.stringify({
+        name: "@noppu-labs/opencode-demo",
+        keywords: ["opencode", "opencode-plugin"],
+      }),
+    );
+    expect(buildCatalog(root).plugins[0]?.opencodePackage).toBe(
+      "@noppu-labs/opencode-demo",
+    );
+  });
+
+  it("leaves opencodePackage out without the keyword or without a package.json", () => {
+    root = makeRepo();
+    expect(buildCatalog(root).plugins[0]).not.toHaveProperty("opencodePackage");
+
+    writeFileSync(
+      join(root, "demo", "package.json"),
+      JSON.stringify({ name: "@noppu-labs/demo", keywords: ["other"] }),
+    );
+    expect(buildCatalog(root).plugins[0]).not.toHaveProperty("opencodePackage");
+
+    writeFileSync(
+      join(root, "demo", "package.json"),
+      JSON.stringify({ name: "@noppu-labs/demo" }),
+    );
+    expect(buildCatalog(root).plugins[0]).not.toHaveProperty("opencodePackage");
+  });
+
   it("builds the real repository catalog without throwing", () => {
     const realRoot = join(import.meta.dirname, "..", "..");
     const catalog = buildCatalog(realRoot);
@@ -133,5 +164,17 @@ describe("buildCatalog", () => {
     ]);
     const laravel = catalog.plugins[0];
     expect(laravel?.skills.length).toBeGreaterThanOrEqual(16);
+    expect(
+      catalog.plugins.filter((p) => p.opencodePackage !== undefined),
+    ).toEqual([
+      expect.objectContaining({
+        name: "review",
+        opencodePackage: "@noppu-labs/opencode-review",
+      }),
+      expect.objectContaining({
+        name: "investigate",
+        opencodePackage: "@noppu-labs/opencode-investigate",
+      }),
+    ]);
   });
 });

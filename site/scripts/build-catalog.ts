@@ -74,6 +74,24 @@ function readSkills(pluginDir: string, pluginDirName: string): SkillEntry[] {
   });
 }
 
+const OPENCODE_KEYWORD = "opencode-plugin";
+
+/** The plugin's OpenCode package name, when its `package.json` tags it with the `opencode-plugin` keyword. */
+function readOpencodePackage(pluginDir: string): string | undefined {
+  const path = join(pluginDir, "package.json");
+  if (!existsSync(path)) {
+    return undefined;
+  }
+  const pkg = readJson(path) as { name?: unknown; keywords?: unknown };
+  if (
+    !Array.isArray(pkg.keywords) ||
+    !pkg.keywords.includes(OPENCODE_KEYWORD)
+  ) {
+    return undefined;
+  }
+  return requireString(pkg.name, `${pluginDir}/package.json "name"`);
+}
+
 function readPlugin(rootDir: string, plugin: MarketplacePlugin): PluginEntry {
   const dirName = plugin.source.replace(/^\.\//, "");
   const pluginDir = join(rootDir, dirName);
@@ -82,6 +100,7 @@ function readPlugin(rootDir: string, plugin: MarketplacePlugin): PluginEntry {
   ) as {
     version?: unknown;
   };
+  const opencodePackage = readOpencodePackage(pluginDir);
   return {
     name: plugin.name,
     description: plugin.description,
@@ -92,6 +111,7 @@ function readPlugin(rootDir: string, plugin: MarketplacePlugin): PluginEntry {
     agentCount: countEntries(join(pluginDir, "agents")),
     ruleCount: countEntries(join(pluginDir, "rules")),
     skills: readSkills(pluginDir, dirName),
+    ...(opencodePackage === undefined ? {} : { opencodePackage }),
   };
 }
 

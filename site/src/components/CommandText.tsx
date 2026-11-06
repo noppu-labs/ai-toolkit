@@ -4,20 +4,31 @@ import { cn } from "@/lib/utils";
 
 const SLUG_PREFIX = `${REPO_SLUG}/`;
 
-// Browsers also break after hyphens (`noppu-labs`, `inertia-react`), so each
-// word is kept whole. The one extra break is after the repo slug in a plugin
-// path, where `noppu-labs/ai-toolkit/inertia-react` would not fit a phone line.
+// Where a word may break, as an index into it, or -1 for never. Browsers also
+// break after hyphens (`noppu-labs`, `inertia-react`), so each word is kept
+// whole. The one extra break is after the repo slug in a plugin path, where
+// `noppu-labs/ai-toolkit/inertia-react` would not fit a phone line, or after
+// the scope of an npm package (`@noppu-labs/opencode-permission-reviewer`).
+function breakIndex(text: string): number {
+  if (text.startsWith(SLUG_PREFIX)) {
+    return text === SLUG_PREFIX ? -1 : SLUG_PREFIX.length;
+  }
+  const slash = text.indexOf("/");
+  return text.startsWith("@") && slash > 1 && slash < text.length - 1
+    ? slash + 1
+    : -1;
+}
+
 function word(text: string): ReactNode {
-  if (!text.startsWith(SLUG_PREFIX) || text === SLUG_PREFIX) {
+  const split = breakIndex(text);
+  if (split === -1) {
     return <span className="whitespace-nowrap">{text}</span>;
   }
   return (
     <>
-      <span className="whitespace-nowrap">{SLUG_PREFIX}</span>
+      <span className="whitespace-nowrap">{text.slice(0, split)}</span>
       <wbr />
-      <span className="whitespace-nowrap">
-        {text.slice(SLUG_PREFIX.length)}
-      </span>
+      <span className="whitespace-nowrap">{text.slice(split)}</span>
     </>
   );
 }
