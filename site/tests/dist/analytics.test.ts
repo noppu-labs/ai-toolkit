@@ -109,6 +109,12 @@ function getDisableFlag(page: Page): Promise<unknown> {
   );
 }
 
+function isFocused(page: Page, name: string): Promise<boolean> {
+  return page
+    .getByRole("button", { name })
+    .evaluate((element) => element === document.activeElement);
+}
+
 /** Headless pages rarely change visibility on their own, so this stands in for the visitor coming back. */
 function fireReturn(page: Page, eventName: string): Promise<void> {
   return page.evaluate((name) => {
@@ -265,6 +271,17 @@ describe("analytics on the production host", () => {
 
     await expect.poll(() => traffic.urls.length).toBe(1);
     expect(await getGaCookieNames(page)).toEqual(GA_COOKIES);
+  });
+
+  it("reaches the prompt's buttons within three Tab presses", async () => {
+    const { page } = await openProduction();
+    await page.getByRole("button", { name: "No thanks" }).waitFor();
+
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+
+    expect(await isFocused(page, "No thanks")).toBe(true);
   });
 
   it("keeps Cookie settings open and focused when it is clicked before the banner hydrates", async () => {

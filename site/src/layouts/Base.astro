@@ -76,6 +76,7 @@ const commit: string | null = buildCommit(process.env);
   </head>
   <body>
     <div id="root">
+      <ConsentBanner client:idle />
       <SiteFrame>
         <HeaderIsland
           client:load
@@ -86,7 +87,6 @@ const commit: string | null = buildCommit(process.env);
         <Footer client:idle slot="footer" />
         <slot />
       </SiteFrame>
-      <ConsentBanner client:idle />
     </div>
   </body>
 </html>

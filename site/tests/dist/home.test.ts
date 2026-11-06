@@ -65,6 +65,7 @@ describe("the home page, before any script runs", () => {
       );
 
     expect(islands.map(componentName)).toEqual([
+      "ConsentBanner",
       "HeaderIsland",
       "InstallSection",
       "PluginCards",
@@ -72,7 +73,6 @@ describe("the home page, before any script runs", () => {
       "CatalogIsland",
       "SecuritySection",
       "Footer",
-      "ConsentBanner",
     ]);
     expect(await opened.page.locator("astro-island h1").count()).toBe(0);
   });

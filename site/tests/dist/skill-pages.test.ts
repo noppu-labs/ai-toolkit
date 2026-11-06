@@ -124,10 +124,10 @@ describe.each(PAGES)(
         );
 
       expect(islands.map(componentName)).toEqual([
+        "ConsentBanner",
         "HeaderIsland",
         "SkillDetail",
         "Footer",
-        "ConsentBanner",
       ]);
       expect(await opened.page.locator("astro-island h1").count()).toBe(0);
     });
