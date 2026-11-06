@@ -123,7 +123,12 @@ export function manifestSchema<H extends z.ZodType, F extends z.ZodType>(
       image: z.object({ src: heroImage, alt: text(10, 250) }).strict(),
       install: z
         .object({
-          hosts: list(hostSchema, 1, 3),
+          // Each label is a tab's value, so two hosts can't share one.
+          hosts: list(hostSchema, 1, 3).refine(
+            (hosts) =>
+              new Set(hosts.map((host) => host.label)).size === hosts.length,
+            "each host needs its own label",
+          ),
           note: text(1, 200).optional(),
         })
         .strict(),

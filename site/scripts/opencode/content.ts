@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import { parse } from "yaml";
 import type { LockEntry, OpenCodeLock } from "../../src/lib/opencode-lock.ts";
 import {
@@ -35,15 +35,35 @@ export async function writePlugin(
   );
 }
 
-function filesUnder(dir: string): string[] {
-  if (!existsSync(dir)) {
-    return [];
+interface Tree {
+  /** Regular files, as `/`-separated paths relative to the plugin folder. */
+  files: string[];
+  links: string[];
+}
+
+function walk(dir: string, prefix: string, tree: Tree): void {
+  for (const item of readdirSync(dir, { withFileTypes: true })) {
+    const path = `${prefix}${item.name}`;
+    if (item.isDirectory()) {
+      walk(join(dir, item.name), `${path}/`, tree);
+    } else if (item.isSymbolicLink()) {
+      tree.links.push(path);
+    } else if (item.isFile()) {
+      tree.files.push(path);
+    }
   }
-  return readdirSync(dir, { recursive: true, withFileTypes: true })
-    .filter((item) => item.isFile())
-    .map((item) =>
-      relative(dir, join(item.parentPath, item.name)).split("\\").join("/"),
-    );
+}
+
+/**
+ * The files and symlinks in a plugin folder. Symlinks are listed and never
+ * followed: `readdirSync`'s `recursive` option would follow one to a folder.
+ */
+function treeOf(dir: string): Tree {
+  const tree: Tree = { files: [], links: [] };
+  if (lstatSync(dir, { throwIfNoEntry: false })?.isDirectory() === true) {
+    walk(dir, "", tree);
+  }
+  return tree;
 }
 
 function checkPlugin(
@@ -52,34 +72,44 @@ function checkPlugin(
   entry: LockEntry,
 ): string[] {
   const dir = contentDir(siteDir, name);
+  const tree = treeOf(dir);
   const findings = Object.entries(entry.files).flatMap(([path, sha]) => {
-    const file = join(dir, path);
-    if (!existsSync(file)) {
-      return [`${name}: ${path} is missing`];
+    if (!tree.files.includes(path)) {
+      return tree.links.includes(path) ? [] : [`${name}: ${path} is missing`];
     }
     const actual = createHash("sha256")
-      .update(readFileSync(file))
+      .update(readFileSync(join(dir, path)))
       .digest("hex");
     return actual === sha ? [] : [`${name}: ${path} differs from the lock`];
   });
-  const stray = filesUnder(dir)
-    .filter((path) => !(path in entry.files))
+  const stray = tree.files
+    .filter((path) => !Object.hasOwn(entry.files, path))
     .map((path) => `${name}: ${path} is not in the lock`);
-  return [...findings, ...stray];
+  const links = tree.links.map((path) => `${name}: ${path} is a symlink`);
+  return [...findings, ...stray, ...links];
+}
+
+/** Each item directly under the content root that is not a locked plugin's folder. */
+function checkRoot(root: string, lock: OpenCodeLock): string[] {
+  if (!existsSync(root)) {
+    return [];
+  }
+  return readdirSync(root, { withFileTypes: true }).flatMap((item) => {
+    if (!item.isDirectory()) {
+      return [`${item.name}: not a plugin folder`];
+    }
+    return Object.hasOwn(lock.plugins, item.name)
+      ? []
+      : [`${item.name}: no entry in the lock`];
+  });
 }
 
 /** Everything in the synced copies that disagrees with the lock. */
 export function checkContent(siteDir: string, lock: OpenCodeLock): string[] {
-  const root = join(siteDir, ...CONTENT_ROOT);
-  const orphans = existsSync(root)
-    ? readdirSync(root, { withFileTypes: true })
-        .filter((item) => item.isDirectory() && !(item.name in lock.plugins))
-        .map((item) => `${item.name}: no entry in the lock`)
-    : [];
   const findings = Object.entries(lock.plugins).flatMap(([name, entry]) =>
     checkPlugin(siteDir, name, entry),
   );
-  return [...findings, ...orphans];
+  return [...findings, ...checkRoot(join(siteDir, ...CONTENT_ROOT), lock)];
 }
 
 /** Entries that pin a ref or a tag that is not the version's release tag. */

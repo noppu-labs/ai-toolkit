@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { imageMetadata } from "astro/assets/utils";
 import { z } from "astro/zod";
 import { parse } from "yaml";
-import type { LockEntry } from "../../src/lib/opencode-lock.ts";
+import {
+  type LockEntry,
+  lockEntrySchema,
+} from "../../src/lib/opencode-lock.ts";
 import {
   MANIFEST_PATH,
   manifestImages,
@@ -155,7 +158,9 @@ function assertFigureIsInert(
   }
 }
 
+/** The plugin's lock entry, checked so the sync never writes one `--check` cannot read. */
 function lockEntry(
+  name: string,
   source: Source,
   details: {
     pkg: z.infer<typeof packageJsonSchema>;
@@ -166,7 +171,7 @@ function lockEntry(
   },
 ): LockEntry {
   const { pkg, tag, commit, ref, files } = details;
-  return {
+  const result = lockEntrySchema.safeParse({
     repo: source.repo,
     package: source.package,
     version: pkg.version,
@@ -177,7 +182,15 @@ function lockEntry(
     files: Object.fromEntries(
       [...files].map(([path, bytes]) => [path, hash(bytes)]),
     ),
-  };
+  });
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    const where = issue?.path.map(String).join(".") ?? "";
+    throw new Error(
+      `${name}: lock entry ${where}: ${issue?.message ?? "invalid"}`,
+    );
+  }
+  return result.data;
 }
 
 /** Reads one plugin at its release (or `ref`) and checks everything the page needs. */
@@ -211,5 +224,6 @@ export async function fetchPlugin(
       image.bytes,
     ]),
   ]);
-  return { entry: lockEntry(source, { pkg, tag, commit, ref, files }), files };
+  const entry = lockEntry(name, source, { pkg, tag, commit, ref, files });
+  return { entry, files };
 }

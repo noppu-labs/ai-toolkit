@@ -81,6 +81,20 @@ describe("fetchPlugin", () => {
     });
   });
 
+  it("rejects a ref whose package.json version the lock cannot record", async () => {
+    const world = released();
+    setRepo(
+      world,
+      SOURCE.repo,
+      "feat/y",
+      commitOf("b"),
+      pluginFiles(NAME, "next"),
+    );
+    await expect(run(world, "feat/y")).rejects.toThrow(
+      `${NAME}: lock entry version: `,
+    );
+  });
+
   it("rejects a repo whose name differs from the plugin name", async () => {
     await expect(fetchPlugin("opencode-y", SOURCE, released())).rejects.toThrow(
       "opencode-y: ",

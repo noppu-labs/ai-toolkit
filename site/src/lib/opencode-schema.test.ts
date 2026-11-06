@@ -64,6 +64,23 @@ describe("rawManifestSchema", () => {
     ).toThrow();
   });
 
+  it("rejects two install hosts with the same label", () => {
+    const m = reviewer();
+    const [first, second] = m.install.hosts;
+    if (first === undefined || second === undefined) {
+      throw new Error("the reviewer fixture has two hosts");
+    }
+    const result = rawManifestSchema.safeParse({
+      ...m,
+      install: {
+        ...m.install,
+        hosts: [first, { ...second, label: ` ${first.label} ` }],
+      },
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["install", "hosts"]);
+  });
+
   it("rejects schemaVersion 2", () => {
     expect(() =>
       rawManifestSchema.parse({ ...reviewer(), schemaVersion: 2 }),

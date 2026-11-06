@@ -3,6 +3,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -119,6 +120,57 @@ describe("checkContent", () => {
         expect.stringContaining("opencode-ghost: no entry"),
       ]),
     );
+  });
+
+  it("reports a file or symlink directly under src/content/opencode", async () => {
+    const { dir, lock } = setup();
+    await writeAll(dir);
+    const root = dirname(contentDir(dir, "opencode-x"));
+    writeFileSync(join(root, "README.md"), "r");
+    symlinkSync(contentDir(dir, "opencode-x"), join(root, "opencode-link"));
+    expect(checkContent(dir, lock)).toEqual(
+      expect.arrayContaining([
+        "README.md: not a plugin folder",
+        "opencode-link: not a plugin folder",
+      ]),
+    );
+    expect(checkContent(dir, lock)).toHaveLength(2);
+  });
+
+  it("reports a symlink under a plugin folder without following it", async () => {
+    const { dir, lock } = setup();
+    await writeAll(dir);
+    const root = contentDir(dir, "opencode-x");
+    const outside = join(dir, "outside");
+    mkdirSync(join(outside, "sub"), { recursive: true });
+    writeFileSync(join(outside, "a.txt"), "a");
+    writeFileSync(join(outside, "sub", "f.txt"), "f");
+    rmSync(join(root, "docs/a.txt"));
+    symlinkSync(join(outside, "a.txt"), join(root, "docs/a.txt"));
+    symlinkSync(join(outside, "sub"), join(root, "docs/linked"));
+    const findings = checkContent(dir, lock);
+    expect(findings).toEqual(
+      expect.arrayContaining([
+        "opencode-x: docs/a.txt is a symlink",
+        "opencode-x: docs/linked is a symlink",
+      ]),
+    );
+    expect(findings).toHaveLength(2);
+  });
+
+  it("does not take a name from Object.prototype as locked", async () => {
+    const { dir, lock } = setup();
+    await writeAll(dir);
+    writeFileSync(join(contentDir(dir, "opencode-x"), "toString"), "t");
+    mkdirSync(contentDir(dir, "constructor"), { recursive: true });
+    const findings = checkContent(dir, lock);
+    expect(findings).toEqual(
+      expect.arrayContaining([
+        "opencode-x: toString is not in the lock",
+        "constructor: no entry in the lock",
+      ]),
+    );
+    expect(findings).toHaveLength(2);
   });
 
   it("tolerates a content folder that does not exist", () => {
