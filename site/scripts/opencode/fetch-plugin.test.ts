@@ -150,15 +150,23 @@ describe("fetchPlugin", () => {
     );
   });
 
-  it.each([
-    ["a script element", figureSvg("><script>alert(1)</script><g")],
-    ["an event attribute", figureSvg('onload="x()"')],
-    ["a javascript: URL", figureSvg('href="JavaScript:x()"')],
-    ["a foreignObject", figureSvg("><foreignobject/><g")],
-  ])("rejects an SVG figure with %s", async (_label, svg) => {
-    const world = released({ [FIGURE_PATH]: svg });
+  it("rejects an SVG figure with active content", async () => {
+    const world = released({ [FIGURE_PATH]: figureSvg('onload="x()"') });
     await expect(run(world)).rejects.toThrow(
       `${NAME}: howItWorks.figure.src: SVG has active content`,
     );
+  });
+
+  it("names the field of an image that is missing or over 1 MiB", async () => {
+    const world = released();
+    world.routes.delete(
+      `https://raw.githubusercontent.com/${SOURCE.repo}/${commitOf("a")}/${FIGURE_PATH}`,
+    );
+    await expect(run(world)).rejects.toThrow(
+      `${NAME}: howItWorks.figure.src: `,
+    );
+    const big = released({ [HERO_PATH]: new Uint8Array(1_048_577) });
+    await expect(run(big)).rejects.toThrow(`${NAME}: image.src: `);
+    await expect(run(big)).rejects.toThrow("is over 1 MiB");
   });
 });

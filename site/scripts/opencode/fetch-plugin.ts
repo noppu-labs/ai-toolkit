@@ -18,6 +18,7 @@ import {
   npmLatestVersion,
   resolveCommit,
 } from "./sources.ts";
+import { svgHasActiveContent } from "./svg.ts";
 
 export interface FetchedPlugin {
   entry: LockEntry;
@@ -42,7 +43,6 @@ interface FetchedImage {
 
 const MIN_HERO_WIDTH = 1200;
 const MIN_HERO_HEIGHT = 600;
-const ACTIVE_SVG = /<script|[\s"'/]on[a-z]+\s*=|javascript:|<foreignObject/i;
 
 const packageJsonSchema = z.object({
   name: z.string(),
@@ -115,7 +115,13 @@ function fetchImages(
   return Promise.all(
     manifestImages(manifest).map(async ({ field, path }) => {
       const repoPath = anchoredPath(name, field, path);
-      return { field, repoPath, bytes: await read(repoPath) };
+      try {
+        return { field, repoPath, bytes: await read(repoPath) };
+      } catch (error) {
+        throw new Error(`${name}: ${field}: ${(error as Error).message}`, {
+          cause: error,
+        });
+      }
     }),
   );
 }
@@ -143,7 +149,7 @@ function assertFigureIsInert(
   );
   if (
     figure?.repoPath.toLowerCase().endsWith(".svg") === true &&
-    ACTIVE_SVG.test(decoder.decode(figure.bytes))
+    svgHasActiveContent(figure.bytes)
   ) {
     throw new Error(`${name}: howItWorks.figure.src: SVG has active content`);
   }

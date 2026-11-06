@@ -2,6 +2,7 @@ import { extname, posix } from "node:path";
 
 type ImageField = "image.src" | "howItWorks.figure.src";
 
+const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
 const RASTER = [".png", ".jpg", ".jpeg"];
 const ALLOWED: Record<ImageField, readonly string[]> = {
   "image.src": RASTER,
@@ -18,6 +19,9 @@ function problem(path: string, field: ImageField): string | undefined {
   const normal = posix.normalize(path);
   if (normal === ".." || normal.startsWith("../")) {
     return "leaves docs/";
+  }
+  if (!normal.split("/").every((segment) => SEGMENT.test(segment))) {
+    return "has a segment outside A-Z a-z 0-9 . _ -";
   }
   if (!ALLOWED[field].includes(extname(normal).toLowerCase())) {
     return `must end in ${ALLOWED[field].join(", ")}`;

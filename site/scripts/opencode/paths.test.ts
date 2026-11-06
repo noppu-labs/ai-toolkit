@@ -30,3 +30,18 @@ describe("imageRepoPath", () => {
     );
   });
 });
+
+describe("imageRepoPath encoded and URL characters", () => {
+  it.each([
+    "%2e%2e/%2e%2e/%2e%2e/%2e%2e/evil/repo/main/x.png",
+    "images/%2e%2e/%2e%2e/package.json#.png",
+    "images/.%2e/a.png",
+    "images/x?.png",
+    "images/a b.png",
+    "images/./.hidden/a.png",
+  ])("rejects %s", (path) => {
+    expect(() => imageRepoPath(path, "image.src")).toThrow(
+      `image.src: ${path} `,
+    );
+  });
+});
