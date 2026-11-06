@@ -9,6 +9,7 @@ import {
   groupSkills,
 } from "../../src/lib/catalog.ts";
 import { pluginInstallCommand } from "../../src/lib/install-methods.ts";
+import { OPENCODE_PATH, opencodePluginPath } from "../../src/lib/opencode.ts";
 import { PLUGIN_ORDER, sortPlugins } from "../../src/lib/plugins.ts";
 import {
   type OpenedPage,
@@ -20,6 +21,11 @@ import {
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const PLUGINS: PluginEntry[] = buildCatalog(REPO_ROOT).plugins;
+/** The standalone OpenCode plugins, whose pages the home page links to. */
+const OPENCODE_PLUGINS = [
+  "opencode-permission-reviewer",
+  "opencode-cache-manager",
+] as const;
 const SKILLS: CatalogSkill[] = catalogSkills(PLUGINS);
 
 const DESKTOP = { width: 1440, height: 900 } as const;
@@ -300,6 +306,19 @@ describe("the home page", () => {
         .getByRole("complementary", { name: "Skill details" })
         .textContent(),
     ).toContain(`investigate${place} of ${investigate.length}`);
+    expect(errors).toEqual([]);
+  });
+
+  it("links to the OpenCode hub and to both plugin pages", async () => {
+    const { page, errors } = await open("/");
+    const hrefs = await page
+      .locator("a")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+
+    expect(hrefs).toContain(OPENCODE_PATH);
+    for (const name of OPENCODE_PLUGINS) {
+      expect(hrefs).toContain(opencodePluginPath(name));
+    }
     expect(errors).toEqual([]);
   });
 

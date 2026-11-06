@@ -3,15 +3,21 @@ import type { Catalog } from "../catalog-types.ts";
 import { Band } from "../components/sections/Band.tsx";
 import { Hero } from "../components/sections/Hero.tsx";
 import { InstallSection } from "../components/sections/InstallSection.tsx";
+import { OpenCodeSection } from "../components/sections/OpenCodeSection.tsx";
 import { PluginCards } from "../components/sections/PluginCards.tsx";
 import { SecuritySection } from "../components/sections/SecuritySection.tsx";
 import { CatalogIsland } from "../islands/CatalogIsland.tsx";
 import Base from "../layouts/Base.astro";
 import { type HomeProps, homeProps } from "../lib/home.ts";
 import { loadCatalog } from "../lib/load-catalog.ts";
+import { loadOpenCodePlugins } from "../lib/load-opencode.ts";
+import { openCodeCard } from "../lib/opencode-cards.ts";
 import { HOME_HEAD } from "../lib/pages.ts";
 
 const catalog: Catalog = await loadCatalog();
+const cards = (await loadOpenCodePlugins()).map((plugin) =>
+  openCodeCard(plugin, false),
+);
 const { hero, band, plugins }: HomeProps = homeProps(catalog);
 ---
 
@@ -20,6 +26,7 @@ const { hero, band, plugins }: HomeProps = homeProps(catalog);
   <Band {...band} />
   <InstallSection client:idle />
   <PluginCards client:idle plugins={plugins} />
+  <OpenCodeSection client:idle cards={cards} />
   <CatalogIsland client:load plugins={plugins} />
   <SecuritySection client:idle />
 </Base>

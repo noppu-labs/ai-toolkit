@@ -39,6 +39,29 @@ describe("Cloudflare's preview", () => {
     expect(await response.text()).toContain("This page wandered off");
   });
 
+  it("redirects an OpenCode plugin page's trailing slash to the slashless URL", async () => {
+    const response = await get("/opencode/opencode-cache-manager/");
+
+    expect([307, 308]).toContain(response.status);
+    expect(response.headers.get("location")).toMatch(
+      /\/opencode\/opencode-cache-manager$/,
+    );
+  });
+
+  it("redirects the OpenCode hub's trailing slash to /opencode", async () => {
+    const response = await get("/opencode/");
+
+    expect([307, 308]).toContain(response.status);
+    expect(response.headers.get("location")).toMatch(/\/opencode$/);
+  });
+
+  it("answers an unknown OpenCode plugin with the 404 page", async () => {
+    const response = await get("/opencode/nope");
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toContain("This page wandered off");
+  });
+
   it("keeps the preview out of search results", async () => {
     const response = await get("/");
 

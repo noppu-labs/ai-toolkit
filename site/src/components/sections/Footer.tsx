@@ -2,22 +2,35 @@ import { ArrowUp } from "lucide-react";
 import type { ReactElement } from "react";
 import { GitHubMark } from "@/components/GitHubMark";
 import { Logo } from "@/components/Logo";
+import { OPENCODE_PATH } from "@/lib/opencode";
 import { REPO_URL } from "@/lib/repo";
 import { goToTop } from "@/lib/scroll";
 
-const FOOTER_LINKS: { label: string; href: string; icon?: ReactElement }[] = [
-  { label: "GitHub", href: REPO_URL, icon: <GitHubMark /> },
+interface FooterLink {
+  label: string;
+  href: string;
+  /** Opens in a new tab: the link leaves the site. */
+  external: boolean;
+  icon?: ReactElement;
+}
+
+const FOOTER_LINKS: FooterLink[] = [
+  { label: "OpenCode plugins", href: OPENCODE_PATH, external: false },
+  { label: "GitHub", href: REPO_URL, external: true, icon: <GitHubMark /> },
   {
     label: "License",
     href: `${REPO_URL}/blob/main/LICENSE`,
+    external: true,
   },
   {
     label: "Contributing",
     href: `${REPO_URL}/blob/main/CONTRIBUTING.md`,
+    external: true,
   },
   {
     label: "Releases",
     href: `${REPO_URL}/releases`,
+    external: true,
   },
 ];
 
@@ -54,12 +67,16 @@ export function Footer(): ReactElement {
         </div>
         <ul className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:flex-wrap">
           {FOOTER_LINKS.map((link) => (
-            <li key={link.href}>
+            <li
+              className={link.external ? undefined : "col-span-2 md:col-span-1"}
+              key={link.href}
+            >
               <a
                 className={`flex min-h-11 items-center justify-center gap-2 rounded-base border-2 border-white px-3.5 py-2.5 font-bold transition-colors hover:bg-white hover:text-black md:inline-flex ${FOCUS_ON_INK}`}
                 href={link.href}
-                rel="noreferrer"
-                target="_blank"
+                {...(link.external
+                  ? { rel: "noreferrer", target: "_blank" }
+                  : {})}
               >
                 {link.icon}
                 {link.label}

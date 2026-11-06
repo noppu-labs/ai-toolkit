@@ -76,7 +76,12 @@ const commit: string | null = buildCommit(process.env);
   <body>
     <div id="root">
       <SiteFrame>
-        <HeaderIsland client:load slot="header" sectionBase={sectionBase} />
+        <HeaderIsland
+          client:load
+          slot="header"
+          sectionBase={sectionBase}
+          currentPath={Astro.url.pathname}
+        />
         <Footer client:idle slot="footer" />
         <slot />
       </SiteFrame>

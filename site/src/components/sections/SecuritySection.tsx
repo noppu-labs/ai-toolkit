@@ -50,7 +50,7 @@ export function SecuritySection(): ReactElement {
       <div className="flex flex-col rounded-[14px] border-3 border-border bg-plugin-investigate px-4.5 py-5.5 text-black shadow-shadow-lg md:rounded-2xl md:p-[clamp(28px,5vw,56px)] md:shadow-[10px_10px_0px_0px_var(--shadow-color)] lg:grid lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-center lg:gap-x-10 lg:gap-y-6">
         <div className="min-w-0">
           <p className="font-mono text-xs font-bold tracking-[0.08em] uppercase md:text-sm">
-            04 — Security &amp; provenance
+            05 — Security &amp; provenance
           </p>
           <h2
             className="mt-2 text-[28px] leading-[1.05] tracking-[-0.03em] md:mt-3 md:text-[44px] md:leading-[1.02]"

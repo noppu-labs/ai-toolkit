@@ -13,7 +13,12 @@ import { readSyncedPlugins } from "../../scripts/opencode/content.ts";
 import { canonicalUrl } from "../../src/lib/head.ts";
 import { OPENCODE_PATH, opencodePluginPath } from "../../src/lib/opencode.ts";
 import { SITE_URL } from "../../src/lib/site.ts";
-import { type OpenedPage, openPage, settle } from "./browser.ts";
+import {
+  type OpenedPage,
+  openPage,
+  pastTheRightEdge,
+  settle,
+} from "./browser.ts";
 
 const SITE_DIR = fileURLToPath(new URL("../..", import.meta.url));
 const PLUGINS = readSyncedPlugins(SITE_DIR);
@@ -331,4 +336,43 @@ describe("the OpenCode hub", () => {
     expect(await page.locator("astro-island[ssr]").count()).toBe(0);
     expect(errors).toEqual([]);
   });
+});
+
+describe("every page type", () => {
+  const PHONE = { width: 390, height: 844 } as const;
+  const PHONE_PATHS = [
+    OPENCODE_PATH,
+    ...PLUGINS.map(({ name }) => opencodePluginPath(name)),
+  ];
+  const opened: OpenedPage[] = [];
+
+  afterEach(async () => {
+    await Promise.all(opened.splice(0).map((page) => page.close()));
+  });
+
+  it.each(PHONE_PATHS)(
+    "has nothing past the right edge at 390px: %s",
+    async (path) => {
+      const phone = await openPage(path, PHONE);
+      opened.push(phone);
+      phone.page.setDefaultTimeout(5000);
+      await settle(phone.page);
+
+      expect(await pastTheRightEdge(phone.page)).toEqual([]);
+      expect(phone.errors).toEqual([]);
+    },
+  );
+
+  it.each(["/", "/skills/deep", OPENCODE_PATH, opencodePluginPath(REVIEWER)])(
+    "links the OpenCode hub in the header of %s",
+    async (path) => {
+      const desktop = await openPage(path, { javaScript: false });
+      opened.push(desktop);
+      const link = desktop.page
+        .locator("header nav")
+        .getByRole("link", { name: "OpenCode", exact: true });
+
+      expect(await link.getAttribute("href")).toBe(OPENCODE_PATH);
+    },
+  );
 });

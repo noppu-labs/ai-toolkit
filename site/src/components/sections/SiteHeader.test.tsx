@@ -8,6 +8,7 @@ import { resetPreferences } from "@/test/preferences";
 import { SiteHeader, type SiteHeaderProps } from "./SiteHeader.tsx";
 
 const SECTIONS = ["Install", "Plugins", "Skills", "Security"] as const;
+const OPENCODE_LINK = { name: "OpenCode", exact: true } as const;
 
 function renderHeader(props: SiteHeaderProps = {}): void {
   render(
@@ -117,6 +118,40 @@ describe("SiteHeader on wide screens", () => {
     expect(hrefs).toEqual(["/#install", "/#plugins", "/#skills", "/#security"]);
   });
 
+  it.each(["", "/"] as const)(
+    "links the OpenCode hub with the section base %j",
+    async (sectionBase) => {
+      renderHeader({ sectionBase });
+
+      await expect
+        .element(
+          page
+            .getByRole("navigation", { name: "Main" })
+            .getByRole("link", OPENCODE_LINK),
+        )
+        .toHaveAttribute("href", "/opencode");
+    },
+  );
+
+  it.each([
+    ["/opencode", "page"],
+    ["/opencode/x", "page"],
+    ["/", null],
+    ["/opencodes", null],
+    ["/skills/deep", null],
+  ])(
+    "sets aria-current on the OpenCode link at %s: %s",
+    async (currentPath, expected) => {
+      renderHeader({ currentPath });
+
+      const link = page
+        .getByRole("navigation", { name: "Main" })
+        .getByRole("link", OPENCODE_LINK);
+      await expect.element(link).toBeVisible();
+      expect(link.element().getAttribute("aria-current")).toBe(expected);
+    },
+  );
+
   it("names the maker under the brand", async () => {
     renderHeader();
 
@@ -167,6 +202,27 @@ describe("SiteHeader on wide screens", () => {
     }
   });
 
+  it.each([768, 860])(
+    "stays one row, at most 80px tall, at %ipx wide",
+    async (width) => {
+      await page.viewport(width, 800);
+      renderHeader();
+      const header = page.getByRole("banner");
+      await expect.element(header).toBeVisible();
+      await expect
+        .element(
+          page
+            .getByRole("navigation", { name: "Main" })
+            .getByRole("link", OPENCODE_LINK),
+        )
+        .toBeVisible();
+
+      expect(
+        header.element().getBoundingClientRect().height,
+      ).toBeLessThanOrEqual(80);
+    },
+  );
+
   it("keeps every control at least 44px tall", async () => {
     renderHeader();
     await expect
@@ -178,7 +234,7 @@ describe("SiteHeader on wide screens", () => {
       page.getByRole("button", { name: "Switch to dark theme" }).element(),
       page.getByRole("link", { name: "GitHub" }).element(),
     ];
-    expect(controls).toHaveLength(6);
+    expect(controls).toHaveLength(7);
     for (const control of controls) {
       expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
     }
@@ -237,8 +293,9 @@ describe("SiteHeader on phones", () => {
     ).toEqual([
       ["01Install", "#install"],
       ["02Plugins", "#plugins"],
-      ["03Skills", "#skills"],
-      ["04Security", "#security"],
+      ["03OpenCode", "/opencode"],
+      ["04Skills", "#skills"],
+      ["05Security", "#security"],
     ]);
     for (const link of links) {
       expect(link.getBoundingClientRect().height).toBeGreaterThanOrEqual(56);

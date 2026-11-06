@@ -360,7 +360,7 @@ export function SkillsCatalog({ plugins }: SkillsCatalogProps): ReactElement {
     >
       <div className="mx-auto max-w-300 px-4 pt-10 pb-10 sm:px-6 md:pt-22 md:pb-24">
         <p className="font-mono text-xs font-bold tracking-[0.08em] uppercase md:text-sm">
-          03 — Skills
+          04 — Skills
         </p>
         <h2
           className="mt-2 text-[32px] leading-[1.05] tracking-[-0.03em] md:mt-3 md:text-5xl md:leading-none"
