@@ -56,6 +56,16 @@ describe("ConsentBanner", () => {
     );
   });
 
+  it("says the answer also applies on noppu.com", async () => {
+    useConsentStore.getState().openPrompt();
+
+    render(<ConsentBanner />);
+
+    await expect
+      .element(banner())
+      .toMatchTextContent("Your answer applies on noppu.com too.");
+  });
+
   it.each([
     ["an allow", "Allow analytics", "granted"],
     ["a decline", "No thanks", "denied"],

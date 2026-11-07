@@ -146,7 +146,8 @@ export function ConsentBanner(): ReactElement | null {
       </div>
       <p className="text-sm leading-normal text-muted-foreground">
         Google Analytics would set cookies that show which pages get read and
-        where visitors come from. It stays off unless you allow it.{" "}
+        where visitors come from. It stays off unless you allow it. Your answer
+        applies on noppu.com too.{" "}
         {panel === "settings" && (
           <strong className="text-foreground">
             {getCurrentChoiceText(getConsentChoice(document.cookie))}{" "}
