@@ -13,6 +13,20 @@ function banner(): Locator {
   });
 }
 
+function getLook(element: Element): string[] {
+  const style = getComputedStyle(element);
+
+  return [
+    style.backgroundColor,
+    style.color,
+    style.borderColor,
+    style.borderWidth,
+    style.boxShadow,
+    style.fontWeight,
+    style.height,
+  ];
+}
+
 function pressEscape(): Promise<void> {
   return userEvent.keyboard("{Escape}");
 }
@@ -51,9 +65,7 @@ describe("ConsentBanner", () => {
     const decline = banner()
       .getByRole("button", { name: "No thanks" })
       .element();
-    expect(allow.getBoundingClientRect().height).toBe(
-      decline.getBoundingClientRect().height,
-    );
+    expect(getLook(allow)).toEqual(getLook(decline));
   });
 
   it("says the answer also applies on noppu.com", async () => {

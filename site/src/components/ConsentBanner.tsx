@@ -161,7 +161,7 @@ export function ConsentBanner(): ReactElement | null {
         </a>
       </p>
       <div className="grid grid-cols-2 gap-3">
-        <Button onClick={handleAllow} variant="default">
+        <Button onClick={handleAllow} variant="neutral">
           Allow analytics
         </Button>
         <Button onClick={handleDecline} variant="neutral">
