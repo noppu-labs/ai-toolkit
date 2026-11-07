@@ -28,7 +28,7 @@ const STORED_ITEMS: StoredItem[] = [
     name: "noppu_analytics_consent",
     kind: "Cookie, set when you choose",
     kept: "Up to 6 months",
-    purpose: "Remembers your answer.",
+    purpose: "Remembers your answer, here and on noppu.com.",
   },
   {
     name: "ai-toolkit-preferences",
@@ -95,7 +95,7 @@ export function PrivacyPolicy({
           it. If you don't, nothing about your visit goes to Google.
         </p>
         <p className="font-mono text-[13px] font-bold">
-          Last updated 6 November 2026
+          Last updated 8 November 2026
         </p>
       </header>
 
@@ -204,10 +204,10 @@ export function PrivacyPolicy({
 
         <Section heading="noppu.com">
           <p>
-            These cookies are set on noppu.com, so sites under that domain can
-            read them. noppu.com doesn't run Google Analytics yet. When it does,
-            it will use the same property and honour the same answer, and visits
-            to both can be linked as one visitor's.
+            These cookies are set on noppu.com, so they apply to this site and
+            to noppu.com alike. noppu.com uses the same Google Analytics
+            property and honours the same answer, so visits to both can be
+            linked as one visitor's.
           </p>
         </Section>
 
