@@ -21,6 +21,7 @@ const TAG_URL = `https://www.googletagmanager.com/gtag/js?id=${MEASUREMENT_ID}`;
 const DISABLE_FLAG = `ga-disable-${MEASUREMENT_ID}`;
 
 const CONSENT_MODE_PATH = "/api/consent-mode";
+const CONSENT_PATH = "/api/consent";
 const CONSENT_MODE_TIMEOUT_MS = 3000;
 
 function getCookieNames(cookies: string): string[] {
@@ -61,6 +62,25 @@ export async function fetchConsentMode(): Promise<ConsentMode> {
     return response.ok ? parseConsentMode(await response.json()) : "opt-in";
   } catch {
     return "opt-in";
+  }
+}
+
+/**
+ * Asks the Worker to set the consent cookie too: Safari caps cookies written by a script at
+ * seven days, and only a cookie set in an HTTP response lasts the full year. Any failure is
+ * swallowed, because the cookie the script already wrote carries the choice meanwhile.
+ */
+export async function sendConsent(choice: ConsentChoice): Promise<void> {
+  try {
+    await fetch(CONSENT_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ choice }),
+      keepalive: true,
+      signal: AbortSignal.timeout(CONSENT_MODE_TIMEOUT_MS),
+    });
+  } catch {
+    // Nothing to do: see above.
   }
 }
 
@@ -152,5 +172,9 @@ export function recordConsent(choice: ConsentChoice): void {
     startAnalytics();
   } else {
     stopAnalytics();
+  }
+  if (isAnalyticsHost(window.location.hostname)) {
+    // sendConsent never rejects, so there is nothing to await or catch.
+    void sendConsent(choice);
   }
 }

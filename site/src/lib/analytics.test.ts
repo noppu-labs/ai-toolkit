@@ -4,6 +4,7 @@ import {
   fetchConsentMode,
   makeExpiredGaCookies,
   parseConsentMode,
+  sendConsent,
   shouldMeasure,
 } from "./analytics.ts";
 
@@ -112,5 +113,49 @@ describe("shouldMeasure", () => {
     [null, null, null],
   ] as const)("for %s in %s is %s", (choice, mode, expected) => {
     expect(shouldMeasure(choice, mode)).toBe(expected);
+  });
+});
+
+describe("sendConsent", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts the choice to the Worker as JSON, surviving the page unloading", async () => {
+    const fetch = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetch);
+
+    await sendConsent("denied");
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/consent",
+      expect.objectContaining({
+        method: "POST",
+        body: '{"choice":"denied"}',
+        keepalive: true,
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it.each([
+    [
+      "a 404",
+      (): Promise<Response> =>
+        Promise.resolve(new Response(null, { status: 404 })),
+    ],
+    [
+      "a 500",
+      (): Promise<Response> =>
+        Promise.resolve(new Response(null, { status: 500 })),
+    ],
+    [
+      "a rejected fetch",
+      (): Promise<Response> => Promise.reject(new TypeError("offline")),
+    ],
+  ])("resolves quietly after %s", async (_name, respond) => {
+    vi.stubGlobal("fetch", vi.fn(respond));
+
+    expect(await sendConsent("granted")).toBeUndefined();
   });
 });

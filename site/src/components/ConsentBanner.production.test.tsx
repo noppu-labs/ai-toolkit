@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Locator, page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import {
@@ -38,7 +38,15 @@ function fireReturn(eventName: string): void {
   target.dispatchEvent(new Event(eventName));
 }
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(null, { status: 204 })),
+  );
+});
+
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.mocked(fetchConsentMode).mockReset();
   vi.mocked(fetchConsentMode).mockResolvedValue("opt-in");
   vi.mocked(getConsentChoice).mockReset();
