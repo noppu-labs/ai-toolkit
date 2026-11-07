@@ -4,6 +4,8 @@
  */
 export const SITE_URL = "https://toolkit.noppu.com";
 
+export const PRIVACY_PATH = "/privacy";
+
 /** A skill's own page, which the build prerenders. */
 export function skillPath(skill: string): string {
   return `/skills/${encodeURIComponent(skill)}`;

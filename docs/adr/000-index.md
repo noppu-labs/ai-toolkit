@@ -23,6 +23,7 @@ describe the repo as it is, so if the code and an ADR disagree, fix one of them.
 | [011](011-prerendered-site-pages.md)                      | Prerendered site pages                              | Superseded by ADR-012 |
 | [012](012-astro-for-the-project-website.md)               | Astro for the project website                       | Accepted              |
 | [013](013-opencode-plugin-pages-from-plugin-manifests.md) | OpenCode plugin pages from plugin manifests         | Accepted              |
+| [014](014-site-analytics-behind-consent.md)               | Site analytics behind consent                       | Accepted              |
 
 ## How the pieces fit together
 

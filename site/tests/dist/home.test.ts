@@ -65,6 +65,7 @@ describe("the home page, before any script runs", () => {
       );
 
     expect(islands.map(componentName)).toEqual([
+      "ConsentBanner",
       "HeaderIsland",
       "InstallSection",
       "PluginCards",

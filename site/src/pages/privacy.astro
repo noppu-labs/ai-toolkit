@@ -1,0 +1,12 @@
+---
+import { CookieSettingsButton } from "../components/CookieSettingsButton.tsx";
+import { PrivacyPolicy } from "../components/PrivacyPolicy.tsx";
+import Base from "../layouts/Base.astro";
+import { PRIVACY_HEAD } from "../lib/pages.ts";
+---
+
+<Base head={PRIVACY_HEAD} sectionBase="/">
+  <PrivacyPolicy>
+    <CookieSettingsButton client:idle />
+  </PrivacyPolicy>
+</Base>
