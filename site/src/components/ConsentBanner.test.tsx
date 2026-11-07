@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { type Locator, page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
-import { CONSENT_COOKIE, getConsentChoice } from "@/lib/analytics";
 import { useConsentStore } from "@/stores/useConsentStore";
+import {
+  CONSENT_COOKIE,
+  getConsentChoice,
+} from "../../worker/consent-cookie.ts";
 import { ConsentBanner } from "./ConsentBanner.tsx";
 
 let opener: HTMLButtonElement | undefined;

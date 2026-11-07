@@ -2,23 +2,29 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type Locator, page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import {
-  type ConsentChoice,
   type ConsentMode,
   fetchConsentMode,
-  getConsentChoice,
   startAnalytics,
   stopAnalytics,
 } from "@/lib/analytics";
 import { useConsentStore } from "@/stores/useConsentStore";
+import {
+  type ConsentChoice,
+  getConsentChoice,
+} from "../../worker/consent-cookie.ts";
 import { ConsentBanner } from "./ConsentBanner.tsx";
 
 vi.mock("@/lib/analytics", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/analytics")>()),
   fetchConsentMode: vi.fn(async (): Promise<ConsentMode> => "opt-in"),
-  getConsentChoice: vi.fn((_cookies: string): ConsentChoice | null => null),
-  isAnalyticsHost: (): boolean => true,
   startAnalytics: vi.fn<() => void>(),
   stopAnalytics: vi.fn<() => void>(),
+}));
+
+vi.mock("../../worker/consent-cookie.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../worker/consent-cookie.ts")>()),
+  getConsentChoice: vi.fn((_cookies: string): ConsentChoice | null => null),
+  isAnalyticsHost: (): boolean => true,
 }));
 
 function banner(): Locator {

@@ -6,14 +6,7 @@ import {
 } from "../../worker/consent-cookie.ts";
 import type { ConsentMode } from "../../worker/consent-mode.ts";
 
-// biome-ignore lint/performance/noBarrelFile: the page and its tests import the cookie contract from here; ConsentBanner.production.test.tsx mocks it through this module.
-export {
-  CONSENT_COOKIE,
-  type ConsentChoice,
-  getConsentChoice,
-  isAnalyticsHost,
-  makeConsentCookie,
-} from "../../worker/consent-cookie.ts";
+export type { ConsentChoice } from "../../worker/consent-cookie.ts";
 export type { ConsentMode } from "../../worker/consent-mode.ts";
 
 declare global {

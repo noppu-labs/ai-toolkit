@@ -8,11 +8,8 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  type ConsentChoice,
   type ConsentMode,
   fetchConsentMode,
-  getConsentChoice,
-  isAnalyticsHost,
   recordConsent,
   shouldMeasure,
   startAnalytics,
@@ -20,6 +17,11 @@ import {
 } from "@/lib/analytics";
 import { PRIVACY_PATH } from "@/lib/site";
 import { type ConsentPanel, useConsentStore } from "@/stores/useConsentStore";
+import {
+  type ConsentChoice,
+  getConsentChoice,
+  isAnalyticsHost,
+} from "../../worker/consent-cookie.ts";
 
 interface PanelText {
   heading: string;
