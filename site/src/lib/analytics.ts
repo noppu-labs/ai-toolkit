@@ -1,10 +1,20 @@
+import {
+  type ConsentChoice,
+  isAnalyticsHost,
+  makeConsentCookie,
+  SHARED_COOKIE_DOMAIN,
+} from "../../worker/consent-cookie.ts";
 import type { ConsentMode } from "../../worker/consent-mode.ts";
-import { SITE_URL } from "./site.ts";
 
+// biome-ignore lint/performance/noBarrelFile: the page and its tests import the cookie contract from here; ConsentBanner.production.test.tsx mocks it through this module.
+export {
+  CONSENT_COOKIE,
+  type ConsentChoice,
+  getConsentChoice,
+  isAnalyticsHost,
+  makeConsentCookie,
+} from "../../worker/consent-cookie.ts";
 export type { ConsentMode } from "../../worker/consent-mode.ts";
-export type ConsentChoice = "granted" | "denied";
-
-type PageLocation = Pick<Location, "hostname" | "protocol">;
 
 declare global {
   interface Window {
@@ -17,35 +27,14 @@ const MEASUREMENT_ID = "G-MHP3L2JTTP";
 const TAG_URL = `https://www.googletagmanager.com/gtag/js?id=${MEASUREMENT_ID}`;
 const DISABLE_FLAG = `ga-disable-${MEASUREMENT_ID}`;
 
-export const CONSENT_COOKIE = "noppu_analytics_consent";
-const CONSENT_MAX_AGE_SECONDS = 180 * 24 * 60 * 60;
-/** noppu.com and its subdomains share one Google Analytics stream, so they share the visitor's choice too. */
-const SHARED_COOKIE_DOMAIN = ".noppu.com";
-
-const ANALYTICS_HOST: string = new URL(SITE_URL).hostname;
-
 const CONSENT_MODE_PATH = "/api/consent-mode";
 const CONSENT_MODE_TIMEOUT_MS = 3000;
-
-/** Previews and local builds serve the same HTML; only production may count anyone. */
-export function isAnalyticsHost(hostname: string): boolean {
-  return hostname === ANALYTICS_HOST;
-}
 
 function getCookieNames(cookies: string): string[] {
   return cookies
     .split("; ")
     .map((cookie) => cookie.split("=", 1)[0] ?? "")
     .filter((name) => name !== "");
-}
-
-export function getConsentChoice(cookies: string): ConsentChoice | null {
-  const value = cookies
-    .split("; ")
-    .find((cookie) => cookie.startsWith(`${CONSENT_COOKIE}=`))
-    ?.slice(CONSENT_COOKIE.length + 1);
-
-  return value === "granted" || value === "denied" ? value : null;
 }
 
 /** Global Privacy Control, which Brave, DuckDuckGo and Firefox can send. */
@@ -92,27 +81,6 @@ export function shouldMeasure(
   }
 
   return mode === null ? null : mode === "opt-out";
-}
-
-export function makeConsentCookie(
-  choice: ConsentChoice,
-  { hostname, protocol }: PageLocation,
-): string {
-  const attributes = [
-    `${CONSENT_COOKIE}=${choice}`,
-    "Path=/",
-    `Max-Age=${CONSENT_MAX_AGE_SECONDS}`,
-    // biome-ignore lint/security/noSecrets: a cookie attribute.
-    "SameSite=Lax",
-  ];
-  if (isAnalyticsHost(hostname)) {
-    attributes.push(`Domain=${SHARED_COOKIE_DOMAIN}`);
-  }
-  if (protocol === "https:") {
-    attributes.push("Secure");
-  }
-
-  return attributes.join("; ");
 }
 
 /** Clears `_ga` and `_ga_<container>`, which Google's tag sets on the shared domain. */
