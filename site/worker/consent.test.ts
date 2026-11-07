@@ -76,12 +76,33 @@ describe("handleConsentRequest", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 
+  it.each([
+    '{"choice":"maybe"}',
+    '{"choice":"GRANTED"}',
+    '{"choice":["granted"]}',
+    '["granted"]',
+    "",
+    "not json",
+  ])("refuses the body %s with 400 and sets nothing", async (body) => {
+    const response = await handleConsentRequest(
+      makeRequest(PRODUCTION_URL, {
+        method: "POST",
+        headers: { Origin: "https://toolkit.noppu.com" },
+        body,
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
   it("rejects anything but a valid choice with 400", async () => {
     await fc.assert(
       fc.asyncProperty(
         fc.oneof(
           fc.string(),
           fc.jsonValue().map((value) => JSON.stringify(value)),
+          fc.jsonValue().map((choice) => JSON.stringify({ choice })),
         ),
         async (body) => {
           try {
