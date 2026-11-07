@@ -67,7 +67,7 @@ export async function fetchConsentMode(): Promise<ConsentMode> {
 
 /**
  * Asks the Worker to set the consent cookie too: Safari caps cookies written by a script at
- * seven days, and only a cookie set in an HTTP response lasts the full year. Any failure is
+ * seven days, and a cookie set in an HTTP response keeps its full 6 months. Any failure is
  * swallowed, because the cookie the script already wrote carries the choice meanwhile.
  */
 export async function sendConsent(choice: ConsentChoice): Promise<void> {
@@ -80,7 +80,7 @@ export async function sendConsent(choice: ConsentChoice): Promise<void> {
       signal: AbortSignal.timeout(CONSENT_MODE_TIMEOUT_MS),
     });
   } catch {
-    // Nothing to do: see above.
+    // The cookie the script wrote still holds the choice.
   }
 }
 
@@ -121,8 +121,9 @@ function isRunning(): boolean {
 }
 
 /**
- * Basic consent mode: the tag loads only after the visitor allows it, so a visitor who
- * declines sends Google nothing. The ad settings stay denied: the site runs no ads.
+ * Basic consent mode: in the opt-in regions the tag loads only after the visitor allows it,
+ * and elsewhere it loads unless the visitor opted out, so a visitor who declines sends Google
+ * nothing. The ad settings stay denied: the site runs no ads.
  */
 export function startAnalytics(): void {
   if (!isAnalyticsHost(window.location.hostname) || isRunning()) {

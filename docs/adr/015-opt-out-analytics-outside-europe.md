@@ -53,8 +53,8 @@ while the lookup is in flight would make an opt-out region's visitor a new visit
 
 Outside Europe the banner says "We count visits", with Got it and Opt out at equal weight. Got
 it writes `granted` and Opt out writes `denied` to the same `noppu_analytics_consent` cookie, so
-noppu.com and returning visits read one answer. The page writes the cookie at once, and then
-the Worker rewrites it.
+noppu.com and returning visits read one answer. The page writes the cookie at once, and then,
+on production, the Worker rewrites it.
 
 ## Consequences
 
