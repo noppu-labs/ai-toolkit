@@ -147,9 +147,9 @@ export function PrivacyPolicy({
             Google's script never loads. We store your answer so that we don't
             ask again for up to 6 months.{" "}
             <ExternalLink href="https://webkit.org/tracking-prevention/">
-              Safari can clear it after 7 days without a visit
+              Safari limits cookies set by a page's script to 7 days
             </ExternalLink>
-            , so we may ask sooner.
+            , so if you use Safari we'll ask again after about a week.
           </p>
         </Section>
       </div>
