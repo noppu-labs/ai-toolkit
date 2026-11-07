@@ -10,6 +10,7 @@ const CONSENT_COOKIE = "noppu_analytics_consent";
 
 interface GoogleTraffic {
   urls: string[];
+  consentPosts: unknown[];
 }
 
 let opened: OpenedPage | undefined;
@@ -32,11 +33,21 @@ async function routeProduction(
   page: Page,
   mode: ConsentMode | null = "opt-in",
 ): Promise<GoogleTraffic> {
-  const traffic: GoogleTraffic = { urls: [] };
+  const traffic: GoogleTraffic = { urls: [], consentPosts: [] };
   await page.route(`${PRODUCTION}/**`, async (route) => {
     const { pathname, search } = new URL(route.request().url());
     if (pathname === "/api/consent-mode" && mode !== null) {
       await route.fulfill({ json: { mode } });
+
+      return;
+    }
+    if (
+      pathname === "/api/consent" &&
+      mode !== null &&
+      route.request().method() === "POST"
+    ) {
+      traffic.consentPosts.push(route.request().postDataJSON());
+      await route.fulfill({ status: 204 });
 
       return;
     }
@@ -76,7 +87,7 @@ async function openProduction(
   cookies: Cookie[] = [],
   { mode, privacySignal = false }: ProductionOptions = {},
 ): Promise<OpenedPage & { traffic: GoogleTraffic }> {
-  let traffic: GoogleTraffic = { urls: [] };
+  let traffic: GoogleTraffic = { urls: [], consentPosts: [] };
   opened = await openPage(`${PRODUCTION}${path}`, {
     beforeLoad: async (page: Page): Promise<void> => {
       await page.context().addCookies(cookies);
@@ -374,6 +385,18 @@ describe("analytics outside the opt-in regions", () => {
     expect(await getCookie(page, CONSENT_COOKIE)).toBeUndefined();
   });
 
+  it("sends the opt-out to the Worker", async () => {
+    const { page, traffic } = await openProduction("/", [], {
+      mode: "opt-out",
+    });
+
+    await page.getByRole("button", { name: "Opt out" }).click();
+
+    await expect
+      .poll(() => traffic.consentPosts)
+      .toEqual([{ choice: "denied" }]);
+  });
+
   it("keeps Google's cookies on load for a visitor who has not answered", async () => {
     const { page, traffic } = await openProduction(
       "/",
@@ -437,6 +460,14 @@ describe("analytics when the consent mode lookup fails", () => {
     await page.getByRole("button", { name: "Allow analytics" }).waitFor();
 
     expect(traffic.urls).toEqual([]);
+  });
+
+  it("still records the answer when the Worker is missing", async () => {
+    const { page } = await openProduction("/", [], { mode: null });
+
+    await page.getByRole("button", { name: "Allow analytics" }).click();
+
+    expect((await getCookie(page, CONSENT_COOKIE))?.value).toBe("granted");
   });
 });
 
