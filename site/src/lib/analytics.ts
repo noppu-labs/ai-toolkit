@@ -1,5 +1,7 @@
+import type { ConsentMode } from "../../worker/consent-mode.ts";
 import { SITE_URL } from "./site.ts";
 
+export type { ConsentMode } from "../../worker/consent-mode.ts";
 export type ConsentChoice = "granted" | "denied";
 
 type PageLocation = Pick<Location, "hostname" | "protocol">;
@@ -22,6 +24,9 @@ const SHARED_COOKIE_DOMAIN = ".noppu.com";
 
 const ANALYTICS_HOST: string = new URL(SITE_URL).hostname;
 
+const CONSENT_MODE_PATH = "/api/consent-mode";
+const CONSENT_MODE_TIMEOUT_MS = 3000;
+
 /** Previews and local builds serve the same HTML; only production may count anyone. */
 export function isAnalyticsHost(hostname: string): boolean {
   return hostname === ANALYTICS_HOST;
@@ -41,6 +46,52 @@ export function getConsentChoice(cookies: string): ConsentChoice | null {
     ?.slice(CONSENT_COOKIE.length + 1);
 
   return value === "granted" || value === "denied" ? value : null;
+}
+
+/** Global Privacy Control, which Brave, DuckDuckGo and Firefox can send. */
+export function hasPrivacySignal(): boolean {
+  return Reflect.get(navigator, "globalPrivacyControl") === true;
+}
+
+export function parseConsentMode(body: unknown): ConsentMode {
+  const mode: unknown =
+    typeof body === "object" && body !== null
+      ? Reflect.get(body, "mode")
+      : undefined;
+
+  return mode === "opt-out" ? "opt-out" : "opt-in";
+}
+
+/**
+ * Whether this visitor is asked before analytics starts (`opt-in`) or told it runs and may opt
+ * out (`opt-out`). The Worker decides from the visitor's country; anything that goes wrong
+ * asks first, and so does a privacy signal.
+ */
+export async function fetchConsentMode(): Promise<ConsentMode> {
+  if (hasPrivacySignal()) {
+    return "opt-in";
+  }
+  try {
+    const response = await fetch(CONSENT_MODE_PATH, {
+      signal: AbortSignal.timeout(CONSENT_MODE_TIMEOUT_MS),
+    });
+
+    return response.ok ? parseConsentMode(await response.json()) : "opt-in";
+  } catch {
+    return "opt-in";
+  }
+}
+
+/** Whether analytics should run for this visitor now, or null until the mode is known. */
+export function shouldMeasure(
+  choice: ConsentChoice | null,
+  mode: ConsentMode | null,
+): boolean | null {
+  if (choice !== null) {
+    return choice === "granted";
+  }
+
+  return mode === null ? null : mode === "opt-out";
 }
 
 export function makeConsentCookie(

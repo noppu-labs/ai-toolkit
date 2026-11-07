@@ -3,6 +3,8 @@ import { type Locator, page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import {
   type ConsentChoice,
+  type ConsentMode,
+  fetchConsentMode,
   getConsentChoice,
   startAnalytics,
   stopAnalytics,
@@ -12,6 +14,7 @@ import { ConsentBanner } from "./ConsentBanner.tsx";
 
 vi.mock("@/lib/analytics", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/analytics")>()),
+  fetchConsentMode: vi.fn(async (): Promise<ConsentMode> => "opt-in"),
   getConsentChoice: vi.fn((_cookies: string): ConsentChoice | null => null),
   isAnalyticsHost: (): boolean => true,
   startAnalytics: vi.fn<() => void>(),
@@ -20,7 +23,7 @@ vi.mock("@/lib/analytics", async (importOriginal) => ({
 
 function banner(): Locator {
   return page.getByRole("region", {
-    name: /count this visit|cookie settings/i,
+    name: /count (this visit|visits)|cookie settings/i,
   });
 }
 
@@ -30,6 +33,8 @@ function fireReturn(eventName: string): void {
 }
 
 afterEach(() => {
+  vi.mocked(fetchConsentMode).mockReset();
+  vi.mocked(fetchConsentMode).mockResolvedValue("opt-in");
   vi.mocked(getConsentChoice).mockReset();
   vi.mocked(startAnalytics).mockReset();
   vi.mocked(stopAnalytics).mockReset();
@@ -39,6 +44,7 @@ afterEach(() => {
 describe("ConsentBanner on the production host", () => {
   it("stops listening for the visitor's return once unmounted", async () => {
     const { unmount } = await render(<ConsentBanner />);
+    await expect.element(banner()).toBeVisible();
     const onMount = vi.mocked(stopAnalytics).mock.calls.length;
 
     fireReturn("pageshow");
@@ -88,6 +94,54 @@ describe("ConsentBanner on the production host", () => {
     fireReturn("pageshow");
 
     expect(useConsentStore.getState().panel).toBe("settings");
+    expect(vi.mocked(startAnalytics)).toHaveBeenCalledOnce();
+  });
+
+  it("starts the tag for a visitor who has not answered outside the opt-in regions, and tells them", async () => {
+    vi.mocked(fetchConsentMode).mockResolvedValue("opt-out");
+
+    await render(<ConsentBanner />);
+
+    await expect
+      .element(banner().getByRole("button", { name: "Opt out" }))
+      .toBeVisible();
+    expect(vi.mocked(startAnalytics)).toHaveBeenCalledOnce();
+    expect(vi.mocked(stopAnalytics)).not.toHaveBeenCalled();
+  });
+
+  it("stops the tag for a visitor who has not answered in an opt-in region, and asks them", async () => {
+    await render(<ConsentBanner />);
+
+    await expect
+      .element(banner().getByRole("button", { name: "Allow analytics" }))
+      .toBeVisible();
+    expect(vi.mocked(stopAnalytics)).toHaveBeenCalled();
+    expect(vi.mocked(startAnalytics)).not.toHaveBeenCalled();
+  });
+
+  it("neither starts nor stops anything for a visitor who has not answered until the mode is known", async () => {
+    const pending = Promise.withResolvers<ConsentMode>();
+    vi.mocked(fetchConsentMode).mockReturnValue(pending.promise);
+
+    await render(<ConsentBanner />);
+    fireReturn("pageshow");
+
+    expect(vi.mocked(startAnalytics)).not.toHaveBeenCalled();
+    expect(vi.mocked(stopAnalytics)).not.toHaveBeenCalled();
+    expect(useConsentStore.getState().panel).toBe("closed");
+
+    pending.resolve("opt-out");
+
+    await expect.element(banner()).toBeVisible();
+    expect(vi.mocked(startAnalytics)).toHaveBeenCalledOnce();
+  });
+
+  it("starts the tag for a returning visitor who allowed it without waiting for the mode", async () => {
+    vi.mocked(getConsentChoice).mockReturnValue("granted");
+    vi.mocked(fetchConsentMode).mockReturnValue(new Promise(() => undefined));
+
+    await render(<ConsentBanner />);
+
     expect(vi.mocked(startAnalytics)).toHaveBeenCalledOnce();
   });
 });
