@@ -31,9 +31,10 @@ afterEach(() => {
 
 describe("ConsentBanner", () => {
   it("stays out of the way off the production host, where analytics never runs", async () => {
-    render(<ConsentBanner />);
+    await render(<ConsentBanner />);
 
-    await expect.element(banner()).not.toBeInTheDocument();
+    expect(useConsentStore.getState().panel).toBe("closed");
+    expect(banner().query()).toBeNull();
   });
 
   it("offers both choices as equal buttons and links the privacy page", async () => {

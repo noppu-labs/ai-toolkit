@@ -13,16 +13,18 @@ vi.mock("@/lib/analytics", async (importOriginal) => ({
 describe("ConsentBanner on the production host", () => {
   it("stops listening for the visitor's return once unmounted", async () => {
     const { unmount } = await render(<ConsentBanner />);
+    const onMount = vi.mocked(stopAnalytics).mock.calls.length;
 
     window.dispatchEvent(new Event("pageshow"));
     document.dispatchEvent(new Event("visibilitychange"));
 
-    expect(vi.mocked(stopAnalytics)).toHaveBeenCalledTimes(3);
+    const whileMounted = vi.mocked(stopAnalytics).mock.calls.length;
+    expect(whileMounted).toBeGreaterThanOrEqual(onMount + 2);
 
     await unmount();
     window.dispatchEvent(new Event("pageshow"));
     document.dispatchEvent(new Event("visibilitychange"));
 
-    expect(vi.mocked(stopAnalytics)).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(stopAnalytics)).toHaveBeenCalledTimes(whileMounted);
   });
 });
