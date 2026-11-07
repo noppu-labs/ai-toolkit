@@ -3,7 +3,8 @@
 ## Status
 
 Accepted. Builds on [ADR-012](012-astro-for-the-project-website.md) (the Astro site and its
-islands).
+islands). Asking worldwide superseded by [ADR-015](015-opt-out-analytics-outside-europe.md):
+visitors outside the EEA, the UK and Switzerland can opt out instead.
 
 ## Context
 
