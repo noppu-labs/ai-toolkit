@@ -114,9 +114,11 @@ export function PrivacyPolicy({
             from. If that's in the European Economic Area, the UK or
             Switzerland, or Cloudflare can't tell, analytics stays off until you
             allow it. Anywhere else it starts when the page loads, and the
-            banner lets you opt out. We don't store your country: your browser
-            keeps the answer for up to an hour so it isn't looked up on every
-            page.
+            banner lets you opt out. We don't keep your country ourselves. It
+            can appear in Cloudflare's request logs, which we use to fix
+            problems with the site and which are deleted after at most a week.
+            Your browser keeps the answer for up to an hour so it isn't looked
+            up on every page.
           </p>
           <p>
             If your browser sends a{" "}
