@@ -53,7 +53,8 @@ while the lookup is in flight would make an opt-out region's visitor a new visit
 
 Outside Europe the banner says "We count visits", with Got it and Opt out at equal weight. Got
 it writes `granted` and Opt out writes `denied` to the same `noppu_analytics_consent` cookie, so
-noppu.com and returning visits read one answer.
+noppu.com and returning visits read one answer. The page writes the cookie at once, and then
+the Worker rewrites it.
 
 ## Consequences
 
@@ -63,8 +64,9 @@ noppu.com and returning visits read one answer.
 - `_ga*` cookies are expired when the answer is `denied`, or when there is no answer and the
   mode is opt-in. noppu.com must apply the same rule, with the same country list, before it sets
   Google's cookies without a `granted` answer.
-- Safari caps script-set cookies at 7 days, so an opt-out in Safari lapses after about a week and
-  analytics starts again until the visitor opts out again. Setting the consent cookie from the
-  Worker with a `Set-Cookie` header would avoid the cap.
+- Safari caps script-written cookies at 7 days but not cookies set by the site's own server. The
+  Worker's `POST /api/consent` re-sets the cookie with `Set-Cookie`, so an answer lasts its 6
+  months there too. It checks `Origin`, so another site cannot record an answer. noppu.com must do
+  the same, or its answers lapse in Safari after a week.
 - Local builds and `astro preview` have no Worker, so the lookup 404s and the page asks first. The
   dist tests stand in for the Worker.

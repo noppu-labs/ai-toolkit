@@ -165,13 +165,7 @@ export function PrivacyPolicy({
         <Section heading="While it's off">
           <p>
             Google's script never loads. We store your answer so that we don't
-            ask again for up to 6 months.{" "}
-            <ExternalLink href="https://webkit.org/tracking-prevention/">
-              Safari limits cookies set by a page's script to 7 days
-            </ExternalLink>
-            , so if you use Safari we'll ask again after about a week. Outside
-            the places where we ask first, that means analytics starts again
-            until you opt out again.
+            ask again for up to 6 months.
           </p>
         </Section>
       </div>
