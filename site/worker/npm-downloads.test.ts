@@ -360,6 +360,27 @@ describe("worker", () => {
     expect(cache.store.has(BADGE_URL)).toBe(true);
   });
 
+  it.each([
+    [{ country: "US" }, "opt-out"],
+    [{ country: "DE" }, "opt-in"],
+    [undefined, "opt-in"],
+  ])(
+    "answers the consent mode path from the request's country %j",
+    async (cf, mode) => {
+      const request = new Request("https://toolkit.noppu.com/api/consent-mode");
+      Reflect.set(request, "cf", cf);
+      const env = {
+        ASSETS: {
+          fetch: async (): Promise<Response> => new Response("asset"),
+        },
+      };
+
+      const response: Response = await worker.fetch(request, env);
+
+      expect(await response.json()).toEqual({ mode });
+    },
+  );
+
   it("passes every other path to the static assets", async () => {
     const seen: string[] = [];
     const env = {
