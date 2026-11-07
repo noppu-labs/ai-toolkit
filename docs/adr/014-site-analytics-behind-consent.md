@@ -12,8 +12,8 @@ visitors in the EU and the UK generally have to agree first, and the site is sta
 does not know which country its visitor is in. PR previews and local builds serve the same
 pages and must not count anyone.
 
-noppu.com will share a Google Analytics property with this site, because a visitor who moves
-from the open source tools to the services site is one of the journeys worth seeing.
+noppu.com shares a Google Analytics property with this site, because a visitor who moves from
+the open source tools to the services site is one of the journeys worth seeing.
 
 ## Decision
 
@@ -59,8 +59,11 @@ config, and Partytown's own docs say GA4's `user_engagement` event is not reliab
   pages better than counting total visitors.
 - Every new page gets the banner and the tag through `Base.astro`. `404.html` stands alone and is
   not measured.
-- noppu.com needs the same tag, measurement ID and consent cookie. The cookie's name and domain
+- noppu.com uses the same tag, measurement ID and consent cookie. The cookie's name and domain
   are the contract between the two sites.
+- This site expires every `_ga*` cookie on `.noppu.com` whenever the shared answer is not
+  `granted`, including when there is no answer yet. noppu.com must never set Google's cookies
+  without a `granted` answer in `noppu_analytics_consent`.
 - A new cookie or storage key has to be added to the table on the privacy page. Measuring
   something new means asking visitors again.
 - A page-level Content-Security-Policy, if one is added later, has to allow Google's domains.
