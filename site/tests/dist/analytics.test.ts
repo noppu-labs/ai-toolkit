@@ -129,11 +129,18 @@ function waitForTag(page: Page): Promise<void> {
     .waitFor({ state: "attached" });
 }
 
-/** A tab of the same browser as `first`, with its tag already started. */
-async function openRunningTab(first: Page): Promise<Page> {
+/** A tab of the same browser as `first`. */
+async function openTab(first: Page): Promise<Page> {
   const tab = await first.context().newPage();
   await routeProduction(tab);
   await tab.goto(`${PRODUCTION}/opencode`);
+
+  return tab;
+}
+
+/** A tab of the same browser as `first`, with its tag already started. */
+async function openRunningTab(first: Page): Promise<Page> {
+  const tab = await openTab(first);
   await waitForTag(tab);
 
   return tab;
@@ -362,16 +369,37 @@ describe("analytics after the answer changes in another tab", () => {
     expect(await getDisableFlag(page)).toBe(true);
   });
 
-  it("leaves the tag running while the answer is still an allow", async () => {
+  it.each(["visibilitychange", "pageshow"])(
+    "closes the prompt and starts the tag on %s once another tab allows it",
+    async (eventName) => {
+      const { page } = await openProduction();
+      const tab = await openTab(page);
+      const prompt = tab.getByRole("button", { name: "Allow analytics" });
+      await prompt.waitFor();
+      await allowAnalytics(page);
+
+      await fireReturn(tab, eventName);
+
+      await prompt.waitFor({ state: "detached" });
+      await waitForTag(tab);
+      expect(
+        (await getQueuedCommands(tab)).map((command) => command[0]),
+      ).toEqual(["consent", "consent", "js", "config"]);
+    },
+  );
+
+  it("leaves the tag running, with nothing new queued, while the answer is still an allow", async () => {
     const { page } = await openProduction();
     await allowAnalytics(page);
     await addGaCookies(page);
+    const queued = await getQueuedCommands(page);
 
     await fireReturn(page, "visibilitychange");
     await fireReturn(page, "pageshow");
 
     expect(await getDisableFlag(page)).toBe(false);
     expect(await getGaCookieNames(page)).toEqual(GA_COOKIES);
+    expect(await getQueuedCommands(page)).toEqual(queued);
   });
 
   it("waits until the tab is visible again", async () => {
@@ -387,7 +415,7 @@ describe("analytics after the answer changes in another tab", () => {
     expect(await getDisableFlag(page)).toBe(false);
   });
 
-  it("never starts the tag when the answer becomes an allow elsewhere", async () => {
+  it("starts the tag once when a decline becomes an allow elsewhere", async () => {
     const { page, traffic } = await openProduction("/", [
       makeSharedCookie(CONSENT_COOKIE, "denied"),
     ]);
@@ -398,8 +426,8 @@ describe("analytics after the answer changes in another tab", () => {
     await fireReturn(page, "visibilitychange");
     await fireReturn(page, "pageshow");
 
-    expect(await getQueuedCommands(page)).toEqual([]);
-    expect(traffic.urls).toEqual([]);
+    await expect.poll(() => traffic.urls.length).toBe(1);
+    expect(await getQueuedCommands(page)).toHaveLength(4);
   });
 });
 

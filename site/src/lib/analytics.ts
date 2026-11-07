@@ -84,12 +84,16 @@ function hasTag(): boolean {
   return document.querySelector(`script[src="${TAG_URL}"]`) !== null;
 }
 
+function isRunning(): boolean {
+  return hasTag() && Reflect.get(window, DISABLE_FLAG) === false;
+}
+
 /**
  * Basic consent mode: the tag loads only after the visitor allows it, so a visitor who
  * declines sends Google nothing. The ad settings stay denied: the site runs no ads.
  */
 export function startAnalytics(): void {
-  if (!isAnalyticsHost(window.location.hostname)) {
+  if (!isAnalyticsHost(window.location.hostname) || isRunning()) {
     return;
   }
   Reflect.set(window, DISABLE_FLAG, false);

@@ -50,15 +50,24 @@ function handleKeyDown(event: KeyboardEvent): void {
   }
 }
 
-function stopUnlessAllowed(): void {
-  if (getConsentChoice(document.cookie) !== "granted") {
+/** The answer can change in another tab, or on another page before the visitor goes Back. */
+function syncWithAnswer(): void {
+  const choice = getConsentChoice(document.cookie);
+  if (choice === "granted") {
+    startAnalytics();
+  } else {
     stopAnalytics();
+  }
+
+  const { panel, closePanel } = useConsentStore.getState();
+  if (choice !== null && panel === "prompt") {
+    closePanel();
   }
 }
 
 function handleVisibilityChange(): void {
   if (document.visibilityState === "visible") {
-    stopUnlessAllowed();
+    syncWithAnswer();
   }
 }
 
@@ -76,25 +85,19 @@ export function ConsentBanner(): ReactElement | null {
     if (!isAnalyticsHost(window.location.hostname)) {
       return;
     }
-    const choice = getConsentChoice(document.cookie);
-    if (choice === "granted") {
-      startAnalytics();
-    } else {
-      stopAnalytics();
-    }
+    syncWithAnswer();
     // A Cookie settings click can beat this island's hydration.
     const { panel: current, openPrompt } = useConsentStore.getState();
-    if (choice === null && current === "closed") {
+    if (getConsentChoice(document.cookie) === null && current === "closed") {
       openPrompt();
     }
 
-    // The answer can change in another tab, or on another page before the visitor goes Back.
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("pageshow", stopUnlessAllowed);
+    window.addEventListener("pageshow", syncWithAnswer);
 
     return (): void => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("pageshow", stopUnlessAllowed);
+      window.removeEventListener("pageshow", syncWithAnswer);
     };
   }, []);
 
