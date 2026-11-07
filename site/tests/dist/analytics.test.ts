@@ -71,10 +71,7 @@ async function openProduction(
 /** The commands the page queued for Google's tag, as arrays. */
 function getQueuedCommands(page: Page): Promise<unknown[][]> {
   return page.evaluate(() =>
-    (
-      (window as unknown as { dataLayer?: ArrayLike<unknown>[] }).dataLayer ??
-      []
-    ).map((entry) => Array.from(entry)),
+    (window.dataLayer ?? []).map((entry) => Array.from(entry)),
   );
 }
 
@@ -104,7 +101,7 @@ async function getGaCookieNames(page: Page): Promise<string[]> {
 
 function getDisableFlag(page: Page): Promise<unknown> {
   return page.evaluate(
-    (id) => (window as unknown as Record<string, unknown>)[`ga-disable-${id}`],
+    (id) => Reflect.get(window, `ga-disable-${id}`),
     MEASUREMENT_ID,
   );
 }
