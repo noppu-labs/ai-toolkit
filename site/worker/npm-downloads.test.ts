@@ -381,6 +381,26 @@ describe("worker", () => {
     },
   );
 
+  it("answers the consent path with the cookie", async () => {
+    const env = {
+      ASSETS: {
+        fetch: async (): Promise<Response> => new Response("asset"),
+      },
+    };
+    const request = new Request("https://toolkit.noppu.com/api/consent", {
+      method: "POST",
+      headers: { Origin: "https://toolkit.noppu.com" },
+      body: JSON.stringify({ choice: "granted" }),
+    });
+
+    const response: Response = await worker.fetch(request, env);
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("set-cookie")).toMatch(
+      /^noppu_analytics_consent=granted/,
+    );
+  });
+
   it("passes every other path to the static assets", async () => {
     const seen: string[] = [];
     const env = {

@@ -1,3 +1,4 @@
+import { handleConsentRequest } from "./consent.ts";
 import { makeConsentModeResponse } from "./consent-mode.ts";
 import { type EdgeCache, handleBadgeRequest } from "./npm-downloads.ts";
 
@@ -9,6 +10,7 @@ export type Env = {
 // not a handler.
 const BADGE_PATH: string = "/api/badges/npm-downloads";
 const CONSENT_MODE_PATH: string = "/api/consent-mode";
+const CONSENT_PATH: string = "/api/consent";
 
 // The Workers runtime provides caches.default; Node's types do not declare it.
 function getEdgeCache(): EdgeCache {
@@ -30,6 +32,9 @@ export default {
     const { pathname } = new URL(request.url);
     if (pathname === CONSENT_MODE_PATH) {
       return makeConsentModeResponse(getCountry(request));
+    }
+    if (pathname === CONSENT_PATH) {
+      return handleConsentRequest(request);
     }
     if (pathname === BADGE_PATH) {
       return handleBadgeRequest(request, {
