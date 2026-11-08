@@ -1,12 +1,15 @@
+import { CONSENT_PATH } from "../../worker/consent.ts";
 import {
   type ConsentChoice,
   isAnalyticsHost,
   makeConsentCookie,
   SHARED_COOKIE_DOMAIN,
 } from "../../worker/consent-cookie.ts";
-import type { ConsentMode } from "../../worker/consent-mode.ts";
+import {
+  CONSENT_MODE_PATH,
+  type ConsentMode,
+} from "../../worker/consent-mode.ts";
 
-export type { ConsentChoice } from "../../worker/consent-cookie.ts";
 export type { ConsentMode } from "../../worker/consent-mode.ts";
 
 declare global {
@@ -20,8 +23,6 @@ const MEASUREMENT_ID = "G-MHP3L2JTTP";
 const TAG_URL = `https://www.googletagmanager.com/gtag/js?id=${MEASUREMENT_ID}`;
 const DISABLE_FLAG = `ga-disable-${MEASUREMENT_ID}`;
 
-const CONSENT_MODE_PATH = "/api/consent-mode";
-const CONSENT_PATH = "/api/consent";
 const WORKER_TIMEOUT_MS = 3000;
 
 function getCookieNames(cookies: string): string[] {

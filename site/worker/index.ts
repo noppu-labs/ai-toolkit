@@ -1,5 +1,5 @@
-import { handleConsentRequest } from "./consent.ts";
-import { makeConsentModeResponse } from "./consent-mode.ts";
+import { CONSENT_PATH, handleConsentRequest } from "./consent.ts";
+import { CONSENT_MODE_PATH, makeConsentModeResponse } from "./consent-mode.ts";
 import { type EdgeCache, handleBadgeRequest } from "./npm-downloads.ts";
 
 export type Env = {
@@ -9,8 +9,6 @@ export type Env = {
 // Not exported: workerd rejects any named export of the entry module that is
 // not a handler.
 const BADGE_PATH: string = "/api/badges/npm-downloads";
-const CONSENT_MODE_PATH: string = "/api/consent-mode";
-const CONSENT_PATH: string = "/api/consent";
 
 // The Workers runtime provides caches.default; Node's types do not declare it.
 function getEdgeCache(): EdgeCache {

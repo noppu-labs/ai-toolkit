@@ -1,5 +1,7 @@
 import { isConsentChoice, makeConsentCookie } from "./consent-cookie.ts";
 
+export const CONSENT_PATH = "/api/consent";
+
 async function readChoice(request: Request): Promise<unknown> {
   try {
     const body: unknown = await request.json();
