@@ -13,6 +13,7 @@ describe("ASK_FIRST_COUNTRIES", () => {
     ["GB", "the UK"],
     ["CH", "Switzerland"],
     ["RE", "an EU outermost region Cloudflare reports on its own"],
+    ["SJ", "Svalbard and Jan Mayen, which follow Norway"],
   ])("includes %s, %s", (country, _description) => {
     expect(ASK_FIRST_COUNTRIES).toContain(country);
   });
@@ -31,6 +32,7 @@ describe("getConsentMode", () => {
     ["BR", "opt-out"],
     ["FR", "opt-in"],
     ["GB", "opt-in"],
+    ["SJ", "opt-in"],
   ])("for %s is %s", (country, expected) => {
     expect(getConsentMode(country)).toBe(expected);
   });

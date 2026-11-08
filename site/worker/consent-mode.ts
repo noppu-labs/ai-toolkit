@@ -3,9 +3,9 @@ export type ConsentMode = "opt-in" | "opt-out";
 export const CONSENT_MODE_PATH = "/api/consent-mode";
 
 /**
- * Where analytics waits for consent: the EEA, the UK and Switzerland. EU regions that ISO
- * codes separately (Åland, the French outermost regions) are listed too, as are Gibraltar and
- * the Crown dependencies, whose data protection laws follow the UK's.
+ * Where analytics waits for consent: the EEA, the UK and Switzerland. EU and EEA regions that
+ * ISO codes separately (Åland, the French outermost regions, Svalbard and Jan Mayen) are listed
+ * too, as are Gibraltar and the Crown dependencies, whose data protection laws follow the UK's.
  */
 export const ASK_FIRST_COUNTRIES: readonly string[] = [
   // EU
@@ -48,6 +48,7 @@ export const ASK_FIRST_COUNTRIES: readonly string[] = [
   "IS",
   "LI",
   "NO",
+  "SJ",
   // UK, Gibraltar and the Crown dependencies
   "GB",
   "GG",
