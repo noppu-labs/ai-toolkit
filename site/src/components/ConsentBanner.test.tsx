@@ -122,6 +122,17 @@ describe("ConsentBanner", () => {
     await expect.element(banner()).not.toBeInTheDocument();
   });
 
+  it("records Allow analytics in Cookie settings as granted, even where the notice says Got it", async () => {
+    useConsentStore.setState({ mode: "opt-out" });
+    useConsentStore.getState().openSettings();
+    render(<ConsentBanner />);
+
+    await banner().getByRole("button", { name: "Allow analytics" }).click();
+
+    expect(getConsentChoice(document.cookie)).toBe("granted");
+    await expect.element(banner()).not.toBeInTheDocument();
+  });
+
   it.each([
     ["granted", "opt-in", "Analytics is on for you."],
     ["granted", "opt-out", "Analytics is on for you."],

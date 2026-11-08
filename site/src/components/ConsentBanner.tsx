@@ -29,6 +29,7 @@ interface PanelText {
   description: string;
   allow: string;
   decline: string;
+  allowChoice: ConsentChoice;
 }
 
 /** Visitors who are asked first get a question; everyone else is told analytics runs. */
@@ -46,6 +47,7 @@ function getPanelText(
       description,
       allow: "Allow analytics",
       decline: "No thanks",
+      allowChoice: "granted",
     };
   }
 
@@ -55,12 +57,14 @@ function getPanelText(
         description,
         allow: "Allow analytics",
         decline: "No thanks",
+        allowChoice: "granted",
       }
     : {
         heading: "We count visits",
         description,
         allow: "Got it",
         decline: "Opt out",
+        allowChoice: "acknowledged",
       };
 }
 
@@ -80,9 +84,7 @@ function getCurrentChoiceText(
 /** "Got it" only acknowledges the notice; it must not later count as consent where we ask first. */
 function handleAllow(): void {
   const { panel, mode, closePanel } = useConsentStore.getState();
-  recordConsent(
-    panel === "prompt" && mode === "opt-out" ? "acknowledged" : "granted",
-  );
+  recordConsent(getPanelText(panel, mode).allowChoice);
   closePanel();
 }
 
@@ -105,7 +107,8 @@ function handleKeyDown(event: KeyboardEvent): void {
 
 /**
  * The answer can change in another tab, or on another page before the visitor goes Back.
- * Without an answer nothing changes until the mode is known: an opted-out region's visitor
+ * Someone who allowed or declined is handled at once. With no answer, or only an
+ * acknowledgement, nothing changes until the mode is known: an opted-out region's visitor
  * keeps Google's cookies, which deleting early would turn into a new visitor on every page.
  */
 function syncWithAnswer(): void {
