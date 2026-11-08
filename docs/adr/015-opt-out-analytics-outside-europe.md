@@ -25,9 +25,8 @@ a visitor's browser asks at most once an hour and no shared cache mixes visitors
 
 The opt-in list is the EEA, the UK and Switzerland, plus the regions ISO codes separately
 (Åland, the French outermost regions, Gibraltar, Svalbard and Jan Mayen, and the Crown
-dependencies). A missing country,
-Cloudflare's `XX` and Tor's `T1` are opt-in: a wrong guess must never count a visitor who should
-have been asked.
+dependencies). A missing country, Cloudflare's `XX` and Tor's `T1` are opt-in: a wrong guess
+must never count a visitor who should have been asked.
 
 Rejected:
 
@@ -41,20 +40,22 @@ Rejected:
 ### The browser can still ask first
 
 A visitor whose browser sends Global Privacy Control is opt-in wherever they are, and the
-browser does not call the Worker. The Worker's answer, an error status, a body that is not JSON,
-a network failure and a 3-second timeout all fall back to opt-in.
+browser does not call the Worker. Any answer other than `opt-out`, an error status, a body that
+is not JSON, a network failure and a 3-second timeout all fall back to opt-in.
 
 ### Nothing changes without an answer until the mode is known
 
-A visitor who has answered is handled straight away, as before. For a visitor without an
-answer, the banner waits for the mode before starting or stopping anything. Expiring `_ga*`
+A visitor who allowed or declined is handled straight away, as before. For a visitor with no
+answer or only an acknowledgement, the banner waits for the mode before starting or stopping
+anything. Expiring `_ga*`
 while the lookup is in flight would make an opt-out region's visitor a new visitor on every page.
 
 ### The notice reuses the cookie
 
 Outside Europe the banner says "We count visits", with Got it and Opt out at equal weight. Got
-it writes `acknowledged`, Opt out writes `denied`, and Allow analytics (the opt-in prompt or
-Cookie settings) writes `granted`. All three go to the same `noppu_analytics_consent` cookie, so
+it writes `acknowledged`. Opt out and No thanks (the decline button in the opt-in prompt and in
+Cookie settings) write `denied`, and Allow analytics (the opt-in prompt or Cookie settings)
+writes `granted`. All three go to the same `noppu_analytics_consent` cookie, so
 noppu.com and returning visits read one answer. The page writes the cookie at once, and then,
 on production, the Worker rewrites it.
 
@@ -75,12 +76,13 @@ no answer. The cookie contract with noppu.com now has three values, and noppu.co
   opt-in. Workers Logs on the Free plan take 200,000 events a day and keep them 3 days
   ([pricing](https://developers.cloudflare.com/workers/platform/pricing/)), and traces are kept
   7 days ([traces](https://developers.cloudflare.com/workers/observability/traces/)). From
-  1 December 2026 both count toward Cloudflare Observability pricing. Sampling is at 100% in
+  1 December 2026, Workers Logs and stored traces are billed under Cloudflare Observability
+  pricing. Sampling is at 100% in
   `wrangler.jsonc`, so every request writes log events against that limit.
 - A visitor whose country changes, through travel or a VPN, keeps the cached mode for up to an
   hour.
 - `_ga*` cookies are expired when the answer is `denied`, or when the mode is opt-in and the
-  answer is missing or `acknowledged`. noppu.com applies the same rule, with the same country
+  answer is missing or `acknowledged`. noppu.com must apply the same rule, with the same country
   list, before it sets Google's cookies without a `granted` answer.
 - Safari caps script-written cookies at 7 days but not cookies set by the site's own server. The
   Worker's `POST /api/consent` re-sets the cookie with `Set-Cookie`, so an answer lasts its 6
