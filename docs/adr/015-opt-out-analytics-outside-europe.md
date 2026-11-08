@@ -24,7 +24,8 @@ Switzerland. Elsewhere, telling visitors and letting them opt out is the common 
 a visitor's browser asks at most once an hour and no shared cache mixes visitors up.
 
 The opt-in list is the EEA, the UK and Switzerland, plus the regions ISO codes separately
-(Åland, the French outermost regions, Gibraltar and the Crown dependencies). A missing country,
+(Åland, the French outermost regions, Gibraltar, Svalbard and Jan Mayen, and the Crown
+dependencies). A missing country,
 Cloudflare's `XX` and Tor's `T1` are opt-in: a wrong guess must never count a visitor who should
 have been asked.
 
@@ -65,8 +66,19 @@ no answer. The cookie contract with noppu.com now has three values, and noppu.co
 ## Consequences
 
 - Reports count most visitors outside Europe, and still only consenting ones inside it.
-- Every page view on production with no cached mode makes one Worker request. This is well within
-  the free plan at the site's traffic.
+- The Worker now sees visitors, not only badge hits. The `/api/consent-mode` answer is cached in
+  the browser for an hour, so a visitor costs about one Worker request an hour, plus one
+  `POST /api/consent` per answer and the badge requests. The Workers Free plan allows 100,000
+  requests a day, reset at midnight UTC ([limits](https://developers.cloudflare.com/workers/platform/limits/),
+  [pricing](https://developers.cloudflare.com/workers/platform/pricing/)). Past that, Cloudflare
+  returns error 1027, so the badge and the lookup fail together and the page falls back to
+  opt-in. Workers Logs on the Free plan take 200,000 events a day and keep them 3 days
+  ([pricing](https://developers.cloudflare.com/workers/platform/pricing/)), and traces are kept
+  7 days ([traces](https://developers.cloudflare.com/workers/observability/traces/)). From
+  1 December 2026 both count toward Cloudflare Observability pricing. Sampling is at 100% in
+  `wrangler.jsonc`, so every request writes log events against that limit.
+- A visitor whose country changes, through travel or a VPN, keeps the cached mode for up to an
+  hour.
 - `_ga*` cookies are expired when the answer is `denied`, or when the mode is opt-in and the
   answer is missing or `acknowledged`. noppu.com applies the same rule, with the same country
   list, before it sets Google's cookies without a `granted` answer.
@@ -74,5 +86,7 @@ no answer. The cookie contract with noppu.com now has three values, and noppu.co
   Worker's `POST /api/consent` re-sets the cookie with `Set-Cookie`, so an answer lasts its 6
   months there too. It checks `Origin`, so another site cannot record an answer. noppu.com must do
   the same, or its answers lapse in Safari after a week.
-- Local builds and `astro preview` have no Worker, so the lookup 404s and the page asks first. The
-  dist tests stand in for the Worker.
+- Off `toolkit.noppu.com` the banner island makes no lookup and shows no prompt, so local builds,
+  `astro preview` and preview deployments never reach the Worker; only Cookie settings opens the
+  banner. The dist tests serve the build at production's address and stand in for the Worker, which
+  is how they exercise the lookup.

@@ -15,8 +15,10 @@
     // Astro writes skills/<name>/index.html; this serves it at /skills/<name>.
     "html_handling": "drop-trailing-slash"
   },
-  // Matches the dashboard's settings, so deploys do not drift from them. Only
-  // /api/* runs the script, so sampling every request stays cheap.
+  // Matches the dashboard's settings, so deploys do not drift from them.
+  // /api/consent-mode runs about once per visitor per hour, so volume grows with
+  // visitors. At 100% sampling each request writes log events against the Free
+  // plan's 200,000 a day (see ADR-015).
   "observability": {
     "logs": {
       "enabled": true,
