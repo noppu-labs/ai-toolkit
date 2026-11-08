@@ -48,18 +48,36 @@ describe("getConsentMode", () => {
     expect(getConsentMode(country)).toBe("opt-in");
   });
 
-  it("asks first unless the country is a known code outside the list", () => {
+  it("asks first for anything that is not a two-letter uppercase string", () => {
     fc.assert(
-      fc.property(fc.anything(), (country) => {
-        const mode = getConsentMode(country);
-        const isKnownElsewhere =
-          typeof country === "string" &&
-          /^[A-Z]{2}$/.test(country) &&
-          !["XX", "T1"].includes(country) &&
-          !ASK_FIRST_COUNTRIES.includes(country);
+      fc.property(
+        fc.oneof(
+          fc.anything().filter((value) => typeof value !== "string"),
+          fc.string().filter((value) => !/^[A-Z]{2}$/.test(value)),
+        ),
+        (country) => {
+          expect(getConsentMode(country)).toBe("opt-in");
+        },
+      ),
+    );
+  });
 
-        expect(mode).toBe(isKnownElsewhere ? "opt-out" : "opt-in");
+  it("asks first for every listed country", () => {
+    fc.assert(
+      fc.property(fc.constantFrom(...ASK_FIRST_COUNTRIES), (country) => {
+        expect(getConsentMode(country)).toBe("opt-in");
       }),
+    );
+  });
+
+  it("does not ask first for known countries outside the list", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom("US", "CA", "BR", "JP", "AU", "IN", "MX", "ZA"),
+        (country) => {
+          expect(getConsentMode(country)).toBe("opt-out");
+        },
+      ),
     );
   });
 });

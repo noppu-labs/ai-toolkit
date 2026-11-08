@@ -55,11 +55,12 @@ export const ASK_FIRST_COUNTRIES: readonly string[] = [
   "GI",
   "IM",
   "JE",
+  // Switzerland
   "CH",
 ];
 
-/** Cloudflare's codes for an unknown country and for Tor. */
-const UNKNOWN_COUNTRIES: readonly string[] = ["XX", "T1"];
+/** Cloudflare's code for an unknown country. Tor's `T1` needs no entry: it fails the two-letter check. */
+const UNKNOWN_COUNTRIES: readonly string[] = ["XX"];
 
 /** Asks first whenever the country is missing or unknown: a wrong guess must not count anyone. */
 export function getConsentMode(country: unknown): ConsentMode {
