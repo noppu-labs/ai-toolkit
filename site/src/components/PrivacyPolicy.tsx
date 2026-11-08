@@ -28,7 +28,8 @@ const STORED_ITEMS: StoredItem[] = [
     name: "noppu_analytics_consent",
     kind: "Cookie, set when you answer the banner",
     kept: "Up to 6 months",
-    purpose: "Remembers your answer, here and on noppu.com.",
+    purpose:
+      "Remembers whether you allowed analytics, declined it, or acknowledged the notice, here and on noppu.com.",
   },
   {
     name: "ai-toolkit-preferences",
@@ -125,7 +126,9 @@ export function PrivacyPolicy({
             <ExternalLink href="https://globalprivacycontrol.org/">
               Global Privacy Control
             </ExternalLink>{" "}
-            signal, we ask first wherever you are.
+            signal, we ask first wherever you are. Clicking "Got it" on the
+            notice only records that you saw it. It does not count as allowing
+            analytics, so where we ask first you are asked again.
           </p>
         </Section>
 

@@ -52,18 +52,24 @@ while the lookup is in flight would make an opt-out region's visitor a new visit
 ### The notice reuses the cookie
 
 Outside Europe the banner says "We count visits", with Got it and Opt out at equal weight. Got
-it writes `granted` and Opt out writes `denied` to the same `noppu_analytics_consent` cookie, so
+it writes `acknowledged`, Opt out writes `denied`, and Allow analytics (the opt-in prompt or
+Cookie settings) writes `granted`. All three go to the same `noppu_analytics_consent` cookie, so
 noppu.com and returning visits read one answer. The page writes the cookie at once, and then,
 on production, the Worker rewrites it.
+
+`acknowledged` is not consent. It counts only where the opt-out mode applies. In opt-in mode
+(Europe, or a browser sending GPC) a visitor with `acknowledged` is asked like a visitor with
+no answer. The cookie contract with noppu.com now has three values, and noppu.com must treat
+`acknowledged` the same way.
 
 ## Consequences
 
 - Reports count most visitors outside Europe, and still only consenting ones inside it.
 - Every page view on production with no cached mode makes one Worker request. This is well within
   the free plan at the site's traffic.
-- `_ga*` cookies are expired when the answer is `denied`, or when there is no answer and the
-  mode is opt-in. noppu.com must apply the same rule, with the same country list, before it sets
-  Google's cookies without a `granted` answer.
+- `_ga*` cookies are expired when the answer is `denied`, or when the mode is opt-in and the
+  answer is missing or `acknowledged`. noppu.com applies the same rule, with the same country
+  list, before it sets Google's cookies without a `granted` answer.
 - Safari caps script-written cookies at 7 days but not cookies set by the site's own server. The
   Worker's `POST /api/consent` re-sets the cookie with `Set-Cookie`, so an answer lasts its 6
   months there too. It checks `Origin`, so another site cannot record an answer. noppu.com must do
