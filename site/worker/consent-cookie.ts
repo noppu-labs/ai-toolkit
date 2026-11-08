@@ -1,6 +1,7 @@
 import { SITE_URL } from "../src/lib/site.ts";
 
-export type ConsentChoice = "granted" | "denied";
+const CONSENT_CHOICES = ["granted", "denied", "acknowledged"] as const;
+export type ConsentChoice = (typeof CONSENT_CHOICES)[number];
 
 export const CONSENT_COOKIE = "noppu_analytics_consent";
 const CONSENT_MAX_AGE_SECONDS = 180 * 24 * 60 * 60;
@@ -15,7 +16,7 @@ export function isAnalyticsHost(hostname: string): boolean {
 }
 
 export function isConsentChoice(value: unknown): value is ConsentChoice {
-  return value === "granted" || value === "denied";
+  return CONSENT_CHOICES.some((choice) => choice === value);
 }
 
 export function getConsentChoice(cookies: string): ConsentChoice | null {

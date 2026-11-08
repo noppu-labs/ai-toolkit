@@ -25,6 +25,21 @@ describe("handleConsentRequest", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
+  it("sets the shared cookie for an acknowledgement", async () => {
+    const response = await handleConsentRequest(
+      makeRequest(PRODUCTION_URL, {
+        method: "POST",
+        headers: { Origin: "https://toolkit.noppu.com" },
+        body: JSON.stringify({ choice: "acknowledged" }),
+      }),
+    );
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("set-cookie")).toBe(
+      "noppu_analytics_consent=acknowledged; Path=/; Max-Age=15552000; SameSite=Lax; Domain=.noppu.com; Secure",
+    );
+  });
+
   it("sets a host-only cookie on a preview", async () => {
     const origin = "https://feat-x-preview.toolkit.noppu.dev";
     const response = await handleConsentRequest(
@@ -110,7 +125,11 @@ describe("handleConsentRequest", () => {
               Object(JSON.parse(body)),
               "choice",
             );
-            fc.pre(choice !== "granted" && choice !== "denied");
+            fc.pre(
+              choice !== "granted" &&
+                choice !== "denied" &&
+                choice !== "acknowledged",
+            );
           } catch (error) {
             if (!(error instanceof SyntaxError)) {
               throw error;

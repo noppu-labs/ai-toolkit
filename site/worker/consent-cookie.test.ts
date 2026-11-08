@@ -24,6 +24,7 @@ describe("getConsentChoice", () => {
   it.each([
     ["", null],
     ["noppu_analytics_consent=granted", "granted"],
+    ["noppu_analytics_consent=acknowledged", "acknowledged"],
     ["a=1; noppu_analytics_consent=denied; b=2", "denied"],
     ["noppu_analytics_consent=maybe", null],
     ["not_noppu_analytics_consent=granted", null],
@@ -77,6 +78,7 @@ describe("isConsentChoice", () => {
   it.each([
     ["granted", true],
     ["denied", true],
+    ["acknowledged", true],
     ["GRANTED", false],
     ["", false],
     [null, false],
