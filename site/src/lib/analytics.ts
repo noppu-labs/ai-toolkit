@@ -68,6 +68,17 @@ export async function fetchConsentMode(): Promise<ConsentMode> {
 
 let consentRequest: AbortController | undefined;
 
+// Safari before 17.4 lacks `AbortSignal.any`. There the POST has no timeout, which is harmless
+// because nothing awaits it.
+function makeConsentSignal(controller: AbortController): AbortSignal {
+  return typeof AbortSignal.any === "function"
+    ? AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(WORKER_TIMEOUT_MS),
+      ])
+    : controller.signal;
+}
+
 /**
  * Safari caps script-written cookies at 7 days and the Worker's Set-Cookie lifts that (see
  * `worker/consent.ts`). A failure is swallowed because the script-written cookie still holds
@@ -84,10 +95,7 @@ export async function sendConsent(choice: ConsentChoice): Promise<void> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ choice }),
       keepalive: true,
-      signal: AbortSignal.any([
-        controller.signal,
-        AbortSignal.timeout(WORKER_TIMEOUT_MS),
-      ]),
+      signal: makeConsentSignal(controller),
     });
   } catch {}
 }

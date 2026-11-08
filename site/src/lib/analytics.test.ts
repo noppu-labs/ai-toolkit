@@ -185,6 +185,42 @@ describe("sendConsent", () => {
     expect(signals[1]?.aborted).toBe(false);
   });
 
+  describe("without AbortSignal.any", () => {
+    const original = Object.getOwnPropertyDescriptor(AbortSignal, "any");
+
+    afterEach(() => {
+      if (original) {
+        Object.defineProperty(AbortSignal, "any", original);
+      }
+    });
+
+    it("still posts, and a newer answer aborts the earlier request", () => {
+      Object.defineProperty(AbortSignal, "any", {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+      const signals: AbortSignal[] = [];
+      const fetch = vi.fn(
+        (_url: string, init: RequestInit): Promise<Response> => {
+          if (init.signal) {
+            signals.push(init.signal);
+          }
+
+          return new Promise(() => undefined);
+        },
+      );
+      vi.stubGlobal("fetch", fetch);
+
+      void sendConsent("granted");
+      void sendConsent("denied");
+
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(signals[0]?.aborted).toBe(true);
+      expect(signals[1]?.aborted).toBe(false);
+    });
+  });
+
   it.each([
     [
       "a 404",
