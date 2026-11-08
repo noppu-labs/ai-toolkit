@@ -109,7 +109,7 @@ describe("ConsentBanner", () => {
   });
 
   it.each([
-    ["Got it", "granted"],
+    ["Got it", "acknowledged"],
     ["Opt out", "denied"],
   ])("records %s on the notice as %s and closes", async (name, choice) => {
     useConsentStore.setState({ mode: "opt-out" });
@@ -121,6 +121,27 @@ describe("ConsentBanner", () => {
     expect(getConsentChoice(document.cookie)).toBe(choice);
     await expect.element(banner()).not.toBeInTheDocument();
   });
+
+  it.each([
+    ["granted", "opt-in", "Analytics is on for you."],
+    ["granted", "opt-out", "Analytics is on for you."],
+    ["denied", "opt-in", "Analytics is off for you."],
+    ["denied", "opt-out", "Analytics is off for you."],
+    ["acknowledged", "opt-out", "Analytics is on for you."],
+    ["acknowledged", "opt-in", "You haven't chosen yet."],
+  ] as const)(
+    "says in settings, for %s in %s, %s",
+    async (choice, mode, expected) => {
+      // biome-ignore lint/suspicious/noDocumentCookie: a visitor who chose earlier.
+      document.cookie = `${CONSENT_COOKIE}=${choice}; Path=/`;
+      useConsentStore.setState({ mode });
+      useConsentStore.getState().openSettings();
+
+      render(<ConsentBanner />);
+
+      await expect.element(banner().getByText(expected)).toBeVisible();
+    },
+  );
 
   it.each([
     ["opt-out", "Analytics is on for you."],

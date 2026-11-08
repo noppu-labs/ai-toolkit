@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   type ConsentMode,
   fetchConsentMode,
+  needsAnswer,
   recordConsent,
   shouldMeasure,
   startAnalytics,
@@ -71,14 +72,18 @@ function getCurrentChoiceText(
     return "Analytics is on for you.";
   }
 
-  return choice === null
+  return needsAnswer(choice, mode)
     ? "You haven't chosen yet."
     : "Analytics is off for you.";
 }
 
+/** "Got it" only acknowledges the notice; it must not later count as consent where we ask first. */
 function handleAllow(): void {
-  recordConsent("granted");
-  useConsentStore.getState().closePanel();
+  const { panel, mode, closePanel } = useConsentStore.getState();
+  recordConsent(
+    panel === "prompt" && mode === "opt-out" ? "acknowledged" : "granted",
+  );
+  closePanel();
 }
 
 function handleDecline(): void {
@@ -113,7 +118,7 @@ function syncWithAnswer(): void {
     stopAnalytics();
   }
 
-  if (choice !== null && panel === "prompt") {
+  if (!needsAnswer(choice, mode) && panel === "prompt") {
     closePanel();
   }
 }
@@ -123,7 +128,10 @@ function applyMode(mode: ConsentMode): void {
   syncWithAnswer();
   // A Cookie settings click can beat this island's hydration and the Worker's answer.
   const { panel, openPrompt } = useConsentStore.getState();
-  if (getConsentChoice(document.cookie) === null && panel === "closed") {
+  if (
+    needsAnswer(getConsentChoice(document.cookie), mode) &&
+    panel === "closed"
+  ) {
     openPrompt();
   }
 }

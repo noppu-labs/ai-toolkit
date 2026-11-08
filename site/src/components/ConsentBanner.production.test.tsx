@@ -150,6 +150,30 @@ describe("ConsentBanner on the production host", () => {
     expect(vi.mocked(startAnalytics)).toHaveBeenCalledOnce();
   });
 
+  it("asks a returning visitor who only acknowledged the notice in an opt-in region, and keeps the tag off", async () => {
+    vi.mocked(getConsentChoice).mockReturnValue("acknowledged");
+
+    await render(<ConsentBanner />);
+
+    await expect
+      .element(banner().getByRole("button", { name: "Allow analytics" }))
+      .toBeVisible();
+    expect(vi.mocked(stopAnalytics)).toHaveBeenCalled();
+    expect(vi.mocked(startAnalytics)).not.toHaveBeenCalled();
+  });
+
+  it("starts the tag for a returning visitor who acknowledged the notice in an opt-out region, without asking", async () => {
+    vi.mocked(getConsentChoice).mockReturnValue("acknowledged");
+    vi.mocked(fetchConsentMode).mockResolvedValue("opt-out");
+
+    await render(<ConsentBanner />);
+
+    await vi.waitFor(() =>
+      expect(vi.mocked(startAnalytics)).toHaveBeenCalled(),
+    );
+    expect(useConsentStore.getState().panel).toBe("closed");
+  });
+
   it("starts the tag for a returning visitor who allowed it without waiting for the mode", async () => {
     vi.mocked(getConsentChoice).mockReturnValue("granted");
     vi.mocked(fetchConsentMode).mockReturnValue(new Promise(() => undefined));

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fetchConsentMode,
   makeExpiredGaCookies,
+  needsAnswer,
   parseConsentMode,
   sendConsent,
   shouldMeasure,
@@ -105,14 +106,39 @@ describe("fetchConsentMode", () => {
 
 describe("shouldMeasure", () => {
   it.each([
-    ["granted", null, true],
     ["granted", "opt-in", true],
+    ["granted", "opt-out", true],
+    ["granted", null, true],
+    ["denied", "opt-in", false],
     ["denied", "opt-out", false],
-    [null, "opt-out", true],
+    ["denied", null, false],
+    ["acknowledged", "opt-in", false],
+    ["acknowledged", "opt-out", true],
+    ["acknowledged", null, null],
     [null, "opt-in", false],
+    [null, "opt-out", true],
     [null, null, null],
   ] as const)("for %s in %s is %s", (choice, mode, expected) => {
     expect(shouldMeasure(choice, mode)).toBe(expected);
+  });
+});
+
+describe("needsAnswer", () => {
+  it.each([
+    ["granted", "opt-in", false],
+    ["granted", "opt-out", false],
+    ["granted", null, false],
+    ["denied", "opt-in", false],
+    ["denied", "opt-out", false],
+    ["denied", null, false],
+    ["acknowledged", "opt-in", true],
+    ["acknowledged", "opt-out", false],
+    ["acknowledged", null, false],
+    [null, "opt-in", true],
+    [null, "opt-out", true],
+    [null, null, true],
+  ] as const)("for %s in %s is %s", (choice, mode, expected) => {
+    expect(needsAnswer(choice, mode)).toBe(expected);
   });
 });
 

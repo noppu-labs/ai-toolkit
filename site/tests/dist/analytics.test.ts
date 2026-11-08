@@ -434,6 +434,8 @@ describe("analytics outside the opt-in regions", () => {
     });
 
     await page.getByRole("button", { name: "Got it" }).click();
+
+    expect((await getCookie(page, CONSENT_COOKIE))?.value).toBe("acknowledged");
     await page.goto(`${PRODUCTION}/opencode`);
     await settle(page);
 
@@ -450,6 +452,31 @@ describe("analytics outside the opt-in regions", () => {
     await page.getByRole("button", { name: "Allow analytics" }).waitFor();
 
     expect(traffic.urls).toEqual([]);
+  });
+});
+
+describe("analytics for a visitor who only acknowledged the notice", () => {
+  it("asks first, and sends nothing, once the visitor is in an opt-in region", async () => {
+    const { page, traffic } = await openProduction(
+      "/",
+      [makeSharedCookie(CONSENT_COOKIE, "acknowledged")],
+      { mode: "opt-in" },
+    );
+
+    await page.getByRole("button", { name: "Allow analytics" }).waitFor();
+
+    expect(traffic.urls).toEqual([]);
+  });
+
+  it("starts the tag without a banner in an opt-out region", async () => {
+    const { page, traffic } = await openProduction(
+      "/",
+      [makeSharedCookie(CONSENT_COOKIE, "acknowledged")],
+      { mode: "opt-out" },
+    );
+
+    await expect.poll(() => traffic.urls.length).toBe(1);
+    expect(await page.getByRole("button", { name: "Opt out" }).count()).toBe(0);
   });
 });
 

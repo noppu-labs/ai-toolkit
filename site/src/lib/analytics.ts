@@ -89,11 +89,19 @@ export function shouldMeasure(
   choice: ConsentChoice | null,
   mode: ConsentMode | null,
 ): boolean | null {
-  if (choice !== null) {
+  if (choice === "granted" || choice === "denied") {
     return choice === "granted";
   }
 
   return mode === null ? null : mode === "opt-out";
+}
+
+/** An acknowledgement made outside Europe is not an answer where we ask first. */
+export function needsAnswer(
+  choice: ConsentChoice | null,
+  mode: ConsentMode | null,
+): boolean {
+  return choice === null || (choice === "acknowledged" && mode === "opt-in");
 }
 
 /** Clears `_ga` and `_ga_<container>`, which Google's tag sets on the shared domain. */
@@ -169,7 +177,8 @@ export function stopAnalytics(): void {
 export function recordConsent(choice: ConsentChoice): void {
   // biome-ignore lint/suspicious/noDocumentCookie: the Cookie Store API is not in Safari before 18.4 or Firefox before 140.
   document.cookie = makeConsentCookie(choice, window.location);
-  if (choice === "granted") {
+  // An acknowledgement is only offered where analytics already runs, so starting is a no-op.
+  if (choice === "granted" || choice === "acknowledged") {
     startAnalytics();
   } else {
     stopAnalytics();
