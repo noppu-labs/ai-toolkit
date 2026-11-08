@@ -164,6 +164,27 @@ describe("sendConsent", () => {
     );
   });
 
+  it("aborts the earlier request when a newer answer is sent", () => {
+    const signals: AbortSignal[] = [];
+    const fetch = vi.fn(
+      (_url: string, init: RequestInit): Promise<Response> => {
+        if (init.signal) {
+          signals.push(init.signal);
+        }
+
+        return new Promise(() => undefined);
+      },
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    void sendConsent("granted");
+    void sendConsent("denied");
+
+    expect(signals).toHaveLength(2);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]?.aborted).toBe(false);
+  });
+
   it.each([
     [
       "a 404",

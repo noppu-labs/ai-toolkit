@@ -22,7 +22,7 @@ const DISABLE_FLAG = `ga-disable-${MEASUREMENT_ID}`;
 
 const CONSENT_MODE_PATH = "/api/consent-mode";
 const CONSENT_PATH = "/api/consent";
-const CONSENT_MODE_TIMEOUT_MS = 3000;
+const WORKER_TIMEOUT_MS = 3000;
 
 function getCookieNames(cookies: string): string[] {
   return cookies
@@ -56,7 +56,7 @@ export async function fetchConsentMode(): Promise<ConsentMode> {
   }
   try {
     const response = await fetch(CONSENT_MODE_PATH, {
-      signal: AbortSignal.timeout(CONSENT_MODE_TIMEOUT_MS),
+      signal: AbortSignal.timeout(WORKER_TIMEOUT_MS),
     });
 
     return response.ok ? parseConsentMode(await response.json()) : "opt-in";
@@ -65,23 +65,30 @@ export async function fetchConsentMode(): Promise<ConsentMode> {
   }
 }
 
+let consentRequest: AbortController | undefined;
+
 /**
- * Asks the Worker to set the consent cookie too: Safari caps cookies written by a script at
- * seven days, and a cookie set in an HTTP response keeps its full 6 months. Any failure is
- * swallowed, because the cookie the script already wrote carries the choice meanwhile.
+ * Safari caps script-written cookies at 7 days and the Worker's Set-Cookie lifts that (see
+ * `worker/consent.ts`). A failure is swallowed because the script-written cookie still holds
+ * the choice. An earlier POST is aborted so a slower answer cannot overwrite a newer one.
  */
 export async function sendConsent(choice: ConsentChoice): Promise<void> {
+  consentRequest?.abort();
+
+  const controller = new AbortController();
+  consentRequest = controller;
   try {
     await fetch(CONSENT_PATH, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ choice }),
       keepalive: true,
-      signal: AbortSignal.timeout(CONSENT_MODE_TIMEOUT_MS),
+      signal: AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(WORKER_TIMEOUT_MS),
+      ]),
     });
-  } catch {
-    // The cookie the script wrote still holds the choice.
-  }
+  } catch {}
 }
 
 /** Whether analytics should run for this visitor now, or null until the mode is known. */
