@@ -1,8 +1,16 @@
-import { SITE_URL } from "./site.ts";
+import { CONSENT_PATH } from "../../worker/consent.ts";
+import {
+  type ConsentChoice,
+  isAnalyticsHost,
+  makeConsentCookie,
+  SHARED_COOKIE_DOMAIN,
+} from "../../worker/consent-cookie.ts";
+import {
+  CONSENT_MODE_PATH,
+  type ConsentMode,
+} from "../../worker/consent-mode.ts";
 
-export type ConsentChoice = "granted" | "denied";
-
-type PageLocation = Pick<Location, "hostname" | "protocol">;
+export type { ConsentMode } from "../../worker/consent-mode.ts";
 
 declare global {
   interface Window {
@@ -15,17 +23,7 @@ const MEASUREMENT_ID = "G-MHP3L2JTTP";
 const TAG_URL = `https://www.googletagmanager.com/gtag/js?id=${MEASUREMENT_ID}`;
 const DISABLE_FLAG = `ga-disable-${MEASUREMENT_ID}`;
 
-export const CONSENT_COOKIE = "noppu_analytics_consent";
-const CONSENT_MAX_AGE_SECONDS = 180 * 24 * 60 * 60;
-/** noppu.com and its subdomains share one Google Analytics stream, so they share the visitor's choice too. */
-const SHARED_COOKIE_DOMAIN = ".noppu.com";
-
-const ANALYTICS_HOST: string = new URL(SITE_URL).hostname;
-
-/** Previews and local builds serve the same HTML; only production may count anyone. */
-export function isAnalyticsHost(hostname: string): boolean {
-  return hostname === ANALYTICS_HOST;
-}
+const WORKER_TIMEOUT_MS = 3000;
 
 function getCookieNames(cookies: string): string[] {
   return cookies
@@ -34,34 +32,92 @@ function getCookieNames(cookies: string): string[] {
     .filter((name) => name !== "");
 }
 
-export function getConsentChoice(cookies: string): ConsentChoice | null {
-  const value = cookies
-    .split("; ")
-    .find((cookie) => cookie.startsWith(`${CONSENT_COOKIE}=`))
-    ?.slice(CONSENT_COOKIE.length + 1);
-
-  return value === "granted" || value === "denied" ? value : null;
+/** Global Privacy Control, which Brave, DuckDuckGo and Firefox can send. */
+export function hasPrivacySignal(): boolean {
+  return Reflect.get(navigator, "globalPrivacyControl") === true;
 }
 
-export function makeConsentCookie(
-  choice: ConsentChoice,
-  { hostname, protocol }: PageLocation,
-): string {
-  const attributes = [
-    `${CONSENT_COOKIE}=${choice}`,
-    "Path=/",
-    `Max-Age=${CONSENT_MAX_AGE_SECONDS}`,
-    // biome-ignore lint/security/noSecrets: a cookie attribute.
-    "SameSite=Lax",
-  ];
-  if (isAnalyticsHost(hostname)) {
-    attributes.push(`Domain=${SHARED_COOKIE_DOMAIN}`);
+export function parseConsentMode(body: unknown): ConsentMode {
+  const mode: unknown =
+    typeof body === "object" && body !== null
+      ? Reflect.get(body, "mode")
+      : undefined;
+
+  return mode === "opt-out" ? "opt-out" : "opt-in";
+}
+
+/**
+ * Whether this visitor is asked before analytics starts (`opt-in`) or told it runs and may opt
+ * out (`opt-out`). The Worker decides from the visitor's country; anything that goes wrong
+ * asks first, and so does a privacy signal.
+ */
+export async function fetchConsentMode(): Promise<ConsentMode> {
+  if (hasPrivacySignal()) {
+    return "opt-in";
   }
-  if (protocol === "https:") {
-    attributes.push("Secure");
+  try {
+    const response = await fetch(CONSENT_MODE_PATH, {
+      signal: AbortSignal.timeout(WORKER_TIMEOUT_MS),
+    });
+
+    return response.ok ? parseConsentMode(await response.json()) : "opt-in";
+  } catch {
+    return "opt-in";
+  }
+}
+
+let consentRequest: AbortController | undefined;
+
+// Safari before 17.4 lacks `AbortSignal.any`. There the POST has no timeout, which is harmless
+// because nothing awaits it.
+function makeConsentSignal(controller: AbortController): AbortSignal {
+  return typeof AbortSignal.any === "function"
+    ? AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(WORKER_TIMEOUT_MS),
+      ])
+    : controller.signal;
+}
+
+/**
+ * Safari caps script-written cookies at 7 days and the Worker's Set-Cookie lifts that (see
+ * `worker/consent.ts`). A failure is swallowed because the script-written cookie still holds
+ * the choice. An earlier POST is aborted so a slower answer cannot overwrite a newer one.
+ */
+export async function sendConsent(choice: ConsentChoice): Promise<void> {
+  consentRequest?.abort();
+
+  const controller = new AbortController();
+  consentRequest = controller;
+  try {
+    await fetch(CONSENT_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ choice }),
+      keepalive: true,
+      signal: makeConsentSignal(controller),
+    });
+  } catch {}
+}
+
+/** Whether analytics should run for this visitor now, or null until the mode is known. */
+export function shouldMeasure(
+  choice: ConsentChoice | null,
+  mode: ConsentMode | null,
+): boolean | null {
+  if (choice === "granted" || choice === "denied") {
+    return choice === "granted";
   }
 
-  return attributes.join("; ");
+  return mode === null ? null : mode === "opt-out";
+}
+
+/** An acknowledgement made outside Europe is not an answer where we ask first. */
+export function needsAnswer(
+  choice: ConsentChoice | null,
+  mode: ConsentMode | null,
+): boolean {
+  return choice === null || (choice === "acknowledged" && mode === "opt-in");
 }
 
 /** Clears `_ga` and `_ga_<container>`, which Google's tag sets on the shared domain. */
@@ -89,8 +145,9 @@ function isRunning(): boolean {
 }
 
 /**
- * Basic consent mode: the tag loads only after the visitor allows it, so a visitor who
- * declines sends Google nothing. The ad settings stay denied: the site runs no ads.
+ * Basic consent mode: in the opt-in regions the tag loads only after the visitor allows it,
+ * and elsewhere it loads unless the visitor opted out, so a visitor who declines sends Google
+ * nothing. The ad settings stay denied: the site runs no ads.
  */
 export function startAnalytics(): void {
   if (!isAnalyticsHost(window.location.hostname) || isRunning()) {
@@ -136,9 +193,14 @@ export function stopAnalytics(): void {
 export function recordConsent(choice: ConsentChoice): void {
   // biome-ignore lint/suspicious/noDocumentCookie: the Cookie Store API is not in Safari before 18.4 or Firefox before 140.
   document.cookie = makeConsentCookie(choice, window.location);
-  if (choice === "granted") {
+  // An acknowledgement is only offered where analytics already runs, so starting is a no-op.
+  if (choice === "granted" || choice === "acknowledged") {
     startAnalytics();
   } else {
     stopAnalytics();
+  }
+  if (isAnalyticsHost(window.location.hostname)) {
+    // sendConsent never rejects, so there is nothing to await or catch.
+    void sendConsent(choice);
   }
 }

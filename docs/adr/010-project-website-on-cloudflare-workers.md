@@ -53,7 +53,9 @@ the root ends in a slash.
 - One host and one deploy path for production and previews.
 - The badge costs nothing in practice: static asset requests are free and unlimited, only
   `/api/*` runs the script, and shields.io plus the edge cache keep that to a few hundred
-  requests a day, far inside the free plan's 100,000.
+  requests a day, far inside the free plan's 100,000. [ADR-015](015-opt-out-analytics-outside-europe.md)
+  amends this: `/api/consent-mode` adds about one request per visitor per hour, and that ADR
+  holds the figures.
 - The total is always within six hours of npm's numbers, with no scheduled job and no
   commits.
 

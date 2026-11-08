@@ -8,29 +8,84 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  type ConsentChoice,
-  getConsentChoice,
-  isAnalyticsHost,
+  type ConsentMode,
+  fetchConsentMode,
+  needsAnswer,
   recordConsent,
+  shouldMeasure,
   startAnalytics,
   stopAnalytics,
 } from "@/lib/analytics";
 import { PRIVACY_PATH } from "@/lib/site";
-import { useConsentStore } from "@/stores/useConsentStore";
+import { type ConsentPanel, useConsentStore } from "@/stores/useConsentStore";
+import {
+  type ConsentChoice,
+  getConsentChoice,
+  isAnalyticsHost,
+} from "../../worker/consent-cookie.ts";
 
-function getCurrentChoiceText(choice: ConsentChoice | null): string {
-  if (choice === null) {
-    return "You haven't chosen yet.";
+interface PanelText {
+  heading: string;
+  description: string;
+  allow: string;
+  decline: string;
+  allowChoice: ConsentChoice;
+}
+
+/** Visitors who are asked first get a question; everyone else is told analytics runs. */
+function getPanelText(
+  panel: ConsentPanel,
+  mode: ConsentMode | null,
+): PanelText {
+  const asksFirst = mode !== "opt-out";
+  const description = asksFirst
+    ? "Google Analytics would set cookies that show which pages get read and where visitors come from. It stays off unless you allow it."
+    : "Google Analytics sets cookies that show which pages get read and where visitors come from. It runs unless you opt out.";
+  if (panel === "settings") {
+    return {
+      heading: "Cookie settings",
+      description,
+      allow: "Allow analytics",
+      decline: "No thanks",
+      allowChoice: "granted",
+    };
   }
 
-  return choice === "granted"
-    ? "Analytics is on for you."
+  return asksFirst
+    ? {
+        heading: "Mind if we count this visit?",
+        description,
+        allow: "Allow analytics",
+        decline: "No thanks",
+        allowChoice: "granted",
+      }
+    : {
+        heading: "We count visits",
+        description,
+        allow: "Got it",
+        decline: "Opt out",
+        allowChoice: "acknowledged",
+      };
+}
+
+function getCurrentChoiceText(
+  choice: ConsentChoice | null,
+  mode: ConsentMode | null,
+): string {
+  if (shouldMeasure(choice, mode) === true) {
+    return "Analytics is on for you.";
+  }
+
+  return needsAnswer(choice, mode)
+    ? "You haven't chosen yet."
     : "Analytics is off for you.";
 }
 
+/** "Got it" only acknowledges the notice; it must not later count as consent where we ask first. */
 function handleAllow(): void {
-  recordConsent("granted");
-  useConsentStore.getState().closePanel();
+  const { panel, mode, closePanel } = useConsentStore.getState();
+  recordConsent(getPanelText(panel, mode).allowChoice);
+  closePanel();
 }
 
 function handleDecline(): void {
@@ -50,18 +105,37 @@ function handleKeyDown(event: KeyboardEvent): void {
   }
 }
 
-/** The answer can change in another tab, or on another page before the visitor goes Back. */
+/**
+ * The answer can change in another tab, or on another page before the visitor goes Back.
+ * Someone who allowed or declined is handled at once. With no answer, or only an
+ * acknowledgement, nothing changes until the mode is known: an opted-out region's visitor
+ * keeps Google's cookies, which deleting early would turn into a new visitor on every page.
+ */
 function syncWithAnswer(): void {
   const choice = getConsentChoice(document.cookie);
-  if (choice === "granted") {
+  const { panel, mode, closePanel } = useConsentStore.getState();
+  const measure = shouldMeasure(choice, mode);
+  if (measure === true) {
     startAnalytics();
-  } else {
+  } else if (measure === false) {
     stopAnalytics();
   }
 
-  const { panel, closePanel } = useConsentStore.getState();
-  if (choice !== null && panel === "prompt") {
+  if (!needsAnswer(choice, mode) && panel === "prompt") {
     closePanel();
+  }
+}
+
+function applyMode(mode: ConsentMode): void {
+  useConsentStore.getState().setMode(mode);
+  syncWithAnswer();
+  // A Cookie settings click can beat this island's hydration and the Worker's answer.
+  const { panel, openPrompt } = useConsentStore.getState();
+  if (
+    needsAnswer(getConsentChoice(document.cookie), mode) &&
+    panel === "closed"
+  ) {
+    openPrompt();
   }
 }
 
@@ -72,12 +146,14 @@ function handleVisibilityChange(): void {
 }
 
 /**
- * Asks once, on production, before Google's tag may load; returning visitors who allowed it
- * start the tag here. Renders nothing at build time, so a visitor without JavaScript sees no
- * banner and loads no tag.
+ * On production, asks visitors in an opt-in region before Google's tag may load, and tells
+ * everyone else it runs, with a way to opt out. Returning visitors who allowed it start the tag
+ * here. Renders nothing at build time, so a visitor without JavaScript sees no banner and loads
+ * no tag.
  */
 export function ConsentBanner(): ReactElement | null {
   const panel = useConsentStore((state) => state.panel);
+  const mode = useConsentStore((state) => state.mode);
   const headingId = useId();
   const banner = useRef<HTMLElement>(null);
 
@@ -85,17 +161,20 @@ export function ConsentBanner(): ReactElement | null {
     if (!isAnalyticsHost(window.location.hostname)) {
       return;
     }
+    let isMounted = true;
     syncWithAnswer();
-    // A Cookie settings click can beat this island's hydration.
-    const { panel: current, openPrompt } = useConsentStore.getState();
-    if (getConsentChoice(document.cookie) === null && current === "closed") {
-      openPrompt();
-    }
+    // fetchConsentMode never rejects: every failure resolves to opt-in.
+    void fetchConsentMode().then((resolved) => {
+      if (isMounted) {
+        applyMode(resolved);
+      }
+    });
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pageshow", syncWithAnswer);
 
     return (): void => {
+      isMounted = false;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pageshow", syncWithAnswer);
     };
@@ -118,6 +197,7 @@ export function ConsentBanner(): ReactElement | null {
   if (panel === "closed") {
     return null;
   }
+  const text = getPanelText(panel, mode);
 
   return (
     <section
@@ -129,9 +209,7 @@ export function ConsentBanner(): ReactElement | null {
     >
       <div className="flex items-start justify-between gap-3">
         <h2 className="text-xl tracking-[-0.02em]" id={headingId}>
-          {panel === "prompt"
-            ? "Mind if we count this visit?"
-            : "Cookie settings"}
+          {text.heading}
         </h2>
         {panel === "settings" && (
           <Button
@@ -145,12 +223,10 @@ export function ConsentBanner(): ReactElement | null {
         )}
       </div>
       <p className="text-sm leading-normal text-muted-foreground">
-        Google Analytics would set cookies that show which pages get read and
-        where visitors come from. It stays off unless you allow it. Your answer
-        applies on noppu.com too.{" "}
+        {text.description} Your answer applies on noppu.com too.{" "}
         {panel === "settings" && (
           <strong className="text-foreground">
-            {getCurrentChoiceText(getConsentChoice(document.cookie))}{" "}
+            {getCurrentChoiceText(getConsentChoice(document.cookie), mode)}{" "}
           </strong>
         )}
         <a
@@ -162,10 +238,10 @@ export function ConsentBanner(): ReactElement | null {
       </p>
       <div className="grid grid-cols-2 gap-3">
         <Button onClick={handleAllow} variant="neutral">
-          Allow analytics
+          {text.allow}
         </Button>
         <Button onClick={handleDecline} variant="neutral">
-          No thanks
+          {text.decline}
         </Button>
       </div>
     </section>

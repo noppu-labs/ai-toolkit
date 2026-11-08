@@ -1,15 +1,18 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { type Locator, page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-react";
-import { CONSENT_COOKIE, getConsentChoice } from "@/lib/analytics";
 import { useConsentStore } from "@/stores/useConsentStore";
+import {
+  CONSENT_COOKIE,
+  getConsentChoice,
+} from "../../worker/consent-cookie.ts";
 import { ConsentBanner } from "./ConsentBanner.tsx";
 
 let opener: HTMLButtonElement | undefined;
 
 function banner(): Locator {
   return page.getByRole("region", {
-    name: /count this visit|cookie settings/i,
+    name: /count (this visit|visits)|cookie settings/i,
   });
 }
 
@@ -90,6 +93,81 @@ describe("ConsentBanner", () => {
     expect(getConsentChoice(document.cookie)).toBe(choice);
     await expect.element(banner()).not.toBeInTheDocument();
   });
+
+  it("tells a visitor outside the opt-in regions that analytics runs, with equal Got it and Opt out buttons", async () => {
+    useConsentStore.setState({ mode: "opt-out" });
+    useConsentStore.getState().openPrompt();
+
+    render(<ConsentBanner />);
+
+    await expect
+      .element(banner())
+      .toMatchTextContent(/It runs unless you opt out\./);
+    const gotIt = banner().getByRole("button", { name: "Got it" }).element();
+    const optOut = banner().getByRole("button", { name: "Opt out" }).element();
+    expect(getLook(gotIt)).toEqual(getLook(optOut));
+  });
+
+  it.each([
+    ["Got it", "acknowledged"],
+    ["Opt out", "denied"],
+  ])("records %s on the notice as %s and closes", async (name, choice) => {
+    useConsentStore.setState({ mode: "opt-out" });
+    useConsentStore.getState().openPrompt();
+    render(<ConsentBanner />);
+
+    await banner().getByRole("button", { name }).click();
+
+    expect(getConsentChoice(document.cookie)).toBe(choice);
+    await expect.element(banner()).not.toBeInTheDocument();
+  });
+
+  it("records Allow analytics in Cookie settings as granted, even where the notice says Got it", async () => {
+    useConsentStore.setState({ mode: "opt-out" });
+    useConsentStore.getState().openSettings();
+    render(<ConsentBanner />);
+
+    await banner().getByRole("button", { name: "Allow analytics" }).click();
+
+    expect(getConsentChoice(document.cookie)).toBe("granted");
+    await expect.element(banner()).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["granted", "opt-in", "Analytics is on for you."],
+    ["granted", "opt-out", "Analytics is on for you."],
+    ["denied", "opt-in", "Analytics is off for you."],
+    ["denied", "opt-out", "Analytics is off for you."],
+    ["acknowledged", "opt-out", "Analytics is on for you."],
+    ["acknowledged", "opt-in", "You haven't chosen yet."],
+  ] as const)(
+    "says in settings, for %s in %s, %s",
+    async (choice, mode, expected) => {
+      // biome-ignore lint/suspicious/noDocumentCookie: a visitor who chose earlier.
+      document.cookie = `${CONSENT_COOKIE}=${choice}; Path=/`;
+      useConsentStore.setState({ mode });
+      useConsentStore.getState().openSettings();
+
+      render(<ConsentBanner />);
+
+      await expect.element(banner().getByText(expected)).toBeVisible();
+    },
+  );
+
+  it.each([
+    ["opt-out", "Analytics is on for you."],
+    ["opt-in", "You haven't chosen yet."],
+  ] as const)(
+    "says in %s settings, before any answer, %s",
+    async (mode, expected) => {
+      useConsentStore.setState({ mode });
+      useConsentStore.getState().openSettings();
+
+      render(<ConsentBanner />);
+
+      await expect.element(banner().getByText(expected)).toBeVisible();
+    },
+  );
 
   it("does not take focus when it prompts on its own", async () => {
     useConsentStore.getState().openPrompt();

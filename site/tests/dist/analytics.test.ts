@@ -10,6 +10,7 @@ const CONSENT_COOKIE = "noppu_analytics_consent";
 
 interface GoogleTraffic {
   urls: string[];
+  consentPosts: unknown[];
 }
 
 let opened: OpenedPage | undefined;
@@ -21,11 +22,35 @@ afterEach(async () => {
   opened = undefined;
 });
 
-/** Serves the built site at production's address and stands in for Google, so nothing leaves the machine. */
-async function routeProduction(page: Page): Promise<GoogleTraffic> {
-  const traffic: GoogleTraffic = { urls: [] };
+type ConsentMode = "opt-in" | "opt-out";
+
+/**
+ * Serves the built site at production's address and stands in for Google, so nothing leaves the
+ * machine. `astro preview` has no Worker, so this answers its consent mode lookup too; a null
+ * mode leaves the lookup to 404.
+ */
+async function routeProduction(
+  page: Page,
+  mode: ConsentMode | null = "opt-in",
+): Promise<GoogleTraffic> {
+  const traffic: GoogleTraffic = { urls: [], consentPosts: [] };
   await page.route(`${PRODUCTION}/**`, async (route) => {
     const { pathname, search } = new URL(route.request().url());
+    if (pathname === "/api/consent-mode" && mode !== null) {
+      await route.fulfill({ json: { mode } });
+
+      return;
+    }
+    if (
+      pathname === "/api/consent" &&
+      mode !== null &&
+      route.request().method() === "POST"
+    ) {
+      traffic.consentPosts.push(route.request().postDataJSON());
+      await route.fulfill({ status: 204 });
+
+      return;
+    }
     const response = await route.fetch({
       url: `${inject("baseUrl")}${pathname}${search}`,
     });
@@ -52,15 +77,28 @@ function makeSharedCookie(name: string, value: string): Cookie {
   };
 }
 
+interface ProductionOptions {
+  mode?: ConsentMode | null;
+  privacySignal?: boolean;
+}
+
 async function openProduction(
   path = "/",
   cookies: Cookie[] = [],
+  { mode, privacySignal = false }: ProductionOptions = {},
 ): Promise<OpenedPage & { traffic: GoogleTraffic }> {
-  let traffic: GoogleTraffic = { urls: [] };
+  let traffic: GoogleTraffic = { urls: [], consentPosts: [] };
   opened = await openPage(`${PRODUCTION}${path}`, {
     beforeLoad: async (page: Page): Promise<void> => {
       await page.context().addCookies(cookies);
-      traffic = await routeProduction(page);
+      traffic = await routeProduction(page, mode);
+      if (privacySignal) {
+        await page.addInitScript(() => {
+          Object.defineProperty(navigator, "globalPrivacyControl", {
+            value: true,
+          });
+        });
+      }
     },
   });
   await settle(opened.page);
@@ -148,7 +186,7 @@ async function allowAnalytics(page: Page): Promise<void> {
   await waitForTag(page);
 }
 
-describe("analytics on the production host", () => {
+describe("analytics on the production host, in an opt-in region", () => {
   it("sends nothing to Google and asks first", async () => {
     const { page, traffic } = await openProduction();
 
@@ -328,6 +366,135 @@ describe("analytics on the production host", () => {
     await expect.poll(() => traffic.urls.length).toBe(1);
 
     expect(errors).toEqual([]);
+  });
+});
+
+describe("analytics outside the opt-in regions", () => {
+  it("starts the tag without asking and tells the visitor how to opt out", async () => {
+    const { page, traffic } = await openProduction("/", [], {
+      mode: "opt-out",
+    });
+
+    await page.getByRole("button", { name: "Opt out" }).waitFor();
+
+    await expect
+      .poll(() => traffic.urls)
+      .toEqual([
+        `https://www.googletagmanager.com/gtag/js?id=${MEASUREMENT_ID}`,
+      ]);
+    expect(await getCookie(page, CONSENT_COOKIE)).toBeUndefined();
+  });
+
+  it("sends the opt-out to the Worker", async () => {
+    const { page, traffic } = await openProduction("/", [], {
+      mode: "opt-out",
+    });
+
+    await page.getByRole("button", { name: "Opt out" }).click();
+
+    await expect
+      .poll(() => traffic.consentPosts)
+      .toEqual([{ choice: "denied" }]);
+  });
+
+  it("keeps Google's cookies on load for a visitor who has not answered", async () => {
+    const { page, traffic } = await openProduction(
+      "/",
+      GA_COOKIES.map((name) => makeSharedCookie(name, "GA1")),
+      { mode: "opt-out" },
+    );
+
+    await expect.poll(() => traffic.urls.length).toBe(1);
+    expect(await getGaCookieNames(page)).toEqual(GA_COOKIES);
+  });
+
+  it("stops measuring, clears Google's cookies and sends nothing on the next page after an opt-out", async () => {
+    const { page, traffic } = await openProduction("/", [], {
+      mode: "opt-out",
+    });
+    await expect.poll(() => traffic.urls.length).toBe(1);
+    await addGaCookies(page);
+
+    await page.getByRole("button", { name: "Opt out" }).click();
+
+    expect(await getDisableFlag(page)).toBe(true);
+    expect(await getGaCookieNames(page)).toEqual([]);
+    expect((await getCookie(page, CONSENT_COOKIE))?.value).toBe("denied");
+
+    await page.goto(`${PRODUCTION}/opencode`);
+    await settle(page);
+
+    expect(traffic.urls.length).toBe(1);
+    expect(await page.getByRole("button", { name: "Opt out" }).count()).toBe(0);
+  });
+
+  it("hides the notice for good once the visitor clicks Got it", async () => {
+    const { page, traffic } = await openProduction("/", [], {
+      mode: "opt-out",
+    });
+
+    await page.getByRole("button", { name: "Got it" }).click();
+
+    expect((await getCookie(page, CONSENT_COOKIE))?.value).toBe("acknowledged");
+    await page.goto(`${PRODUCTION}/opencode`);
+    await settle(page);
+
+    expect(await page.getByRole("button", { name: "Got it" }).count()).toBe(0);
+    await expect.poll(() => traffic.urls.length).toBe(2);
+  });
+
+  it("asks first, and sends nothing, when the browser sends a privacy signal", async () => {
+    const { page, traffic } = await openProduction("/", [], {
+      mode: "opt-out",
+      privacySignal: true,
+    });
+
+    await page.getByRole("button", { name: "Allow analytics" }).waitFor();
+
+    expect(traffic.urls).toEqual([]);
+  });
+});
+
+describe("analytics for a visitor who only acknowledged the notice", () => {
+  it("asks first, and sends nothing, once the visitor is in an opt-in region", async () => {
+    const { page, traffic } = await openProduction(
+      "/",
+      [makeSharedCookie(CONSENT_COOKIE, "acknowledged")],
+      { mode: "opt-in" },
+    );
+
+    await page.getByRole("button", { name: "Allow analytics" }).waitFor();
+
+    expect(traffic.urls).toEqual([]);
+  });
+
+  it("starts the tag without a banner in an opt-out region", async () => {
+    const { page, traffic } = await openProduction(
+      "/",
+      [makeSharedCookie(CONSENT_COOKIE, "acknowledged")],
+      { mode: "opt-out" },
+    );
+
+    await expect.poll(() => traffic.urls.length).toBe(1);
+    expect(await page.getByRole("button", { name: "Opt out" }).count()).toBe(0);
+  });
+});
+
+describe("analytics when the consent mode lookup fails", () => {
+  it("asks first and sends nothing", async () => {
+    const { page, traffic } = await openProduction("/", [], { mode: null });
+
+    await page.getByRole("button", { name: "Allow analytics" }).waitFor();
+
+    expect(traffic.urls).toEqual([]);
+  });
+
+  it("still records the answer when the Worker is missing", async () => {
+    const { page } = await openProduction("/", [], { mode: null });
+
+    await page.getByRole("button", { name: "Allow analytics" }).click();
+
+    expect((await getCookie(page, CONSENT_COOKIE))?.value).toBe("granted");
   });
 });
 

@@ -1,3 +1,5 @@
+import { CONSENT_PATH, handleConsentRequest } from "./consent.ts";
+import { CONSENT_MODE_PATH, makeConsentModeResponse } from "./consent-mode.ts";
 import { type EdgeCache, handleBadgeRequest } from "./npm-downloads.ts";
 
 export type Env = {
@@ -14,9 +16,25 @@ function getEdgeCache(): EdgeCache {
     .default;
 }
 
+// Cloudflare adds `cf` to incoming requests; Node's Request type does not declare it.
+function getCountry(request: Request): unknown {
+  const cf: unknown = Reflect.get(request, "cf");
+
+  return typeof cf === "object" && cf !== null
+    ? Reflect.get(cf, "country")
+    : undefined;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (new URL(request.url).pathname === BADGE_PATH) {
+    const { pathname } = new URL(request.url);
+    if (pathname === CONSENT_MODE_PATH) {
+      return makeConsentModeResponse(getCountry(request));
+    }
+    if (pathname === CONSENT_PATH) {
+      return handleConsentRequest(request);
+    }
+    if (pathname === BADGE_PATH) {
       return handleBadgeRequest(request, {
         // A detached fetch throws "Illegal invocation" in Workers, so wrap it.
         fetch: (...args: Parameters<typeof fetch>): Promise<Response> =>

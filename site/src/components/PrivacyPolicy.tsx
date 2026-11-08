@@ -14,21 +14,22 @@ interface StoredItem {
 const STORED_ITEMS: StoredItem[] = [
   {
     name: "_ga",
-    kind: "Cookie, only if you allow analytics",
+    kind: "Cookie, only while analytics is on",
     kept: "Up to 2 years",
     purpose: "Google Analytics: tells one visitor from another.",
   },
   {
     name: "_ga_MHP3L2JTTP",
-    kind: "Cookie, only if you allow analytics",
+    kind: "Cookie, only while analytics is on",
     kept: "Up to 2 years",
     purpose: "Google Analytics: keeps track of the current visit.",
   },
   {
     name: "noppu_analytics_consent",
-    kind: "Cookie, set when you choose",
+    kind: "Cookie, set when you answer the banner",
     kept: "Up to 6 months",
-    purpose: "Remembers your answer, here and on noppu.com.",
+    purpose:
+      "Remembers whether you allowed analytics, declined it, or acknowledged the notice, here and on noppu.com.",
   },
   {
     name: "ai-toolkit-preferences",
@@ -91,8 +92,9 @@ export function PrivacyPolicy({
           </span>
         </h1>
         <p className="max-w-170 text-base leading-normal text-muted-foreground md:text-xl">
-          This site counts visits with Google Analytics, and only if you allow
-          it. If you don't, nothing about your visit goes to Google.
+          This site counts visits with Google Analytics. In the EEA, the UK and
+          Switzerland it asks you first; elsewhere it runs unless you opt out.
+          While it's off, nothing about your visit goes to Google.
         </p>
         <p className="font-mono text-[13px] font-bold">
           Last updated 8 November 2026
@@ -107,13 +109,36 @@ export function PrivacyPolicy({
           </p>
         </Section>
 
-        <Section heading="If you allow analytics">
+        <Section heading="Where we ask first">
+          <p>
+            Cloudflare, our host, tells the site which country your visit comes
+            from. If that's in the European Economic Area, the UK or
+            Switzerland, or Cloudflare can't tell, analytics stays off until you
+            allow it. Anywhere else it starts when the page loads, and the
+            banner lets you opt out. We don't keep your country ourselves. It
+            can appear in Cloudflare's request logs, which we use to fix
+            problems with the site and which are deleted after at most a week.
+            Your browser keeps the answer for up to an hour so it isn't looked
+            up on every page.
+          </p>
+          <p>
+            If your browser sends a{" "}
+            <ExternalLink href="https://globalprivacycontrol.org/">
+              Global Privacy Control
+            </ExternalLink>{" "}
+            signal, we ask first wherever you are. Clicking "Got it" on the
+            notice only records that you saw it. It does not count as allowing
+            analytics, so where we ask first you are asked again.
+          </p>
+        </Section>
+
+        <Section heading="While analytics is on">
           <p>
             Google Analytics records the pages you view, the site you came from,
             your device and browser type, your approximate location, and actions
             such as scrolling or following a link out. We use this to see which
-            pages people read. The legal basis is your consent, and we run no
-            ads.
+            pages people read. Where we ask first, the legal basis is your
+            consent. We run no ads.
           </p>
           <p>
             Google handles this data as{" "}
@@ -142,14 +167,10 @@ export function PrivacyPolicy({
           </p>
         </Section>
 
-        <Section heading="If you don't">
+        <Section heading="While it's off">
           <p>
             Google's script never loads. We store your answer so that we don't
-            ask again for up to 6 months.{" "}
-            <ExternalLink href="https://webkit.org/tracking-prevention/">
-              Safari limits cookies set by a page's script to 7 days
-            </ExternalLink>
-            , so if you use Safari we'll ask again after about a week.
+            ask again for up to 6 months.
           </p>
         </Section>
       </div>
