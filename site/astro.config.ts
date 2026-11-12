@@ -1,10 +1,10 @@
 import { fileURLToPath, URL } from "node:url";
-import { unified } from "@astrojs/markdown-remark";
+import { satteri } from "@astrojs/markdown-satteri";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
-import { rehypeSkillBody } from "./scripts/rehype-skill-body.ts";
+import { skillBodyPlugin } from "./scripts/skill-body-plugin.ts";
 import { REPO_URL } from "./src/lib/repo.ts";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -14,8 +14,8 @@ export default defineConfig({
   trailingSlash: "never",
   build: { format: "directory" },
   markdown: {
-    processor: unified({
-      rehypePlugins: [[rehypeSkillBody, { repoRoot, repoUrl: REPO_URL }]],
+    processor: satteri({
+      hastPlugins: [skillBodyPlugin({ repoRoot, repoUrl: REPO_URL })],
     }),
   },
   integrations: [react(), sitemap()],
