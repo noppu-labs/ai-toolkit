@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -5,6 +6,7 @@ import { buildCatalog } from "../../scripts/build-catalog.ts";
 import { catalogSkills } from "../../src/lib/catalog.ts";
 import { canonicalUrl } from "../../src/lib/head.ts";
 import { pageHead, skillPages } from "../../src/lib/pages.ts";
+import { REPO_URL } from "../../src/lib/repo.ts";
 import { skillPath } from "../../src/lib/site.ts";
 import { pluginSkillsHref } from "../../src/lib/url-state.ts";
 import {
@@ -22,6 +24,26 @@ const PHONE = { width: 390, height: 844 } as const;
 /** The console error Chromium logs for the 404 status of the page's own document. */
 const NOT_FOUND_LOG =
   "error: Failed to load resource: the server responded with a status of 404 (Not Found)";
+
+/** The first markdown heading of a SKILL.md outside code fences, as the page prints its text, with its level. */
+function firstHeading(sourceUrl: string): { level: number; text: string } {
+  const path = sourceUrl.slice(sourceUrl.indexOf("/blob/main/") + 11);
+  let fenced = false;
+
+  for (const line of readFileSync(`${REPO_ROOT}${path}`, "utf8").split("\n")) {
+    if (line.startsWith("```")) {
+      fenced = !fenced;
+    }
+
+    const match = fenced ? null : /^(#{1,6})\s+(.+?)\s*#*$/.exec(line);
+
+    if (match?.[1] !== undefined && match[2] !== undefined) {
+      return { level: match[1].length, text: match[2].replaceAll("`", "") };
+    }
+  }
+
+  throw new Error(`no heading in ${path}`);
+}
 
 /** The file name an island loads its component from, without the build's hash. */
 function componentName(url: string | null): string | undefined {
@@ -67,6 +89,24 @@ describe.each(PAGES)(
 
       expect(await headings.count()).toBe(1);
       expect(await headings.textContent()).toBe(skill.name);
+    });
+
+    it("shows the skill's SKILL.md under 'How <name> works'", async () => {
+      const heading = opened.page.getByRole("heading", {
+        level: 2,
+        name: `How ${skill.name} works`,
+      });
+      const expected = firstHeading(skill.sourceUrl);
+      const first = opened.page
+        .locator("section", { has: heading })
+        .locator("h3, h4, h5, h6")
+        .first();
+
+      expect(await heading.count()).toBe(1);
+      expect(await first.evaluate((node) => node.tagName)).toBe(
+        `H${Math.min(expected.level + 2, 6)}`,
+      );
+      expect((await first.textContent())?.trim()).toBe(expected.text);
     });
 
     it("carries the head that pageHead names for it", async () => {
@@ -199,8 +239,12 @@ describe("a skill page with scripts", () => {
     expect(errors).toEqual([]);
   });
 
-  it("has no horizontal scroll on a phone", async () => {
-    const { page, errors } = await open("/skills/deep", PHONE);
+  it.each([
+    "/skills/deep",
+    "/skills/pr-review",
+    "/skills/laravel-inertia-react",
+  ])("has no horizontal scroll on a phone at %s", async (path) => {
+    const { page, errors } = await open(path, PHONE);
 
     expect(
       await page.evaluate(
@@ -212,6 +256,31 @@ describe("a skill page with scripts", () => {
     // The frame clips sideways overflow instead of scrolling it.
     expect(await pastTheRightEdge(page)).toEqual([]);
     expect(errors).toEqual([]);
+  });
+
+  it("sends a SKILL.md's relative links to GitHub", async () => {
+    const { page } = await open("/skills/shadcn", { javaScript: false });
+
+    expect(
+      await page
+        .getByRole("link", { name: "styling.md" })
+        .first()
+        .getAttribute("href"),
+    ).toBe(
+      `${REPO_URL}/blob/main/inertia-react/skills/shadcn/rules/styling.md`,
+    );
+  });
+
+  it("shows HTML inside a SKILL.md's code fences as code", async () => {
+    const { page } = await open("/skills/laravel-inertia-react", {
+      javaScript: false,
+    });
+
+    expect(
+      await page
+        .locator("pre", { hasText: 'className="container mx-auto py-8"' })
+        .count(),
+    ).toBeGreaterThan(0);
   });
 
   it("answers a mistyped skill URL with the 404 page, never the home page", async () => {

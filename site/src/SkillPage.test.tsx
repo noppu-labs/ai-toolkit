@@ -92,4 +92,40 @@ describe("SkillPage", () => {
       .element(page.getByRole("heading", { name: /^More .* skills$/ }))
       .not.toBeInTheDocument();
   });
+
+  it("shows the skill's body under 'How <name> works' when given one", async () => {
+    render(
+      <SkillPage body={<p>Step one</p>} siblings={[enums]} skill={dtos}>
+        <p>body</p>
+      </SkillPage>,
+    );
+
+    const heading = page.getByRole("heading", {
+      level: 2,
+      name: "How laravel-dtos works",
+    });
+    await expect.element(heading).toBeInTheDocument();
+    await expect
+      .element(
+        page
+          .getByRole("region", { name: "How laravel-dtos works" })
+          .getByText("Step one"),
+      )
+      .toBeInTheDocument();
+  });
+
+  it("has no body section without a body", async () => {
+    render(
+      <SkillPage siblings={[enums]} skill={dtos}>
+        <p>body</p>
+      </SkillPage>,
+    );
+
+    await expect
+      .element(page.getByRole("heading", { level: 1 }))
+      .toBeInTheDocument();
+    expect(
+      page.getByRole("heading", { name: /^How .* works$/ }).elements(),
+    ).toHaveLength(0);
+  });
 });
