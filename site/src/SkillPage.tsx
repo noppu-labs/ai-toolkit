@@ -108,7 +108,7 @@ function SkillBody({
       <p className="mt-2 text-muted-foreground">
         The skill's full SKILL.md: the instructions your agent follows.
       </p>
-      <div className="prose-pre:overflow-x-auto prose-headings:font-heading prose-headings:tracking-[-0.02em] prose-code:before:content-none prose-code:after:content-none prose-code:font-mono prose-code:text-[0.9em] prose-pre:rounded-[10px] prose-pre:border-2 prose-pre:border-edge prose-pre:shadow-shadow mt-4 max-w-none break-words prose md:mt-5">
+      <div className="prose-pre:overflow-x-auto prose-headings:scroll-mt-header prose-headings:font-heading prose-headings:tracking-[-0.02em] prose-code:before:content-none prose-code:after:content-none prose-code:font-mono prose-code:text-[0.9em] prose-pre:rounded-[10px] prose-pre:border-2 prose-pre:border-edge prose-pre:shadow-shadow mt-4 max-w-none break-words prose md:mt-5">
         {body}
       </div>
     </section>

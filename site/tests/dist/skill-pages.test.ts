@@ -238,6 +238,45 @@ describe("a skill page with scripts", () => {
     expect(errors).toEqual([]);
   });
 
+  it("lands a SKILL.md heading opened by its fragment just below the sticky header", async () => {
+    const { page, errors } = await open("/skills/shadcn#updating-components", {
+      width: 1280,
+      height: 800,
+      reducedMotion: true,
+    });
+
+    await expect
+      .poll(async () =>
+        Math.abs(await belowHeader(page, "#updating-components")),
+      )
+      .toBeLessThanOrEqual(2);
+    expect(errors).toEqual([]);
+  });
+
+  it("keeps every SKILL.md heading clear of the sticky header when a link targets it", async () => {
+    const { page } = await open("/skills/laravel-models", {
+      javaScript: false,
+    });
+
+    const margins = await page.evaluate(() => {
+      const header = document.querySelector("header")?.offsetHeight ?? 0;
+
+      return [...document.querySelectorAll(".prose :is(h3, h4, h5, h6)")].map(
+        (heading) => ({
+          level: heading.tagName,
+          short:
+            Number.parseFloat(getComputedStyle(heading).scrollMarginTop) <
+            header,
+        }),
+      );
+    });
+
+    expect(new Set(margins.map((margin) => margin.level))).toEqual(
+      new Set(["H3", "H4", "H5"]),
+    );
+    expect(margins.filter((margin) => margin.short)).toEqual([]);
+  });
+
   it.each(PAGES.map(({ skill }) => skillPath(skill.name)))(
     "has no horizontal scroll on a phone at %s",
     async (path) => {
