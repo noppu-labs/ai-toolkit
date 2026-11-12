@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { skillPath } from "../src/lib/site.ts";
 import { skillLastModified } from "./skill-last-modified.ts";
 
@@ -22,19 +22,40 @@ function makeTempDir(): string {
   return dir;
 }
 
+/** The environment for a git call in a temp repo: no inherited repository variables, config, or ceiling. */
+function makeGitEnv(date: string = FIRST): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!key.startsWith("GIT_")) {
+      env[key] = value;
+    }
+  }
+
+  return {
+    ...env,
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CEILING_DIRECTORIES: dirname(tmpdir()),
+    GIT_COMMITTER_DATE: date,
+    GIT_AUTHOR_DATE: date,
+  };
+}
+
 function git(cwd: string, date: string, ...args: string[]): void {
   execFileSync(
     "git",
-    ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args],
-    {
-      cwd,
-      stdio: "ignore",
-      env: {
-        ...process.env,
-        GIT_COMMITTER_DATE: date,
-        GIT_AUTHOR_DATE: date,
-      },
-    },
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.com",
+      "-c",
+      "commit.gpgsign=false",
+      "-c",
+      "core.hooksPath=/dev/null",
+      ...args,
+    ],
+    { cwd, stdio: "ignore", env: makeGitEnv(date) },
   );
 }
 
@@ -68,6 +89,7 @@ function isoDates(map: Map<string, string>): Record<string, string> {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const root of roots.splice(0)) {
     rmSync(root, { recursive: true, force: true });
   }
@@ -102,6 +124,7 @@ describe("skillLastModified", () => {
   });
 
   it("dates nothing outside a git repository", () => {
+    vi.stubEnv("GIT_CEILING_DIRECTORIES", dirname(tmpdir()));
     expect(skillLastModified(makeTempDir(), SKILLS).size).toBe(0);
   });
 });
