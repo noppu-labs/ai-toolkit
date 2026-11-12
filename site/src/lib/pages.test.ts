@@ -4,6 +4,7 @@ import { CACHE_MANAGER_PLUGIN } from "@/test/opencode-plugins";
 import { type CatalogSkill, catalogSkills } from "./catalog.ts";
 import type { SocialImage } from "./head.ts";
 import { opencodePluginHead, pageHead, skillPages } from "./pages.ts";
+import { breadcrumbJsonLd } from "./structured-data.ts";
 
 const skills = catalogSkills(FIXTURE_CATALOG.plugins);
 
@@ -41,6 +42,11 @@ describe("pageHead", () => {
         title: "laravel-dtos agent skill · AI Toolkit",
         description: `${dtos.summary} Part of AI Toolkit's laravel plugin for Claude Code, OpenCode and other agents.`,
         path: "/skills/laravel-dtos",
+        jsonLd: breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "laravel", path: "/?plugin=laravel" },
+          { name: "laravel-dtos", path: "/skills/laravel-dtos" },
+        ]),
       },
     );
   });

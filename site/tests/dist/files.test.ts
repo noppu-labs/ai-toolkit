@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -53,6 +54,34 @@ describe("the built site's files", () => {
     );
     expect(
       urls.filter((url) => url !== `${SITE_URL}/` && url.endsWith("/")),
+    ).toEqual([]);
+  });
+
+  it("dates each skill page in the sitemap, unless the clone is shallow", () => {
+    const shallow =
+      execFileSync("git", ["rev-parse", "--is-shallow-repository"], {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+      }).trim() === "true";
+    const entries = [
+      ...built("sitemap-0.xml").matchAll(/<url>([\s\S]*?)<\/url>/g),
+    ].map(([, body = ""]) => ({
+      loc: /<loc>([^<]*)<\/loc>/.exec(body)?.[1] ?? "",
+      lastmod: /<lastmod>([^<]*)<\/lastmod>/.exec(body)?.[1],
+    }));
+    const skills = entries.filter(({ loc }) =>
+      loc.startsWith(`${SITE_URL}/skills/`),
+    );
+
+    expect(skills).toHaveLength(SKILL_NAMES.length);
+    expect(
+      skills.filter(({ lastmod }) => (lastmod === undefined) !== shallow),
+    ).toEqual([]);
+    expect(
+      entries.filter(
+        ({ loc, lastmod }) =>
+          !loc.startsWith(`${SITE_URL}/skills/`) && lastmod !== undefined,
+      ),
     ).toEqual([]);
   });
 

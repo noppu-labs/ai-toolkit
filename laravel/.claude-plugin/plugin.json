@@ -3,6 +3,7 @@
   "displayName": "Laravel toolkit",
   "description": "Backend skills, a specialist agent and path-scoped rules for Laravel 13 apps: controllers, models, DTOs, policies, testing and security.",
   "version": "0.1.4",
+  "homepage": "https://toolkit.noppu.com",
   "author": {
     "name": "Noppu Labs"
   }

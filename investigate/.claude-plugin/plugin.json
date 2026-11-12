@@ -3,6 +3,7 @@
   "displayName": "Investigate toolkit",
   "description": "Deterministic structural briefs and redundant two-pass code investigations: brief, module, and spec review skills",
   "version": "0.2.1",
+  "homepage": "https://toolkit.noppu.com",
   "author": {
     "name": "Noppu Labs"
   }

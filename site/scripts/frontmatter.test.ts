@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { parseFrontmatter } from "./frontmatter.ts";
+import { parseFrontmatter, splitFrontmatter } from "./frontmatter.ts";
 
 const KEY_ARB = fc.stringMatching(/^[a-z][a-z0-9-]{0,20}$/);
 const VALUE_ARB = fc.stringMatching(
@@ -68,6 +68,41 @@ describe("parseFrontmatter", () => {
           expect(parseFrontmatter(doc, "prop/SKILL.md")).toEqual(fields);
         },
       ),
+    );
+  });
+});
+
+describe("splitFrontmatter", () => {
+  it("returns the header's fields and everything after the closing fence", () => {
+    expect(
+      splitFrontmatter("---\nname: a\n---\n\n# A\n", "a/SKILL.md"),
+    ).toEqual({ fields: { name: "a" }, body: "\n# A\n" });
+  });
+
+  it("closes an empty header and a header at the end of the file", () => {
+    expect(splitFrontmatter("---\n---\nbody", "e/SKILL.md")).toEqual({
+      fields: {},
+      body: "body",
+    });
+    expect(splitFrontmatter("---\nname: a\n---", "f/SKILL.md")).toEqual({
+      fields: { name: "a" },
+      body: "",
+    });
+  });
+
+  it("does not take a longer rule for the closing fence", () => {
+    expect(
+      splitFrontmatter("---\nname: a\n---\nabove\n\n----\nbelow", "g/SKILL.md")
+        .body,
+    ).toBe("above\n\n----\nbelow");
+    expect(() =>
+      splitFrontmatter("---\nname: a\n----\nbody", "h/SKILL.md"),
+    ).toThrow(/h\/SKILL\.md: missing frontmatter closing delimiter/);
+  });
+
+  it("throws with the file's path when the closing fence is missing", () => {
+    expect(() => splitFrontmatter("---\nname: a\n", "i/SKILL.md")).toThrow(
+      /i\/SKILL\.md: missing frontmatter closing delimiter/,
     );
   });
 });

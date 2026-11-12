@@ -14,12 +14,14 @@ export const FIXTURE_CATALOG: Catalog = {
         {
           name: "laravel-dtos",
           description: "Data Transfer Objects using Spatie Laravel Data.",
+          path: "laravel/skills/laravel-dtos/SKILL.md",
           sourceUrl:
             "https://github.com/noppu-labs/ai-toolkit/blob/main/laravel/skills/laravel-dtos/SKILL.md",
         },
         {
           name: "laravel-enums",
           description: "Backed enums with labels and helpers.",
+          path: "laravel/skills/laravel-enums/SKILL.md",
           sourceUrl:
             "https://github.com/noppu-labs/ai-toolkit/blob/main/laravel/skills/laravel-enums/SKILL.md",
         },
@@ -35,6 +37,7 @@ export const FIXTURE_CATALOG: Catalog = {
         {
           name: "shadcn",
           description: "Component composition rules for shadcn/ui.",
+          path: "inertia-react/skills/shadcn/SKILL.md",
           sourceUrl:
             "https://github.com/noppu-labs/ai-toolkit/blob/main/inertia-react/skills/shadcn/SKILL.md",
         },
@@ -55,6 +58,7 @@ export const FIXTURE_REVIEW_PLUGIN: PluginEntry = {
     {
       name: "comment-audit",
       description: "Give every comment a branch adds a verdict.",
+      path: "review/skills/comment-audit/SKILL.md",
       sourceUrl:
         "https://github.com/noppu-labs/ai-toolkit/blob/main/review/skills/comment-audit/SKILL.md",
     },

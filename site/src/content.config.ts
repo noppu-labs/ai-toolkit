@@ -1,8 +1,11 @@
 import { defineCollection, type SchemaContext } from "astro:content";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { glob } from "astro/loaders";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { glob, type LoaderContext } from "astro/loaders";
+import { z } from "astro/zod";
 import { buildCatalog } from "../scripts/build-catalog.ts";
+import { splitFrontmatter } from "../scripts/frontmatter.ts";
 import { CATALOG_ID, catalogSchema } from "./lib/catalog-schema.ts";
 import { manifestSchema } from "./lib/opencode-schema.ts";
 
@@ -27,7 +30,57 @@ const opencode = defineCollection({
   schema: ({ image }: SchemaContext) => manifestSchema(image(), image()),
 });
 
+/**
+ * Kept out of the catalog so the home page's island props do not carry the bodies.
+ *
+ * Not a `glob()` loader: that parses the header as strict YAML, and some SKILL.md values hold a
+ * colon. The file's URL goes to `renderMarkdown` so the skill-body plugin knows which skill it is
+ * rendering.
+ */
+const skills = defineCollection({
+  loader: {
+    name: "skill-markdown",
+    load: async ({
+      store,
+      parseData,
+      renderMarkdown,
+      generateDigest,
+    }: LoaderContext): Promise<void> => {
+      store.clear();
+
+      const skillEntries = buildCatalog(repoRoot).plugins.flatMap(
+        (plugin) => plugin.skills,
+      );
+
+      await Promise.all(
+        skillEntries.map(async ({ name: id, path: file }): Promise<void> => {
+          const path: string = resolve(repoRoot, file);
+          const contents: string = readFileSync(path, "utf8");
+          const { fields: data, body: rawBody } = splitFrontmatter(
+            contents,
+            path,
+          );
+          const body: string = rawBody.trim();
+
+          store.set({
+            id,
+            data: await parseData({ id, data, filePath: path }),
+            body,
+            filePath: file,
+            digest: generateDigest(contents),
+            rendered: await renderMarkdown(body, {
+              fileURL: pathToFileURL(path),
+            }),
+          });
+        }),
+      );
+    },
+  },
+  schema: z.looseObject({ name: z.string().min(1) }),
+});
+
 export const collections: {
   catalog: typeof catalog;
   opencode: typeof opencode;
-} = { catalog, opencode };
+  skills: typeof skills;
+} = { catalog, opencode, skills };

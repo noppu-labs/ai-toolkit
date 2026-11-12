@@ -3,6 +3,7 @@
   "displayName": "Review toolkit",
   "description": "Code review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, correctness review, a three-stage PR review orchestrator, and PR comments",
   "version": "0.11.0",
+  "homepage": "https://toolkit.noppu.com",
   "author": {
     "name": "Noppu Labs"
   }

@@ -18,6 +18,7 @@ function skill(plugin: string, name: string, description: string): SkillEntry {
   return {
     name,
     description,
+    path: `${plugin}/skills/${name}/SKILL.md`,
     sourceUrl: `https://github.com/noppu-labs/ai-toolkit/blob/main/${plugin}/skills/${name}/SKILL.md`,
   };
 }
@@ -502,6 +503,20 @@ describe("SkillsCatalog detail pane (desktop)", () => {
       );
   });
 
+  it("links the selected skill to its own page", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+
+    await row("laravel-enums").click();
+
+    await expect
+      .element(
+        pane.getByRole("link", {
+          name: "Read the full skill of laravel-enums",
+        }),
+      )
+      .toHaveAttribute("href", "/skills/laravel-enums");
+  });
+
   it("shows a selected row in the pane and the URL", async () => {
     render(<SkillsCatalog plugins={PLUGINS} />);
 
@@ -718,6 +733,20 @@ describe("SkillsCatalog detail sheet (phones)", () => {
     await expect.element(sheet).not.toBeInTheDocument();
     await expect.element(row("deep")).toHaveFocus();
     expect(readSearchParam(SKILL_PARAM)).toBeNull();
+  });
+
+  it("links the open skill to its own page", async () => {
+    render(<SkillsCatalog plugins={PLUGINS} />);
+
+    await row("laravel-enums").click();
+
+    await expect
+      .element(
+        sheet.getByRole("link", {
+          name: "Read the full skill of laravel-enums",
+        }),
+      )
+      .toHaveAttribute("href", "/skills/laravel-enums");
   });
 
   it("closes from the close button and keeps focus inside while open", async () => {
