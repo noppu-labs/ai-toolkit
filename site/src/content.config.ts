@@ -55,7 +55,7 @@ const skills = defineCollection({
       });
 
       await Promise.all(
-        files.sort().map(async (file: string): Promise<void> => {
+        files.map(async (file: string): Promise<void> => {
           const path: string = resolve(repoRoot, file);
           const contents: string = readFileSync(path, "utf8");
           const data: Record<string, string> = parseFrontmatter(contents, path);

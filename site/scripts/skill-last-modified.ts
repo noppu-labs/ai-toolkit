@@ -1,10 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { posix } from "node:path";
+import { resolveExecutable } from "../../scripts/resolve-executable.ts";
 import { canonicalUrl } from "../src/lib/head.ts";
 import { skillPath } from "../src/lib/site.ts";
 
 function runGit(rootDir: string, args: readonly string[]): string {
-  return execFileSync("git", args, {
+  return execFileSync(resolveExecutable("git"), args, {
     cwd: rootDir,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
