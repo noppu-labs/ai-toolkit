@@ -1,11 +1,11 @@
 import { defineCollection, type SchemaContext } from "astro:content";
-import { globSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { glob, type LoaderContext } from "astro/loaders";
 import { z } from "astro/zod";
 import { buildCatalog } from "../scripts/build-catalog.ts";
-import { parseFrontmatter } from "../scripts/frontmatter.ts";
+import { splitFrontmatter } from "../scripts/frontmatter.ts";
 import { CATALOG_ID, catalogSchema } from "./lib/catalog-schema.ts";
 import { manifestSchema } from "./lib/opencode-schema.ts";
 
@@ -31,12 +31,11 @@ const opencode = defineCollection({
 });
 
 /**
- * Each skill's SKILL.md, keyed by the skill's name. Kept out of the catalog so the home page's
- * island props do not carry the bodies.
+ * Kept out of the catalog so the home page's island props do not carry the bodies.
  *
  * Not a `glob()` loader: that parses the header as strict YAML, and some SKILL.md values hold a
- * colon. This reads the header the way `buildCatalog` does and renders only the body, with the
- * file's URL so the skill-body plugin knows which skill it is rendering.
+ * colon. The file's URL goes to `renderMarkdown` so the skill-body plugin knows which skill it is
+ * rendering.
  */
 const skills = defineCollection({
   loader: {
@@ -49,20 +48,19 @@ const skills = defineCollection({
     }: LoaderContext): Promise<void> => {
       store.clear();
 
-      const files: string[] = globSync("*/skills/*/SKILL.md", {
-        cwd: repoRoot,
-        exclude: (name: string): boolean => name === "node_modules",
-      });
+      const skillEntries = buildCatalog(repoRoot).plugins.flatMap(
+        (plugin) => plugin.skills,
+      );
 
       await Promise.all(
-        files.map(async (file: string): Promise<void> => {
+        skillEntries.map(async ({ name: id, path: file }): Promise<void> => {
           const path: string = resolve(repoRoot, file);
           const contents: string = readFileSync(path, "utf8");
-          const data: Record<string, string> = parseFrontmatter(contents, path);
-          const body: string = contents
-            .slice(contents.indexOf("\n---", 3) + 4)
-            .trim();
-          const id = String(data.name);
+          const { fields: data, body: rawBody } = splitFrontmatter(
+            contents,
+            path,
+          );
+          const body: string = rawBody.trim();
 
           store.set({
             id,

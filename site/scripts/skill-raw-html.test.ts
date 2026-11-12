@@ -1,9 +1,11 @@
-import { globSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Html } from "mdast";
 import { defineMdastPlugin, markdownToHtml } from "satteri";
 import { describe, expect, it } from "vitest";
+import { buildCatalog } from "./build-catalog.ts";
+import { splitFrontmatter } from "./frontmatter.ts";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -46,18 +48,19 @@ describe("rawHtmlIn", () => {
 });
 
 describe("the SKILL.md files", () => {
-  const files = globSync("*/skills/*/SKILL.md", {
-    cwd: REPO_ROOT,
-    exclude: (name: string): boolean => name === "node_modules",
-  }).sort();
+  const files = buildCatalog(REPO_ROOT).plugins.flatMap((plugin) =>
+    plugin.skills.map((skill) => skill.path),
+  );
 
   it("exist", () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
   it.each(files)("%s finds no raw HTML in any SKILL.md body", async (file) => {
-    const contents = readFileSync(resolve(REPO_ROOT, file), "utf8");
-    const body = contents.slice(contents.indexOf("\n---", 3) + 4);
+    const { body } = splitFrontmatter(
+      readFileSync(resolve(REPO_ROOT, file), "utf8"),
+      file,
+    );
 
     expect(await rawHtmlIn(body)).toEqual([]);
   });
