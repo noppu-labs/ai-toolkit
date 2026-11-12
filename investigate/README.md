@@ -6,9 +6,9 @@ for other harnesses).
 
 | Skill | Purpose |
 | --- | --- |
-| `investigate:brief` | Computes a structural brief for a path before anyone reads code: callers, wiring, blast radius, installed third-party versions, and version-checked doc sources. No LLM is involved. |
-| `investigate:deep` | The full investigation of a service, module, or feature. It builds the brief, runs two independent passes from it, and trusts their intersection. |
-| `investigate:spec` | Reviews a spec, ticket, or plan claim by claim against the codebase, using the same brief and two passes. |
+| [`investigate:brief`](https://toolkit.noppu.com/skills/brief) | Computes a structural brief for a path before anyone reads code: callers, wiring, blast radius, installed third-party versions, and version-checked doc sources. No LLM is involved. |
+| [`investigate:deep`](https://toolkit.noppu.com/skills/deep) | The full investigation of a service, module, or feature. It builds the brief, runs two independent passes from it, and trusts their intersection. |
+| [`investigate:spec`](https://toolkit.noppu.com/skills/spec) | Reviews a spec, ticket, or plan claim by claim against the codebase, using the same brief and two passes. |
 
 ## Claude Code
 

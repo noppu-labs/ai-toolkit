@@ -6,12 +6,12 @@ noppu-labs/ai-toolkit/review` for other harnesses).
 
 | Skill | Purpose |
 | --- | --- |
-| `review:pr-review` | Orchestrates a three-stage review (correctness, type safety, comments) of one PR or a stack, with a structural brief per PR, and consolidates one report. |
-| `review:correctness-review` | Hunts correctness defects in a diff through five named angles and a gap sweep, keeping every candidate the code does not refute. The first correctness pass of `pr-review` where the harness has no `code-review` skill. |
-| `review:pr-comments` | Turns a review report into graded, coded comments a PR author reads, with a GitHub suggestion block where the fix is a few lines of file text. |
-| `review:comment-audit` | Gives every comment, docblock, and docstring a branch adds a verdict. |
-| `review:type-safety-review` | Rules a diff or a path against the type-safety checklists for PHP, TypeScript, and Python. |
-| `review:writing-comments` | What belongs in a comment and what to cut. |
+| [`review:pr-review`](https://toolkit.noppu.com/skills/pr-review) | Orchestrates a three-stage review (correctness, type safety, comments) of one PR or a stack, with a structural brief per PR, and consolidates one report. |
+| [`review:correctness-review`](https://toolkit.noppu.com/skills/correctness-review) | Hunts correctness defects in a diff through five named angles and a gap sweep, keeping every candidate the code does not refute. The first correctness pass of `pr-review` where the harness has no `code-review` skill. |
+| [`review:pr-comments`](https://toolkit.noppu.com/skills/pr-comments) | Turns a review report into graded, coded comments a PR author reads, with a GitHub suggestion block where the fix is a few lines of file text. |
+| [`review:comment-audit`](https://toolkit.noppu.com/skills/comment-audit) | Gives every comment, docblock, and docstring a branch adds a verdict. |
+| [`review:type-safety-review`](https://toolkit.noppu.com/skills/type-safety-review) | Rules a diff or a path against the type-safety checklists for PHP, TypeScript, and Python. |
+| [`review:writing-comments`](https://toolkit.noppu.com/skills/writing-comments) | What belongs in a comment and what to cut. |
 
 ## OpenCode
 

@@ -110,7 +110,7 @@ export function SkillSheet({
               <Dialog.Title className="mt-2.5 font-mono text-2xl leading-[1.15] break-words">
                 {shown.name}
               </Dialog.Title>
-              <SkillDetailBody skill={shown} surface="sheet" />
+              <SkillDetailBody skill={shown} surface="sheet" pageLink />
             </>
           )}
         </Dialog.Popup>

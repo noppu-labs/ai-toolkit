@@ -69,6 +69,7 @@ function readSkills(pluginDir: string, pluginDirName: string): SkillEntry[] {
         fields.description,
         `${relPath}: frontmatter "description"`,
       ),
+      path: relPath,
       sourceUrl: `${REPO_URL}/blob/main/${relPath}`,
     };
   });

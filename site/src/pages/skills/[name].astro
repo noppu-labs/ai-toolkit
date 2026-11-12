@@ -1,4 +1,6 @@
 ---
+import { type CollectionEntry, getEntry, render } from "astro:content";
+import type { AstroComponentFactory } from "astro/runtime/server/index.js";
 import { SkillDetailBody } from "../../components/catalog/SkillDetail.tsx";
 import Base from "../../layouts/Base.astro";
 import { type CatalogSkill, catalogSkills } from "../../lib/catalog.ts";
@@ -25,10 +27,19 @@ export async function getStaticPaths(): Promise<SkillPath[]> {
 }
 
 const { skill, siblings }: Props = Astro.props;
+const entry: CollectionEntry<"skills"> | undefined = await getEntry(
+  "skills",
+  skill.name,
+);
+if (entry === undefined) {
+  throw new Error(`no SKILL.md body for ${skill.name}`);
+}
+const { Content }: { Content: AstroComponentFactory } = await render(entry);
 ---
 
 <Base head={pageHead({ kind: "skill", skill, siblings })} sectionBase="/">
   <SkillPage skill={skill} siblings={siblings}>
     <SkillDetailBody client:idle skill={skill} surface="pane" />
+    <div slot="body"><Content /></div>
   </SkillPage>
 </Base>

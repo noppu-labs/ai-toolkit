@@ -25,10 +25,12 @@ Agent skills for deep code review and grounded investigation in PHP, TypeScript,
 
 | Plugin | Contents |
 | --- | --- |
-| `laravel` | 16 backend skills, `laravel-backend-specialist` agent, 4 path-scoped rules |
-| `inertia-react` | 6 frontend skills, `frontend-developer` agent, 2 path-scoped rules |
-| `review` | 6 review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, correctness review, PR review orchestrator, PR comments |
-| `investigate` | 3 skills: deterministic structural brief, deep two-pass investigation, spec/ticket review |
+| [`laravel`](https://toolkit.noppu.com/?plugin=laravel#skills) | 16 backend skills, `laravel-backend-specialist` agent, 4 path-scoped rules |
+| [`inertia-react`](https://toolkit.noppu.com/?plugin=inertia-react#skills) | 6 frontend skills, `frontend-developer` agent, 2 path-scoped rules |
+| [`review`](https://toolkit.noppu.com/?plugin=review#skills) | 6 review skills for PHP, TypeScript, and Python: comment audit, writing comments, type-safety review, correctness review, PR review orchestrator, PR comments |
+| [`investigate`](https://toolkit.noppu.com/?plugin=investigate#skills) | 3 skills: deterministic structural brief, deep two-pass investigation, spec/ticket review |
+
+Each skill has its own page on the website, for example [investigate:deep](https://toolkit.noppu.com/skills/deep).
 
 The `review` and `investigate` plugins also ship as OpenCode packages, see the OpenCode install sections of [review](review/README.md#opencode) and [investigate](investigate/README.md#opencode).
 

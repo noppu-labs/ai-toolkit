@@ -65,7 +65,7 @@ export function SkillPane({
             <p aria-live="polite" className="sr-only">
               {`Showing ${skill.name}`}
             </p>
-            <SkillDetailBody skill={skill} surface="pane" />
+            <SkillDetailBody skill={skill} surface="pane" pageLink />
           </div>
         </>
       )}

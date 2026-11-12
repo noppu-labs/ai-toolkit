@@ -87,9 +87,18 @@ export function pageHead(page: SitePage): PageHead {
     return HOME_HEAD;
   }
   const { skill } = page;
+  const path = skillPath(skill.name);
   return {
     title: `${skill.name} agent skill · AI Toolkit`,
     description: `${skill.summary} Part of AI Toolkit's ${skill.plugin} plugin for Claude Code, OpenCode and other agents.`,
-    path: skillPath(skill.name),
+    path,
+    jsonLd: breadcrumbJsonLd([
+      { name: "Home", path: "/" },
+      {
+        name: skill.plugin,
+        path: `/?${new URLSearchParams({ plugin: skill.plugin })}`,
+      },
+      { name: skill.name, path },
+    ]),
   };
 }

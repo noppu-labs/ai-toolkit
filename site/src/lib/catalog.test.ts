@@ -22,6 +22,7 @@ function plugin(name: string, skills: string[]): PluginEntry {
     skills: skills.map((skill) => ({
       name: skill,
       description: `About ${skill}. More detail.`,
+      path: `p/skills/${skill}/SKILL.md`,
       sourceUrl: `https://example.com/${skill}`,
     })),
   };
