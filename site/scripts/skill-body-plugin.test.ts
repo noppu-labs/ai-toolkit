@@ -61,9 +61,42 @@ describe("skillBodyPlugin", async () => {
     const html = await render("| a | b |\n|---|---|\n| 1 | 2 |\n", SKILL_PATH);
 
     expect(html).toMatch(
-      /<div class="overflow-x-auto"><table>[\s\S]*<\/table><\/div>/,
+      /<div class="overflow-x-auto"[^>]*><table>[\s\S]*<\/table><\/div>/,
     );
     expect(html.match(/<table/g)).toHaveLength(1);
+  });
+
+  it("makes each table's box a focusable region named after the heading above it", async () => {
+    const table = "| a |\n|---|\n| 1 |\n";
+    const html = await render(
+      [
+        table,
+        "## Usage `npx`",
+        table,
+        table,
+        "### Options",
+        table,
+        "## Usage `npx`",
+        table,
+      ].join("\n"),
+      SKILL_PATH,
+    );
+    const boxes = [...html.matchAll(/<div ([^>]*)><table>/g)].map(
+      (match) => match[1],
+    );
+
+    expect(boxes).toEqual(
+      [
+        "Table 1",
+        "Usage npx",
+        "Usage npx, table 3",
+        "Options",
+        "Usage npx, table 5",
+      ].map(
+        (label) =>
+          `class="overflow-x-auto" tabindex="0" role="region" aria-label="${label}"`,
+      ),
+    );
   });
 
   it("ignores files that are not a skill's SKILL.md", async () => {

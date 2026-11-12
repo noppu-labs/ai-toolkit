@@ -20,7 +20,7 @@ type Element = Extract<HastNode, { type: "element" }>;
 
 const HEADINGS = ["h1", "h2", "h3", "h4", "h5", "h6"];
 
-/** The SKILL.md's path relative to the repo, with `/` separators, or `undefined` for any other file. */
+/** Joined with `/` on every platform. */
 function skillFileOf(
   fileURL: URL | undefined,
   repoRoot: string,
@@ -36,7 +36,6 @@ function skillFileOf(
   return SKILL_FILE.test(inRepo) ? inRepo : undefined;
 }
 
-/** `href` pointed at the file on GitHub, or `undefined` when it is already absolute, root-relative or a fragment. */
 function githubHref(
   href: string,
   directory: string,
@@ -54,22 +53,37 @@ function githubHref(
 }
 
 /**
- * For each skill's SKILL.md rendered on its page: relative links go to the file on GitHub, and
- * headings move down two levels because the page owns the `h1` and the section's `h2`, and each
- * table sits in a box that scrolls sideways, so a wide one does not run past a phone's edge.
+ * The text of the heading above the table, or `Table <n>` under none. Names of regions on one page
+ * must differ (axe `landmark-unique`), so a repeat gets the table's number too.
  */
-export function skillBodyPlugin({
-  repoRoot,
-  repoUrl,
-}: Options): HastPluginEntry {
+function makeTableLabel(
+  heading: string | undefined,
+  tableNumber: number,
+  taken: ReadonlySet<string>,
+): string {
+  if (heading === undefined) {
+    return `Table ${tableNumber}`;
+  }
+
+  return taken.has(heading) ? `${heading}, table ${tableNumber}` : heading;
+}
+
+/**
+ * Headings move down two levels (capped at h6) because the page owns the `h1` and the section's
+ * `h2`.
+ */
+export function skillBodyPlugin(options: Options): HastPluginEntry {
   return (context: PluginFactoryContext): HastPluginEntry => {
-    const skillFile = skillFileOf(context.fileURL, repoRoot);
+    const skillFile = skillFileOf(context.fileURL, options.repoRoot);
 
     if (skillFile === undefined) {
       return null;
     }
 
     const directory = posix.dirname(skillFile);
+    const tableLabels = new Set<string>();
+    let tableCount = 0;
+    let lastHeading: string | undefined;
 
     return defineHastPlugin({
       name: "skill-body",
@@ -80,7 +94,7 @@ export function skillBodyPlugin({
             const href = node.properties.href;
             const target =
               typeof href === "string"
-                ? githubHref(href, directory, repoUrl)
+                ? githubHref(href, directory, options.repoUrl)
                 : undefined;
 
             if (target !== undefined) {
@@ -91,10 +105,19 @@ export function skillBodyPlugin({
         {
           filter: ["table"],
           visit: (node: Element, ctx: HastVisitorContext): void => {
+            tableCount += 1;
+            const label = makeTableLabel(lastHeading, tableCount, tableLabels);
+            tableLabels.add(label);
+
             ctx.replaceNode(node, {
               type: "element",
               tagName: "div",
-              properties: { class: "overflow-x-auto" },
+              properties: {
+                class: "overflow-x-auto",
+                tabIndex: 0,
+                role: "region",
+                ariaLabel: label,
+              },
               children: [node],
             });
           },
@@ -103,6 +126,8 @@ export function skillBodyPlugin({
           filter: HEADINGS,
           visit: (node: Element, ctx: HastVisitorContext): void => {
             const level = Number(HEADING.exec(node.tagName)?.[1]);
+            const text = ctx.textContent(node).trim();
+            lastHeading = text === "" ? undefined : text;
 
             ctx.replaceNode(node, {
               ...node,

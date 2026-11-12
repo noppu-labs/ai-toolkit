@@ -108,6 +108,46 @@ describe.each(PAGES)(
       expect((await first.textContent())?.trim()).toBe(expected.text);
     });
 
+    it("makes each table's scrolling box a focusable region with a name of its own", async () => {
+      const boxes = await opened.page
+        .locator(".prose div.overflow-x-auto")
+        .evaluateAll((nodes) =>
+          nodes.map((node) => ({
+            tabIndex: node.getAttribute("tabindex"),
+            role: node.getAttribute("role"),
+            label: node.getAttribute("aria-label") ?? "",
+            holdsTable: node.firstElementChild?.tagName === "TABLE",
+          })),
+        );
+      const otherNames = await opened.page
+        .locator(
+          "nav[aria-label], [role='region']:not(.prose *), section[aria-labelledby]",
+        )
+        .evaluateAll((nodes) =>
+          nodes.map(
+            (node) =>
+              node.getAttribute("aria-label") ??
+              document
+                .getElementById(node.getAttribute("aria-labelledby") ?? "")
+                ?.textContent?.trim() ??
+              "",
+          ),
+        );
+      const labels = boxes.map((box) => box.label);
+
+      for (const box of boxes) {
+        expect(box).toEqual({
+          tabIndex: "0",
+          role: "region",
+          label: expect.stringMatching(/\S/),
+          holdsTable: true,
+        });
+      }
+      expect(new Set([...labels, ...otherNames]).size).toBe(
+        labels.length + new Set(otherNames).size,
+      );
+    });
+
     it("carries the head that pageHead names for it", async () => {
       const canonical = canonicalUrl(head.path);
 
@@ -275,6 +315,22 @@ describe("a skill page with scripts", () => {
       new Set(["H3", "H4", "H5"]),
     );
     expect(margins.filter((margin) => margin.short)).toEqual([]);
+  });
+
+  it("lets a keyboard reach a wide table that scrolls sideways on a phone", async () => {
+    const { page } = await open("/skills/laravel-owasp-security", PHONE);
+    const box = page
+      .locator(".prose div.overflow-x-auto")
+      .filter({ has: page.locator("table") })
+      .first();
+
+    expect(
+      await box.evaluate((node) => node.scrollWidth > node.clientWidth),
+    ).toBe(true);
+    await box.focus();
+    expect(await box.evaluate((node) => node === document.activeElement)).toBe(
+      true,
+    );
   });
 
   it.each(PAGES.map(({ skill }) => skillPath(skill.name)))(
