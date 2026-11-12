@@ -10,7 +10,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { skillPath } from "../src/lib/site.ts";
-import { skillLastModified } from "./skill-last-modified.ts";
+import {
+  NO_HISTORY_WARNING,
+  skillLastModified,
+} from "./skill-last-modified.ts";
 
 const SKILLS = [
   { name: "a", path: "p/skills/a/SKILL.md" },
@@ -103,7 +106,7 @@ afterEach(() => {
 
 describe("skillLastModified", () => {
   it("dates each skill page by the last commit to its directory", () => {
-    const dates = skillLastModified(makeRepo(), SKILLS);
+    const { dates, warning } = skillLastModified(makeRepo(), SKILLS);
 
     expect(isoDates(dates)).toEqual({
       [`https://toolkit.noppu.com${skillPath("a")}`]: new Date(
@@ -113,9 +116,10 @@ describe("skillLastModified", () => {
         SECOND,
       ).toISOString(),
     });
+    expect(warning).toBeUndefined();
   });
 
-  it("dates nothing in a shallow clone", () => {
+  it("dates nothing in a shallow clone, and says why", () => {
     const repo = makeRepo();
     const clone = join(makeTempDir(), "clone");
     execFileSync(
@@ -127,11 +131,55 @@ describe("skillLastModified", () => {
       },
     );
 
-    expect(skillLastModified(clone, SKILLS).size).toBe(0);
+    expect(skillLastModified(clone, SKILLS)).toEqual({
+      dates: new Map(),
+      warning: NO_HISTORY_WARNING,
+    });
   });
 
-  it("dates nothing outside a git repository", () => {
+  it("dates nothing outside a git repository, with the same warning", () => {
     vi.stubEnv("GIT_CEILING_DIRECTORIES", realpathSync(tmpdir()));
-    expect(skillLastModified(makeTempDir(), SKILLS).size).toBe(0);
+
+    expect(skillLastModified(makeTempDir(), SKILLS)).toEqual({
+      dates: new Map(),
+      warning: NO_HISTORY_WARNING,
+    });
+  });
+
+  it("names a missing git instead of blaming a shallow clone", () => {
+    const repo = makeRepo();
+    vi.stubEnv("PATH", makeTempDir());
+
+    expect(skillLastModified(repo, SKILLS)).toEqual({
+      dates: new Map(),
+      warning:
+        "sitemap: could not read skill dates from git (`git` not found on PATH), so skill pages get no lastmod",
+    });
+  });
+
+  it("names the error git printed when it fails for another reason", () => {
+    const repo = makeRepo();
+    // Without its objects the repository is still one, but `git log` cannot read HEAD.
+    rmSync(join(repo, ".git", "objects"), { recursive: true });
+    mkdirSync(join(repo, ".git", "objects"));
+
+    expect(skillLastModified(repo, SKILLS)).toEqual({
+      dates: new Map(),
+      warning:
+        "sitemap: could not read skill dates from git (fatal: bad object HEAD), so skill pages get no lastmod",
+    });
+  });
+
+  it("names an error thrown while building a page's URL", () => {
+    const { dates, warning } = skillLastModified(makeRepo(), [
+      { name: "a", path: "p/skills/a/SKILL.md" },
+      // A lone surrogate makes `encodeURIComponent` throw a URIError.
+      { name: "\uD800", path: "p/skills/b/SKILL.md" },
+    ]);
+
+    expect(dates.size).toBe(0);
+    expect(warning).toBe(
+      "sitemap: could not read skill dates from git (URI malformed), so skill pages get no lastmod",
+    );
   });
 });

@@ -164,6 +164,16 @@ ADR-011's build wrote. `robots.txt` names the index, and `site/public/_redirects
 `/sitemap.xml` to it with a 301, which Cloudflare applies to static assets. If the old
 address was submitted to Google Search Console, the new one has to be submitted there too.
 
+Each skill page's `<lastmod>` is the committer date of the last commit to the skill's
+directory, which `site/scripts/skill-last-modified.ts` reads from git when the config loads.
+That needs the full history: in a shallow clone the oldest commit claims every file, so the
+build writes no `lastmod` and logs a warning instead. Workers Builds and `actions/checkout`
+clone shallow by default, so the build command in the Workers Builds settings, which live in
+Cloudflare's dashboard rather than this repository, has to start with
+`git fetch --unshallow || true &&`. The `|| true` lets a build that already has the full
+history go on. Any other git failure, such as a missing `git`, also leaves out `lastmod` and
+logs a warning that names the cause; neither stops the build.
+
 ### Preview checks
 
 `astro preview` does not apply Cloudflare's URL rules: the dropped trailing slash,

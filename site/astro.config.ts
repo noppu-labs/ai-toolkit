@@ -10,15 +10,13 @@ import { skillLastModified } from "./scripts/skill-last-modified.ts";
 import { REPO_URL } from "./src/lib/repo.ts";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
-const lastModified = skillLastModified(
-  repoRoot,
-  buildCatalog(repoRoot).plugins.flatMap((plugin) => plugin.skills),
+const skills = buildCatalog(repoRoot).plugins.flatMap(
+  (plugin) => plugin.skills,
 );
+const { dates: lastModified, warning } = skillLastModified(repoRoot, skills);
 
-if (lastModified.size === 0) {
-  console.warn(
-    "sitemap: no git history (shallow clone?), so skill pages get no lastmod",
-  );
+if (warning !== undefined) {
+  console.warn(warning);
 }
 
 export default defineConfig({
