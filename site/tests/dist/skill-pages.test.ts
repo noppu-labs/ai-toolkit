@@ -271,6 +271,37 @@ describe("a skill page with scripts", () => {
     );
   });
 
+  it("draws a body's blockquote border in the theme's edge colour in dark", async () => {
+    const { page } = await open("/skills/shadcn", {
+      colorScheme: "dark",
+      waitForHydration: true,
+    });
+
+    await page.waitForFunction(() =>
+      document.documentElement.classList.contains("dark"),
+    );
+
+    const colours = await page.evaluate(() => {
+      // `--edge` and `--border` hold colours; a probe turns each into its computed value.
+      const probe = document.createElement("div");
+      document.body.append(probe);
+      const resolve = (name: string): string => {
+        probe.style.color = `var(${name})`;
+        return getComputedStyle(probe).color;
+      };
+      const quote = document.querySelector(".prose blockquote");
+
+      return {
+        quote: quote === null ? null : getComputedStyle(quote).borderLeftColor,
+        edge: resolve("--edge"),
+        border: resolve("--border"),
+      };
+    });
+
+    expect(colours.quote).toBe(colours.edge);
+    expect(colours.quote).not.toBe(colours.border);
+  });
+
   it("shows HTML inside a SKILL.md's code fences as code", async () => {
     const { page } = await open("/skills/laravel-inertia-react", {
       javaScript: false,

@@ -40,15 +40,15 @@
   --tw-prose-bold: var(--foreground);
   --tw-prose-counters: var(--muted-foreground);
   --tw-prose-bullets: var(--muted-foreground);
-  --tw-prose-hr: var(--border);
+  --tw-prose-hr: var(--edge);
   --tw-prose-quotes: var(--foreground);
-  --tw-prose-quote-borders: var(--border);
+  --tw-prose-quote-borders: var(--edge);
   --tw-prose-captions: var(--muted-foreground);
   --tw-prose-code: var(--foreground);
   --tw-prose-pre-code: inherit;
   --tw-prose-pre-bg: var(--ink);
-  --tw-prose-th-borders: var(--border);
-  --tw-prose-td-borders: var(--border);
+  --tw-prose-th-borders: var(--edge);
+  --tw-prose-td-borders: var(--edge);
 }
 
 @utility bg-grid {
