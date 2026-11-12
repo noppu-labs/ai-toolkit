@@ -7,10 +7,13 @@ import {
   type HastVisitorContext,
   type PluginFactoryContext,
 } from "satteri";
+import { skillPath } from "../src/lib/site.ts";
 
 interface Options {
   repoRoot: string;
   repoUrl: string;
+  /** Each catalog skill's SKILL.md path from the repository root, to the skill's name. */
+  skillNames: ReadonlyMap<string, string>;
 }
 
 const SKILL_FILE = /^[^/]+\/skills\/[^/]+\/SKILL\.md$/;
@@ -36,20 +39,26 @@ function skillFileOf(
   return SKILL_FILE.test(inRepo) ? inRepo : undefined;
 }
 
-function githubHref(
+function linkHref(
   href: string,
   directory: string,
-  repoUrl: string,
+  { repoUrl, skillNames }: Options,
 ): string | undefined {
   if (NOT_RELATIVE.test(href)) {
     return undefined;
   }
 
   const hash = href.indexOf("#");
-  const target = hash === -1 ? href : href.slice(0, hash);
+  const target = posix.join(
+    directory,
+    hash === -1 ? href : href.slice(0, hash),
+  );
   const fragment = hash === -1 ? "" : href.slice(hash);
+  const skillName = skillNames.get(target);
 
-  return `${repoUrl}/blob/main/${posix.join(directory, target)}${fragment}`;
+  return skillName === undefined
+    ? `${repoUrl}/blob/main/${target}${fragment}`
+    : `${skillPath(skillName)}${fragment}`;
 }
 
 /**
@@ -94,7 +103,7 @@ export function skillBodyPlugin(options: Options): HastPluginEntry {
             const href = node.properties.href;
             const target =
               typeof href === "string"
-                ? githubHref(href, directory, options.repoUrl)
+                ? linkHref(href, directory, options)
                 : undefined;
 
             if (target !== undefined) {

@@ -148,6 +148,23 @@ describe.each(PAGES)(
       );
     });
 
+    it("links another catalog skill's SKILL.md to that skill's page, not to GitHub", async () => {
+      const hrefs = await opened.page
+        .locator(".prose a[href]")
+        .evaluateAll((nodes) =>
+          nodes.map((node) => node.getAttribute("href") ?? ""),
+        );
+      const sources = new Set(
+        PAGES.map((page) => page.skill.sourceUrl.toLowerCase()),
+      );
+
+      expect(
+        hrefs.filter((href) =>
+          sources.has(href.split("#")[0]?.toLowerCase() ?? ""),
+        ),
+      ).toEqual([]);
+    });
+
     it("carries the head that pageHead names for it", async () => {
       const canonical = canonicalUrl(head.path);
 
@@ -181,7 +198,8 @@ describe.each(PAGES)(
 
     it("links the plugin's other skills, in catalog order", async () => {
       const hrefs = await opened.page
-        .locator('main a[href^="/skills/"]')
+        .getByRole("region", { name: `More ${skill.plugin} skills` })
+        .locator('a[href^="/skills/"]')
         .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
 
       expect(hrefs).toEqual(siblings.map((other) => skillPath(other.name)));
@@ -331,6 +349,19 @@ describe("a skill page with scripts", () => {
     expect(await box.evaluate((node) => node === document.activeElement)).toBe(
       true,
     );
+  });
+
+  it("links a Laravel skill's related skills to their pages on this site", async () => {
+    const { page } = await open("/skills/laravel-models", {
+      javaScript: false,
+    });
+
+    expect(
+      await page
+        .locator(".prose")
+        .getByRole("link", { name: "DTOs", exact: true })
+        .getAttribute("href"),
+    ).toBe(skillPath("laravel-dtos"));
   });
 
   it.each(PAGES.map(({ skill }) => skillPath(skill.name)))(

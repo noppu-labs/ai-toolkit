@@ -6,13 +6,22 @@ import { skillBodyPlugin } from "./skill-body-plugin.ts";
 const REPO_ROOT = "/work/ai-toolkit";
 const REPO_URL = "https://github.com/example/repo";
 const SKILL_PATH = `${REPO_ROOT}/inertia-react/skills/shadcn/SKILL.md`;
+const SKILL_NAMES = new Map([
+  ["inertia-react/skills/shadcn/SKILL.md", "shadcn"],
+  ["inertia-react/skills/inertia-forms/SKILL.md", "inertia-forms"],
+  ["investigate/skills/brief/SKILL.md", "brief"],
+]);
 
 async function render(markdown: string, path: string): Promise<string> {
   return (
     await markdownToHtml(markdown, {
       fileURL: pathToFileURL(path),
       hastPlugins: [
-        skillBodyPlugin({ repoRoot: REPO_ROOT, repoUrl: REPO_URL }),
+        skillBodyPlugin({
+          repoRoot: REPO_ROOT,
+          repoUrl: REPO_URL,
+          skillNames: SKILL_NAMES,
+        }),
       ],
     })
   ).html;
@@ -34,6 +43,22 @@ describe("skillBodyPlugin", async () => {
     );
     expect(await hrefOf("cli.md#info")).toBe(`${base}/shadcn/cli.md#info`);
     expect(await hrefOf("../brief/SKILL.md")).toBe(`${base}/brief/SKILL.md`);
+    expect(await hrefOf("../inertia-forms/README.md")).toBe(
+      `${base}/inertia-forms/README.md`,
+    );
+  });
+
+  it("points a link to another catalog skill's SKILL.md at that skill's page", async () => {
+    expect(await hrefOf("../inertia-forms/SKILL.md")).toBe(
+      "/skills/inertia-forms",
+    );
+    expect(await hrefOf("./../inertia-forms/SKILL.md#usage")).toBe(
+      "/skills/inertia-forms#usage",
+    );
+    expect(await hrefOf("../../../investigate/skills/brief/SKILL.md")).toBe(
+      "/skills/brief",
+    );
+    expect(await hrefOf("SKILL.md#rules")).toBe("/skills/shadcn#rules");
   });
 
   it("leaves absolute, root-relative, fragment and mailto links alone", async () => {

@@ -13,6 +13,7 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const skills = buildCatalog(repoRoot).plugins.flatMap(
   (plugin) => plugin.skills,
 );
+const skillNames = new Map(skills.map((skill) => [skill.path, skill.name]));
 const { dates: lastModified, warning } = skillLastModified(repoRoot, skills);
 
 if (warning !== undefined) {
@@ -25,7 +26,9 @@ export default defineConfig({
   build: { format: "directory" },
   markdown: {
     processor: satteri({
-      hastPlugins: [skillBodyPlugin({ repoRoot, repoUrl: REPO_URL })],
+      hastPlugins: [
+        skillBodyPlugin({ repoRoot, repoUrl: REPO_URL, skillNames }),
+      ],
     }),
   },
   integrations: [
