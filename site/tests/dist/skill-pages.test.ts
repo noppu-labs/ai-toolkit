@@ -238,24 +238,23 @@ describe("a skill page with scripts", () => {
     expect(errors).toEqual([]);
   });
 
-  it.each([
-    "/skills/deep",
-    "/skills/pr-review",
-    "/skills/laravel-inertia-react",
-  ])("has no horizontal scroll on a phone at %s", async (path) => {
-    const { page, errors } = await open(path, PHONE);
+  it.each(PAGES.map(({ skill }) => skillPath(skill.name)))(
+    "has no horizontal scroll on a phone at %s",
+    async (path) => {
+      const { page, errors } = await open(path, PHONE);
 
-    expect(
-      await page.evaluate(
-        () =>
-          document.documentElement.scrollWidth <=
-          document.documentElement.clientWidth,
-      ),
-    ).toBe(true);
-    // The frame clips sideways overflow instead of scrolling it.
-    expect(await pastTheRightEdge(page)).toEqual([]);
-    expect(errors).toEqual([]);
-  });
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+      // The frame clips sideways overflow instead of scrolling it.
+      expect(await pastTheRightEdge(page)).toEqual([]);
+      expect(errors).toEqual([]);
+    },
+  );
 
   it("sends a SKILL.md's relative links to GitHub", async () => {
     const { page } = await open("/skills/shadcn", { javaScript: false });

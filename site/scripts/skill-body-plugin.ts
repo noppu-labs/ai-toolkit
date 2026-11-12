@@ -55,7 +55,8 @@ function githubHref(
 
 /**
  * For each skill's SKILL.md rendered on its page: relative links go to the file on GitHub, and
- * headings move down two levels because the page owns the `h1` and the section's `h2`.
+ * headings move down two levels because the page owns the `h1` and the section's `h2`, and each
+ * table sits in a box that scrolls sideways, so a wide one does not run past a phone's edge.
  */
 export function skillBodyPlugin({
   repoRoot,
@@ -85,6 +86,17 @@ export function skillBodyPlugin({
             if (target !== undefined) {
               ctx.setProperty(node, "href", target);
             }
+          },
+        },
+        {
+          filter: ["table"],
+          visit: (node: Element, ctx: HastVisitorContext): void => {
+            ctx.replaceNode(node, {
+              type: "element",
+              tagName: "div",
+              properties: { class: "overflow-x-auto" },
+              children: [node],
+            });
           },
         },
         {

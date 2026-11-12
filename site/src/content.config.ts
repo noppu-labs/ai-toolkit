@@ -36,7 +36,7 @@ const opencode = defineCollection({
  *
  * Not a `glob()` loader: that parses the header as strict YAML, and some SKILL.md values hold a
  * colon. This reads the header the way `buildCatalog` does and renders only the body, with the
- * file's URL so the rehype plugin knows which skill it is rendering.
+ * file's URL so the skill-body plugin knows which skill it is rendering.
  */
 const skills = defineCollection({
   loader: {

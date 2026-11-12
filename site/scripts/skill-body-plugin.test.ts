@@ -57,6 +57,15 @@ describe("skillBodyPlugin", async () => {
     ]);
   });
 
+  it("wraps each table in a box that scrolls sideways", async () => {
+    const html = await render("| a | b |\n|---|---|\n| 1 | 2 |\n", SKILL_PATH);
+
+    expect(html).toMatch(
+      /<div class="overflow-x-auto"><table>[\s\S]*<\/table><\/div>/,
+    );
+    expect(html.match(/<table/g)).toHaveLength(1);
+  });
+
   it("ignores files that are not a skill's SKILL.md", async () => {
     const html = await render("# a\n\n[x](./x.md)\n", `${REPO_ROOT}/README.md`);
 
