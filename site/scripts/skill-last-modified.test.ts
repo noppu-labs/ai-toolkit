@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -35,7 +41,7 @@ function makeGitEnv(date: string = FIRST): NodeJS.ProcessEnv {
     ...env,
     GIT_CONFIG_GLOBAL: "/dev/null",
     GIT_CONFIG_NOSYSTEM: "1",
-    GIT_CEILING_DIRECTORIES: dirname(tmpdir()),
+    GIT_CEILING_DIRECTORIES: realpathSync(tmpdir()),
     GIT_COMMITTER_DATE: date,
     GIT_AUTHOR_DATE: date,
   };
@@ -117,6 +123,7 @@ describe("skillLastModified", () => {
       ["clone", "-q", "--depth", "1", `file://${repo}`, clone],
       {
         stdio: "ignore",
+        env: makeGitEnv(),
       },
     );
 
@@ -124,7 +131,7 @@ describe("skillLastModified", () => {
   });
 
   it("dates nothing outside a git repository", () => {
-    vi.stubEnv("GIT_CEILING_DIRECTORIES", dirname(tmpdir()));
+    vi.stubEnv("GIT_CEILING_DIRECTORIES", realpathSync(tmpdir()));
     expect(skillLastModified(makeTempDir(), SKILLS).size).toBe(0);
   });
 });
