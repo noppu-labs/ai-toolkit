@@ -1,3 +1,4 @@
+import { ArrowRight } from "lucide-react";
 import {
   type ReactElement,
   useCallback,
@@ -15,7 +16,7 @@ import {
   otherInstallMethod,
   pluginInstallSteps,
 } from "@/lib/install-methods";
-import { skillShareUrl } from "@/lib/site";
+import { skillPath, skillShareUrl } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/stores/usePreferencesStore";
 
@@ -159,12 +160,15 @@ function SkillInstall({ plugin }: { plugin: string }): ReactElement {
 interface SkillDetailBodyProps {
   skill: CatalogSkill;
   surface: DetailSurface;
+  /** Adds a link to the skill's own page. Leave it off on that page. */
+  pageLink?: boolean;
 }
 
 /** Everything below the skill's name, which the pane and the sheet each render themselves. */
 export function SkillDetailBody({
   skill,
   surface,
+  pageLink = false,
 }: SkillDetailBodyProps): ReactElement {
   const inPane = surface === "pane";
 
@@ -218,6 +222,20 @@ export function SkillDetailBody({
           <span aria-hidden="true">↗</span>
         </a>
       </div>
+      {pageLink ? (
+        <a
+          className={cn(
+            "mt-3 inline-flex min-h-8 items-center gap-1.5 rounded-sm text-sm font-bold text-foreground underline underline-offset-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-hidden",
+            inPane
+              ? "focus-visible:ring-offset-background"
+              : "focus-visible:ring-offset-secondary-background",
+          )}
+          href={skillPath(skill.name)}
+        >
+          Read the full skill<span className="sr-only"> of {skill.name}</span>
+          <ArrowRight aria-hidden="true" className="size-4" strokeWidth={2.5} />
+        </a>
+      ) : null}
     </>
   );
 }

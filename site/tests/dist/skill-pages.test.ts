@@ -103,6 +103,12 @@ describe.each(PAGES)(
       expect(hrefs).toEqual(siblings.map((other) => skillPath(other.name)));
     });
 
+    it("does not link to itself as 'Read the full skill'", async () => {
+      const links = opened.page.locator('a:has-text("Read the full skill")');
+
+      expect(await links.count()).toBe(0);
+    });
+
     it("sends the header's section links to the home page", async () => {
       const hrefs = await opened.page
         .locator('header a[href*="#"]')
