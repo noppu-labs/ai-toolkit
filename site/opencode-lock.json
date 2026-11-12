@@ -4,9 +4,9 @@
     "opencode-permission-reviewer": {
       "repo": "noppu-labs/opencode-permission-reviewer",
       "package": "@noppu-labs/opencode-permission-reviewer",
-      "version": "3.4.1",
-      "tag": "v3.4.1",
-      "commit": "15db9e2dcd9ceba9e21b1dc39c02d2700ae2caaa",
+      "version": "3.4.2",
+      "tag": "v3.4.2",
+      "commit": "cf778ecc85394c3b6be113b6f6add71e8b3be17c",
       "license": "MIT AND Apache-2.0",
       "files": {
         "docs/toolkit-page.yaml": "53e372bcf5658c9a009fbbc55775fcb93abf7c61780e78f05546335b2f725f7c",
