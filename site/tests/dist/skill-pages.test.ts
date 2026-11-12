@@ -78,6 +78,11 @@ describe.each(PAGES)(
       expect(await meta("og:description")).toBe(head.description);
       expect(await attribute('link[rel="canonical"]', "href")).toBe(canonical);
       expect(await meta("og:url")).toBe(canonical);
+      expect(
+        await opened.page
+          .locator('script[type="application/ld+json"]')
+          .textContent(),
+      ).toBe(head.jsonLd);
     });
 
     it("canonicalises to a URL with no trailing slash and no .html", async () => {
