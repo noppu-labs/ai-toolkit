@@ -60,6 +60,7 @@ describe("buildCatalog", () => {
       {
         name: "alpha",
         description: "First skill",
+        path: "demo/skills/alpha/SKILL.md",
         sourceUrl:
           "https://github.com/noppu-labs/ai-toolkit/blob/main/demo/skills/alpha/SKILL.md",
       },

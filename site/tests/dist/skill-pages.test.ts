@@ -26,8 +26,7 @@ const NOT_FOUND_LOG =
   "error: Failed to load resource: the server responded with a status of 404 (Not Found)";
 
 /** The first markdown heading of a SKILL.md outside code fences, as the page prints its text, with its level. */
-function firstHeading(sourceUrl: string): { level: number; text: string } {
-  const path = sourceUrl.slice(sourceUrl.indexOf("/blob/main/") + 11);
+function firstHeading(path: string): { level: number; text: string } {
   let fenced = false;
 
   for (const line of readFileSync(`${REPO_ROOT}${path}`, "utf8").split("\n")) {
@@ -96,7 +95,7 @@ describe.each(PAGES)(
         level: 2,
         name: `How ${skill.name} works`,
       });
-      const expected = firstHeading(skill.sourceUrl);
+      const expected = firstHeading(skill.path);
       const first = opened.page
         .locator("section", { has: heading })
         .locator("h3, h4, h5, h6")

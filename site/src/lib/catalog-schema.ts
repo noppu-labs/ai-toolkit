@@ -6,6 +6,7 @@ export const CATALOG_ID = "ai-toolkit";
 const skillSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
+  path: z.string().min(1),
   sourceUrl: z.string().min(1),
 });
 

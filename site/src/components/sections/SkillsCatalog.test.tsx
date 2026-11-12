@@ -18,6 +18,7 @@ function skill(plugin: string, name: string, description: string): SkillEntry {
   return {
     name,
     description,
+    path: `${plugin}/skills/${name}/SKILL.md`,
     sourceUrl: `https://github.com/noppu-labs/ai-toolkit/blob/main/${plugin}/skills/${name}/SKILL.md`,
   };
 }

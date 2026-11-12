@@ -1,6 +1,8 @@
 export interface SkillEntry {
   name: string;
   description: string;
+  /** The SKILL.md's path from the repository root, such as `investigate/skills/brief/SKILL.md`. */
+  path: string;
   sourceUrl: string;
 }
 
