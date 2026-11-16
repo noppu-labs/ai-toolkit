@@ -9,7 +9,7 @@ seo:
     findings up as graded comments anchored to a line.
 tagline: >-
   Run a PR through two independent correctness passes, a type-safety check and a comment audit,
-  and read one report where every finding has a file, a line and an outcome.
+  and read one report where every finding has a file and a line.
 highlights:
   heading: What a review run produces.
   items:
@@ -20,7 +20,7 @@ highlights:
         is one, otherwise `correctness-review`, and again with a subagent reading the diff by
         hand. A finding both passes made is labelled `both passes`.
     - label: outcomes
-      title: Every finding ends in an outcome
+      title: Correctness findings end in an outcome
       body: >-
         A correctness finding names a `path:line` and ends in `crash`, `wrong data shown`,
         `wrong data persisted`, `harmless` or `question`, which separates a bug from an edge
@@ -36,7 +36,7 @@ highlights:
       body: >-
         `type-safety-review` rules a diff or a path against numbered rules (`PHP-1` to `PHP-5`,
         `TS-1` to `TS-4`, `PY-1` to `PY-5`), quotes the line and proposes the type to use
-        instead. It edits nothing.
+        instead, without editing any file.
     - label: comments
       title: Comment verdicts without edits
       body: >-
@@ -48,7 +48,7 @@ highlights:
       body: >-
         `pr-comments` rewrites the report for whoever opened the PR: one comment per finding,
         with a code such as `COR-01`, a severity taken from a fixed label, and a GitHub
-        suggestion block when the fix fits in six lines. It posts nothing.
+        suggestion block when the fix fits in six lines. Posting is left to the caller.
 howItWorks:
   heading: What one run looks like.
   steps:
@@ -57,9 +57,9 @@ howItWorks:
       one's base and head with `gh`. Each PR in a stack is reviewed against the head of the PR
       below it, so its diff holds only its own changes.
     - >-
-      It sizes the diff by added plus deleted lines, leaving out lockfiles and binary files, and
-      picks the `code-review` level from that: `high` up to 300 lines, `xhigh` up to 3000, `max`
-      above.
+      It counts added plus deleted lines, minus lockfiles and binaries. With `code-review`
+      listed, the count sets its level: `high` up to 300 lines, `xhigh` up to 3000, `max` above.
+      Without it, the count sets how many `correctness-review` subagents run, one to four.
     - >-
       It builds a structural brief for each PR, with `investigate:brief` when the `investigate`
       plugin is installed and plain `git` commands when it is not, and pastes the brief into
@@ -81,15 +81,15 @@ requirements:
       Claude Code with the marketplace added (`/plugin marketplace add noppu-labs/ai-toolkit`),
       then `/plugin install review@ai-toolkit`.
     - >-
-      The `gh` CLI, signed in, for `pr-review`. Its `origin` remote has to be the repository
-      `gh` resolves pull requests against.
+      The `gh` CLI, able to read the pull request, for `pr-review`. Its `origin` remote has to be
+      the repository `gh` resolves pull requests against.
     - >-
-      Claude Code 2.1.248 or later with dynamic workflows enabled, to run the `pr-review-stages`
-      workflow. Without them `pr-review` follows the same steps by hand.
+      Claude Code 2.1.248 or later (verified on 2.1.289) with dynamic workflows enabled, to run
+      the `pr-review-stages` workflow. Without them `pr-review` follows the same steps by hand.
     - >-
       Optional: the `investigate` plugin for a richer brief, and access to context7 so the
-      correctness stage can check library calls against their docs. The review goes on without
-      either.
+      correctness stage can check library calls against their docs, though the review goes on
+      without either.
     - >-
       `node` on `PATH` for the task-output hook, which matches reliably on Claude Code 2.1.176
       or later.
@@ -116,14 +116,14 @@ faq:
       each diff against the pitfalls of whichever language it is written in.
   - q: Does it change my code or post to the pull request?
     a: >-
-      `correctness-review` and `type-safety-review` are read-only. `pr-comments` posts nothing and
-      leaves that to whoever calls it. `comment-audit` edits comments only, in one local commit,
+      `correctness-review` and `type-safety-review` are read-only. `pr-comments` leaves posting to
+      whoever calls it. `comment-audit` edits comments and docs, never code, in one local commit,
       and only with `--apply`.
   - q: What is the task-output hook for?
     a: >-
       It is a `PreToolUse` hook on `Bash` and `Read` that denies a call naming a `.output` file
       when that file is a symlink to a background subagent's transcript. Without it, such a read
-      stops an unattended run on a permission prompt. It is Claude Code only.
+      stops an unattended run on a permission prompt. Only the Claude Code plugin has it.
 links:
   - label: Plugin README on GitHub
     href: https://github.com/noppu-labs/ai-toolkit/blob/main/review/README.md
