@@ -31,7 +31,7 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
-    "@astrojs/markdown-satteri": "^0.4.7",
+    "@astrojs/markdown-satteri": "^0.4.9",
     "@astrojs/react": "^7.1.4",
     "@astrojs/sitemap": "^3.7.4",
     "@astrojs/ts-content-mapper": "^0.2.0",
@@ -41,7 +41,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/browser-playwright": "^5.0.0",
-    "astro": "^7.4.7",
+    "astro": "^7.4.11",
     "playwright": "^1.64.0",
     "satteri": "^0.11.7",
     "tailwindcss": "^4.3.5",
