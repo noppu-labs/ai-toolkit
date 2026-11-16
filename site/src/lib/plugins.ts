@@ -1,3 +1,6 @@
+import type { PluginEntry } from "../catalog-types.ts";
+import { pluralize } from "./pluralize.ts";
+
 /** `marketplace.json` keeps its own plugin order; the site shows the language-agnostic plugins first. */
 export const PLUGIN_ORDER: readonly string[] = [
   "review",
@@ -90,4 +93,21 @@ export function pluginPressedColorClass(name: string): string {
 
 export function isLanguageAgnostic(name: string): boolean {
   return LANGUAGE_AGNOSTIC_PLUGINS.has(name);
+}
+
+/** What a plugin ships, as the chips on its card and its page. */
+export function pluginChipLabels(plugin: PluginEntry): string[] {
+  const counts: [number, string][] = [
+    [plugin.skills.length, "skill"],
+    [plugin.agentCount, "agent"],
+    [plugin.ruleCount, "rule"],
+  ];
+  const labels = counts
+    .filter(([count]) => count > 0)
+    .map(([count, noun]) => pluralize(count, noun));
+  if (isLanguageAgnostic(plugin.name)) {
+    labels.push("any language");
+  }
+
+  return labels;
 }

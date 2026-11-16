@@ -1,14 +1,14 @@
 import type { CatalogSkill } from "./catalog.ts";
 import type { SocialImage } from "./head.ts";
 import { OPENCODE_PATH, opencodePluginPath } from "./opencode.ts";
-import { PRIVACY_PATH, skillPath } from "./site.ts";
+import { PRIVACY_PATH, pluginPath, skillPath } from "./site.ts";
 import { breadcrumbJsonLd } from "./structured-data.ts";
 
 /** What a page's `<head>` names; `Base.astro` writes it into the title, description and social tags. */
 export interface PageHead {
   title: string;
   description: string;
-  /** Root-relative, with no trailing slash past the root: `/`, `/privacy`, `/skills/<name>`, `/opencode` or `/opencode/<name>`. */
+  /** Root-relative, with no trailing slash past the root: `/`, `/privacy`, `/skills/<name>`, `/plugins/<name>`, `/opencode` or `/opencode/<name>`. */
   path: string;
   /** The link preview's image; the site's social card when left out. */
   image?: SocialImage;
@@ -66,6 +66,24 @@ export function opencodePluginHead(
       { name: "Home", path: "/" },
       { name: "OpenCode", path: OPENCODE_PATH },
       { name: plugin.page.title, path },
+    ]),
+  };
+}
+
+/** A plugin page's head: the manifest's SEO copy, the plugin's path and its breadcrumb as JSON-LD. */
+export function pluginHead(page: {
+  plugin: { name: string };
+  copy: { seo: { title: string; description: string } };
+}): PageHead {
+  const path = pluginPath(page.plugin.name);
+
+  return {
+    title: `${page.copy.seo.title} · AI Toolkit`,
+    description: page.copy.seo.description,
+    path,
+    jsonLd: breadcrumbJsonLd([
+      { name: "Home", path: "/" },
+      { name: page.plugin.name, path },
     ]),
   };
 }
