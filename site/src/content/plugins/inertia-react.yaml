@@ -16,7 +16,7 @@ highlights:
     - label: inertia
       title: Inertia pages, forms and navigation
       body: >-
-        `laravel-inertia-react` groups its rules by prefix: `page-`, `form-`, `nav-`, `shared-` and
+        `laravel-inertia-react` groups its rules by prefix, among them `page-`, `form-`, `nav-`, `shared-` and
         `layout-`. They run from typing page props and showing validation errors from `useForm` to
         partial reloads, flash messages and persistent layouts.
     - label: shadcn
@@ -46,7 +46,7 @@ highlights:
     - label: agent
       title: A frontend agent written around Inertia v3 and React 19
       body: >-
-        `frontend-developer` runs on the `sonnet` model with project memory. Its prompt describes
+        `frontend-developer` runs on the `sonnet` model with `memory: project`. Its prompt describes
         a Laravel 13 app with Inertia v3, React 19, TypeScript 6, Vite 8 and Tailwind v4, and says
         to check existing patterns before adding a library or hook.
 howItWorks:
@@ -81,8 +81,8 @@ requirements:
       Claude Code with the marketplace added (`/plugin marketplace add noppu-labs/ai-toolkit`),
       then `/plugin install inertia-react@ai-toolkit`.
     - >-
-      Sources under `resources/js`. The agent's prompt uses that layout, and both rules are scoped
-      to paths inside it.
+      The agent's prompt and both rules use `resources/js` paths. `code-quality-ts` also covers
+      `.storybook` and `*.config.ts`.
     - >-
       `laravel-inertia-react` lists Laravel 13.x and PHP 8.3 or later in its metadata.
       `state-management` is written for TanStack Query v5 and Zustand v5.
@@ -90,7 +90,7 @@ requirements:
       `tailwind-best-practices` covers Tailwind v3.4 and later and v4.
     - >-
       The rules and the agent name project commands, such as `npm run agent-checks` and
-      `docker compose exec node npm run test-ci:components`. Adjust them to your scripts.
+      `docker compose exec node npm run test-ci:components`, which you adjust to your scripts.
 faq:
   - q: Which stack do the Inertia and React skills assume?
     a: >-
@@ -110,8 +110,8 @@ faq:
       agent and 2 path-scoped rules.
   - q: Does the inertia-react plugin work in OpenCode?
     a: >-
-      There is no OpenCode package for it. The README lists OpenCode packages for `review` and
-      `investigate` only. For other installs it gives `npx skills add
+      The README lists OpenCode packages for `review` and `investigate` only, so there is no
+      OpenCode package for this plugin. For other installs it gives `npx skills add
       noppu-labs/ai-toolkit/inertia-react`.
   - q: Where do the skills come from?
     a: >-
@@ -122,8 +122,8 @@ faq:
   - q: Is the frontend agent tied to one codebase?
     a: >-
       Its prompt names files and hooks such as `useZodForm`, `useTableState`, `DataTable` and
-      `resources/js/stores/useAppStore.ts`. The plugin includes none of them. The prompt also says
-      to match the patterns a project already has before adding new ones.
+      `resources/js/stores/useAppStore.ts`, and the plugin includes none of them. The prompt also
+      says to match the patterns a project already has before adding new ones.
 links:
   - label: Plugin directory on GitHub
     href: https://github.com/noppu-labs/ai-toolkit/tree/main/inertia-react
