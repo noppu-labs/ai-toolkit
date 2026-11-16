@@ -9,7 +9,7 @@ seo:
     module, and check a spec or ticket claim by claim against the code.
 tagline: >-
   Hand an agent a computed map of callers and installed versions before it reads a module, then
-  keep only what two independent passes both found.
+  trust what two independent passes both found and check the rest.
 highlights:
   heading: What an investigation starts from.
   items:
@@ -22,8 +22,8 @@ highlights:
       title: Missing tools show as gaps
       body: >-
         The brief opens with a Tools section. A tool that is absent or failed marks its section
-        as unresolved, so a thin caller list reads as a gap in the tooling and not as proof that
-        nothing calls the code.
+        as unresolved, so a thin caller list reads as a gap in the tooling, which does not show
+        that nothing calls the code.
     - label: versions
       title: Installed versions, checked docs
       body: >-
@@ -60,18 +60,18 @@ howItWorks:
       investigation does not go ahead silently without it.
     - >-
       It sends two agents one identical prompt in a single message. The prompt holds the brief
-      and, for the 2 to 4 packages the target leans on, doc sources that passed the version check.
+      and, for up to four packages the target leans on, doc sources that passed the version check.
     - >-
-      It merges the answers by intersection and settles disagreements by reading the code, not
-      by preferring the more confident wording. Two agreeing claims that rest on recalled
-      framework behaviour stay labelled as recall, since two guesses agreeing are one guess.
+      It merges the answers by intersection and settles disagreements by reading the code. Two
+      agreeing claims that rest on recalled framework behaviour stay labelled as recall unless
+      checked against installed source, since two guesses agreeing are one guess.
+    - >-
+      For a quick look, `deep` has a cheaper variant that runs the brief and investigates inline
+      in one pass. Its report says so and names the claims that are single-source.
     - >-
       `spec` first reads the document in full: a file path, a ticket or document id fetched
       through the session's tools, or pasted text. It maps the classes the document names to
       modules, about four at most, then follows the same brief and two-pass course.
-    - >-
-      For a quick look, `deep` has a cheaper variant that runs the brief and investigates inline
-      in one pass. Its report says so and names the claims that are single-source.
 requirements:
   items:
     - >-
@@ -107,8 +107,8 @@ faq:
     a: >-
       No. For PHP the call graph has no inheritance, interface or container-resolution edges, so
       its caller lists are a lower bound, and an empty list on a service method is unresolved.
-      The brief ends with a section listing what no pass can see, such as string-based dynamic
-      usage and third-party behaviour.
+      The brief has a section listing what no pass can see, such as string-based dynamic usage
+      and third-party behaviour.
   - q: Does the brief send my code anywhere?
     a: >-
       By default it sends the names of up to 12 imported, non-dev packages to context7.com to
