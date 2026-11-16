@@ -1,5 +1,23 @@
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { skillPath, skillShareUrl } from "./site.ts";
+import { pluginPath, skillPath, skillShareUrl } from "./site.ts";
+
+describe("pluginPath", () => {
+  it("is the plugin's page under /plugins", () => {
+    expect(pluginPath("inertia-react")).toBe("/plugins/inertia-react");
+  });
+
+  it("never yields a second path segment or a trailing slash", () => {
+    fc.assert(
+      fc.property(fc.string({ minLength: 1 }), (name) => {
+        const path = pluginPath(name);
+
+        expect(path.startsWith("/plugins/")).toBe(true);
+        expect(path.slice("/plugins/".length)).not.toContain("/");
+      }),
+    );
+  });
+});
 
 describe("skillPath", () => {
   it("is the skill's own page, without a trailing slash", () => {

@@ -1,5 +1,12 @@
 import { z } from "astro/zod";
 import type { DocumentOptions, ParseOptions, SchemaOptions } from "yaml";
+import {
+  faqSchema,
+  highlightSchema,
+  linkSchema,
+  list,
+  text,
+} from "./manifest-fields.ts";
 
 /** Where a plugin repo keeps its manifest. */
 export const MANIFEST_PATH = "docs/toolkit-page.yaml";
@@ -17,29 +24,12 @@ export const YAML_OPTIONS: ParseOptions & DocumentOptions & SchemaOptions = {
 
 const MAX_CONFIG_LINES = 40;
 
-/** A trimmed, non-empty string with a length range. */
-function text(min: number, max: number): z.ZodString {
-  return z.string().trim().min(min).max(max);
-}
-
-function list<T extends z.ZodType>(
-  item: T,
-  min: number,
-  max: number,
-): z.ZodArray<T> {
-  return z.array(item).min(min).max(max);
-}
-
 const hostSchema = z
   .object({
     label: text(1, 24),
     commands: list(text(1, 200), 1, 3),
     note: text(1, 200).optional(),
   })
-  .strict();
-
-const highlightSchema = z
-  .object({ label: text(1, 16), title: text(3, 60), body: text(10, 260) })
   .strict();
 
 const configSchema = z
@@ -53,15 +43,6 @@ const configSchema = z
         (code) => code.trimEnd().split("\n").length <= MAX_CONFIG_LINES,
         `at most ${MAX_CONFIG_LINES} lines`,
       ),
-  })
-  .strict();
-
-const faqSchema = z.object({ q: text(5, 120), a: text(10, 400) }).strict();
-
-const linkSchema = z
-  .object({
-    label: text(1, 40),
-    href: z.url().startsWith("https://"),
   })
   .strict();
 
