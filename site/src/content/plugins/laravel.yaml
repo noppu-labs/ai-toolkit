@@ -1,15 +1,15 @@
 # The page for this plugin on toolkit.noppu.com: https://toolkit.noppu.com/plugins/laravel
 # The fields are documented in docs/plugin-pages.md.
 schemaVersion: 1
-title: Laravel backend skills in the laravel plugin
+title: Laravel backend skills (laravel plugin)
 seo:
   title: Laravel skills and backend agent for Claude Code
   description: >-
     Laravel skills for controllers, models, DTOs, policies, validation, testing and security, with
     a backend agent and rules you copy into your project.
 tagline: >-
-  Sixteen skills that share one set of Laravel 13 conventions, an agent that applies them in a
-  fixed order, and rules you copy into the project.
+  Sixteen skills for Laravel backends, an agent that works through each backend task in a fixed
+  order, and rules you copy into the project.
 highlights:
   heading: What the laravel plugin gives a Laravel project.
   items:
@@ -23,8 +23,8 @@ highlights:
       title: Shared choices across the skills
       body: >-
         Controllers hold HTTP concerns only and call actions. Models use custom query builders
-        instead of local scopes. A DTO wraps data that would otherwise travel between
-        layers as several primitives.
+        for composable, type-hinted queries. A DTO wraps data that would otherwise be passed as
+        several primitive values.
     - label: detection
       title: Testing and PHP advice that checks the project first
       body: >-
@@ -48,7 +48,7 @@ highlights:
       body: >-
         One rule covers Duster formatting and linting of PHP files, one container resolution in
         `app/Providers`, one test layout under `tests/`, and one DTO validation attributes in
-        `app/**/Dtos`.
+        paths such as `app/**/Dtos`.
 howItWorks:
   heading: What a backend task looks like.
   steps:
@@ -84,8 +84,8 @@ requirements:
       Skills that cover a package are written for it: Spatie Laravel Data, `spatie/laravel-activitylog`
       v5, Saloon, Pest 4 or PHPUnit 12.
     - >-
-      Laravel Boost, for the `search-docs` tool that `laravel-backend-specialist` is told to use
-      before implementing features.
+      `laravel-backend-specialist` expects the Laravel Boost `search-docs` tool and is told to use
+      it before implementing features.
     - >-
       The `code-quality-php` rule runs Duster through `docker compose exec cli`. Change that
       command if your project runs it another way.
