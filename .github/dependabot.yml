@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -24,10 +28,22 @@ updates:
           - astro
           - "@astrojs/*"
           - satteri
+      # Groups are matched in order, so vitest and astro keep their own PRs.
+      # Majors stay out of this group and arrive one per PR.
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
   - package-ecosystem: npm
     directory: /.github/tools
     schedule:
       interval: weekly
+    groups:
+      tools:
+        patterns:
+          - "*"
   - package-ecosystem: uv
     directory: /
     schedule:
