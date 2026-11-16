@@ -4,9 +4,9 @@
     "opencode-permission-reviewer": {
       "repo": "noppu-labs/opencode-permission-reviewer",
       "package": "@noppu-labs/opencode-permission-reviewer",
-      "version": "3.4.2",
-      "tag": "v3.4.2",
-      "commit": "cf778ecc85394c3b6be113b6f6add71e8b3be17c",
+      "version": "3.4.3",
+      "tag": "v3.4.3",
+      "commit": "615e0a5ad7abaad1f8a5d5953525dd50023f35c3",
       "license": "MIT AND Apache-2.0",
       "files": {
         "docs/toolkit-page.yaml": "53e372bcf5658c9a009fbbc55775fcb93abf7c61780e78f05546335b2f725f7c",
@@ -17,9 +17,9 @@
     "opencode-cache-manager": {
       "repo": "noppu-labs/opencode-cache-manager",
       "package": "@noppu-labs/opencode-cache-manager",
-      "version": "0.8.1",
-      "tag": "v0.8.1",
-      "commit": "b1ca88f9a5fe16748185cba9af46fbf43d0fee73",
+      "version": "0.8.2",
+      "tag": "v0.8.2",
+      "commit": "2a569012ca7460d22888c10728efccf56786132f",
       "license": "MIT",
       "files": {
         "docs/toolkit-page.yaml": "5fbb3359c37a0a5c274674664f49d1ce4258ac8fc6f75194eaf678bedefe1e28",
