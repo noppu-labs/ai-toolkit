@@ -61,7 +61,7 @@ describe("readPluginCopy", () => {
 });
 
 describe("the authored copy", () => {
-  it.each(["review", "investigate", "laravel"])(
+  it.each(["review", "investigate", "laravel", "inertia-react"])(
     "%s: the copy is valid and its own",
     (name) => {
       const copy = COPY.find((entry) => entry.name === name)?.copy;
