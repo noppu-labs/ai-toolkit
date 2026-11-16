@@ -62,6 +62,12 @@ function git(cwd: string, date: string, ...args: string[]): void {
       "commit.gpgsign=false",
       "-c",
       "core.hooksPath=/dev/null",
+      // `git commit` otherwise starts a detached maintenance run that can write
+      // into .git/objects while a test is deleting it.
+      "-c",
+      "maintenance.auto=false",
+      "-c",
+      "gc.auto=0",
       ...args,
     ],
     { cwd, stdio: "ignore", env: makeGitEnv(date) },
