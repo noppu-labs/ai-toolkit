@@ -32,9 +32,11 @@ function requireString(value: unknown, label: string): string {
   return value;
 }
 
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 /** The Agent Skills naming rule; the site writes each skill's page at that path. */
 function requireSkillName(name: string, relPath: string): string {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
+  if (!SLUG.test(name)) {
     throw new Error(
       `${relPath}: skill name "${name}" must be lowercase letters, digits and single hyphens; it becomes the URL /skills/<name>`,
     );
@@ -93,8 +95,26 @@ function readOpencodePackage(pluginDir: string): string | undefined {
   return requireString(pkg.name, `${pluginDir}/package.json "name"`);
 }
 
+/** The site writes a plugin's page at /plugins/<name> and links and dates its folder by that name. */
+function requirePluginFolder(plugin: MarketplacePlugin): string {
+  if (!SLUG.test(plugin.name)) {
+    throw new Error(
+      `marketplace.json: plugin name "${plugin.name}" must be lowercase letters, digits and single hyphens; it becomes the URL /plugins/<name>`,
+    );
+  }
+
+  const folder = plugin.source.replace(/^\.\//, "");
+  if (folder !== plugin.name) {
+    throw new Error(
+      `marketplace.json: plugin "${plugin.name}" has source "${plugin.source}"; it must be "./${plugin.name}", since the site links and dates the plugin's folder by its name`,
+    );
+  }
+
+  return folder;
+}
+
 function readPlugin(rootDir: string, plugin: MarketplacePlugin): PluginEntry {
-  const dirName = plugin.source.replace(/^\.\//, "");
+  const dirName = requirePluginFolder(plugin);
   const pluginDir = join(rootDir, dirName);
   const manifest = readJson(
     join(pluginDir, ".claude-plugin", "plugin.json"),

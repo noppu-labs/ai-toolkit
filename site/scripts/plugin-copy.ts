@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import { z } from "astro/zod";
 import { parse } from "yaml";
 import { YAML_OPTIONS } from "../src/lib/opencode-schema.ts";
 import {
@@ -9,7 +10,7 @@ import {
 
 export const PLUGIN_COPY_DIR = "src/content/plugins";
 
-/** Every plugin's page copy, sorted by plugin name. */
+/** Sorted by plugin name. */
 export function readPluginCopy(
   siteDir: string,
 ): { name: string; copy: PluginPageCopy }[] {
@@ -33,7 +34,7 @@ export function readPluginCopy(
 
       const result = pluginPageSchema.safeParse(data);
       if (!result.success) {
-        throw new Error(`${file}: ${result.error.message}`);
+        throw new Error(`${file}:\n${z.prettifyError(result.error)}`);
       }
 
       return { name: basename(file, ".yaml"), copy: result.data };

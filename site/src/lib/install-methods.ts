@@ -42,10 +42,10 @@ export function opencodeInstallCommand(pkg: string): string {
   return `opencode plugin add ${pkg}`;
 }
 
-/** One tab of a plugin page's install box. */
 export interface InstallHost {
   label: string;
   commands: string[];
+  note?: string | undefined;
 }
 
 /** Claude Code and the skills CLI for every plugin, OpenCode when the plugin has a package. */

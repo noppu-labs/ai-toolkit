@@ -40,6 +40,24 @@ describe("pluginPageSchema", () => {
     ).toBe(false);
   });
 
+  it("accepts an seo title of 47 characters", () => {
+    expect(
+      parse({
+        ...FIXTURE_PLUGIN_COPY,
+        seo: { ...FIXTURE_PLUGIN_COPY.seo, title: "x".repeat(47) },
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects an seo title of 48 characters", () => {
+    expect(
+      parse({
+        ...FIXTURE_PLUGIN_COPY,
+        seo: { ...FIXTURE_PLUGIN_COPY.seo, title: "x".repeat(48) },
+      }),
+    ).toBe(false);
+  });
+
   it("rejects fewer than three highlights", () => {
     expect(
       parse({
@@ -62,6 +80,13 @@ describe("copyTexts", () => {
     expect(texts).toContain(FIXTURE_PLUGIN_COPY.howItWorks.steps[0]);
     expect(texts).toContain(FIXTURE_PLUGIN_COPY.faq[0]?.q);
     expect(texts).toContain(FIXTURE_PLUGIN_COPY.faq[0]?.a);
+  });
+
+  it("contains the highlight and link labels the page renders", () => {
+    const [link] = FIXTURE_PLUGIN_COPY.links ?? [];
+
+    expect(texts).toContain(FIXTURE_PLUGIN_COPY.highlights.items[0]?.label);
+    expect(texts).toContain(link?.label);
   });
 
   it("does not contain a link's href", () => {

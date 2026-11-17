@@ -12,7 +12,8 @@ export const pluginPageSchema = z
   .object({
     schemaVersion: z.literal(1),
     title: text(3, 60),
-    seo: z.object({ title: text(10, 60), description: text(70, 160) }).strict(),
+    // The site appends " · AI Toolkit" (13 characters), and search results cut a title at roughly 60.
+    seo: z.object({ title: text(10, 47), description: text(70, 160) }).strict(),
     tagline: text(20, 220),
     highlights: z
       .object({ heading: text(3, 80), items: list(highlightSchema, 3, 6) })
@@ -36,10 +37,15 @@ export function copyTexts(copy: PluginPageCopy): string[] {
     copy.seo.description,
     copy.tagline,
     copy.highlights.heading,
-    ...copy.highlights.items.flatMap((item) => [item.title, item.body]),
+    ...copy.highlights.items.flatMap((item) => [
+      item.title,
+      item.label,
+      item.body,
+    ]),
     copy.howItWorks.heading,
     ...copy.howItWorks.steps,
     ...copy.requirements.items,
     ...copy.faq.flatMap((item) => [item.q, item.a]),
+    ...(copy.links ?? []).map((link) => link.label),
   ];
 }

@@ -67,6 +67,38 @@ describe("buildCatalog", () => {
     ]);
   });
 
+  function writePlugins(name: string, source: string): void {
+    writeFileSync(
+      join(root, ".claude-plugin", "marketplace.json"),
+      JSON.stringify({
+        name: "ai-toolkit",
+        description: "Test marketplace",
+        plugins: [{ name, source, description: "Demo plugin" }],
+      }),
+    );
+  }
+
+  it("throws when a plugin name could not be a URL path segment", () => {
+    root = makeRepo();
+    writePlugins("Demo", "./demo");
+
+    expect(() => buildCatalog(root)).toThrow(/plugin name "Demo"/);
+  });
+
+  it("throws when a plugin's source is not its name", () => {
+    root = makeRepo();
+    writePlugins("demo", "./packages/demo");
+
+    expect(() => buildCatalog(root)).toThrow(/source "\.\/packages\/demo"/);
+  });
+
+  it("accepts a source written without the leading ./", () => {
+    root = makeRepo();
+    writePlugins("demo", "demo");
+
+    expect(buildCatalog(root).plugins[0]?.name).toBe("demo");
+  });
+
   it("throws when a SKILL.md is missing required frontmatter fields", () => {
     root = makeRepo();
     writeFileSync(

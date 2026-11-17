@@ -2,14 +2,9 @@ import { Tabs } from "@base-ui/react/tabs";
 import { type ReactElement, useCallback } from "react";
 import { CommandLine } from "@/components/CommandText";
 import { CopyButton } from "@/components/CopyButton";
+import type { InstallHost } from "@/lib/install-methods";
 import { cn } from "@/lib/utils";
 import { InlineText } from "./InlineText.tsx";
-
-interface InstallHost {
-  label: string;
-  commands: string[];
-  note?: string | undefined;
-}
 
 interface InstallBoxProps {
   /** The plugin's name, for the Copy buttons' labels. */

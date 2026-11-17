@@ -16,7 +16,6 @@ export function pluginPath(plugin: string): string {
   return `/plugins/${encodeURIComponent(plugin)}`;
 }
 
-/** The skills section of a plugin's page. */
 export function pluginSkillsPath(plugin: string): string {
   return `${pluginPath(plugin)}#skills`;
 }

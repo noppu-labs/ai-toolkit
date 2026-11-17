@@ -2,15 +2,14 @@ import type { PluginEntry } from "../catalog-types.ts";
 import { pluginColorClass, sortPlugins } from "./plugins.ts";
 import { pluginPath } from "./site.ts";
 
-/** A plugin's catalog entry beside its authored page copy. */
 export interface PluginPage<P> {
   plugin: PluginEntry;
   copy: P;
 }
 
 /**
- * Pairs each plugin with its copy, in the site's plugin order. Throws when either side has a
- * name the other lacks, so a plugin never ships without a page or a manifest without a plugin.
+ * In the site's plugin order. Throws when either side has a name the other lacks, so no plugin
+ * ships without a page and no manifest without a plugin.
  */
 export function joinPluginPages<P>(
   plugins: readonly PluginEntry[],
@@ -35,7 +34,6 @@ export function joinPluginPages<P>(
   });
 }
 
-/** One line of a page's "more plugins" list. */
 export interface PluginLinkRow {
   name: string;
   summary: string;
@@ -43,7 +41,6 @@ export interface PluginLinkRow {
   accentClass: string;
 }
 
-/** Every plugin but `current`, in the site's plugin order. */
 export function morePluginRows(
   plugins: readonly PluginEntry[],
   current: string,

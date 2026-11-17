@@ -1,6 +1,8 @@
+import type { PluginEntry } from "../catalog-types.ts";
 import type { CatalogSkill } from "./catalog.ts";
 import type { SocialImage } from "./head.ts";
 import { OPENCODE_PATH, opencodePluginPath } from "./opencode.ts";
+import type { PluginPageCopy } from "./plugin-page-schema.ts";
 import { PRIVACY_PATH, pluginPath, skillPath } from "./site.ts";
 import { breadcrumbJsonLd } from "./structured-data.ts";
 
@@ -70,11 +72,12 @@ export function opencodePluginHead(
   };
 }
 
-/** A plugin page's head: the manifest's SEO copy, the plugin's path and its breadcrumb as JSON-LD. */
-export function pluginHead(page: {
-  plugin: { name: string };
-  copy: { seo: { title: string; description: string } };
-}): PageHead {
+type PluginHeadSource = {
+  plugin: Pick<PluginEntry, "name">;
+  copy: Pick<PluginPageCopy, "seo">;
+};
+
+export function pluginHead(page: PluginHeadSource): PageHead {
   const path = pluginPath(page.plugin.name);
 
   return {
