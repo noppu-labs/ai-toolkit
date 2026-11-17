@@ -207,7 +207,7 @@ describe("pagesLastModified", () => {
 
   it("names an error thrown while building a page's URL", () => {
     const { dates, warning } = pagesLastModified(makeRepo(), [
-      ...skillDatedPages([SKILLS[0] ?? { name: "a", path: "" }]),
+      { path: "/skills/a", sources: ["p/skills/a"] },
       // A host that is never closed makes `new URL` throw a TypeError.
       { path: "//[", sources: ["p/skills/b"] },
     ]);
