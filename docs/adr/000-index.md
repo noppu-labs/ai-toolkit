@@ -25,6 +25,7 @@ describe the repo as it is, so if the code and an ADR disagree, fix one of them.
 | [013](013-opencode-plugin-pages-from-plugin-manifests.md) | OpenCode plugin pages from plugin manifests         | Accepted              |
 | [014](014-site-analytics-behind-consent.md)               | Site analytics behind consent                       | Accepted              |
 | [015](015-opt-out-analytics-outside-europe.md)            | Opt-out analytics outside Europe                    | Accepted              |
+| [016](016-plugin-pages-with-authored-copy.md)             | Plugin pages with authored copy                     | Accepted              |
 
 ## How the pieces fit together
 
