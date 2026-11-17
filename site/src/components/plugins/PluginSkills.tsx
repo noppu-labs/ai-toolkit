@@ -3,7 +3,6 @@ import { PluginSection } from "@/components/opencode/PluginSections";
 import { SkillRows } from "@/components/SkillRows";
 import type { CatalogSkill } from "@/lib/catalog";
 
-/** A plugin page's list of its skills, each row linking to the skill's page. */
 export function PluginSkills({
   plugin,
   skills,
@@ -13,7 +12,7 @@ export function PluginSkills({
   plugin: string;
   skills: readonly CatalogSkill[];
   eyebrow: string;
-  /** The section's id, which links to the skills point at. */
+  /** The section's id, the target of links to the skills. */
   id: string;
 }): ReactElement {
   return (
@@ -23,7 +22,7 @@ export function PluginSkills({
       heading={`The ${plugin} skills.`}
       id={id}
     >
-      <SkillRows skills={skills} />
+      <SkillRows className="mt-6 md:mt-8" skills={skills} />
     </PluginSection>
   );
 }

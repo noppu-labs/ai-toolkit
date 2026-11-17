@@ -61,4 +61,19 @@ describe("PluginSkills", () => {
         .map((link) => link.getAttribute("href")),
     ).toEqual(skills.map((skill) => skillPath(skill.name)));
   });
+
+  it("spaces the list from the heading like the section's other bodies", async () => {
+    const { container } = await render(
+      <PluginSkills
+        eyebrow="05 — Skills"
+        id={SECTION_ID}
+        plugin="laravel"
+        skills={skills}
+      />,
+    );
+    const list = container.querySelector("ul");
+
+    expect(list?.classList.contains("mt-6")).toBe(true);
+    expect(list?.classList.contains("md:mt-8")).toBe(true);
+  });
 });

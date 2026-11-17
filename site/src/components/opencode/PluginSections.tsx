@@ -15,7 +15,6 @@ export function PluginSection({
   eyebrow: string;
   heading: ReactNode;
   children: ReactNode;
-  /** For a link to the section. */
   id?: string | undefined;
   className?: string | undefined;
 }): ReactElement {

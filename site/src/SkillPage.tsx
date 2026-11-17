@@ -1,12 +1,10 @@
 import { type ReactElement, type ReactNode, useId } from "react";
+import { CRUMB_LINK } from "./components/opencode/hero-classes.ts";
 import { SkillRows } from "./components/SkillRows.tsx";
 import type { CatalogSkill } from "./lib/catalog.ts";
 import { pluginColorClass } from "./lib/plugins.ts";
 import { pluginSkillsHref } from "./lib/url-state.ts";
 import { cn } from "./lib/utils.ts";
-
-const CRUMB_LINK =
-  "rounded-sm text-foreground underline underline-offset-3 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 interface SkillPageProps {
   skill: CatalogSkill;
@@ -59,7 +57,7 @@ function MoreSkills({
       >
         More {plugin} skills
       </h2>
-      <SkillRows skills={skills} />
+      <SkillRows className="mt-4 md:mt-5" skills={skills} />
     </section>
   );
 }

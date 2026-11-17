@@ -2,15 +2,22 @@ import { ChevronRight } from "lucide-react";
 import type { ReactElement } from "react";
 import type { CatalogSkill } from "@/lib/catalog";
 import { skillPath } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
-/** A plugin's skills as rows, each linking to the skill's page. */
 export function SkillRows({
   skills,
+  className,
 }: {
   skills: readonly CatalogSkill[];
+  className?: string | undefined;
 }): ReactElement {
   return (
-    <ul className="mt-4 overflow-hidden rounded-[10px] border-2 border-edge bg-background shadow-shadow-md md:mt-5 md:shadow-shadow">
+    <ul
+      className={cn(
+        "overflow-hidden rounded-[10px] border-2 border-edge bg-background shadow-shadow-md md:shadow-shadow",
+        className,
+      )}
+    >
       {skills.map((skill) => (
         <li className="border-edge not-last:border-b-2" key={skill.name}>
           <a
