@@ -89,10 +89,11 @@ requirements:
 faq:
   - q: Which versions do the Inertia and React skills assume?
     a: >-
-      `laravel-inertia-react` is written for Laravel 13.x on PHP 8.3 or later, and
-      `tailwind-best-practices` for Tailwind v3.4 and later, v4 included. The agent is pinned to
-      Inertia v3 and React 19.2, so it writes lazy props with `Inertia::optional()` and leaves out
-      `Inertia::lazy()`, which v3 removed.
+      `laravel-inertia-react` names Laravel 13.x on PHP 8.3 or later, and `tailwind-best-practices`
+      covers Tailwind v3.4 and later, v4 included. The agent is pinned to Inertia v3 and React
+      19.2, so it writes lazy props with `Inertia::optional()`. Some `laravel-inertia-react`
+      examples are older: they still use `Inertia::lazy()`, which v3 removed, and Ziggy routes,
+      where the agent uses Wayfinder.
   - q: Does it need the laravel plugin?
     a: >-
       No. Each plugin installs on its own. The two do expect the same kind of app: the agent

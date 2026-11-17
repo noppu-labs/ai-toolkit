@@ -3,7 +3,7 @@
 schemaVersion: 1
 title: "investigate: codebase investigation skills"
 seo:
-  title: Codebase investigation skills for Claude Code and OpenCode
+  title: Code investigation for Claude Code and OpenCode
   description: >-
     Skills that compute who calls a path and what it affects, run a two-pass investigation of a
     module, and check a spec or ticket claim by claim against the code.

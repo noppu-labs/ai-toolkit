@@ -62,9 +62,12 @@ const COUNT_OF_PARTS = new RegExp(
 
 function sentences(texts: string[]): string[] {
   return texts.flatMap((text) =>
-    text
-      .split(/(?<=[.!?])\s+/)
-      .map((sentence) => sentence.trim().toLowerCase()),
+    text.split(/(?<=[.!?])\s+/).map((sentence) =>
+      sentence
+        .trim()
+        .toLowerCase()
+        .replace(/[.!?]+$/, ""),
+    ),
   );
 }
 
@@ -121,7 +124,7 @@ describe("readPluginCopy", () => {
 });
 
 describe("the authored copy", () => {
-  it.each(["review", "investigate", "laravel", "inertia-react"])(
+  it.each(COPY.map((entry) => entry.name))(
     "%s: the copy is valid and its own",
     (name) => {
       const copy = COPY.find((entry) => entry.name === name)?.copy;
@@ -142,7 +145,6 @@ describe("the authored copy", () => {
       expect(
         sentences(texts).filter((s) => s.length >= 40 && taken.includes(s)),
       ).toEqual([]);
-      // No em or en dash.
       expect(texts.filter((text) => /[–—]/.test(text))).toEqual([]);
       expect(copy.seo.title).not.toMatch(/AI Toolkit/i);
 
@@ -161,6 +163,16 @@ describe("the authored copy", () => {
       expect(texts.filter((text) => COUNT_OF_PARTS.test(text))).toEqual([]);
     },
   );
+});
+
+describe("sentences", () => {
+  it("drops the punctuation that ends a sentence, so a lift from text with no full stop still matches", () => {
+    expect(sentences(["One two. Three four"])).toEqual([
+      "one two",
+      "three four",
+    ]);
+    expect(sentences(["Is it so? Yes!"])).toEqual(["is it so", "yes"]);
+  });
 });
 
 describe("COUNT_OF_PARTS", () => {

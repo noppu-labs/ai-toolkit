@@ -3,7 +3,7 @@
 schemaVersion: 1
 title: "laravel: Laravel backend skills"
 seo:
-  title: Laravel skills and backend agent for Claude Code
+  title: Laravel skills, rules and agent for Claude Code
   description: >-
     Laravel skills for controllers, models, DTOs, policies, validation, testing and security, with
     a backend agent and rules you copy into your project.
@@ -46,9 +46,9 @@ highlights:
     - label: rules
       title: Rules that load only for matching files
       body: >-
-        The rules cover Duster formatting and linting for PHP files, container resolution in
-        `app/Providers`, the test layout under `tests/`, and validation attributes on DTOs in
-        paths such as `app/**/Dtos`.
+        `code-quality-php` covers Duster, PHP style, thin controllers and a folder per domain in
+        `app/Services`. The others cover container resolution in `app/Providers`, test layout
+        under `tests/`, and validation attributes on DTOs in paths such as `app/**/Dtos`.
 howItWorks:
   heading: What a backend task looks like.
   steps:
