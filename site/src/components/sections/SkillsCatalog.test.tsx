@@ -6,7 +6,6 @@ import {
   QUERY_PARAM,
   readSearchParam,
   SKILL_PARAM,
-  showPluginSkills,
   writeSearchParams,
 } from "@/lib/url-state";
 import { usePreferencesStore } from "@/stores/usePreferencesStore";
@@ -949,7 +948,10 @@ describe("SkillsCatalog URL state", () => {
     render(<SkillsCatalog plugins={PLUGINS} />);
     await search.fill("spatie");
 
-    showPluginSkills("laravel");
+    writeSearchParams(
+      { [PLUGIN_PARAM]: "laravel", [QUERY_PARAM]: null, [SKILL_PARAM]: null },
+      { push: true, hash: "skills" },
+    );
     await expect.element(search).toHaveValue("");
     await expect
       .element(chip("laravel"))

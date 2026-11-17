@@ -251,35 +251,28 @@ describe("the home page", () => {
     expect(errors).toEqual([]);
   });
 
-  it("opens the catalog on a plugin from a card's skills link", async () => {
+  it("opens the plugin's page from a card's skills link", async () => {
     const { page, errors } = await open("/", { reducedMotion: true });
 
     await skillsLink(page, "laravel").click();
+    await page.waitForURL((url) => url.pathname === "/plugins/laravel");
 
+    expect(new URL(page.url()).search).toBe("");
+    expect(errors).toEqual([]);
+  });
+
+  it("still filters the catalog for an old /?plugin= link", async () => {
+    const { page, errors } = await open("/?plugin=laravel#skills", {
+      reducedMotion: true,
+    });
     const catalog = page.getByRole("region", { name: "The whole catalog." });
-    await expect.poll(() => isFocused(catalog)).toBe(true);
+
     expect(
       await catalog
         .getByRole("group", { name: "Filter by plugin" })
         .getByRole("button", { name: /^laravel \d+ skills$/ })
         .getAttribute("aria-pressed"),
     ).toBe("true");
-    expect(new URL(page.url()).searchParams.get("plugin")).toBe("laravel");
-    expect(errors).toEqual([]);
-  });
-
-  it("clears a typed catalog filter when a card's skills link is followed", async () => {
-    const { page, errors } = await open("/", { reducedMotion: true });
-    const search = page.getByRole("searchbox", { name: "Filter skills" });
-    const empty = page.getByText("No skills match your filter.");
-
-    await search.fill("zzz-no-such-skill");
-    await empty.waitFor();
-    // A DOM click: Playwright's would scroll the link under the sticky header.
-    await skillsLink(page, "laravel").dispatchEvent("click");
-
-    await expect.poll(() => search.inputValue()).toBe("");
-    await expect.poll(() => empty.count()).toBe(0);
     expect(errors).toEqual([]);
   });
 

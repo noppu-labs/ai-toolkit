@@ -10,7 +10,7 @@ const REVIEW: ToolkitOpenCodeCard = {
   skillCount: 6,
   packageName: "@noppu-labs/opencode-review",
   command: "opencode plugin add @noppu-labs/opencode-review",
-  skillsHref: "/?plugin=review#skills",
+  pluginHref: "/plugins/review",
   accentClass: "bg-plugin-review",
 };
 const INVESTIGATE: ToolkitOpenCodeCard = {
@@ -20,7 +20,7 @@ const INVESTIGATE: ToolkitOpenCodeCard = {
   skillCount: 1,
   packageName: "@noppu-labs/opencode-investigate",
   command: "opencode plugin add @noppu-labs/opencode-investigate",
-  skillsHref: "/?plugin=investigate#skills",
+  pluginHref: "/plugins/investigate",
   accentClass: "bg-plugin-investigate",
 };
 
@@ -72,9 +72,9 @@ describe("ToolkitOpenCodeCards", () => {
 
     await expect
       .element(page.getByRole("link", { name: "See 6 review skills" }))
-      .toHaveAttribute("href", "/?plugin=review#skills");
+      .toHaveAttribute("href", "/plugins/review");
     await expect
       .element(page.getByRole("link", { name: "See 1 investigate skill" }))
-      .toHaveAttribute("href", "/?plugin=investigate#skills");
+      .toHaveAttribute("href", "/plugins/investigate");
   });
 });

@@ -114,7 +114,7 @@ export function pageHead(page: SitePage): PageHead {
       { name: "Home", path: "/" },
       {
         name: skill.plugin,
-        path: `/?${new URLSearchParams({ plugin: skill.plugin })}`,
+        path: pluginPath(skill.plugin),
       },
       { name: skill.name, path },
     ]),

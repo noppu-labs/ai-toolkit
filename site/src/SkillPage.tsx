@@ -2,7 +2,7 @@ import { type ReactElement, type ReactNode, useId } from "react";
 import { SkillRows } from "./components/SkillRows.tsx";
 import type { CatalogSkill } from "./lib/catalog.ts";
 import { pluginColorClass } from "./lib/plugins.ts";
-import { pluginSkillsHref } from "./lib/url-state.ts";
+import { pluginPath } from "./lib/site.ts";
 import { cn } from "./lib/utils.ts";
 
 const CRUMB_LINK =
@@ -29,7 +29,7 @@ function Breadcrumb({ skill }: { skill: CatalogSkill }): ReactElement {
         </li>
         <li aria-hidden="true">/</li>
         <li>
-          <a className={CRUMB_LINK} href={`/${pluginSkillsHref(skill.plugin)}`}>
+          <a className={CRUMB_LINK} href={pluginPath(skill.plugin)}>
             {skill.plugin}
           </a>
         </li>

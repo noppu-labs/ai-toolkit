@@ -291,8 +291,8 @@ describe("the OpenCode hub", () => {
     for (const { name } of PLUGINS) {
       expect(hrefs).toContain(opencodePluginPath(name));
     }
-    expect(hrefs).toContain("/?plugin=review#skills");
-    expect(hrefs).toContain("/?plugin=investigate#skills");
+    expect(hrefs).toContain("/plugins/review");
+    expect(hrefs).toContain("/plugins/investigate");
     expect(hrefs).toContain("/#install");
   });
 

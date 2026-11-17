@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  pluginSkillsHref,
   readSearchParam,
-  showPluginSkills,
   subscribeToUrl,
   writeSearchParams,
 } from "./url-state.ts";
@@ -91,12 +89,6 @@ describe("writeSearchParams", () => {
   });
 });
 
-describe("pluginSkillsHref", () => {
-  it("links to the catalog filtered to the plugin", () => {
-    expect(pluginSkillsHref("laravel")).toBe("?plugin=laravel#skills");
-  });
-});
-
 describe("subscribeToUrl", () => {
   it("reports a change when the visitor goes back", async () => {
     writeSearchParams({ plugin: "laravel" }, { push: true });
@@ -119,21 +111,5 @@ describe("subscribeToUrl", () => {
     writeSearchParams({ plugin: "laravel" });
 
     expect(onChange).toHaveBeenCalledOnce();
-  });
-});
-
-describe("showPluginSkills", () => {
-  it("filters to the plugin at #skills, clearing the query and the skill, in a new entry", async () => {
-    writeSearchParams({ q: "brief", skill: "deep" });
-
-    showPluginSkills("laravel");
-
-    expect(readSearchParam("plugin")).toBe("laravel");
-    expect(readSearchParam("q")).toBeNull();
-    expect(readSearchParam("skill")).toBeNull();
-    expect(window.location.hash).toBe("#skills");
-
-    window.history.back();
-    await expect.poll(() => readSearchParam("q")).toBe("brief");
   });
 });

@@ -45,7 +45,7 @@ describe("SkillPage", () => {
       .toHaveAttribute("href", "/#skills");
     await expect
       .element(crumbs.getByRole("link", { name: "laravel" }))
-      .toHaveAttribute("href", "/?plugin=laravel#skills");
+      .toHaveAttribute("href", "/plugins/laravel");
     await expect
       .element(crumbs.getByText("laravel-dtos"))
       .toHaveAttribute("aria-current", "page");

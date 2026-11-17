@@ -185,43 +185,35 @@ describe("PluginCards", () => {
     ]);
   });
 
-  it("links each card to its plugin's skills in the catalog", async () => {
+  it("links each card to its plugin's page", async () => {
     render(<PluginCards plugins={PLUGINS} />);
 
     await expect
       .element(page.getByRole("link", { name: "See 2 laravel skills" }))
-      .toHaveAttribute("href", "?plugin=laravel#skills");
+      .toHaveAttribute("href", "/plugins/laravel");
     await expect
       .element(page.getByRole("link", { name: "See 1 inertia-react skill" }))
-      .toHaveAttribute("href", "?plugin=inertia-react#skills");
+      .toHaveAttribute("href", "/plugins/inertia-react");
   });
 
-  it("filters the catalog to the plugin, clearing the query and skill, and scrolls to it without reloading", async () => {
-    const scrollIntoView = vi
-      .spyOn(Element.prototype, "scrollIntoView")
-      .mockImplementation(() => undefined);
-    render(
-      <>
-        <PluginCards plugins={PLUGINS} />
-        {/* biome-ignore lint/correctness/useUniqueElementIds: stands in for the catalog section. */}
-        <section id="skills" tabIndex={-1} />
-      </>,
-    );
-    writeSearchParams({ q: "brief", skill: "shadcn" });
-    const historyLength = window.history.length;
+  it("leaves a click on the skills link to the browser", async () => {
+    let prevented: boolean | undefined;
+    const stop = (event: Event): void => {
+      // React's handlers have run by the time the event reaches the document.
+      prevented = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", stop);
 
-    await page.getByRole("link", { name: "See 2 laravel skills" }).click();
+    try {
+      render(<PluginCards plugins={PLUGINS} />);
+      await page.getByRole("link", { name: "See 2 laravel skills" }).click();
+    } finally {
+      document.removeEventListener("click", stop);
+    }
 
-    expect(readSearchParam("plugin")).toBe("laravel");
-    expect(readSearchParam("q")).toBeNull();
-    expect(readSearchParam("skill")).toBeNull();
-    expect(window.location.hash).toBe("#skills");
-    // A new history entry, so Back returns to the cards.
-    expect(window.history.length).toBe(historyLength + 1);
-    expect(scrollIntoView).toHaveBeenCalledOnce();
-    expect(scrollIntoView.mock.contexts[0]).toBe(
-      document.getElementById("skills"),
-    );
-    expect(document.activeElement).toBe(document.getElementById("skills"));
+    expect(prevented).toBe(false);
+    // The test iframe carries its own query; the click must not add a filter.
+    expect(readSearchParam("plugin")).toBeNull();
   });
 });

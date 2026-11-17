@@ -28,7 +28,7 @@ function ToolkitCard({ card }: { card: ToolkitOpenCodeCard }): ReactElement {
           command={card.command}
           copyLabel={`Copy the install command for the ${card.name} OpenCode package`}
         />
-        <CardLink href={card.skillsHref}>
+        <CardLink href={card.pluginHref}>
           See {pluralize(card.skillCount, `${card.name} skill`)}
         </CardLink>
       </div>
