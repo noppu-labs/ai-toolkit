@@ -5,21 +5,29 @@ import { InlineText } from "./InlineText.tsx";
 // Code in manifest text reads as a term, as in the mockups.
 const BODY_CODE = "[&_code]:font-bold";
 
-function PluginSection({
+export function PluginSection({
   eyebrow,
   heading,
   children,
+  id,
+  className,
 }: {
   eyebrow: string;
   heading: ReactNode;
   children: ReactNode;
+  id?: string | undefined;
+  className?: string | undefined;
 }): ReactElement {
   const headingId = useId();
 
   return (
     <section
       aria-labelledby={headingId}
-      className="mx-auto max-w-300 px-4 pt-6 pb-10 sm:px-6 md:pt-8 md:pb-16"
+      className={cn(
+        "mx-auto max-w-300 px-4 pt-6 pb-10 sm:px-6 md:pt-8 md:pb-16",
+        className,
+      )}
+      id={id}
     >
       <p className="font-mono text-xs font-bold tracking-[0.08em] uppercase md:text-sm">
         {eyebrow}
@@ -45,17 +53,16 @@ export function Highlights({
   heading,
   items,
   accentClass,
+  eyebrow = "01 — What it does",
 }: {
   heading: string;
   items: readonly Highlight[];
   /** The plugin's accent, a `bg-*` class, for each card's label. */
   accentClass: string;
+  eyebrow?: string | undefined;
 }): ReactElement {
   return (
-    <PluginSection
-      eyebrow="01 — What it does"
-      heading={<InlineText text={heading} />}
-    >
+    <PluginSection eyebrow={eyebrow} heading={<InlineText text={heading} />}>
       <ul className="mt-6 grid gap-4 md:mt-8 md:grid-cols-2 md:gap-5.5 lg:grid-cols-3">
         {items.map((item) => (
           <li
@@ -98,16 +105,15 @@ export function HowItWorks({
   heading,
   steps,
   figure,
+  eyebrow = "02 — How it works",
 }: {
   heading: string;
   steps: readonly string[];
   figure?: Figure | undefined;
+  eyebrow?: string | undefined;
 }): ReactElement {
   return (
-    <PluginSection
-      eyebrow="02 — How it works"
-      heading={<InlineText text={heading} />}
-    >
+    <PluginSection eyebrow={eyebrow} heading={<InlineText text={heading} />}>
       <div
         className={cn(
           "mt-6 grid items-start gap-7 md:mt-8 md:gap-9",
@@ -197,13 +203,15 @@ export function Requirements({
   items,
   config,
   links,
+  eyebrow = "03 — Requirements",
 }: {
   items: readonly string[];
   config?: Config | undefined;
   links?: readonly DocLink[] | undefined;
+  eyebrow?: string | undefined;
 }): ReactElement {
   return (
-    <PluginSection eyebrow="03 — Requirements" heading="What you need.">
+    <PluginSection eyebrow={eyebrow} heading="What you need.">
       <div className="mt-6 grid items-start gap-6 md:mt-8 md:grid-cols-2 md:gap-7">
         <ul
           className={cn(
@@ -242,14 +250,16 @@ interface Question {
 
 export function Questions({
   faq,
+  eyebrow = "04 — Questions",
 }: {
   faq?: readonly Question[] | undefined;
+  eyebrow?: string | undefined;
 }): ReactElement | null {
   if (faq === undefined || faq.length === 0) {
     return null;
   }
   return (
-    <PluginSection eyebrow="04 — Questions" heading="Before you install.">
+    <PluginSection eyebrow={eyebrow} heading="Before you install.">
       <div className="mt-6 flex flex-col gap-3 md:mt-8">
         {faq.map((item) => (
           <div

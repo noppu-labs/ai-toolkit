@@ -80,6 +80,21 @@ describe("SkillPage", () => {
       .toHaveAttribute("href", "/skills/laravel-enums");
   });
 
+  it("spaces the other skills' list from its heading", async () => {
+    render(
+      <SkillPage siblings={[enums]} skill={dtos}>
+        <p>body</p>
+      </SkillPage>,
+    );
+
+    const link = page.getByRole("link", { name: /^laravel-enums/ });
+    await expect.element(link).toBeVisible();
+    const list = link.element().closest("ul");
+
+    expect(list?.classList.contains("mt-4")).toBe(true);
+    expect(list?.classList.contains("md:mt-5")).toBe(true);
+  });
+
   it("lists no other skills when the plugin has none", async () => {
     render(
       <SkillPage siblings={[]} skill={dtos}>
