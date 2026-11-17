@@ -7,8 +7,7 @@ import { catalogSkills } from "../../src/lib/catalog.ts";
 import { canonicalUrl } from "../../src/lib/head.ts";
 import { pageHead, skillPages } from "../../src/lib/pages.ts";
 import { REPO_URL } from "../../src/lib/repo.ts";
-import { skillPath } from "../../src/lib/site.ts";
-import { pluginSkillsHref } from "../../src/lib/url-state.ts";
+import { pluginPath, skillPath } from "../../src/lib/site.ts";
 import {
   type OpenedPage,
   type OpenPageOptions,
@@ -193,7 +192,7 @@ describe.each(PAGES)(
         .locator('nav[aria-label="Breadcrumb"] a')
         .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
 
-      expect(hrefs).toEqual(["/#skills", `/${pluginSkillsHref(skill.plugin)}`]);
+      expect(hrefs).toEqual(["/#skills", pluginPath(skill.plugin)]);
     });
 
     it("links the plugin's other skills, in catalog order", async () => {
