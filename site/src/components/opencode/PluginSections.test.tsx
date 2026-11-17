@@ -155,6 +155,49 @@ describe("Questions", () => {
 });
 
 describe("section eyebrows", () => {
+  it("Highlights reads 01 by default and takes another eyebrow", async () => {
+    const { container, rerender } = await render(
+      <Highlights
+        accentClass={ACCENT}
+        heading={highlights.heading}
+        items={highlights.items}
+      />,
+    );
+
+    expect(container.textContent).toContain("01 — What it does");
+
+    await rerender(
+      <Highlights
+        accentClass={ACCENT}
+        eyebrow="02 — What it does"
+        heading={highlights.heading}
+        items={highlights.items}
+      />,
+    );
+
+    expect(container.textContent).toContain("02 — What it does");
+    expect(container.textContent).not.toContain("01 — What it does");
+  });
+
+  it("HowItWorks reads 02 by default and takes another eyebrow", async () => {
+    const { container, rerender } = await render(
+      <HowItWorks heading={howItWorks.heading} steps={howItWorks.steps} />,
+    );
+
+    expect(container.textContent).toContain("02 — How it works");
+
+    await rerender(
+      <HowItWorks
+        eyebrow="03 — How it works"
+        heading={howItWorks.heading}
+        steps={howItWorks.steps}
+      />,
+    );
+
+    expect(container.textContent).toContain("03 — How it works");
+    expect(container.textContent).not.toContain("02 — How it works");
+  });
+
   it("Requirements reads 03 by default and takes another eyebrow", async () => {
     const { container, rerender } = await render(
       <Requirements items={requirements.items} />,

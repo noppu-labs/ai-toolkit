@@ -1,8 +1,8 @@
 import { type ReactElement, type ReactNode, useId } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
+import { CHIP, CRUMB_LINK, CTA_CLASSES } from "../opencode/hero-classes.ts";
 import { InlineText } from "../opencode/InlineText.tsx";
-import { CHIP, CRUMB_LINK, CTA_CLASSES } from "../opencode/PluginHero.tsx";
 
 interface PluginPageHeroProps {
   name: string;

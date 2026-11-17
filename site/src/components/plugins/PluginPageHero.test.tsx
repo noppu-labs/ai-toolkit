@@ -39,7 +39,8 @@ describe("PluginPageHero", () => {
     await expect
       .element(page.getByRole("link", { name: "Plugins" }))
       .toHaveAttribute("href", "/#plugins");
-    const current = document.querySelector('[aria-current="page"]');
+    const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+    const current = breadcrumb.element().querySelector('[aria-current="page"]');
     expect(current?.textContent).toBe("laravel");
   });
 

@@ -43,10 +43,11 @@ describe("PluginLinkList", () => {
     await renderList();
 
     const hrefs = page
+      .getByRole("list")
       .getByRole("link")
       .elements()
       .map((link) => link.getAttribute("href"));
-    expect(hrefs.slice(0, rows.length)).toEqual(rows.map((row) => row.href));
+    expect(hrefs).toEqual(rows.map((row) => row.href));
   });
 
   it("ends with a link to the full list", async () => {
