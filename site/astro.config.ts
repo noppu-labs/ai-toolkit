@@ -5,16 +5,22 @@ import sitemap, { type SitemapItem } from "@astrojs/sitemap";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 import { buildCatalog } from "./scripts/build-catalog.ts";
+import {
+  pagesLastModified,
+  pluginDatedPages,
+  skillDatedPages,
+} from "./scripts/page-last-modified.ts";
 import { skillBodyPlugin } from "./scripts/skill-body-plugin.ts";
-import { skillLastModified } from "./scripts/skill-last-modified.ts";
 import { REPO_URL } from "./src/lib/repo.ts";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
-const skills = buildCatalog(repoRoot).plugins.flatMap(
-  (plugin) => plugin.skills,
-);
+const { plugins } = buildCatalog(repoRoot);
+const skills = plugins.flatMap((plugin) => plugin.skills);
 const skillNames = new Map(skills.map((skill) => [skill.path, skill.name]));
-const { dates: lastModified, warning } = skillLastModified(repoRoot, skills);
+const { dates: lastModified, warning } = pagesLastModified(repoRoot, [
+  ...skillDatedPages(skills),
+  ...pluginDatedPages(plugins.map((plugin) => plugin.name)),
+]);
 
 if (warning !== undefined) {
   console.warn(warning);

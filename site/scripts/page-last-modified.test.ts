@@ -12,8 +12,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { skillPath } from "../src/lib/site.ts";
 import {
   NO_HISTORY_WARNING,
-  skillLastModified,
-} from "./skill-last-modified.ts";
+  pagesLastModified,
+  pluginDatedPages,
+  skillDatedPages,
+} from "./page-last-modified.ts";
 
 const SKILLS = [
   { name: "a", path: "p/skills/a/SKILL.md" },
@@ -25,7 +27,7 @@ const SECOND = "2026-02-01T00:00:00Z";
 const roots: string[] = [];
 
 function makeTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "skill-last-modified-"));
+  const dir = mkdtempSync(join(tmpdir(), "page-last-modified-"));
   roots.push(dir);
 
   return dir;
@@ -110,9 +112,12 @@ afterEach(() => {
   }
 });
 
-describe("skillLastModified", () => {
+describe("pagesLastModified", () => {
   it("dates each skill page by the last commit to its directory", () => {
-    const { dates, warning } = skillLastModified(makeRepo(), SKILLS);
+    const { dates, warning } = pagesLastModified(
+      makeRepo(),
+      skillDatedPages(SKILLS),
+    );
 
     expect(isoDates(dates)).toEqual({
       [`https://toolkit.noppu.com${skillPath("a")}`]: new Date(
@@ -122,6 +127,30 @@ describe("skillLastModified", () => {
         SECOND,
       ).toISOString(),
     });
+    expect(warning).toBeUndefined();
+  });
+
+  it("dates a page by the latest commit to any of its sources", () => {
+    const { dates } = pagesLastModified(makeRepo(), [
+      { path: "/plugins/x", sources: ["p/skills/a", "p/skills/b"] },
+    ]);
+
+    expect(isoDates(dates)).toEqual({
+      "https://toolkit.noppu.com/plugins/x": new Date(SECOND).toISOString(),
+    });
+  });
+
+  it("skips a source git has never seen and still dates the page", () => {
+    const { dates, warning } = pagesLastModified(makeRepo(), [
+      {
+        path: "/plugins/x",
+        sources: ["p/skills/a", "site/src/content/plugins/x.yaml"],
+      },
+    ]);
+
+    expect(Object.keys(isoDates(dates))).toEqual([
+      "https://toolkit.noppu.com/plugins/x",
+    ]);
     expect(warning).toBeUndefined();
   });
 
@@ -137,7 +166,7 @@ describe("skillLastModified", () => {
       },
     );
 
-    expect(skillLastModified(clone, SKILLS)).toEqual({
+    expect(pagesLastModified(clone, skillDatedPages(SKILLS))).toEqual({
       dates: new Map(),
       warning: NO_HISTORY_WARNING,
     });
@@ -146,7 +175,7 @@ describe("skillLastModified", () => {
   it("dates nothing outside a git repository, with the same warning", () => {
     vi.stubEnv("GIT_CEILING_DIRECTORIES", realpathSync(tmpdir()));
 
-    expect(skillLastModified(makeTempDir(), SKILLS)).toEqual({
+    expect(pagesLastModified(makeTempDir(), skillDatedPages(SKILLS))).toEqual({
       dates: new Map(),
       warning: NO_HISTORY_WARNING,
     });
@@ -156,10 +185,10 @@ describe("skillLastModified", () => {
     const repo = makeRepo();
     vi.stubEnv("PATH", makeTempDir());
 
-    expect(skillLastModified(repo, SKILLS)).toEqual({
+    expect(pagesLastModified(repo, skillDatedPages(SKILLS))).toEqual({
       dates: new Map(),
       warning:
-        "sitemap: could not read skill dates from git (`git` not found on PATH), so skill pages get no lastmod",
+        "sitemap: could not read page dates from git (`git` not found on PATH), so pages get no lastmod",
     });
   });
 
@@ -169,23 +198,34 @@ describe("skillLastModified", () => {
     rmSync(join(repo, ".git", "objects"), { recursive: true });
     mkdirSync(join(repo, ".git", "objects"));
 
-    expect(skillLastModified(repo, SKILLS)).toEqual({
+    expect(pagesLastModified(repo, skillDatedPages(SKILLS))).toEqual({
       dates: new Map(),
       warning:
-        "sitemap: could not read skill dates from git (fatal: bad object HEAD), so skill pages get no lastmod",
+        "sitemap: could not read page dates from git (fatal: bad object HEAD), so pages get no lastmod",
     });
   });
 
   it("names an error thrown while building a page's URL", () => {
-    const { dates, warning } = skillLastModified(makeRepo(), [
-      { name: "a", path: "p/skills/a/SKILL.md" },
-      // A lone surrogate makes `encodeURIComponent` throw a URIError.
-      { name: "\uD800", path: "p/skills/b/SKILL.md" },
+    const { dates, warning } = pagesLastModified(makeRepo(), [
+      { path: "/skills/a", sources: ["p/skills/a"] },
+      // A host that is never closed makes `new URL` throw a TypeError.
+      { path: "//[", sources: ["p/skills/b"] },
     ]);
 
     expect(dates.size).toBe(0);
     expect(warning).toBe(
-      "sitemap: could not read skill dates from git (URI malformed), so skill pages get no lastmod",
+      "sitemap: could not read page dates from git (Invalid URL), so pages get no lastmod",
     );
+  });
+});
+
+describe("pluginDatedPages", () => {
+  it("dates a plugin page by its directory and its page manifest", () => {
+    expect(pluginDatedPages(["review"])).toEqual([
+      {
+        path: "/plugins/review",
+        sources: ["review", "site/src/content/plugins/review.yaml"],
+      },
+    ]);
   });
 });
