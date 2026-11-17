@@ -10,8 +10,8 @@ explains why the page has copy of its own.
 ## What the page shows
 
 From top to bottom: a hero (breadcrumb, chips, the `title` as the page's only `h1`, the
-tagline, an install box with a tab per host, and GitHub and npm buttons), highlights, the
-plugin's skills, how it works, requirements, questions and links to the other plugins.
+tagline, an install box with a tab per host, a GitHub button and, when the plugin has an OpenCode
+package, an npm button), highlights, the plugin's skills, how it works, requirements, questions and links to the other plugins.
 
 The skills section has the id `skills`. The plugin cards on the home page and the OpenCode
 hub link to it, at `/plugins/<name>#skills`, and every other link goes to the top of the page.
@@ -23,7 +23,10 @@ These are not in the manifest, so they cannot drift from the plugin:
 - the plugin's description, version and counts of skills, agents and rules
 - the install commands for each host, and the OpenCode package when the plugin has one
 - the skills, each with its summary and a link to its page
-- the sitemap date, which is the latest commit to the plugin's directory or its manifest
+
+The sitemap date is not in the manifest either. It is the latest commit to the plugin's
+directory or its manifest, which `site/scripts/page-last-modified.ts` reads from git at build
+time.
 
 ## Fields
 
@@ -34,7 +37,7 @@ fields are trimmed. The limits count characters, and a list's limit counts its i
 | --- | --- |
 | `schemaVersion` | The number `1` |
 | `title` | 3 to 60 characters. The page's `h1` |
-| `seo.title` | 10 to 60 characters. The site appends a suffix naming AI Toolkit |
+| `seo.title` | 10 to 47 characters. The site appends `· AI Toolkit`, and search results cut a title at roughly 60 characters |
 | `seo.description` | 70 to 160 characters |
 | `tagline` | 20 to 220 characters |
 | `highlights.heading` | 3 to 80 characters |
@@ -67,7 +70,10 @@ site adds that.
 
 Text is literal. The only formatting is inline code between backticks, so `pr-review`
 renders as code. HTML, Markdown links, emphasis and any other markup show up as typed. An
-unmatched backtick shows as a backtick. Name a skill in backticks, and only name skills the
+unmatched backtick shows as a backtick. Backticks render as code in the `tagline`, the
+section headings, the highlight titles and bodies, the steps, the requirements, and the
+questions and answers. `title`, `seo.title`, `seo.description` and the highlight and link
+labels are plain text, so leave backticks out of them. Name a skill in backticks, and only name skills the
 plugin ships.
 
 ## Writing the copy
@@ -81,7 +87,9 @@ each manifest says things the site does not already say.
 - Do not repeat a sentence from the plugin's description, the marketplace description or a
   skill summary. Say what problem the plugin solves, how its skills fit together, what a
   session with it looks like, what it needs and where it stops. A test fails on any sentence
-  of 40 characters or more that matches one of those.
+  of 40 characters or more that is the same as one of those, ignoring case and the
+  punctuation that ends it. A reworded or partly copied sentence passes the test, and the
+  rule still applies to it.
 - Scope each claim to what the source says it for. Words such as "every" and "all" need a
   source that covers every case. Keep the condition when a source states one.
 - Write plain, specific English with British spelling and short sentences. Avoid sales
@@ -108,8 +116,8 @@ install commands and the counts of skills, rules and agents for every plugin.
 
 ## Adding a plugin
 
-Write `site/src/content/plugins/<name>.yaml` and add the plugin to `PLUGIN_ORDER` in
-`site/src/lib/plugins.ts`.
+Write `site/src/content/plugins/<name>.yaml` and register the plugin on the site as step 2 of
+"Adding a new plugin" in [MAINTENANCE.md](MAINTENANCE.md) lists.
 
 A plugin with no manifest, or a manifest with no plugin, fails the build with
 `plugins collection and the catalog disagree`, and fails `site/scripts/catalog-coverage.test.ts`.
