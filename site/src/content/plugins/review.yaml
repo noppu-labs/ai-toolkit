@@ -1,7 +1,7 @@
 # The page for this plugin on toolkit.noppu.com: https://toolkit.noppu.com/plugins/review
 # The fields are documented in docs/plugin-pages.md.
 schemaVersion: 1
-title: Code and PR review skills in the review plugin
+title: "review: code and PR review skills"
 seo:
   title: Code review skills for Claude Code and OpenCode
   description: >-
@@ -48,7 +48,7 @@ highlights:
       body: >-
         `pr-comments` rewrites the report for whoever opened the PR: one comment per finding,
         with a code such as `COR-01`, a severity taken from a fixed label, and a GitHub
-        suggestion block when the fix fits in six lines. Posting is left to the caller.
+        suggestion block when the fix fits in six lines, and the caller does the posting.
 howItWorks:
   heading: What one run looks like.
   steps:
@@ -123,7 +123,7 @@ faq:
     a: >-
       It is a `PreToolUse` hook on `Bash` and `Read` that denies a call naming a `.output` file
       when that file is a symlink to a background subagent's transcript. Without it, such a read
-      stops an unattended run on a permission prompt. Only the Claude Code plugin has it.
+      stops an unattended run on a permission prompt, and only the Claude Code plugin has it.
 links:
   - label: Plugin README on GitHub
     href: https://github.com/noppu-labs/ai-toolkit/blob/main/review/README.md

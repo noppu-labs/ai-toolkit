@@ -49,6 +49,8 @@ fields are trimmed. The limits count characters, and a list's limit counts its i
 | `links[].label` | 1 to 40 characters |
 | `links[].href` | A URL that starts with `https://` |
 
+`links` render as buttons at the foot of the Requirements section.
+
 The schema is `site/src/lib/plugin-page-schema.ts`.
 
 ## Titles
@@ -67,9 +69,8 @@ plugin ships.
 
 ## Writing the copy
 
-The copy is the reason the page exists. A page that repeats the home page's text risks
-being crawled and left out of the index, so each manifest says things the site does not
-already say.
+A page that repeats the home page's text risks being crawled and left out of the index, so
+each manifest says things the site does not already say.
 
 - Read the plugin's `plugin.json`, its README where it has one, every `SKILL.md`, and its
   agents and rules. Every factual claim must come from one of them: no number, version
@@ -88,8 +89,8 @@ already say.
   agent to use is behaviour, not a requirement.
 - FAQ questions are ones a person would type into a search box: what the plugin needs, whether
   it works outside Claude Code, how it differs from the plugin next to it, what it does not do.
-- Edit the finished text for phrasing that sounds machine-written, then check again that it
-  still says only what the sources support and still fits the limits.
+- Reread the finished text for stock phrasing, then check again that it still says only what
+  the sources support and still fits the limits.
 - Start the file with two comment lines: the page's URL, and that the fields are documented
   here.
 
@@ -99,7 +100,7 @@ for every plugin.
 ## Adding a plugin
 
 Write `site/src/content/plugins/<name>.yaml` and add the plugin to `PLUGIN_ORDER` in
-`site/src/lib/plugins.ts`. The page needs no other code.
+`site/src/lib/plugins.ts`.
 
 A plugin with no manifest, or a manifest with no plugin, fails the build with
 `plugins collection and the catalog disagree`, and fails `site/scripts/catalog-coverage.test.ts`.

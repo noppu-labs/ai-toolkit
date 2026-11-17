@@ -40,7 +40,7 @@ description, version, counts, install commands and skills. The build joins the t
 when a plugin has no manifest or a manifest has no plugin.
 
 The manifests live under `site/` because the plugin directories are what users install and
-what a release packages. Site copy does not belong in them.
+what a release packages, so site copy kept there would ship to users.
 
 ### `/?plugin=` stays as view state
 
@@ -52,8 +52,8 @@ own view state.
 
 - A page built from the catalog alone, in the style of a skill page. It costs the least and
   has the least text of its own, which is the thin-content risk this decision exists to avoid.
-- A wide page with no authored copy. It costs more than a skill-style page to build and is
-  just as thin.
+- A page with more sections (hero, highlights, skills, requirements) but all of it built from
+  catalog data. It costs more to build than a skill-style page and is just as thin.
 - Keeping the in-place filter behind a `/plugins/<name>` link, or giving each card two links.
   A plain link has one target and removes a click handler.
 

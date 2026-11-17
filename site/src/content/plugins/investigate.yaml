@@ -1,7 +1,7 @@
 # The page for this plugin on toolkit.noppu.com: https://toolkit.noppu.com/plugins/investigate
 # The fields are documented in docs/plugin-pages.md.
 schemaVersion: 1
-title: Code investigation skills in the investigate plugin
+title: "investigate: codebase investigation skills"
 seo:
   title: Codebase investigation skills for Claude Code and OpenCode
   description: >-

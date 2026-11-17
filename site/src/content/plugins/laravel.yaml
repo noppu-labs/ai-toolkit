@@ -1,7 +1,7 @@
 # The page for this plugin on toolkit.noppu.com: https://toolkit.noppu.com/plugins/laravel
 # The fields are documented in docs/plugin-pages.md.
 schemaVersion: 1
-title: Laravel backend skills (laravel plugin)
+title: "laravel: Laravel backend skills"
 seo:
   title: Laravel skills and backend agent for Claude Code
   description: >-
