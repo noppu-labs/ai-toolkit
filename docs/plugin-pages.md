@@ -87,6 +87,12 @@ each manifest says things the site does not already say.
   fails on them.
 - Requirements are what the sources say must be installed. A tool a skill's prompt tells the
   agent to use is behaviour, not a requirement.
+- Leave out what the catalog shows. The install box has the install commands, so the copy may
+  say that a route exists and what differs on it, but never spells a command out. The chips
+  have the counts, so the copy says "the skills" or "its rules" and never how many. Numbers
+  that describe behaviour, such as thresholds, limits and versions, stay.
+- Write numbers from one to nine as words in running prose, and use digits for versions,
+  thresholds and anything in code.
 - FAQ questions are ones a person would type into a search box: what the plugin needs, whether
   it works outside Claude Code, how it differs from the plugin next to it, what it does not do.
 - Reread the finished text for stock phrasing, then check again that it still says only what
@@ -94,8 +100,8 @@ each manifest says things the site does not already say.
 - Start the file with two comment lines: the page's URL, and that the fields are documented
   here.
 
-`site/scripts/plugin-copy.test.ts` checks the sentence overlap, the dashes and `seo.title`
-for every plugin.
+`site/scripts/plugin-copy.test.ts` checks the sentence overlap, the dashes, `seo.title`, the
+install commands and the counts of skills, rules and agents for every plugin.
 
 ## Adding a plugin
 

@@ -6,19 +6,20 @@ seo:
   title: Inertia and React skills for Claude Code
   description: >-
     Skills for Inertia pages, shadcn, Tailwind, React Query, Zustand, TypeScript and Vite, with a
-    frontend agent and two rules you copy into your project.
+    frontend agent and rules you copy into your project.
 tagline: >-
-  Six skills for Inertia and React frontends, a `frontend-developer` agent, and two rules for
-  TypeScript checks and Vitest test style.
+  Have an agent write Inertia and React pages to the patterns your project already uses, with
+  typed page props, forms built from shadcn parts and a browser-mode test beside each component
+  it touches.
 highlights:
   heading: What the inertia-react plugin gives a frontend.
   items:
     - label: inertia
       title: Inertia pages, forms and navigation
       body: >-
-        `laravel-inertia-react` groups its rules by prefix, among them `page-`, `form-`, `nav-`, `shared-` and
-        `layout-`. They run from typing page props and showing validation errors from `useForm` to
-        partial reloads, flash messages and persistent layouts.
+        `laravel-inertia-react` groups its rules by prefix, among them `page-`, `form-`, `nav-`,
+        `shared-` and `layout-`. They run from typing page props and showing validation errors
+        from `useForm` to partial reloads, flash messages and persistent layouts.
     - label: shadcn
       title: shadcn guidance that reads the project
       body: >-
@@ -34,96 +35,90 @@ highlights:
     - label: state
       title: React Query and Zustand, with a persist warning
       body: >-
-        `state-management` covers React Query for server state and Zustand for client state, as
-        written for TanStack Query v5 and Zustand v5. It says never to persist auth tokens,
-        passwords or secrets to `localStorage` or `sessionStorage`, and to use `partialize`.
+        `state-management` is written for TanStack Query v5 and Zustand v5. It says never to
+        persist auth tokens, passwords or secrets to `localStorage` or `sessionStorage`, and to
+        persist only non-sensitive state through `partialize`.
     - label: types
       title: Typed components and a faster Vite build
       body: >-
-        `typescript-react-patterns` has 33 rules across 7 categories, from component props and
-        hooks to refs, generics and context. `react-vite-best-practices` has 23 rules across 6,
-        among them build, code splitting, assets and environment variables.
+        `typescript-react-patterns` starts with props and hook types, then events, refs, generics,
+        context and utility types. `react-vite-best-practices` starts with the build and code
+        splitting, then the dev server, assets, environment variables and bundle analysis.
     - label: agent
       title: A frontend agent written around Inertia v3 and React 19
       body: >-
-        `frontend-developer` runs on the `sonnet` model with `memory: project`. Its prompt describes
-        a Laravel 13 app with Inertia v3, React 19, TypeScript 6, Vite 8 and Tailwind v4, and says
-        to check existing patterns before adding a library or hook.
+        `frontend-developer` assumes a Laravel 13 app on Inertia v3, React 19, TypeScript 6, Vite 8,
+        Tailwind v4 and TanStack Table v8. It runs on the `sonnet` model and keeps project memory
+        between sessions.
 howItWorks:
   heading: What a frontend task looks like.
   steps:
     - >-
-      Each skill's description lists the work it applies to. `laravel-inertia-react` names page
-      components and `useForm`, and `state-management` names `useQuery` and Zustand stores. After
-      install the skills are namespaced, as in `inertia-react:shadcn`.
+      Each skill's description lists the work it covers. `laravel-inertia-react` names page
+      components and `useForm`, and `state-management` names `useQuery` and Zustand stores.
+      Installed from the marketplace, the skills are namespaced, as in `inertia-react:shadcn`.
     - >-
-      The agent's prompt sends work through named conventions: Wayfinder helpers instead of
-      hand-written URLs, `useForm` usually through a `useZodForm` wrapper, tables through a shared
-      `DataTable` with server-side sorting and paging, and `<HasPermission>` UI gates.
+      The agent builds URLs with Wayfinder route helpers and never by hand, validates forms with
+      Zod on top of Inertia's `useForm`, sorts and pages tables on the server, and wraps UI that
+      needs a permission in a gate component.
     - >-
-      Those names are project files, such as `resources/js/hooks/useZodForm.ts`. The plugin ships
-      none of them, and the prompt tells the agent to look at what `features/`, `hooks/` and
-      `components/` already do first.
+      Before it reaches for a new library or hook, the agent looks at what `features/`, `hooks/`
+      and `components/` already do, and it asks before creating a top-level folder.
     - >-
-      The agent pairs each new or changed component with a `.test.tsx` and a `.stories.tsx`, using
-      Vitest 4 in browser mode with `vitest-browser-react`. Its prompt ends a task with
+      Each new or changed component gets a `.test.tsx` and a `.stories.tsx`, with tests in
+      Vitest 4 browser mode through `vitest-browser-react`. The agent finishes a task with
       `npm run format && npm run agent-checks`.
     - >-
       `/inertia-react:install-rules` copies the rule files into `.claude/rules/`. An identical
       file is skipped. A different one is reported as a conflict, shown as a diff and left to you.
     - >-
       `code-quality-ts` covers `resources/js/**/*.{ts,tsx}`, `.storybook/**/*.{ts,tsx}` and
-      `*.config.ts`. `testing-vitest` covers `resources/js/**/*.test.{ts,tsx}`: `it` instead of `test`, a
-      `describe` per function, tests beside the file, no React Testing Library.
+      `*.config.ts`. `testing-vitest` covers `resources/js/**/*.test.{ts,tsx}`: `it` instead of
+      `test`, a `describe` per function, tests beside the file, no React Testing Library.
 requirements:
   items:
     - >-
-      Claude Code with the marketplace added (`/plugin marketplace add noppu-labs/ai-toolkit`),
-      then `/plugin install inertia-react@ai-toolkit`.
+      A frontend in `resources/js`, which is where the rules apply and where the agent looks for
+      pages, hooks and components.
     - >-
-      The agent's prompt and both rules use `resources/js` paths. `code-quality-ts` also covers
-      `.storybook` and `*.config.ts`.
+      `format` and `agent-checks` npm scripts, which the agent and the `code-quality-ts` rule run
+      at the end of a task. Change the copied rule if your scripts have other names.
     - >-
-      `laravel-inertia-react` lists Laravel 13.x and PHP 8.3 or later in its metadata.
-      `state-management` is written for TanStack Query v5 and Zustand v5.
-    - >-
-      `tailwind-best-practices` covers Tailwind v3.4 and later and v4.
-    - >-
-      The rules and the agent name project commands, such as `npm run agent-checks` and
-      `docker compose exec node npm run test-ci:components`, which you adjust to your scripts.
+      For `shadcn`, a project with a `components.json`, which the skill reads through the shadcn
+      CLI.
 faq:
-  - q: Which stack do the Inertia and React skills assume?
+  - q: Which versions do the Inertia and React skills assume?
     a: >-
-      The agent's prompt names Laravel 13, Inertia v3, React 19, TypeScript 6, Vite 8, Tailwind v4
-      and TanStack Table v8. The skills carry their own targets: `tailwind-best-practices` covers
-      Tailwind v3.4 and v4, `state-management` TanStack Query v5 and Zustand v5, and
-      `laravel-inertia-react` lists Laravel 13.x and PHP 8.3 or later.
+      `laravel-inertia-react` is written for Laravel 13.x on PHP 8.3 or later, and
+      `tailwind-best-practices` for Tailwind v3.4 and later, v4 included. The agent is pinned to
+      Inertia v3 and React 19.2, so it writes lazy props with `Inertia::optional()` and leaves out
+      `Inertia::lazy()`, which v3 removed.
   - q: Does it need the laravel plugin?
     a: >-
-      No file in the plugin names `laravel` as a prerequisite, and the README gives each plugin its
-      own install line. The agent's prompt does describe a Laravel 13 app, with pages returned
-      from controllers through `Inertia::render`.
+      No. Each plugin installs on its own. The two do expect the same kind of app: the agent
+      looks for pages under `resources/js/pages` that Laravel controllers return through
+      `Inertia::render`.
   - q: How does it differ from the laravel plugin?
     a: >-
-      The README lists `laravel` as 16 backend skills, the `laravel-backend-specialist` agent and
-      4 path-scoped rules. It lists `inertia-react` as 6 frontend skills, the `frontend-developer`
-      agent and 2 path-scoped rules.
+      `inertia-react` covers what runs in the browser: pages, forms, components, styling, client
+      state and the Vite build. `laravel` covers the PHP side, from controllers and models to
+      policies and tests. A Laravel and Inertia app can use both, with `frontend-developer` on
+      `resources/js` and `laravel-backend-specialist` on the PHP.
   - q: Does the inertia-react plugin work in OpenCode?
     a: >-
-      The README lists OpenCode packages for `review` and `investigate` only, so there is no
-      OpenCode package for this plugin. For other installs it gives `npx skills add
-      noppu-labs/ai-toolkit/inertia-react`.
+      Not as a package, since only `review` and `investigate` have OpenCode packages. The skills
+      CLI copies the skill folders alone, so OpenCode can get the skills that way while
+      `frontend-developer` and the rules stay behind.
   - q: Where do the skills come from?
     a: >-
-      `skills-lock.json` records `AsyrafHussin/agent-skills` as the source of
-      `laravel-inertia-react`, `react-vite-best-practices`, `state-management`,
-      `tailwind-best-practices` and `typescript-react-patterns`, and `shadcn/ui` as the source of
-      `shadcn`.
+      `shadcn` comes from the `shadcn/ui` repository and the rest from `AsyrafHussin/agent-skills`,
+      each copied in at a pinned upstream commit.
   - q: Is the frontend agent tied to one codebase?
     a: >-
-      Its prompt names files and hooks such as `useZodForm`, `useTableState`, `DataTable` and
-      `resources/js/stores/useAppStore.ts`, and the plugin includes none of them. The prompt also
-      says to match the patterns a project already has before adding new ones.
+      Partly. It was written around one app's layout and helpers: it expects a `useZodForm` hook,
+      a shared `DataTable` with `useTableState`, and permission gates in
+      `components/auth/PermissionGates.tsx`, none of which the plugin ships. In another project,
+      expect to point it at your own equivalents or adjust it.
 links:
   - label: Plugin directory on GitHub
     href: https://github.com/noppu-labs/ai-toolkit/tree/main/inertia-react

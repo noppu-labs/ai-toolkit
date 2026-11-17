@@ -47,8 +47,8 @@ highlights:
       title: Findings written for the author
       body: >-
         `pr-comments` rewrites the report for whoever opened the PR: one comment per finding,
-        with a code such as `COR-01`, a severity taken from a fixed label, and a GitHub
-        suggestion block when the fix fits in six lines, and the caller does the posting.
+        with a code such as `COR-01`, a severity taken from a fixed label and, when the fix fits
+        in six lines, a GitHub suggestion block.
 howItWorks:
   heading: What one run looks like.
   steps:
@@ -78,9 +78,6 @@ howItWorks:
 requirements:
   items:
     - >-
-      Claude Code with the marketplace added (`/plugin marketplace add noppu-labs/ai-toolkit`),
-      then `/plugin install review@ai-toolkit`.
-    - >-
       The `gh` CLI, able to read the pull request, for `pr-review`. Its `origin` remote has to be
       the repository `gh` resolves pull requests against.
     - >-
@@ -101,15 +98,15 @@ faq:
       `pr-review` builds a lighter brief from `git diff` and `git grep`.
   - q: Does the review plugin work in OpenCode?
     a: >-
-      Yes. The same six skills ship as the npm package `@noppu-labs/opencode-review`, which
-      targets OpenCode V2. Install it with `opencode plugin add @noppu-labs/opencode-review` and
-      call a skill with `@pr-review`. There `pr-review` uses `correctness-review` in place of
-      `code-review`, has no workflow, and the task-output hook is left out.
+      Yes. The same skills ship as the npm package `@noppu-labs/opencode-review`, which targets
+      OpenCode V2, and you call a skill with `@pr-review`. There `pr-review` uses
+      `correctness-review` in place of `code-review`, has no workflow, and the task-output hook is
+      left out.
   - q: Can I install it with npx skills add?
     a: >-
-      Yes, with `npx skills add noppu-labs/ai-toolkit/review`. That route installs the skills
-      only, so the workflow is missing and `pr-review` runs by hand. It also leaves
-      `${CLAUDE_PLUGIN_ROOT}` unresolved, so for OpenCode the npm package is the supported route.
+      Yes. That route installs the skills only, so the workflow is missing and `pr-review` runs
+      by hand. It also leaves `${CLAUDE_PLUGIN_ROOT}` unresolved, so for OpenCode the npm package
+      is the supported route.
   - q: Which languages does it cover?
     a: >-
       The type-safety rules exist for PHP, TypeScript and Python. The correctness review checks

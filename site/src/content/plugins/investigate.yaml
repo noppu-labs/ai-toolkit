@@ -22,8 +22,7 @@ highlights:
       title: Missing tools show as gaps
       body: >-
         The brief opens with a Tools section. A tool that is absent or failed marks its section
-        as unresolved, so a thin caller list reads as a gap in the tooling, which does not show
-        that nothing calls the code.
+        as unresolved, so a thin caller list under it points to a missing or failed tool.
     - label: versions
       title: Installed versions, checked docs
       body: >-
@@ -34,8 +33,9 @@ highlights:
     - label: passes
       title: Two passes, intersected
       body: >-
-        `deep` sends two agents the same prompt. A claim both make is trusted. A claim only one
-        makes is confirmed at its cited `file:line` or carried into the report as single-source.
+        `deep` runs two passes from the same prompt. A claim both make is trusted. A claim only
+        one makes is confirmed at its cited `file:line` or carried into the report as
+        single-source.
     - label: reachability
       title: Reachability ends in a verdict
       body: >-
@@ -59,12 +59,13 @@ howItWorks:
       When a brief fails, that module's structure is marked unresolved in the report, and the
       investigation does not go ahead silently without it.
     - >-
-      It sends two agents one identical prompt in a single message. The prompt holds the brief
-      and, for up to four packages the target leans on, doc sources that passed the version check.
+      It dispatches both passes in a single message with one identical prompt, which holds the
+      brief and, for up to four packages the target leans on, doc sources that passed the version
+      check.
     - >-
       It merges the answers by intersection and settles disagreements by reading the code. Two
-      agreeing claims that rest on recalled framework behaviour stay labelled as recall unless
-      checked against installed source, since two guesses agreeing are one guess.
+      agreeing claims that rest on recalled framework behaviour stay labelled as recall until they
+      are checked against the installed source or a version-checked doc source.
     - >-
       For a quick look, `deep` has a cheaper variant that runs the brief and investigates inline
       in one pass. Its report says so and names the claims that are single-source.
@@ -74,9 +75,6 @@ howItWorks:
       modules, about four at most, then follows the same brief and two-pass course.
 requirements:
   items:
-    - >-
-      Claude Code with the marketplace added (`/plugin marketplace add noppu-labs/ai-toolkit`),
-      then `/plugin install investigate@ai-toolkit`.
     - >-
       `git` and Node 20 or later on `PATH`, for the `brief` script.
     - >-
@@ -116,16 +114,14 @@ faq:
       to skip that call.
   - q: Does the investigate plugin work in OpenCode?
     a: >-
-      Yes. The same three skills ship as `@noppu-labs/opencode-investigate`, which targets
-      OpenCode V2. Install it with `opencode plugin add @noppu-labs/opencode-investigate` and
-      call a skill as `@investigate-deep`. The two passes run there as two foreground `subagent`
-      calls.
+      Yes. The same skills ship as `@noppu-labs/opencode-investigate`, which targets OpenCode V2,
+      and you call a skill as `@investigate-deep`. The two passes run there as two foreground
+      `subagent` calls.
   - q: Can I install it with npx skills add?
     a: >-
-      Yes, with `npx skills add noppu-labs/ai-toolkit/investigate`. That route leaves
-      `${CLAUDE_PLUGIN_ROOT}` unset, so the script and reference paths in the skills do not
-      resolve until you replace their prefix by hand with the directory holding the installed
-      skills.
+      Yes, though that route leaves `${CLAUDE_PLUGIN_ROOT}` unset, so the script and reference
+      paths in the skills do not resolve as written. For OpenCode the npm package is the
+      supported route.
   - q: How does the investigate plugin relate to review?
     a: >-
       You can install either alone. `brief` is meant to feed reviews as well as investigations,
