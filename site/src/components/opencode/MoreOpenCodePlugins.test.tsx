@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 import type { PluginEntry } from "@/catalog-types";
-import { OPENCODE_PATH } from "@/lib/opencode";
+import { OPENCODE_PATH, opencodePluginPath } from "@/lib/opencode";
 import type { OpenCodeCard } from "@/lib/opencode-cards";
 import { FIXTURE_CATALOG, FIXTURE_REVIEW_PLUGIN } from "@/test/fixture-catalog";
 import { MoreOpenCodePlugins } from "./MoreOpenCodePlugins.tsx";
@@ -13,7 +13,7 @@ const SYNCED: OpenCodeCard = {
   summary: "A synced plugin",
   chips: [],
   command: "opencode plugin add synced-plugin",
-  href: "/plugins/synced-plugin",
+  href: opencodePluginPath("synced-plugin"),
   accentClass: "bg-plugin-laravel",
 };
 const INERTIA_REACT = FIXTURE_CATALOG.plugins.find(
@@ -55,6 +55,7 @@ describe("MoreOpenCodePlugins", () => {
       .getByRole("link")
       .elements()
       .map((link) => link.textContent);
+
     expect(names).toHaveLength(3);
     expect(names[0]).toContain("synced-plugin");
     expect(names[1]).toContain("review");
@@ -70,6 +71,7 @@ describe("MoreOpenCodePlugins", () => {
       .getByRole("link")
       .elements()
       .map((link) => link.getAttribute("href"));
+
     expect(hrefs).toEqual([SYNCED.href, OPENCODE_PATH, OPENCODE_PATH]);
   });
 
