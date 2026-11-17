@@ -1,0 +1,126 @@
+# The page for this plugin on toolkit.noppu.com: https://toolkit.noppu.com/plugins/review
+# The fields are documented in docs/plugin-pages.md.
+schemaVersion: 1
+title: "review: code and PR review skills"
+seo:
+  title: Code review skills for Claude Code and OpenCode
+  description: >-
+    Skills that review a pull request for correctness, type safety and comments, then write the
+    findings up as graded comments anchored to a line.
+tagline: >-
+  Run a PR through two independent correctness passes, a type-safety check and a comment audit,
+  and read one report where every finding has a file and a line.
+highlights:
+  heading: What a review run produces.
+  items:
+    - label: passes
+      title: Two correctness passes
+      body: >-
+        `pr-review` runs correctness twice: through the harness's `code-review` skill when there
+        is one, otherwise `correctness-review`, and again with a subagent reading the diff by
+        hand. A finding both passes made is labelled `both passes`.
+    - label: outcomes
+      title: Correctness findings end in an outcome
+      body: >-
+        A correctness finding names a `path:line` and ends in `crash`, `wrong data shown`,
+        `wrong data persisted`, `harmless` or `question`, which separates a bug from an edge
+        case you can live with.
+    - label: refutation
+      title: Suspects stay until refuted
+      body: >-
+        `correctness-review` drops a candidate only when the code disproves it, and quotes the
+        line that does. A candidate it can neither confirm nor refute stays in, marked uncertain,
+        with the fact that would decide it.
+    - label: types
+      title: Type findings propose a shape
+      body: >-
+        `type-safety-review` rules a diff or a path against numbered rules (`PHP-1` to `PHP-5`,
+        `TS-1` to `TS-4`, `PY-1` to `PY-5`), quotes the line and proposes the type to use
+        instead, without editing any file.
+    - label: comments
+      title: Comment verdicts without edits
+      body: >-
+        `comment-audit` gives each added comment one of `DELETE`, `TRIM`, `MOVE`, `KEEP`,
+        `UNSURE` or `WRONG`. It only writes a report unless you pass `--apply`, which makes one
+        commit and does not push.
+    - label: authors
+      title: Findings written for the author
+      body: >-
+        `pr-comments` rewrites the report for whoever opened the PR: one comment per finding,
+        with a code such as `COR-01`, a severity taken from a fixed label and, when the fix fits
+        in six lines, a GitHub suggestion block.
+howItWorks:
+  heading: What one run looks like.
+  steps:
+    - >-
+      `pr-review` takes one PR number, or several in merge order for a stack, and resolves each
+      one's base and head with `gh`. Each PR in a stack is reviewed against the head of the PR
+      below it, so its diff holds only its own changes.
+    - >-
+      It counts added plus deleted lines, minus lockfiles and binaries. With `code-review`
+      listed, the count sets its level: `high` up to 300 lines, `xhigh` up to 3000, `max` above.
+      Without it, the count sets how many `correctness-review` subagents run, one to four.
+    - >-
+      It builds a structural brief for each PR, with `investigate:brief` when the `investigate`
+      plugin is installed and plain `git` commands when it is not, and pastes the brief into
+      every subagent's prompt.
+    - >-
+      The correctness passes, the type-safety stage and the comment audit are dispatched in the
+      same turn, so they run in parallel where the harness allows. The orchestrator reads their
+      reports and never opens the diff itself.
+    - >-
+      It merges what came back into one report per PR, with Correctness, Type safety and Comments
+      sections. Every finding keeps its `path:line`, so it can be pasted as a review comment.
+    - >-
+      `pr-comments` turns that report into comments for the author and gives a verdict of
+      `approve`, `comment` or `request_changes`. A stage missing from the report is never
+      treated as clean.
+requirements:
+  items:
+    - >-
+      The `gh` CLI, able to read the pull request, for `pr-review`. Its `origin` remote has to be
+      the repository `gh` resolves pull requests against.
+    - >-
+      Claude Code 2.1.248 or later (verified on 2.1.289) with dynamic workflows enabled, to run
+      the `pr-review-stages` workflow. Without them `pr-review` follows the same steps by hand.
+    - >-
+      Optional: the `investigate` plugin for a richer brief, and access to context7 so the
+      correctness stage can check library calls against their docs, though the review goes on
+      without either.
+    - >-
+      `node` on `PATH` for the task-output hook, which matches reliably on Claude Code 2.1.176
+      or later.
+faq:
+  - q: How does the review plugin relate to investigate?
+    a: >-
+      They are separate plugins and each works alone. When `investigate` is installed,
+      `pr-review` builds each PR's structural brief with `investigate:brief`. Without it,
+      `pr-review` builds a lighter brief from `git diff` and `git grep`.
+  - q: Does the review plugin work in OpenCode?
+    a: >-
+      Yes. The same skills ship as the npm package `@noppu-labs/opencode-review`, which targets
+      OpenCode V2, and you call a skill with `@pr-review`. There `pr-review` uses
+      `correctness-review` in place of `code-review`, has no workflow, and the task-output hook is
+      left out.
+  - q: Can I install it with npx skills add?
+    a: >-
+      Yes. That route installs the skills only, so the workflow is missing and `pr-review` runs
+      by hand. It also leaves `${CLAUDE_PLUGIN_ROOT}` unresolved, so for OpenCode the npm package
+      is the supported route.
+  - q: Which languages does it cover?
+    a: >-
+      The type-safety rules exist for PHP, TypeScript and Python. The correctness review checks
+      each diff against the pitfalls of whichever language it is written in.
+  - q: Does it change my code or post to the pull request?
+    a: >-
+      `correctness-review` and `type-safety-review` are read-only. `pr-comments` leaves posting to
+      whoever calls it. `comment-audit` edits comments and docs, never code, in one local commit,
+      and only with `--apply`.
+  - q: What is the task-output hook for?
+    a: >-
+      It is a `PreToolUse` hook on `Bash` and `Read` that denies a call naming a `.output` file
+      when that file is a symlink to a background subagent's transcript. Without it, such a read
+      stops an unattended run on a permission prompt, and only the Claude Code plugin has it.
+links:
+  - label: Plugin README on GitHub
+    href: https://github.com/noppu-labs/ai-toolkit/blob/main/review/README.md
