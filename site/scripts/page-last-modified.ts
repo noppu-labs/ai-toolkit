@@ -3,13 +3,21 @@ import { posix } from "node:path";
 import { resolveExecutable } from "../../scripts/resolve-executable.ts";
 import type { SkillEntry } from "../src/catalog-types.ts";
 import { canonicalUrl } from "../src/lib/head.ts";
-import { skillPath } from "../src/lib/site.ts";
+import { pluginPath, skillPath } from "../src/lib/site.ts";
+import { PLUGIN_COPY_DIR } from "./plugin-copy.ts";
 
 export const NO_HISTORY_WARNING =
-  "sitemap: no git history (shallow clone?), so skill pages get no lastmod";
+  "sitemap: no git history (shallow clone?), so pages get no lastmod";
 
-export interface SkillLastModified {
-  /** Each skill page's canonical URL to an ISO 8601 date. */
+export interface DatedPage {
+  /** Root-relative, such as /skills/deep. */
+  path: string;
+  /** Paths from the repo root whose latest commit dates the page. */
+  sources: readonly string[];
+}
+
+export interface PagesLastModified {
+  /** Each dated page's canonical URL to an ISO 8601 date. */
   dates: Map<string, string>;
   /** Why `dates` is empty, when it is. */
   warning: string | undefined;
@@ -45,14 +53,30 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export function skillDatedPages(
+  skills: readonly Pick<SkillEntry, "name" | "path">[],
+): DatedPage[] {
+  return skills.map((skill) => ({
+    path: skillPath(skill.name),
+    sources: [posix.dirname(skill.path)],
+  }));
+}
+
+export function pluginDatedPages(plugins: readonly string[]): DatedPage[] {
+  return plugins.map((name) => ({
+    path: pluginPath(name),
+    sources: [name, `site/${PLUGIN_COPY_DIR}/${name}.yaml`],
+  }));
+}
+
 /**
  * Returns no dates in a shallow clone, where the oldest commit would claim every file and date
  * every page wrongly.
  */
-export function skillLastModified(
+export function pagesLastModified(
   rootDir: string,
-  skills: readonly Pick<SkillEntry, "name" | "path">[],
-): SkillLastModified {
+  pages: readonly DatedPage[],
+): PagesLastModified {
   const dates = new Map<string, string>();
 
   try {
@@ -64,17 +88,17 @@ export function skillLastModified(
       return { dates, warning: NO_HISTORY_WARNING };
     }
 
-    for (const skill of skills) {
+    for (const page of pages) {
       const date = runGit(git, rootDir, [
         "log",
         "-1",
         "--format=%cI",
         "--",
-        posix.dirname(skill.path),
+        ...page.sources,
       ]);
 
       if (date !== "") {
-        dates.set(canonicalUrl(skillPath(skill.name)), date);
+        dates.set(canonicalUrl(page.path), date);
       }
     }
   } catch (error: unknown) {
@@ -82,7 +106,7 @@ export function skillLastModified(
       dates: new Map(),
       warning: stderrOf(error).includes("not a git repository")
         ? NO_HISTORY_WARNING
-        : `sitemap: could not read skill dates from git (${describeError(error)}), so skill pages get no lastmod`,
+        : `sitemap: could not read page dates from git (${describeError(error)}), so pages get no lastmod`,
     };
   }
 

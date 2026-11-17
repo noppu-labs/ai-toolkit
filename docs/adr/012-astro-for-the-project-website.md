@@ -165,7 +165,7 @@ ADR-011's build wrote. `robots.txt` names the index, and `site/public/_redirects
 address was submitted to Google Search Console, the new one has to be submitted there too.
 
 Each skill page's `<lastmod>` is the committer date of the last commit to the skill's
-directory, which `site/scripts/skill-last-modified.ts` reads from git when the config loads.
+directory, which `site/scripts/page-last-modified.ts` reads from git when the config loads.
 That needs the full history: in a shallow clone the oldest commit claims every file, so the
 build writes no `lastmod` and logs a warning instead. Workers Builds and `actions/checkout`
 clone shallow by default, so the build command in the Workers Builds settings, which live in
