@@ -1,0 +1,100 @@
+---
+import type { Catalog } from "../../catalog-types.ts";
+import { InstallBox } from "../../components/opencode/InstallBox.tsx";
+import {
+  Highlights,
+  HowItWorks,
+  Questions,
+  Requirements,
+} from "../../components/opencode/PluginSections.tsx";
+import { PluginLinkList } from "../../components/PluginLinkList.tsx";
+import { PluginPageHero } from "../../components/plugins/PluginPageHero.tsx";
+import { PluginSkills } from "../../components/plugins/PluginSkills.tsx";
+import Base from "../../layouts/Base.astro";
+import { type CatalogSkill, catalogSkills } from "../../lib/catalog.ts";
+import { pluginInstallHosts } from "../../lib/install-methods.ts";
+import { loadCatalog } from "../../lib/load-catalog.ts";
+import { loadPluginPages } from "../../lib/load-plugin-pages.ts";
+import { npmPackageUrl } from "../../lib/opencode.ts";
+import { pluginHead } from "../../lib/pages.ts";
+import type { PluginPageCopy } from "../../lib/plugin-page-schema.ts";
+import { morePluginRows, type PluginPage } from "../../lib/plugin-pages.ts";
+import { pluginChipLabels, pluginColorClass } from "../../lib/plugins.ts";
+import { pluginSourceUrl } from "../../lib/repo.ts";
+
+interface Props {
+  page: PluginPage<PluginPageCopy>;
+}
+
+interface PluginPath {
+  params: { name: string };
+  props: Props;
+}
+
+export async function getStaticPaths(): Promise<PluginPath[]> {
+  const pages = await loadPluginPages();
+  return pages.map((page) => ({
+    params: { name: page.plugin.name },
+    props: { page },
+  }));
+}
+
+const { page }: Props = Astro.props;
+const { plugin, copy }: PluginPage<PluginPageCopy> = page;
+const name: string = plugin.name;
+const accentClass: string = pluginColorClass(name);
+const { plugins }: Catalog = await loadCatalog();
+const skills: CatalogSkill[] = catalogSkills(plugins).filter(
+  (skill) => skill.plugin === name,
+);
+---
+
+<Base head={pluginHead(page)} sectionBase="/">
+  <PluginPageHero
+    accentClass={accentClass}
+    chips={pluginChipLabels(plugin)}
+    name={name}
+    packageUrl={plugin.opencodePackage === undefined
+      ? undefined
+      : npmPackageUrl(plugin.opencodePackage)}
+    sourceUrl={pluginSourceUrl(name)}
+    tagline={copy.tagline}
+    title={copy.title}
+    version={plugin.version}
+  >
+    <InstallBox
+      client:idle
+      accentClass={accentClass}
+      hosts={pluginInstallHosts(plugin)}
+      plugin={name}
+    />
+  </PluginPageHero>
+  <Highlights
+    accentClass={accentClass}
+    heading={copy.highlights.heading}
+    items={copy.highlights.items}
+  />
+  <PluginSkills
+    eyebrow="02 — Skills"
+    id="skills"
+    plugin={name}
+    skills={skills}
+  />
+  <HowItWorks
+    eyebrow="03 — How it works"
+    heading={copy.howItWorks.heading}
+    steps={copy.howItWorks.steps}
+  />
+  <Requirements
+    eyebrow="04 — Requirements"
+    items={copy.requirements.items}
+    links={copy.links}
+  />
+  <Questions eyebrow="05 — Questions" faq={copy.faq} />
+  <PluginLinkList
+    allHref="/#plugins"
+    allLabel="All plugins"
+    heading="More plugins"
+    rows={morePluginRows(plugins, name)}
+  />
+</Base>

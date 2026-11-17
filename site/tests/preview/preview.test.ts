@@ -39,6 +39,32 @@ describe("Cloudflare's preview", () => {
     expect(await response.text()).toContain("This page wandered off");
   });
 
+  it("serves a plugin's page at its URL with no trailing slash, canonical to production", async () => {
+    const response = await get("/plugins/review");
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      '<link rel="canonical" href="https://toolkit.noppu.com/plugins/review">',
+    );
+  });
+
+  it.each(["/plugins/review/", "/plugins/review.html"])(
+    "redirects %s to the URL with no trailing slash",
+    async (path) => {
+      const response = await get(path);
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toMatch(/\/plugins\/review$/);
+    },
+  );
+
+  it("answers an unknown plugin with the 404 page", async () => {
+    const response = await get("/plugins/not-a-plugin");
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toContain("This page wandered off");
+  });
+
   it("redirects an OpenCode plugin page's trailing slash to the slashless URL", async () => {
     const response = await get("/opencode/opencode-cache-manager/");
 
