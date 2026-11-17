@@ -4,14 +4,17 @@ import { OPENCODE_PATH } from "@/lib/opencode";
 import { cn } from "@/lib/utils";
 import { InlineText } from "./InlineText.tsx";
 
-const CRUMB_LINK =
+// biome-ignore lint/style/useComponentExportOnlyModules: the plugin page hero reuses these classes; they stay beside the hero they style.
+export const CRUMB_LINK =
   "rounded-sm text-foreground underline underline-offset-3 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-const CHIP =
+// biome-ignore lint/style/useComponentExportOnlyModules: the plugin page hero reuses these classes; they stay beside the hero they style.
+export const CHIP =
   "inline-flex items-center gap-2 rounded-full border-2 border-edge bg-secondary-background px-2.5 py-1 font-mono text-xs font-bold md:px-3 md:text-[13px] md:shadow-shadow-sm";
 
 // Full-width and stacked on phones; side by side from `sm`.
-const CTA_CLASSES =
+// biome-ignore lint/style/useComponentExportOnlyModules: the plugin page hero reuses these classes; they stay beside the hero they style.
+export const CTA_CLASSES =
   "h-12 w-full px-5.5 font-heading text-base focus-visible:ring-offset-background sm:h-13 sm:w-auto sm:text-[17px]";
 
 interface PluginHeroProps {

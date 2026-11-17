@@ -153,3 +153,31 @@ describe("Questions", () => {
     expect(container.innerHTML).toBe("");
   });
 });
+
+describe("section eyebrows", () => {
+  it("Requirements reads 03 by default and takes another eyebrow", async () => {
+    const { container, rerender } = await render(
+      <Requirements items={requirements.items} />,
+    );
+
+    expect(container.textContent).toContain("03 — Requirements");
+
+    await rerender(
+      <Requirements eyebrow="04 — Requirements" items={requirements.items} />,
+    );
+
+    expect(container.textContent).toContain("04 — Requirements");
+    expect(container.textContent).not.toContain("03 — Requirements");
+  });
+
+  it("Questions reads 04 by default and takes another eyebrow", async () => {
+    const { container, rerender } = await render(<Questions faq={faq} />);
+
+    expect(container.textContent).toContain("04 — Questions");
+
+    await rerender(<Questions eyebrow="05 — Questions" faq={faq} />);
+
+    expect(container.textContent).toContain("05 — Questions");
+    expect(container.textContent).not.toContain("04 — Questions");
+  });
+});
