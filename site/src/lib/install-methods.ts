@@ -1,4 +1,5 @@
 import type { InstallMethod } from "@/stores/usePreferencesStore";
+import type { PluginEntry } from "../catalog-types.ts";
 import { REPO_SLUG } from "./repo.ts";
 
 /** The `name` in `.claude-plugin/marketplace.json`, which `/plugin install` takes after the `@`. */
@@ -35,6 +36,43 @@ export function pluginInstallCommand(
 
 export function otherInstallMethod(method: InstallMethod): InstallMethod {
   return method === "claude-code" ? "skills-cli" : "claude-code";
+}
+
+export function opencodeInstallCommand(pkg: string): string {
+  return `opencode plugin add ${pkg}`;
+}
+
+/** One tab of a plugin page's install box. */
+export interface InstallHost {
+  label: string;
+  commands: string[];
+}
+
+/** Claude Code and the skills CLI for every plugin, OpenCode when the plugin has a package. */
+export function pluginInstallHosts(
+  plugin: Pick<PluginEntry, "name" | "opencodePackage">,
+): InstallHost[] {
+  const hosts: InstallHost[] = [
+    {
+      label: INSTALL_METHOD_LABELS["claude-code"].short,
+      commands: [
+        MARKETPLACE_ADD_COMMAND,
+        pluginInstallCommand(plugin.name, "claude-code"),
+      ],
+    },
+    {
+      label: INSTALL_METHOD_LABELS["skills-cli"].short,
+      commands: [pluginInstallCommand(plugin.name, "skills-cli")],
+    },
+  ];
+  if (plugin.opencodePackage !== undefined) {
+    hosts.push({
+      label: "OpenCode",
+      commands: [opencodeInstallCommand(plugin.opencodePackage)],
+    });
+  }
+
+  return hosts;
 }
 
 export interface CommandStep {
