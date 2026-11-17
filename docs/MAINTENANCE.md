@@ -65,7 +65,7 @@ run `seed <plugin>/<name>`), and finish with `verify`.
    `COLOR_CLASSES` and `PRESSED_COLOR_CLASSES`, and to `LANGUAGE_AGNOSTIC_PLUGINS` when it is
    not tied to one language. Add its `--color-plugin-<plugin>` token to
    `site/src/css/tokens/semantic.css`. Without the accent entries the page falls back to the
-   neutral colour and no test fails.
+   site's main colour (`bg-main`) and no test fails.
 3. Add skills per the section above, `npm run sync -- seed <plugin>/<skill>`, then `verify`.
 4. Run `claude plugin validate <plugin>` and `claude plugin validate .`.
 

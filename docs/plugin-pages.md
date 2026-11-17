@@ -9,9 +9,10 @@ explains why the page has copy of its own.
 
 ## What the page shows
 
-From top to bottom: a hero (breadcrumb, chips, the `title` as the page's only `h1`, the
-tagline, an install box with a tab per host, a GitHub button and, when the plugin has an OpenCode
-package, an npm button), highlights, the plugin's skills, how it works, requirements, questions and links to the other plugins.
+From top to bottom: a hero (breadcrumb, chips, the `title` as the page's only `h1`, the tagline,
+an install box with a tab per host, a GitHub button and, when the plugin has an OpenCode
+package, an npm button), highlights, the plugin's skills, how it works, requirements, questions
+and links to the other plugins.
 
 The skills section has the id `skills`. The plugin cards on the home page and the OpenCode
 hub link to it, at `/plugins/<name>#skills`, and every other link goes to the top of the page.
@@ -68,13 +69,12 @@ site adds that.
 
 ## Text
 
-Text is literal. The only formatting is inline code between backticks, so `pr-review`
-renders as code. HTML, Markdown links, emphasis and any other markup show up as typed. An
-unmatched backtick shows as a backtick. Backticks render as code in the `tagline`, the
-section headings, the highlight titles and bodies, the steps, the requirements, and the
-questions and answers. `title`, `seo.title`, `seo.description` and the highlight and link
-labels are plain text, so leave backticks out of them. Name a skill in backticks, and only name skills the
-plugin ships.
+Text is literal. The only formatting is inline code between backticks, so `pr-review` renders as
+code. HTML, Markdown links, emphasis and any other markup show up as typed. An unmatched
+backtick shows as a backtick. Backticks render as code in the `tagline`, the section headings,
+the highlight titles and bodies, the steps, the requirements, and the questions and answers.
+`title`, `seo.title`, `seo.description` and the highlight and link labels are plain text, so
+leave backticks out of them. Name a skill in backticks, and only name skills the plugin ships.
 
 ## Writing the copy
 
@@ -116,8 +116,8 @@ install commands and the counts of skills, rules and agents for every plugin.
 
 ## Adding a plugin
 
-Write `site/src/content/plugins/<name>.yaml` and register the plugin on the site as step 2 of
-"Adding a new plugin" in [MAINTENANCE.md](MAINTENANCE.md) lists.
+Write `site/src/content/plugins/<name>.yaml` and register the plugin on the site as listed in
+step 2 of "Adding a new plugin" in [MAINTENANCE.md](MAINTENANCE.md).
 
 A plugin with no manifest, or a manifest with no plugin, fails the build with
 `plugins collection and the catalog disagree`, and fails `site/scripts/catalog-coverage.test.ts`.
