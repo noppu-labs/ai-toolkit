@@ -8,6 +8,7 @@ import { buildCatalog } from "../scripts/build-catalog.ts";
 import { splitFrontmatter } from "../scripts/frontmatter.ts";
 import { CATALOG_ID, catalogSchema } from "./lib/catalog-schema.ts";
 import { manifestSchema } from "./lib/opencode-schema.ts";
+import { pluginPageSchema } from "./lib/plugin-page-schema.ts";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -79,8 +80,15 @@ const skills = defineCollection({
   schema: z.looseObject({ name: z.string().min(1) }),
 });
 
+/** Each toolkit plugin's page copy, keyed by the plugin's name (`review`). */
+const plugins = defineCollection({
+  loader: glob({ pattern: "*.yaml", base: "./src/content/plugins" }),
+  schema: pluginPageSchema,
+});
+
 export const collections: {
   catalog: typeof catalog;
   opencode: typeof opencode;
+  plugins: typeof plugins;
   skills: typeof skills;
-} = { catalog, opencode, skills };
+} = { catalog, opencode, plugins, skills };
