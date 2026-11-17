@@ -1,4 +1,5 @@
 import type { PluginEntry } from "../catalog-types.ts";
+import { opencodeInstallCommand } from "./install-methods.ts";
 import type { OpenCodePage } from "./load-opencode.ts";
 import { type OpenCodePlugin, opencodePluginPath } from "./opencode.ts";
 import { pluginColorClass, sortPlugins } from "./plugins.ts";
@@ -68,7 +69,7 @@ export function toolkitOpenCodeCards(
             description: plugin.description,
             skillCount: plugin.skills.length,
             packageName: plugin.opencodePackage,
-            command: `opencode plugin add ${plugin.opencodePackage}`,
+            command: opencodeInstallCommand(plugin.opencodePackage),
             skillsHref: `/${pluginSkillsHref(plugin.name)}`,
             accentClass: pluginColorClass(plugin.name),
           },

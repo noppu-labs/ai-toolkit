@@ -10,11 +10,7 @@ import {
   INSTALL_METHOD_LABELS,
   pluginInstallSteps,
 } from "@/lib/install-methods";
-import {
-  isLanguageAgnostic,
-  pluginColorClass,
-  sortPlugins,
-} from "@/lib/plugins";
+import { pluginChipLabels, pluginColorClass, sortPlugins } from "@/lib/plugins";
 import { pluralize } from "@/lib/pluralize";
 import { goToSection } from "@/lib/scroll";
 import { pluginSkillsHref, showPluginSkills } from "@/lib/url-state";
@@ -26,21 +22,6 @@ import {
   usePreferencesStore,
 } from "@/stores/usePreferencesStore";
 import type { PluginEntry } from "../../catalog-types.ts";
-
-function chipLabels(plugin: PluginEntry): string[] {
-  const counts: [number, string][] = [
-    [plugin.skills.length, "skill"],
-    [plugin.agentCount, "agent"],
-    [plugin.ruleCount, "rule"],
-  ];
-  const labels = counts
-    .filter(([count]) => count > 0)
-    .map(([count, noun]) => pluralize(count, noun));
-  if (isLanguageAgnostic(plugin.name)) {
-    labels.push("any language");
-  }
-  return labels;
-}
 
 function isPlainClick(event: MouseEvent): boolean {
   return (
@@ -111,7 +92,7 @@ function PluginCard({
           aria-label="Contents"
           className="flex flex-wrap gap-1.5 md:mt-auto md:gap-2"
         >
-          {chipLabels(plugin).map((label) => (
+          {pluginChipLabels(plugin).map((label) => (
             <li
               className="rounded-full border-2 border-edge bg-background px-2.5 py-0.75 text-[13px] font-bold md:px-3 md:py-1.25 md:text-sm"
               key={label}
