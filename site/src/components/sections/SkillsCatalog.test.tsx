@@ -944,7 +944,7 @@ describe("SkillsCatalog URL state", () => {
     await expect.poll(rowNames).toEqual(["pr-review", "comment-audit"]);
   });
 
-  it("follows Back to the query a plugin card's link cleared", async () => {
+  it("follows Back to the query a pushed ?plugin= view cleared", async () => {
     render(<SkillsCatalog plugins={PLUGINS} />);
     await search.fill("spatie");
 
