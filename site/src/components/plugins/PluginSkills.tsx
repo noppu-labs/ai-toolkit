@@ -8,13 +8,21 @@ export function PluginSkills({
   plugin,
   skills,
   eyebrow,
+  id,
 }: {
   plugin: string;
   skills: readonly CatalogSkill[];
   eyebrow: string;
+  /** The section's id, which links to the skills point at. */
+  id: string;
 }): ReactElement {
   return (
-    <PluginSection eyebrow={eyebrow} heading={`The ${plugin} skills.`}>
+    <PluginSection
+      className="scroll-mt-header"
+      eyebrow={eyebrow}
+      heading={`The ${plugin} skills.`}
+      id={id}
+    >
       <SkillRows skills={skills} />
     </PluginSection>
   );

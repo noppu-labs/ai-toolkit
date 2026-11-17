@@ -50,7 +50,7 @@ describe("toolkitOpenCodeCards", () => {
         skillCount: 1,
         packageName: "@noppu-labs/opencode-review",
         command: "opencode plugin add @noppu-labs/opencode-review",
-        pluginHref: "/plugins/review",
+        pluginHref: "/plugins/review#skills",
         accentClass: "bg-plugin-review",
       },
     ]);
@@ -68,7 +68,7 @@ describe("toolkitOpenCodeCards", () => {
     expect(cards.map((card) => card.name)).toEqual(["review", "investigate"]);
     expect(cards[1]).toMatchObject({
       command: "opencode plugin add @noppu-labs/opencode-investigate",
-      pluginHref: "/plugins/investigate",
+      pluginHref: "/plugins/investigate#skills",
     });
   });
 });

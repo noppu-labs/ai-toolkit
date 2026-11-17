@@ -258,6 +258,7 @@ describe("the home page", () => {
     await page.waitForURL((url) => url.pathname === "/plugins/laravel");
 
     expect(new URL(page.url()).search).toBe("");
+    expect(new URL(page.url()).hash).toBe("#skills");
     expect(errors).toEqual([]);
   });
 
@@ -266,13 +267,12 @@ describe("the home page", () => {
       reducedMotion: true,
     });
     const catalog = page.getByRole("region", { name: "The whole catalog." });
+    const laravel = catalog
+      .getByRole("group", { name: "Filter by plugin" })
+      .getByRole("button", { name: /^laravel \d+ skills$/ });
 
-    expect(
-      await catalog
-        .getByRole("group", { name: "Filter by plugin" })
-        .getByRole("button", { name: /^laravel \d+ skills$/ })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
+    // The catalog reads the URL after hydrating, so the first read can come too early.
+    await expect.poll(() => laravel.getAttribute("aria-pressed")).toBe("true");
     expect(errors).toEqual([]);
   });
 

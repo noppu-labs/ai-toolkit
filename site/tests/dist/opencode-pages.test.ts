@@ -13,7 +13,7 @@ import { readSyncedPlugins } from "../../scripts/opencode/content.ts";
 import { canonicalUrl } from "../../src/lib/head.ts";
 import { OPENCODE_PATH, opencodePluginPath } from "../../src/lib/opencode.ts";
 import { PLUGIN_ORDER } from "../../src/lib/plugins.ts";
-import { pluginPath, SITE_URL } from "../../src/lib/site.ts";
+import { pluginPath, pluginSkillsPath, SITE_URL } from "../../src/lib/site.ts";
 import {
   type OpenedPage,
   openPage,
@@ -291,8 +291,8 @@ describe("the OpenCode hub", () => {
     for (const { name } of PLUGINS) {
       expect(hrefs).toContain(opencodePluginPath(name));
     }
-    expect(hrefs).toContain("/plugins/review");
-    expect(hrefs).toContain("/plugins/investigate");
+    expect(hrefs).toContain(pluginSkillsPath("review"));
+    expect(hrefs).toContain(pluginSkillsPath("investigate"));
     expect(hrefs).toContain("/#install");
   });
 

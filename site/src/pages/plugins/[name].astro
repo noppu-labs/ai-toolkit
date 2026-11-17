@@ -74,7 +74,12 @@ const skills: CatalogSkill[] = catalogSkills(plugins).filter(
     heading={copy.highlights.heading}
     items={copy.highlights.items}
   />
-  <PluginSkills eyebrow="02 — Skills" plugin={name} skills={skills} />
+  <PluginSkills
+    eyebrow="02 — Skills"
+    id="skills"
+    plugin={name}
+    skills={skills}
+  />
   <HowItWorks
     eyebrow="03 — How it works"
     heading={copy.howItWorks.heading}

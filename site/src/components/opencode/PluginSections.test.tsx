@@ -6,6 +6,7 @@ import { REVIEWER_PLUGIN } from "@/test/opencode-plugins";
 import {
   Highlights,
   HowItWorks,
+  PluginSection,
   Questions,
   Requirements,
 } from "./PluginSections.tsx";
@@ -13,6 +14,7 @@ import {
 const { highlights, howItWorks, requirements, faq, links }: OpenCodePage =
   REVIEWER_PLUGIN.page;
 const ACCENT = "bg-plugin-opencode-permission-reviewer";
+const SECTION_ID = "skills";
 
 /** Manifest text as it reads on the page, where backtick runs are code. */
 function withoutBackticks(text: string): string {
@@ -222,5 +224,39 @@ describe("section eyebrows", () => {
 
     expect(container.textContent).toContain("05 — Questions");
     expect(container.textContent).not.toContain("04 — Questions");
+  });
+});
+
+describe("PluginSection", () => {
+  it("has no id and only its own classes when given neither", async () => {
+    const { container } = await render(
+      <PluginSection eyebrow="01" heading="A heading">
+        <p>Body</p>
+      </PluginSection>,
+    );
+    const section = container.querySelector("section");
+
+    expect(section?.hasAttribute("id")).toBe(false);
+    expect(section?.className).toBe(
+      "mx-auto max-w-300 px-4 pt-6 pb-10 sm:px-6 md:pt-8 md:pb-16",
+    );
+  });
+
+  it("puts the id on the section and adds the class", async () => {
+    const { container } = await render(
+      <PluginSection
+        className="scroll-mt-header"
+        eyebrow="01"
+        heading="A heading"
+        id={SECTION_ID}
+      >
+        <p>Body</p>
+      </PluginSection>,
+    );
+    const section = container.querySelector("section");
+
+    expect(section?.id).toBe("skills");
+    expect(section?.classList.contains("scroll-mt-header")).toBe(true);
+    expect(section?.classList.contains("max-w-300")).toBe(true);
   });
 });

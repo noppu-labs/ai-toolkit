@@ -95,6 +95,16 @@ describe("readPluginCopy", () => {
 
     expect(() => readPluginCopy(dir)).toThrow(/bad\.yaml/);
   });
+
+  it("names the file that is not valid YAML", () => {
+    const dir = makeSiteDir({});
+    writeFileSync(
+      join(dir, PLUGIN_COPY_DIR, "broken.yaml"),
+      "title: [unclosed\n",
+    );
+
+    expect(() => readPluginCopy(dir)).toThrow(/^broken\.yaml: /);
+  });
 });
 
 describe("the authored copy", () => {

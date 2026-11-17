@@ -9,17 +9,26 @@ export function PluginSection({
   eyebrow,
   heading,
   children,
+  id,
+  className,
 }: {
   eyebrow: string;
   heading: ReactNode;
   children: ReactNode;
+  /** For a link to the section. */
+  id?: string | undefined;
+  className?: string | undefined;
 }): ReactElement {
   const headingId = useId();
 
   return (
     <section
       aria-labelledby={headingId}
-      className="mx-auto max-w-300 px-4 pt-6 pb-10 sm:px-6 md:pt-8 md:pb-16"
+      className={cn(
+        "mx-auto max-w-300 px-4 pt-6 pb-10 sm:px-6 md:pt-8 md:pb-16",
+        className,
+      )}
+      id={id}
     >
       <p className="font-mono text-xs font-bold tracking-[0.08em] uppercase md:text-sm">
         {eyebrow}

@@ -22,7 +22,16 @@ export function readPluginCopy(
     .filter((file) => file.endsWith(".yaml"))
     .map((file) => {
       const text = readFileSync(join(dir, file), "utf8");
-      const result = pluginPageSchema.safeParse(parse(text, YAML_OPTIONS));
+      let data: unknown;
+      try {
+        data = parse(text, YAML_OPTIONS);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+
+        throw new Error(`${file}: ${message}`, { cause: error });
+      }
+
+      const result = pluginPageSchema.safeParse(data);
       if (!result.success) {
         throw new Error(`${file}: ${result.error.message}`);
       }

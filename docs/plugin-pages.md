@@ -13,6 +13,9 @@ From top to bottom: a hero (breadcrumb, chips, the `title` as the page's only `h
 tagline, an install box with a tab per host, and GitHub and npm buttons), highlights, the
 plugin's skills, how it works, requirements, questions and links to the other plugins.
 
+The skills section has the id `skills`. The plugin cards on the home page and the OpenCode
+hub link to it, at `/plugins/<name>#skills`, and every other link goes to the top of the page.
+
 ## What comes from the catalog
 
 These are not in the manifest, so they cannot drift from the plugin:

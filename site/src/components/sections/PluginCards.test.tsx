@@ -185,15 +185,15 @@ describe("PluginCards", () => {
     ]);
   });
 
-  it("links each card to its plugin's page", async () => {
+  it("links each card to the skills on its plugin's page", async () => {
     render(<PluginCards plugins={PLUGINS} />);
 
     await expect
       .element(page.getByRole("link", { name: "See 2 laravel skills" }))
-      .toHaveAttribute("href", "/plugins/laravel");
+      .toHaveAttribute("href", "/plugins/laravel#skills");
     await expect
       .element(page.getByRole("link", { name: "See 1 inertia-react skill" }))
-      .toHaveAttribute("href", "/plugins/inertia-react");
+      .toHaveAttribute("href", "/plugins/inertia-react#skills");
   });
 
   it("leaves a click on the skills link to the browser", async () => {

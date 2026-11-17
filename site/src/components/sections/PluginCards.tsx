@@ -12,7 +12,7 @@ import {
 } from "@/lib/install-methods";
 import { pluginChipLabels, pluginColorClass, sortPlugins } from "@/lib/plugins";
 import { pluralize } from "@/lib/pluralize";
-import { pluginPath } from "@/lib/site";
+import { pluginSkillsPath } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import {
   INSTALL_METHODS,
@@ -26,7 +26,7 @@ function SeeSkillsLink({ plugin }: { plugin: PluginEntry }): ReactElement {
   return (
     <a
       className="flex min-h-11 items-center justify-between gap-2 rounded-base border-2 border-edge bg-background px-3 py-2 text-[15px] font-heading text-foreground no-underline transition-all hover:translate-x-0.75 hover:translate-y-0.75 hover:shadow-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background focus-visible:outline-hidden md:px-3.5 md:shadow-shadow-md"
-      href={pluginPath(plugin.name)}
+      href={pluginSkillsPath(plugin.name)}
     >
       See {pluralize(plugin.skills.length, `${plugin.name} skill`)}
       <ArrowRight aria-hidden="true" className="size-4.5" strokeWidth={2.5} />

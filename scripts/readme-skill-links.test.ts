@@ -43,9 +43,24 @@ describe("OpenCode package homepage", () => {
   });
 });
 
-const PLUGINS = ["laravel", "inertia-react", "review", "investigate"] as const;
+function readMarketplacePlugins(): string[] {
+  const raw = readFileSync(
+    join(REPO_ROOT, ".claude-plugin", "marketplace.json"),
+    "utf8",
+  );
+
+  return (JSON.parse(raw) as { plugins: { name: string }[] }).plugins.map(
+    (plugin) => plugin.name,
+  );
+}
+
+const PLUGINS = readMarketplacePlugins();
 
 describe("plugin links", () => {
+  it("reads the plugins from the marketplace", () => {
+    expect(PLUGINS.length).toBeGreaterThan(0);
+  });
+
   it.each(PLUGINS)("links %s to its page in the README's table", (plugin) => {
     const readme = readFileSync(join(REPO_ROOT, "README.md"), "utf8");
 

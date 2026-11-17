@@ -119,28 +119,46 @@ describe.each(PAGES)(
       expect(await headings.textContent()).toBe(copy.title);
     });
 
+    it("has one element with the skills id, the section that holds the skills heading", async () => {
+      const section = opened.page.locator('[id="skills"]');
+
+      expect(await section.count()).toBe(1);
+      expect(
+        await section
+          .getByRole("heading", {
+            level: 2,
+            name: `The ${plugin.name} skills.`,
+          })
+          .count(),
+      ).toBe(1);
+    });
+
     it("shares the site's social card", async () => {
       expect(await meta("og:image")).toBe(SOCIAL_CARD.url);
     });
 
-    it("has every host's commands in the HTML, only the first host's shown", async () => {
-      const codes = await opened.page.locator("main code").allTextContents();
+    it("has every host's commands in the install box, only the first host's shown", async () => {
       const [first, ...rest] = hosts;
+      const inBox = (command: string): Locator =>
+        opened.page.locator("astro-island").getByText(command, { exact: true });
       const shown = (commands: readonly string[]): Promise<boolean[]> =>
-        Promise.all(
-          commands.map((command) =>
-            opened.page
-              .locator("astro-island")
-              .getByText(command, { exact: true })
-              .isVisible(),
-          ),
-        );
-      const firstCommands = first?.commands ?? [];
-      const restCommands = rest.flatMap((host) => host.commands);
+        Promise.all(commands.map((command) => inBox(command).isVisible()));
 
-      expect(codes).toEqual(
-        expect.arrayContaining([...firstCommands, ...restCommands]),
+      if (first === undefined) {
+        throw new Error(`${plugin.name} has no install host`);
+      }
+
+      const firstCommands = first.commands;
+      const restCommands = rest.flatMap((host) => host.commands);
+      const allCommands = [...firstCommands, ...restCommands];
+      const counts = await Promise.all(
+        allCommands.map((command) => inBox(command).count()),
       );
+
+      // isVisible() is false for a missing element too, so first check that each is there.
+      expect(
+        allCommands.filter((_command, index) => counts[index] === 0),
+      ).toEqual([]);
       expect(firstCommands.length).toBeGreaterThan(0);
       expect(await shown(firstCommands)).toEqual(firstCommands.map(() => true));
       expect(await shown(restCommands)).toEqual(restCommands.map(() => false));
@@ -230,11 +248,19 @@ describe("a plugin page with scripts", () => {
 
   it("hydrates /plugins/review with no console errors, and its OpenCode tab shows the OpenCode commands", async () => {
     const review = PAGES.find(({ plugin }) => plugin.name === "review");
-    const hosts = pluginInstallHosts(review?.plugin ?? { name: "review" });
-    const claude = hosts.find(({ label }) => label !== "OpenCode");
-    const opencode = hosts.find(({ label }) => label === "OpenCode");
-    const claudeCommand = claude?.commands[0] ?? "";
-    const opencodeCommand = opencode?.commands[0] ?? "";
+    if (review === undefined) {
+      throw new Error("no page for review");
+    }
+
+    const hosts = pluginInstallHosts(review.plugin);
+    const claudeCommand = hosts.find(({ label }) => label !== "OpenCode")
+      ?.commands[0];
+    const opencodeCommand = hosts.find(({ label }) => label === "OpenCode")
+      ?.commands[0];
+    if (claudeCommand === undefined || opencodeCommand === undefined) {
+      throw new Error("review has no Claude Code or no OpenCode command");
+    }
+
     expect(opencodeCommand).toMatch(/^opencode plugin add /);
     const { page, errors } = await open(pluginPath("review"));
 

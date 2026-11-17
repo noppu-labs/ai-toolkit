@@ -3,7 +3,7 @@ import { opencodeInstallCommand } from "./install-methods.ts";
 import type { OpenCodePage } from "./load-opencode.ts";
 import { type OpenCodePlugin, opencodePluginPath } from "./opencode.ts";
 import { pluginColorClass, sortPlugins } from "./plugins.ts";
-import { pluginPath } from "./site.ts";
+import { pluginSkillsPath } from "./site.ts";
 
 /** What a card or a list row needs to show a synced OpenCode plugin. */
 export interface OpenCodeCard {
@@ -51,7 +51,7 @@ export interface ToolkitOpenCodeCard {
   /** The npm package that carries the plugin's skills. */
   packageName: string;
   command: string;
-  /** The plugin's own page. */
+  /** The skills section of the plugin's own page. */
   pluginHref: string;
   accentClass: string;
 }
@@ -70,7 +70,7 @@ export function toolkitOpenCodeCards(
             skillCount: plugin.skills.length,
             packageName: plugin.opencodePackage,
             command: opencodeInstallCommand(plugin.opencodePackage),
-            pluginHref: pluginPath(plugin.name),
+            pluginHref: pluginSkillsPath(plugin.name),
             accentClass: pluginColorClass(plugin.name),
           },
         ],
