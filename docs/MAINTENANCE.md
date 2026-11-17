@@ -59,6 +59,8 @@ run `seed <plugin>/<name>`), and finish with `verify`.
    `scripts/skills-sync/types.ts`, the manifest-sanity list in `.github/workflows/quality.yml`,
    the README table and install blocks, and the install command lists in
    `site/src/components/sections/Hero.tsx` (with its test and `site/scripts/build-catalog.test.ts`).
+   Write the plugin's page copy in `site/src/content/plugins/<plugin>.yaml` (see
+   `docs/plugin-pages.md`) and add the plugin to `PLUGIN_ORDER` in `site/src/lib/plugins.ts`.
 3. Add skills per the section above, `npm run sync -- seed <plugin>/<skill>`, then `verify`.
 4. Run `claude plugin validate <plugin>` and `claude plugin validate .`.
 
