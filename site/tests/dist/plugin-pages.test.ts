@@ -61,7 +61,6 @@ describe.each(PAGES)(
       return (await element.count()) === 0 ? null : element.getAttribute(key);
     }
 
-    /** The meta with this `property` or `name`. */
     function meta(key: string): Promise<string | null> {
       return attribute(
         `meta[property="${key}"], meta[name="${key}"]`,
@@ -131,6 +130,20 @@ describe.each(PAGES)(
           })
           .count(),
       ).toBe(1);
+    });
+
+    it("numbers its sections from 01 to 05 with the page's own labels", async () => {
+      const eyebrows = await opened.page
+        .locator("main section > p:first-child")
+        .allTextContents();
+
+      expect(eyebrows.filter((text) => /^\d\d — /.test(text))).toEqual([
+        "01 — What it does",
+        "02 — Skills",
+        "03 — How it works",
+        "04 — Requirements",
+        "05 — Questions",
+      ]);
     });
 
     it("shares the site's social card", async () => {

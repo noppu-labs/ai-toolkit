@@ -44,9 +44,7 @@ const { plugin, copy }: PluginPage<PluginPageCopy> = page;
 const name: string = plugin.name;
 const accentClass: string = pluginColorClass(name);
 const { plugins }: Catalog = await loadCatalog();
-const skills: CatalogSkill[] = catalogSkills(plugins).filter(
-  (skill) => skill.plugin === name,
-);
+const skills: CatalogSkill[] = catalogSkills([plugin]);
 ---
 
 <Base head={pluginHead(page)} sectionBase="/">
@@ -71,6 +69,7 @@ const skills: CatalogSkill[] = catalogSkills(plugins).filter(
   </PluginPageHero>
   <Highlights
     accentClass={accentClass}
+    eyebrow="01 — What it does"
     heading={copy.highlights.heading}
     items={copy.highlights.items}
   />
