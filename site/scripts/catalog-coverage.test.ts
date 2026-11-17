@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest";
 import { PLUGIN_ORDER, sortSkills } from "../src/lib/plugins.ts";
 import { SKILL_SUMMARIES } from "../src/lib/skill-summaries.ts";
 import { buildCatalog } from "./build-catalog.ts";
+import { readPluginCopy } from "./plugin-copy.ts";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const siteDir = resolve(repoRoot, "site");
 const catalog = buildCatalog(repoRoot);
 
 const catalogKeys: string[] = catalog.plugins.flatMap((plugin) =>
@@ -43,5 +45,15 @@ describe("locales/en/skills.json", () => {
   it("has no summary for a skill the catalog does not have", () => {
     const orphans = summaryKeys.filter((key) => !catalogKeys.includes(key));
     expect(orphans).toEqual([]);
+  });
+});
+
+describe("content/plugins", () => {
+  it("has copy for every catalog plugin and for no other", () => {
+    expect(
+      readPluginCopy(siteDir)
+        .map((entry) => entry.name)
+        .sort(),
+    ).toEqual(catalog.plugins.map((plugin) => plugin.name).sort());
   });
 });

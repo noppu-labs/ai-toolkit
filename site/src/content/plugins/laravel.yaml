@@ -1,0 +1,116 @@
+# The page for this plugin on toolkit.noppu.com: https://toolkit.noppu.com/plugins/laravel
+# The fields are documented in docs/plugin-pages.md.
+schemaVersion: 1
+title: "laravel: Laravel backend skills"
+seo:
+  title: Laravel skills, rules and agent for Claude Code
+  description: >-
+    Laravel skills for controllers, models, DTOs, policies, validation, testing and security, with
+    a backend agent and rules you copy into your project.
+tagline: >-
+  Have an agent write Laravel backend code with thin controllers, DTOs in place of loose values
+  and query builders in place of scopes, then audit what you have against the OWASP Top 10.
+highlights:
+  heading: What the laravel plugin gives a Laravel project.
+  items:
+    - label: layers
+      title: Skills for each layer of a request
+      body: >-
+        `laravel-routing` and `laravel-controllers` cover the edge, `laravel-validation` and
+        `laravel-dtos` the input, `laravel-services` external APIs, `laravel-models` and
+        `laravel-query-builders` the data, `laravel-policies` access.
+    - label: conventions
+      title: Conventions the skills pick for you
+      body: >-
+        Controllers handle HTTP concerns only and hand the work to action classes. Models get
+        custom query builders in place of local scopes. Data that would travel as several
+        primitive values goes into a DTO.
+    - label: detection
+      title: Testing and PHP advice that checks the project first
+      body: >-
+        `laravel-testing` reads `require-dev` and `tests/Pest.php` to pick Pest or PHPUnit syntax,
+        prefers Pest when both are present, and asks you when it cannot tell. `php-best-practices`
+        reads the PHP version from `composer.json` before suggesting syntax.
+    - label: audit
+      title: A security audit with a result per item
+      body: >-
+        `laravel-owasp-security` runs an OWASP Top 10 checklist over the codebase or the files you
+        name, with React and Inertia checks added when it detects them. Each item is `PASS`,
+        `FAIL` or `N/A`.
+    - label: agent
+      title: A backend agent written for Laravel 13
+      body: >-
+        `laravel-backend-specialist` assumes Laravel 13 on PHP 8.5, with Inertia v3, Wayfinder,
+        Pest 4, Larastan, Rector and Duster. It asks before it changes dependencies or adds a
+        top-level directory.
+    - label: rules
+      title: Rules that load only for matching files
+      body: >-
+        `code-quality-php` covers Duster, PHP style, thin controllers and a folder per domain in
+        `app/Services`. The others cover container resolution in `app/Providers`, test layout
+        under `tests/`, and validation attributes on DTOs in paths such as `app/**/Dtos`.
+howItWorks:
+  heading: What a backend task looks like.
+  steps:
+    - >-
+      Each skill's description names the work it applies to, such as policies, permissions and
+      ability checks for `laravel-policies`. Installed from the marketplace, the skills are
+      namespaced, as in `laravel:laravel-dtos`.
+    - >-
+      The agent keeps to one order: activate the relevant skills, search the docs with Boost's
+      `search-docs` tool, inspect the schema and sibling files, generate files with `artisan`,
+      write or update a Pest test, then run `vendor/bin/duster fix --dirty`.
+    - >-
+      Where existing code mixes concerns, for example business logic in a controller, the agent
+      follows the existing pattern and briefly flags the problem to you.
+    - >-
+      `/laravel:install-rules` copies the rule files into `.claude/rules/`. A file already there
+      with identical content is skipped. One with different content is reported as a conflict,
+      shown as a diff and left for you to decide.
+    - >-
+      Some rules embed project commands, such as `docker compose exec cli vendor/bin/duster`. After
+      copying, the command lists them, asks whether they match your project and offers to adjust
+      the copies.
+requirements:
+  items:
+    - >-
+      A Laravel application. The skills and the agent are written for Laravel 13.
+    - >-
+      Duster, which the copied `code-quality-php` rule runs through `docker compose exec cli`.
+      Change that command in the copy if your project runs Duster another way.
+faq:
+  - q: Which Laravel and PHP versions do the skills target?
+    a: >-
+      Laravel 13. `laravel-testing`, `laravel-owasp-security` and `laravel-database-optimization`
+      are written for Laravel 13.x on PHP 8.3 or later, and the agent assumes PHP 8.5.
+      `php-best-practices` covers PHP 8.0 to 8.5. `laravel-models` marks which model attributes
+      need Laravel 12 and which need 13.
+  - q: Which packages do the skills assume?
+    a: >-
+      `laravel-dtos` builds on Spatie Laravel Data, `laravel-services` on Saloon,
+      `laravel-activity-logging` on `spatie/laravel-activitylog` v5 and `laravel-quality` on
+      PHPStan and Pint. `laravel-testing` covers Pest 4 and PHPUnit 12.
+  - q: Does the laravel plugin work in OpenCode?
+    a: >-
+      Not as a package. The skills CLI can install its skills for other coding agents, and that
+      route brings the skill folders only, without the agent, the rules or
+      `/laravel:install-rules`.
+  - q: How does it differ from the inertia-react plugin?
+    a: >-
+      `laravel` covers the PHP side of a Laravel app and `inertia-react` the React pages Inertia
+      renders. They meet where the server hands data to the page: `laravel-owasp-security` adds
+      checks for an Inertia and React frontend when it detects one, such as secrets passed as
+      page props, and the agent writes lazy props with Inertia v3's `Inertia::optional()`.
+  - q: What does the OWASP audit report?
+    a: >-
+      A result for each checklist item. A `FAIL` names the `file:line`, describes the
+      vulnerability and recommends a fix, without reproducing code, keys, tokens or `.env`
+      contents from the file.
+  - q: Does the backend agent remember my project?
+    a: >-
+      Yes. `laravel-backend-specialist` runs with project memory and keeps its notes in
+      `.claude/agent-memory/laravel-backend-specialist/` inside your project, so later sessions
+      start from what it learned and the team can share the notes through version control.
+links:
+  - label: Plugin directory on GitHub
+    href: https://github.com/noppu-labs/ai-toolkit/tree/main/laravel
