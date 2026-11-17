@@ -21,11 +21,6 @@ export function readSearchParam(name: string): string | null {
   return new URL(currentHref()).searchParams.get(name);
 }
 
-export function pluginSkillsHref(plugin: string): string {
-  const params = new URLSearchParams({ [PLUGIN_PARAM]: plugin });
-  return `?${params.toString()}#skills`;
-}
-
 interface WriteUrlOptions {
   /** A new history entry (a navigation the visitor can go back from) rather than replacing the current one. */
   push?: boolean;
@@ -82,16 +77,4 @@ export function subscribeToUrl(onChange: () => void): () => void {
     window.removeEventListener("popstate", onChange);
     window.removeEventListener(URL_CHANGE_EVENT, onChange);
   };
-}
-
-/**
- * What following a plugin's skills link does in page: filter the catalog to
- * the plugin. It also clears the query, which could hide every skill of the
- * plugin, and the selected skill, which could sit outside the new filter.
- */
-export function showPluginSkills(plugin: string): void {
-  writeSearchParams(
-    { [PLUGIN_PARAM]: plugin, [QUERY_PARAM]: null, [SKILL_PARAM]: null },
-    { push: true, hash: "skills" },
-  );
 }

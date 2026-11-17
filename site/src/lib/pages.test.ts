@@ -50,7 +50,7 @@ describe("pageHead", () => {
         path: "/skills/laravel-dtos",
         jsonLd: breadcrumbJsonLd([
           { name: "Home", path: "/" },
-          { name: "laravel", path: "/?plugin=laravel" },
+          { name: "laravel", path: "/plugins/laravel" },
           { name: "laravel-dtos", path: "/skills/laravel-dtos" },
         ]),
       },

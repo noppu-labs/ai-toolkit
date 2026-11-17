@@ -3,7 +3,7 @@
   "displayName": "Inertia React toolkit",
   "description": "Frontend skills, a specialist agent and path-scoped rules for Inertia v3 + React 19 + TypeScript: shadcn, Tailwind, state management and Vite performance.",
   "version": "0.1.3",
-  "homepage": "https://toolkit.noppu.com",
+  "homepage": "https://toolkit.noppu.com/plugins/inertia-react",
   "author": {
     "name": "Noppu Labs"
   }

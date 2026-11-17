@@ -42,3 +42,45 @@ describe("OpenCode package homepage", () => {
     expect(readHomepage("review")).toBe(`${SITE_URL}/opencode`);
   });
 });
+
+function readMarketplacePlugins(): string[] {
+  const raw = readFileSync(
+    join(REPO_ROOT, ".claude-plugin", "marketplace.json"),
+    "utf8",
+  );
+
+  return (JSON.parse(raw) as { plugins: { name: string }[] }).plugins.map(
+    (plugin) => plugin.name,
+  );
+}
+
+const PLUGINS = readMarketplacePlugins();
+
+describe("plugin links", () => {
+  it("reads the plugins from the marketplace", () => {
+    expect(PLUGINS.length).toBeGreaterThan(0);
+  });
+
+  it.each(PLUGINS)("links %s to its page in the README's table", (plugin) => {
+    const readme = readFileSync(join(REPO_ROOT, "README.md"), "utf8");
+
+    expect(readme).toContain(`[\`${plugin}\`](${SITE_URL}/plugins/${plugin})`);
+  });
+
+  it("has no ?plugin= link left in the README", () => {
+    expect(readFileSync(join(REPO_ROOT, "README.md"), "utf8")).not.toContain(
+      "?plugin=",
+    );
+  });
+
+  it.each(PLUGINS)("sends %s's plugin.json homepage to its page", (plugin) => {
+    const manifest = JSON.parse(
+      readFileSync(
+        join(REPO_ROOT, plugin, ".claude-plugin", "plugin.json"),
+        "utf8",
+      ),
+    ) as { homepage: string };
+
+    expect(manifest.homepage).toBe(`${SITE_URL}/plugins/${plugin}`);
+  });
+});

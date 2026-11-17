@@ -3,7 +3,7 @@ import { CRUMB_LINK } from "./components/opencode/hero-classes.ts";
 import { SkillRows } from "./components/SkillRows.tsx";
 import type { CatalogSkill } from "./lib/catalog.ts";
 import { pluginColorClass } from "./lib/plugins.ts";
-import { pluginSkillsHref } from "./lib/url-state.ts";
+import { pluginPath } from "./lib/site.ts";
 import { cn } from "./lib/utils.ts";
 
 interface SkillPageProps {
@@ -27,7 +27,7 @@ function Breadcrumb({ skill }: { skill: CatalogSkill }): ReactElement {
         </li>
         <li aria-hidden="true">/</li>
         <li>
-          <a className={CRUMB_LINK} href={`/${pluginSkillsHref(skill.plugin)}`}>
+          <a className={CRUMB_LINK} href={pluginPath(skill.plugin)}>
             {skill.plugin}
           </a>
         </li>
