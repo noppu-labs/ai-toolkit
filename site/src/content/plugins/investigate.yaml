@@ -22,7 +22,7 @@ highlights:
       title: Missing tools show as gaps
       body: >-
         The brief opens with a Tools section. A tool that is absent or failed marks its section
-        as unresolved, so a thin caller list under it points to a missing or failed tool.
+        as unresolved, so a thin caller list under it may only mean the tool did not run.
     - label: versions
       title: Installed versions, checked docs
       body: >-

@@ -92,9 +92,9 @@ faq:
       PHPStan and Pint. `laravel-testing` covers Pest 4 and PHPUnit 12.
   - q: Does the laravel plugin work in OpenCode?
     a: >-
-      Not as a package: there is no OpenCode package for laravel. The skills CLI can install its
-      skills for other coding agents, and that route brings the skill folders only, without the
-      agent, the rules or `/laravel:install-rules`.
+      Not as a package. The skills CLI can install its skills for other coding agents, and that
+      route brings the skill folders only, without the agent, the rules or
+      `/laravel:install-rules`.
   - q: How does it differ from the inertia-react plugin?
     a: >-
       `laravel` covers the PHP side of a Laravel app and `inertia-react` the React pages Inertia

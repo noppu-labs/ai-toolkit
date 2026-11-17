@@ -107,8 +107,7 @@ faq:
   - q: Does the inertia-react plugin work in OpenCode?
     a: >-
       Not as a package, since only `review` and `investigate` have OpenCode packages. The skills
-      CLI copies the skill folders alone, so OpenCode can get the skills that way while
-      `frontend-developer` and the rules stay behind.
+      CLI copies the skill folders alone, which leaves `frontend-developer` and the rules behind.
   - q: Where do the skills come from?
     a: >-
       `shadcn` comes from the `shadcn/ui` repository and the rest from `AsyrafHussin/agent-skills`,
