@@ -42,7 +42,9 @@ export function parseGraphContext(stdout) {
 }
 
 export function graphContext(ctx, symbolName) {
-  const res = run("gitnexus", ["context", symbolName, "--repo", ctx.repoName], {
+  // By path: a linked worktree's registry name is not its directory name,
+  // and a name two checkouts share is ambiguous to gitnexus.
+  const res = run("gitnexus", ["context", symbolName, "--repo", ctx.repoRoot], {
     cwd: ctx.repoRoot,
     env: ctx.env,
     timeout: 10_000,
