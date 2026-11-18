@@ -2,17 +2,24 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 import { run } from "./exec.mjs";
 
-// `gitnexus list` separates entries with a blank line. A name it lists twice
-// gets a `  (<path>)` suffix, which is not part of the name.
+// A name `gitnexus list` shows twice gets a `  (<path>)` suffix, which is not
+// part of the name. String ops, not a regex: `\s+\(.*\)$` backtracks.
+function entryName(line) {
+  const name = line.trim();
+  const suffix = name.indexOf(" (");
+  return suffix !== -1 && name.endsWith(")")
+    ? name.slice(0, suffix).trimEnd()
+    : name;
+}
+
+// `gitnexus list` separates entries with a blank line. The separator class
+// excludes `\n`, so a run of blank lines cannot backtrack.
 function entries(stdout) {
   return stdout
-    .split(/\n\s*\n/)
+    .split(/\n[ \t\r]*\n/)
     .map((block) => block.trim())
     .filter((block) => block !== "")
-    .map((block) => ({
-      block,
-      name: (block.split("\n")[0] ?? "").trim().replace(/\s+\(.*\)$/, ""),
-    }));
+    .map((block) => ({ block, name: entryName(block.split("\n")[0] ?? "") }));
 }
 
 function pathOf(block) {
