@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Stands in for gitnexus: `list` prints FAKE_GITNEXUS_LIST and exits with
-// FAKE_GITNEXUS_EXIT (default 0); `context` prints FAKE_GITNEXUS_CONTEXT.
-const [command] = process.argv.slice(2);
+// FAKE_GITNEXUS_EXIT (default 0); `context` prints FAKE_GITNEXUS_CONTEXT, and
+// with FAKE_GITNEXUS_REPO set, fails unless `--repo` names exactly that.
+const args = process.argv.slice(2);
+const [command] = args;
 
 if (command === "--version") {
   process.stdout.write("gitnexus 0.0.0-fake\n");
@@ -12,6 +14,10 @@ if (command === "list") {
   process.exit(Number(process.env.FAKE_GITNEXUS_EXIT ?? 0));
 }
 if (command === "context") {
+  const wanted = process.env.FAKE_GITNEXUS_REPO;
+  if (wanted !== undefined && args[args.indexOf("--repo") + 1] !== wanted) {
+    process.exit(1);
+  }
   process.stdout.write(process.env.FAKE_GITNEXUS_CONTEXT ?? "");
   process.exit(0);
 }
