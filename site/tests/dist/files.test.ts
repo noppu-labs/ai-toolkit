@@ -6,7 +6,13 @@ import { buildCatalog } from "../../scripts/build-catalog.ts";
 import { readSyncedPlugins } from "../../scripts/opencode/content.ts";
 import { catalogSkills } from "../../src/lib/catalog.ts";
 import { OPENCODE_PATH, opencodePluginPath } from "../../src/lib/opencode.ts";
-import { PRIVACY_PATH, SITE_URL, skillPath } from "../../src/lib/site.ts";
+import { PLUGIN_ORDER } from "../../src/lib/plugins.ts";
+import {
+  PRIVACY_PATH,
+  pluginPath,
+  SITE_URL,
+  skillPath,
+} from "../../src/lib/site.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const SITE_DIR = fileURLToPath(new URL("../..", import.meta.url));
@@ -37,7 +43,7 @@ describe("the built site's files", () => {
     ).toEqual([]);
   });
 
-  it("lists the home page, the privacy page, the OpenCode hub, every skill's page and every OpenCode plugin's page in the sitemap, none past the root with a trailing slash", () => {
+  it("lists the home page, the privacy page, the OpenCode hub, every plugin's page, every skill's page and every OpenCode plugin's page in the sitemap, none past the root with a trailing slash", () => {
     const urls = locs(built("sitemap-0.xml"));
 
     expect(OPENCODE_PLUGIN_NAMES.length).toBeGreaterThan(0);
@@ -46,6 +52,7 @@ describe("the built site's files", () => {
         `${SITE_URL}/`,
         `${SITE_URL}${PRIVACY_PATH}`,
         `${SITE_URL}${OPENCODE_PATH}`,
+        ...PLUGIN_ORDER.map((name) => `${SITE_URL}${pluginPath(name)}`),
         ...SKILL_NAMES.map((name) => `${SITE_URL}${skillPath(name)}`),
         ...OPENCODE_PLUGIN_NAMES.map(
           (name) => `${SITE_URL}${opencodePluginPath(name)}`,
@@ -57,7 +64,7 @@ describe("the built site's files", () => {
     ).toEqual([]);
   });
 
-  it("dates each skill page in the sitemap, unless the clone is shallow", () => {
+  it("dates each skill and plugin page in the sitemap, unless the clone is shallow", () => {
     const shallow =
       execFileSync("git", ["rev-parse", "--is-shallow-repository"], {
         cwd: REPO_ROOT,
@@ -69,18 +76,18 @@ describe("the built site's files", () => {
       loc: /<loc>([^<]*)<\/loc>/.exec(body)?.[1] ?? "",
       lastmod: /<lastmod>([^<]*)<\/lastmod>/.exec(body)?.[1],
     }));
-    const skills = entries.filter(({ loc }) =>
-      loc.startsWith(`${SITE_URL}/skills/`),
-    );
+    const isDated = (loc: string): boolean =>
+      loc.startsWith(`${SITE_URL}/skills/`) ||
+      loc.startsWith(`${SITE_URL}/plugins/`);
+    const dated = entries.filter(({ loc }) => isDated(loc));
 
-    expect(skills).toHaveLength(SKILL_NAMES.length);
+    expect(dated).toHaveLength(SKILL_NAMES.length + PLUGIN_ORDER.length);
     expect(
-      skills.filter(({ lastmod }) => (lastmod === undefined) !== shallow),
+      dated.filter(({ lastmod }) => (lastmod === undefined) !== shallow),
     ).toEqual([]);
     expect(
       entries.filter(
-        ({ loc, lastmod }) =>
-          !loc.startsWith(`${SITE_URL}/skills/`) && lastmod !== undefined,
+        ({ loc, lastmod }) => !isDated(loc) && lastmod !== undefined,
       ),
     ).toEqual([]);
   });

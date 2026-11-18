@@ -12,7 +12,8 @@ import {
 import { readSyncedPlugins } from "../../scripts/opencode/content.ts";
 import { canonicalUrl } from "../../src/lib/head.ts";
 import { OPENCODE_PATH, opencodePluginPath } from "../../src/lib/opencode.ts";
-import { SITE_URL } from "../../src/lib/site.ts";
+import { PLUGIN_ORDER } from "../../src/lib/plugins.ts";
+import { pluginPath, pluginSkillsPath, SITE_URL } from "../../src/lib/site.ts";
 import {
   type OpenedPage,
   openPage,
@@ -290,8 +291,8 @@ describe("the OpenCode hub", () => {
     for (const { name } of PLUGINS) {
       expect(hrefs).toContain(opencodePluginPath(name));
     }
-    expect(hrefs).toContain("/?plugin=review#skills");
-    expect(hrefs).toContain("/?plugin=investigate#skills");
+    expect(hrefs).toContain(pluginSkillsPath("review"));
+    expect(hrefs).toContain(pluginSkillsPath("investigate"));
     expect(hrefs).toContain("/#install");
   });
 
@@ -345,6 +346,7 @@ describe("every page type", () => {
   const PHONE_PATHS = [
     OPENCODE_PATH,
     ...PLUGINS.map(({ name }) => opencodePluginPath(name)),
+    ...PLUGIN_ORDER.map((name) => pluginPath(name)),
   ];
   const opened: OpenedPage[] = [];
 
@@ -365,16 +367,19 @@ describe("every page type", () => {
     },
   );
 
-  it.each(["/", "/skills/deep", OPENCODE_PATH, opencodePluginPath(REVIEWER)])(
-    "links the OpenCode hub in the header of %s",
-    async (path) => {
-      const desktop = await openPage(path, { javaScript: false });
-      opened.push(desktop);
-      const link = desktop.page
-        .locator("header nav")
-        .getByRole("link", { name: "OpenCode", exact: true });
+  it.each([
+    "/",
+    "/skills/deep",
+    OPENCODE_PATH,
+    opencodePluginPath(REVIEWER),
+    pluginPath("review"),
+  ])("links the OpenCode hub in the header of %s", async (path) => {
+    const desktop = await openPage(path, { javaScript: false });
+    opened.push(desktop);
+    const link = desktop.page
+      .locator("header nav")
+      .getByRole("link", { name: "OpenCode", exact: true });
 
-      expect(await link.getAttribute("href")).toBe(OPENCODE_PATH);
-    },
-  );
+    expect(await link.getAttribute("href")).toBe(OPENCODE_PATH);
+  });
 });

@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { FIXTURE_CATALOG } from "@/test/fixture-catalog";
 import { CACHE_MANAGER_PLUGIN } from "@/test/opencode-plugins";
+import { FIXTURE_PLUGIN_COPY } from "@/test/plugin-copy";
 import { type CatalogSkill, catalogSkills } from "./catalog.ts";
 import type { SocialImage } from "./head.ts";
-import { opencodePluginHead, pageHead, skillPages } from "./pages.ts";
+import {
+  opencodePluginHead,
+  pageHead,
+  pluginHead,
+  skillPages,
+} from "./pages.ts";
 import { breadcrumbJsonLd } from "./structured-data.ts";
 
 const skills = catalogSkills(FIXTURE_CATALOG.plugins);
@@ -44,7 +50,7 @@ describe("pageHead", () => {
         path: "/skills/laravel-dtos",
         jsonLd: breadcrumbJsonLd([
           { name: "Home", path: "/" },
-          { name: "laravel", path: "/?plugin=laravel" },
+          { name: "laravel", path: "/plugins/laravel" },
           { name: "laravel-dtos", path: "/skills/laravel-dtos" },
         ]),
       },
@@ -86,5 +92,21 @@ describe("opencodePluginHead", () => {
         "https://toolkit.noppu.com/opencode/opencode-cache-manager",
       ],
     ]);
+  });
+});
+
+describe("pluginHead", () => {
+  it("takes the copy's SEO title and description, the plugin's path and a breadcrumb", () => {
+    expect(
+      pluginHead({ plugin: { name: "laravel" }, copy: FIXTURE_PLUGIN_COPY }),
+    ).toEqual({
+      title: `${FIXTURE_PLUGIN_COPY.seo.title} · AI Toolkit`,
+      description: FIXTURE_PLUGIN_COPY.seo.description,
+      path: "/plugins/laravel",
+      jsonLd: breadcrumbJsonLd([
+        { name: "Home", path: "/" },
+        { name: "laravel", path: "/plugins/laravel" },
+      ]),
+    });
   });
 });

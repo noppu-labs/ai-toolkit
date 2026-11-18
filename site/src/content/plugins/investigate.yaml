@@ -1,0 +1,132 @@
+# The page for this plugin on toolkit.noppu.com: https://toolkit.noppu.com/plugins/investigate
+# The fields are documented in docs/plugin-pages.md.
+schemaVersion: 1
+title: "investigate: codebase investigation skills"
+seo:
+  title: Code investigation for Claude Code and OpenCode
+  description: >-
+    Skills that compute who calls a path and what it affects, run a two-pass investigation of a
+    module, and check a spec or ticket claim by claim against the code.
+tagline: >-
+  Hand an agent a computed map of callers and installed versions before it reads a module, then
+  trust what two independent passes both found and check the rest.
+highlights:
+  heading: What an investigation starts from.
+  items:
+    - label: brief
+      title: A brief computed without a model
+      body: >-
+        `brief` runs a script that does a graph query and a textual wiring scan, with no LLM in
+        the loop. The agent gets a caller list to check against instead of recalling callers.
+    - label: tools
+      title: Missing tools show as gaps
+      body: >-
+        The brief opens with a Tools section. A tool that is absent or failed marks its section
+        as unresolved, so a thin caller list under it may only mean the tool did not run.
+    - label: versions
+      title: Installed versions, checked docs
+      body: >-
+        For the packages a target imports, the brief reads the installed version from
+        `composer.lock` or `package-lock.json` and compares each context7 documentation source
+        with it. A source for the wrong major version is withheld and the agent reads installed
+        source.
+    - label: passes
+      title: Two passes, intersected
+      body: >-
+        `deep` runs two passes from the same prompt. A claim both make is trusted. A claim only
+        one makes is confirmed at its cited `file:line` or carried into the report as
+        single-source.
+    - label: reachability
+      title: Reachability ends in a verdict
+      body: >-
+        In a `deep` report, a reachability claim ends as Reachable with a path, Guarded with the
+        guard, or Unresolved with what would have to be read. A failed search is never turned
+        into "no callers".
+    - label: spec
+      title: Specs read as claims
+      body: >-
+        `spec` marks each claim of a spec, ticket or plan CORRECT, WRONG or UNVERIFIABLE, then
+        lists the callers the document never mentions, each with a reachability outcome.
+howItWorks:
+  heading: What one investigation looks like.
+  steps:
+    - >-
+      `deep` resolves its argument to at most four module directories: a path that exists, or free
+      text located with `git grep`, `codegraph explore` or `gitnexus query` when
+      available. Past four candidates it keeps the central ones and says which it dropped.
+    - >-
+      It runs `brief` once per directory and concatenates the output under per-module headers.
+      When a brief fails, that module's structure is marked unresolved in the report, and the
+      investigation does not go ahead silently without it.
+    - >-
+      It dispatches both passes in a single message with one identical prompt, which holds the
+      brief and, for up to four packages the target leans on, doc sources that passed the version
+      check.
+    - >-
+      It merges the answers by intersection and settles disagreements by reading the code. Two
+      agreeing claims that rest on recalled framework behaviour stay labelled as recall until they
+      are checked against the installed source or a version-checked doc source.
+    - >-
+      For a quick look, `deep` has a cheaper variant that runs the brief and investigates inline
+      in one pass. Its report says so and names the claims that are single-source.
+    - >-
+      `spec` first reads the document in full: a file path, a ticket or document id fetched
+      through the session's tools, or pasted text. It maps the classes the document names to
+      modules, about four at most, then follows the same brief and two-pass course.
+requirements:
+  items:
+    - >-
+      `git` and Node 20 or later on `PATH`, for the `brief` script.
+    - >-
+      Optional, each reported under Tools when missing: `gitnexus`, `codegraph`, `ast-grep`,
+      `phpantom_lsp` and `typescript-language-server`.
+    - >-
+      For verified TypeScript callers, a tsserver-based TypeScript (6 or earlier) in the target
+      repo. In a TypeScript 7 repo the brief reports the language server as failed.
+    - >-
+      A `composer.lock` or `package-lock.json` for the target, or its third-party imports are
+      unresolved. pnpm, yarn and bun lockfiles are not read.
+    - >-
+      Network access to context7.com for the doc-source check, which `--no-docs` skips.
+faq:
+  - q: What does the investigate brief need installed?
+    a: >-
+      Only `git` and Node 20 or later. Each optional tool found on `PATH` adds detail, and each
+      one missing is listed under Tools as unresolved without failing the run. Run it in a
+      checkout that has `vendor/` or `node_modules/`, because a bare worktree degrades resolved
+      types and omits graph sections.
+  - q: Why does deep investigation run two passes?
+    a: >-
+      One pass fabricates and omits callers: in the author's controlled runs, roughly a third to
+      half of what a single run surfaced was run-dependent. Trusting what both passes claim
+      filters that out. It does not catch mistakes about how a third-party package behaves, which
+      the brief's version-checked doc sources are there for.
+  - q: Can the brief find every caller of a method?
+    a: >-
+      No. For PHP the call graph has no inheritance, interface or container-resolution edges, so
+      its caller lists are a lower bound, and an empty list on a service method is unresolved.
+      The brief has a section listing what no pass can see, such as string-based dynamic usage
+      and third-party behaviour.
+  - q: Does the brief send my code anywhere?
+    a: >-
+      By default it sends the names of up to 12 imported, non-dev packages to context7.com to
+      find documentation sources, anonymously unless `CONTEXT7_API_KEY` is set. Pass `--no-docs`
+      to skip that call.
+  - q: Does the investigate plugin work in OpenCode?
+    a: >-
+      Yes. The same skills ship as `@noppu-labs/opencode-investigate`, which targets OpenCode V2,
+      and you call a skill as `@investigate-deep`. The two passes run there as two foreground
+      `subagent` calls.
+  - q: Can I install it with npx skills add?
+    a: >-
+      Yes, though that route leaves `${CLAUDE_PLUGIN_ROOT}` unset, so the script and reference
+      paths in the skills do not resolve as written. For OpenCode the npm package is the
+      supported route.
+  - q: How does the investigate plugin relate to review?
+    a: >-
+      You can install either alone. `brief` is meant to feed reviews as well as investigations,
+      and when this plugin is present the `review` plugin's `pr-review` uses it to build each
+      pull request's structural brief.
+links:
+  - label: Plugin README on GitHub
+    href: https://github.com/noppu-labs/ai-toolkit/blob/main/investigate/README.md

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { FIXTURE_CATALOG } from "@/test/fixture-catalog";
 import {
   isLanguageAgnostic,
   PLUGIN_ORDER,
+  pluginChipLabels,
   pluginColorClass,
   pluginColorVar,
   pluginPressedColorClass,
@@ -130,5 +132,40 @@ describe("isLanguageAgnostic", () => {
     expect(isLanguageAgnostic("investigate")).toBe(true);
     expect(isLanguageAgnostic("laravel")).toBe(false);
     expect(isLanguageAgnostic("inertia-react")).toBe(false);
+  });
+});
+
+describe("pluginChipLabels", () => {
+  it("counts skills, agents and rules", () => {
+    const laravel = FIXTURE_CATALOG.plugins.find(
+      (plugin) => plugin.name === "laravel",
+    );
+    if (laravel === undefined) {
+      throw new Error("the fixture has no laravel plugin");
+    }
+
+    expect(pluginChipLabels(laravel)).toEqual([
+      "2 skills",
+      "1 agent",
+      "4 rules",
+    ]);
+  });
+
+  it("drops empty counts and marks a language-agnostic plugin", () => {
+    const skill = FIXTURE_CATALOG.plugins[0]?.skills[0];
+    if (skill === undefined) {
+      throw new Error("the fixture has no skill");
+    }
+
+    expect(
+      pluginChipLabels({
+        name: "review",
+        description: "",
+        version: "1.0.0",
+        agentCount: 0,
+        ruleCount: 0,
+        skills: [skill],
+      }),
+    ).toEqual(["1 skill", "any language"]);
   });
 });

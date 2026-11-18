@@ -45,7 +45,7 @@ describe("SkillPage", () => {
       .toHaveAttribute("href", "/#skills");
     await expect
       .element(crumbs.getByRole("link", { name: "laravel" }))
-      .toHaveAttribute("href", "/?plugin=laravel#skills");
+      .toHaveAttribute("href", "/plugins/laravel");
     await expect
       .element(crumbs.getByText("laravel-dtos"))
       .toHaveAttribute("aria-current", "page");
@@ -78,6 +78,21 @@ describe("SkillPage", () => {
     await expect
       .element(page.getByRole("link", { name: /^laravel-enums/ }))
       .toHaveAttribute("href", "/skills/laravel-enums");
+  });
+
+  it("spaces the other skills' list from its heading", async () => {
+    render(
+      <SkillPage siblings={[enums]} skill={dtos}>
+        <p>body</p>
+      </SkillPage>,
+    );
+
+    const link = page.getByRole("link", { name: /^laravel-enums/ });
+    await expect.element(link).toBeVisible();
+    const list = link.element().closest("ul");
+
+    expect(list?.classList.contains("mt-4")).toBe(true);
+    expect(list?.classList.contains("md:mt-5")).toBe(true);
   });
 
   it("lists no other skills when the plugin has none", async () => {

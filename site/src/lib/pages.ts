@@ -1,14 +1,16 @@
+import type { PluginEntry } from "../catalog-types.ts";
 import type { CatalogSkill } from "./catalog.ts";
 import type { SocialImage } from "./head.ts";
 import { OPENCODE_PATH, opencodePluginPath } from "./opencode.ts";
-import { PRIVACY_PATH, skillPath } from "./site.ts";
+import type { PluginPageCopy } from "./plugin-page-schema.ts";
+import { PRIVACY_PATH, pluginPath, skillPath } from "./site.ts";
 import { breadcrumbJsonLd } from "./structured-data.ts";
 
 /** What a page's `<head>` names; `Base.astro` writes it into the title, description and social tags. */
 export interface PageHead {
   title: string;
   description: string;
-  /** Root-relative, with no trailing slash past the root: `/`, `/privacy`, `/skills/<name>`, `/opencode` or `/opencode/<name>`. */
+  /** Root-relative, with no trailing slash past the root: `/`, `/privacy`, `/skills/<name>`, `/plugins/<name>`, `/opencode` or `/opencode/<name>`. */
   path: string;
   /** The link preview's image; the site's social card when left out. */
   image?: SocialImage;
@@ -70,6 +72,25 @@ export function opencodePluginHead(
   };
 }
 
+type PluginHeadSource = {
+  plugin: Pick<PluginEntry, "name">;
+  copy: Pick<PluginPageCopy, "seo">;
+};
+
+export function pluginHead(page: PluginHeadSource): PageHead {
+  const path = pluginPath(page.plugin.name);
+
+  return {
+    title: `${page.copy.seo.title} · AI Toolkit`,
+    description: page.copy.seo.description,
+    path,
+    jsonLd: breadcrumbJsonLd([
+      { name: "Home", path: "/" },
+      { name: page.plugin.name, path },
+    ]),
+  };
+}
+
 /** A page per skill, in the given order, each with the plugin's other skills in catalog order. */
 export function skillPages(
   skills: readonly CatalogSkill[],
@@ -96,7 +117,7 @@ export function pageHead(page: SitePage): PageHead {
       { name: "Home", path: "/" },
       {
         name: skill.plugin,
-        path: `/?${new URLSearchParams({ plugin: skill.plugin })}`,
+        path: pluginPath(skill.plugin),
       },
       { name: skill.name, path },
     ]),

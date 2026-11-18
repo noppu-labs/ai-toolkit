@@ -11,6 +11,15 @@ export function skillPath(skill: string): string {
   return `/skills/${encodeURIComponent(skill)}`;
 }
 
+/** A plugin's own page, which the build prerenders. */
+export function pluginPath(plugin: string): string {
+  return `/plugins/${encodeURIComponent(plugin)}`;
+}
+
+export function pluginSkillsPath(plugin: string): string {
+  return `${pluginPath(plugin)}#skills`;
+}
+
 /**
  * On the page's own origin, so a link copied on a preview deployment opens that preview.
  * Astro renders the page in Node at build time, where there is no window, so the built

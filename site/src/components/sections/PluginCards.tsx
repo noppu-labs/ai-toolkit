@@ -1,7 +1,7 @@
 import { Radio } from "@base-ui/react/radio";
 import { RadioGroup } from "@base-ui/react/radio-group";
 import { ArrowRight } from "lucide-react";
-import type { MouseEvent, ReactElement } from "react";
+import type { ReactElement } from "react";
 import { useCallback, useId } from "react";
 import { CommandLine } from "@/components/CommandText";
 import { CopyButton } from "@/components/CopyButton";
@@ -10,14 +10,9 @@ import {
   INSTALL_METHOD_LABELS,
   pluginInstallSteps,
 } from "@/lib/install-methods";
-import {
-  isLanguageAgnostic,
-  pluginColorClass,
-  sortPlugins,
-} from "@/lib/plugins";
+import { pluginChipLabels, pluginColorClass, sortPlugins } from "@/lib/plugins";
 import { pluralize } from "@/lib/pluralize";
-import { goToSection } from "@/lib/scroll";
-import { pluginSkillsHref, showPluginSkills } from "@/lib/url-state";
+import { pluginSkillsPath } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import {
   INSTALL_METHODS,
@@ -27,51 +22,11 @@ import {
 } from "@/stores/usePreferencesStore";
 import type { PluginEntry } from "../../catalog-types.ts";
 
-function chipLabels(plugin: PluginEntry): string[] {
-  const counts: [number, string][] = [
-    [plugin.skills.length, "skill"],
-    [plugin.agentCount, "agent"],
-    [plugin.ruleCount, "rule"],
-  ];
-  const labels = counts
-    .filter(([count]) => count > 0)
-    .map(([count, noun]) => pluralize(count, noun));
-  if (isLanguageAgnostic(plugin.name)) {
-    labels.push("any language");
-  }
-  return labels;
-}
-
-function isPlainClick(event: MouseEvent): boolean {
-  return (
-    event.button === 0 &&
-    !event.metaKey &&
-    !event.ctrlKey &&
-    !event.shiftKey &&
-    !event.altKey
-  );
-}
-
 function SeeSkillsLink({ plugin }: { plugin: PluginEntry }): ReactElement {
-  // The link works on its own (a new tab opens the filtered catalog); a plain
-  // click stays on the page: it sets the filter and scrolls to the catalog.
-  const handleClick = useCallback(
-    (event: MouseEvent<HTMLAnchorElement>): void => {
-      if (!isPlainClick(event)) {
-        return;
-      }
-      event.preventDefault();
-      showPluginSkills(plugin.name);
-      goToSection("skills");
-    },
-    [plugin.name],
-  );
-
   return (
     <a
       className="flex min-h-11 items-center justify-between gap-2 rounded-base border-2 border-edge bg-background px-3 py-2 text-[15px] font-heading text-foreground no-underline transition-all hover:translate-x-0.75 hover:translate-y-0.75 hover:shadow-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-background focus-visible:outline-hidden md:px-3.5 md:shadow-shadow-md"
-      href={pluginSkillsHref(plugin.name)}
-      onClick={handleClick}
+      href={pluginSkillsPath(plugin.name)}
     >
       See {pluralize(plugin.skills.length, `${plugin.name} skill`)}
       <ArrowRight aria-hidden="true" className="size-4.5" strokeWidth={2.5} />
@@ -111,7 +66,7 @@ function PluginCard({
           aria-label="Contents"
           className="flex flex-wrap gap-1.5 md:mt-auto md:gap-2"
         >
-          {chipLabels(plugin).map((label) => (
+          {pluginChipLabels(plugin).map((label) => (
             <li
               className="rounded-full border-2 border-edge bg-background px-2.5 py-0.75 text-[13px] font-bold md:px-3 md:py-1.25 md:text-sm"
               key={label}

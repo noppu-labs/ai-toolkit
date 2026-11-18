@@ -59,6 +59,13 @@ run `seed <plugin>/<name>`), and finish with `verify`.
    `scripts/skills-sync/types.ts`, the manifest-sanity list in `.github/workflows/quality.yml`,
    the README table and install blocks, and the install command lists in
    `site/src/components/sections/Hero.tsx` (with its test and `site/scripts/build-catalog.test.ts`).
+   The marketplace `source` must be `./<plugin>`, which the site's catalog build enforces.
+   Write the plugin's page copy in `site/src/content/plugins/<plugin>.yaml` (see
+   `docs/plugin-pages.md`). In `site/src/lib/plugins.ts`, add the plugin to `PLUGIN_ORDER`, to
+   `COLOR_CLASSES` and `PRESSED_COLOR_CLASSES`, and to `LANGUAGE_AGNOSTIC_PLUGINS` when it is
+   not tied to one language. Add its `--color-plugin-<plugin>` token to
+   `site/src/css/tokens/semantic.css`. Without the accent entries the page falls back to the
+   site's main colour (`bg-main`) and no test fails.
 3. Add skills per the section above, `npm run sync -- seed <plugin>/<skill>`, then `verify`.
 4. Run `claude plugin validate <plugin>` and `claude plugin validate .`.
 
