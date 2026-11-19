@@ -320,6 +320,25 @@ function findVerdictProblems(verdict, comments) {
   return [];
 }
 
+const FULL_SHA_RE = /^[0-9a-f]{40}$/u;
+
+/**
+ * `headSha` is optional, like the verdict. When present it is the commit the
+ * review covered, which a caller compares with `git rev-parse HEAD`, so a ref
+ * name or a shortened SHA is rejected.
+ */
+function findHeadShaProblems(headSha) {
+  if (headSha === undefined || headSha === null) {
+    return [];
+  }
+
+  if (typeof headSha !== "string" || !FULL_SHA_RE.test(headSha)) {
+    return ["headSha must be a full SHA of 40 lower-case hex characters"];
+  }
+
+  return [];
+}
+
 function getComments(input) {
   if (
     input === null ||
@@ -424,7 +443,10 @@ export function renderComments(input) {
     throw new Error(problems.join("\n"));
   }
 
-  const verdictProblems = findVerdictProblems(input.verdict, comments);
+  const verdictProblems = [
+    ...findVerdictProblems(input.verdict, comments),
+    ...findHeadShaProblems(input.headSha),
+  ];
 
   if (verdictProblems.length > 0) {
     throw new Error(verdictProblems.join("\n"));

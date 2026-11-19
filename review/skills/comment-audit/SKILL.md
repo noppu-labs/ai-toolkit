@@ -82,6 +82,8 @@ If the command fails, the ref does not exist in this clone. Run `git fetch` and 
 
 Steps 2 through 4 read `git diff BASE...HEAD -- DIRS`. Three dots, so only what the branch adds is in scope.
 
+Read files as they are at the head. When the working tree is not a clean checkout of `<head>`, read them with `git show <head>:<path>` and search them with `git grep <pattern> <head>`. `<head>` is the `head` step 0 resolved.
+
 ## Step 2: duplicate pass
 
 Inventory every rationale stated at two or more sites in the diff before ruling on any single comment.
@@ -163,6 +165,7 @@ The template's two summary requirements are easy to drop and both are mandatory:
 
 ## Apply mode
 
+- The edits land in the working tree, so it must be on the audited head. When `git rev-parse HEAD` differs from `git rev-parse <head>`, stop and say so.
 - Edit comments, docblocks, JSDoc, the README and topic files beside it, and schema descriptions only. Never change code.
 - A comment that is WRONG is corrected to match the code, never the code changed to match the comment. List every correction.
 - A comment that exists because the code is confusing is left in place and listed.
