@@ -318,7 +318,7 @@ function stageTemplate(key: StageKey, pr: Pr, brief: string): string {
   return fill(fencedAfter(STAGE_MARKERS[key]), {
     BRIEF: brief,
     BASE: pr.base,
-    HEAD: pr.head,
+    HEAD: pr.headSha,
     PR_TITLE: pr.title,
     PR_URL: pr.url,
   });
@@ -327,7 +327,7 @@ function stageTemplate(key: StageKey, pr: Pr, brief: string): string {
 function briefTemplate(pr: Pr): string {
   return fill(
     sectionOf("## Step 2: structural brief", "## Step 3: run the passes"),
-    { BASE: pr.base, HEAD: pr.head },
+    { BASE: pr.base, HEAD: pr.headSha },
   );
 }
 
@@ -783,6 +783,52 @@ describe("args", () => {
   });
 });
 
+// The skill builds `args` from these examples, so each must pass the script's
+// validation once `<HEAD_SHA>` holds a SHA: a key the script requires and the
+// example leaves out costs every workflow-path run one rejected call.
+function argsExamples(): unknown[][] {
+  const section = sectionOf(
+    "### Workflow path",
+    "### Correctness, first pass: `code-review`",
+  );
+  const blocks = [...section.matchAll(/```json\n([\s\S]*?)\n```/g)].map(
+    (match) => match[1] ?? "",
+  );
+
+  return blocks.map((block) => {
+    const parsed: unknown = JSON.parse(
+      block.replaceAll("<HEAD_SHA>", HEAD_SHA),
+    );
+
+    return Array.isArray(parsed) ? parsed : [parsed];
+  });
+}
+
+describe("args examples in SKILL.md", () => {
+  it("has the plain example and the one with instructions", () => {
+    expect(argsExamples()).toHaveLength(2);
+  });
+
+  it.each([0, 1])(
+    "example %i passes the script's validation",
+    async (index) => {
+      const args = argsExamples()[index] ?? [];
+      const fixtures = Object.fromEntries(
+        args.flatMap((pr) =>
+          Object.entries(
+            cleanFixtures({ ...makePr(), ...(pr as Partial<Pr>) }),
+          ),
+        ),
+      );
+      const run = await runScript(args, fixtures);
+
+      expect(reviewedHeads(run.result.report)).toEqual(
+        args.map(() => HEAD_SHA),
+      );
+    },
+  );
+});
+
 describe("report", () => {
   it("follows the step 4 skeleton, one section per PR in merge order", async () => {
     const second = makePr({ number: 118, title: "feat: second", url: "u118" });
@@ -1234,7 +1280,7 @@ describe("robustness", () => {
       "Structural brief:\nsee git diff <BASE>...<HEAD> and <PR_URL>\n",
     );
     expect(prompt).toContain('Review PR "fix: <HEAD> in titles" (');
-    expect(prompt).toContain("Base ref origin/main, head ref pr-review/117.");
+    expect(prompt).toContain(`Base ref origin/main, head ref ${HEAD_SHA}.`);
   });
 
   it("strips a leading anchor from the text, and only the exact anchor", async () => {
@@ -1328,20 +1374,35 @@ describe("PR head resolution", () => {
     // biome-ignore lint/security/noSecrets: a commit SHA fixture, not a secret
     ["a bare SHA", "59867ee01a72ef9bd06c524fa9650d4cdc74b9ac"],
   ])(
-    "fills <HEAD> with %s in the brief's in-place check and worktree fallback",
+    "fills <HEAD> with headSha when head is %s, in the brief's in-place check and worktree fallback",
     async (_label, head) => {
       const run = await runScript([{ ...EXAMPLE_PR, head }], EXAMPLE_FIXTURES);
       const prompt = findPrompt(run, "brief:117").prompt;
 
       expect(prompt).toContain(
-        `\`git rev-parse HEAD\` equals \`git rev-parse ${head}\``,
+        `\`git rev-parse HEAD\` equals \`git rev-parse ${HEAD_SHA}\``,
       );
       expect(prompt).toContain(
-        `git worktree add <scratch>/pr-review-<number> ${head}`,
+        `git worktree add <scratch>/pr-review-<number> ${HEAD_SHA}`,
       );
       expect(prompt).not.toContain("<HEAD>");
     },
   );
+
+  // `refs/pr-review/<n>` is shared by every worktree of a clone, so a second
+  // review of the same PR can move it while this run's agents still read it.
+  it("never hands the movable head ref to the brief or a stage", async () => {
+    const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
+
+    expect(run.prompts).toHaveLength(4);
+
+    for (const { label, prompt } of run.prompts) {
+      expect(prompt, label).not.toContain(EXAMPLE_PR.head);
+      expect(prompt.replace(/\s+/g, " "), label).toContain(
+        `Base ref origin/main, head ref ${EXAMPLE_PR.headSha}.`,
+      );
+    }
+  });
 });
 
 function readSkill(...segments: string[]): string {
@@ -1388,7 +1449,7 @@ describe("head guard", () => {
 
   it("reaches every stage prompt of the workflow with the head filled in", async () => {
     const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
-    const filled = guard.replaceAll("<head>", EXAMPLE_PR.head);
+    const filled = guard.replaceAll("<head>", EXAMPLE_PR.headSha);
 
     for (const key of STAGE_KEYS) {
       expect(

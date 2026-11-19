@@ -280,8 +280,7 @@ function validateInstructions(value, at) {
   return instructions;
 }
 
-// The commit a PR's review covers, as `git rev-parse` prints it. A ref name
-// or a shortened SHA would not compare with a caller's `git rev-parse HEAD`.
+// A ref name or a shortened SHA would not compare with a caller's `git rev-parse HEAD`.
 const FULL_SHA = /^[0-9a-f]{40}$/;
 
 function validatePr(item, index) {
@@ -344,9 +343,12 @@ function instructionsBlock(pr, key) {
   return parts.length === 0 ? "" : `${INSTRUCTIONS_HEADING}\n\n${parts.join("\n\n")}\n\n`;
 }
 
+// `<HEAD>` is filled with `headSha`, never `head`: `refs/pr-review/<n>` is
+// shared by every worktree of the clone, so a second review of the same PR
+// can move it while this run's agents are still reading.
 function briefPrompt(pr) {
-  const header = `Build the structural brief for PR #${pr.number} "${pr.title}" (${pr.url}). Base ref ${pr.base}, head ref ${pr.head}. Only what the branch adds is in scope: git diff ${pr.base}...${pr.head}, three dots. Do not review the change; the brief is the input every reviewer of this PR gets.`;
-  const body = fill(STEP2_TEMPLATE, { BASE: pr.base, HEAD: pr.head });
+  const header = `Build the structural brief for PR #${pr.number} "${pr.title}" (${pr.url}). Base ref ${pr.base}, head ref ${pr.headSha}. Only what the branch adds is in scope: git diff ${pr.base}...${pr.headSha}, three dots. Do not review the change; the brief is the input every reviewer of this PR gets.`;
+  const body = fill(STEP2_TEMPLATE, { BASE: pr.base, HEAD: pr.headSha });
   return `${header}\n\n${body}\n\n${instructionsBlock(pr, "brief")}${BRIEF_TRAILER}`;
 }
 
@@ -354,7 +356,7 @@ function stagePrompt(stage, pr, brief) {
   const body = fill(stage.template, {
     BRIEF: brief,
     BASE: pr.base,
-    HEAD: pr.head,
+    HEAD: pr.headSha,
     PR_TITLE: pr.title,
     PR_URL: pr.url,
   });
@@ -574,6 +576,9 @@ function countFindings(prs, items) {
 
 const prs = validateArgs(args);
 log(`Reviewing ${prs.length} PR${prs.length === 1 ? "" : "s"}: ${prs.map((pr) => pr.number).join(", ")}`);
+for (const pr of prs) {
+  log(`PR ${pr.number}: reviewing ${pr.headSha} (head ${pr.head})`);
+}
 const items = await pipeline(prs, runBrief, runStages);
 phase("Consolidate");
 const report = renderReport(prs, items);

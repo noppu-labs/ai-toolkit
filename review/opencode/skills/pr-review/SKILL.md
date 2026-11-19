@@ -35,11 +35,11 @@ Before the fetch, check that `origin` is the repository `gh` resolves pull reque
 git fetch origin <baseRefName> +refs/pull/<n>/head:refs/pr-review/<n>
 ```
 
-The base and head passed to every stage are then `origin/<baseRefName>` and `pr-review/<n>`. `headRefName` is for display only. The `+` lets a re-review after a force-push update the ref. The ref lives outside `refs/remotes/origin/` because a plain `git fetch --prune` deletes anything there that is not a branch on the remote, and a branch named `pr/<n>` would overwrite it.
+The base passed to every stage is then `origin/<baseRefName>`, and the head is the commit `pr-review/<n>` points at, passed as its SHA (`<HEAD_SHA>` below). `headRefName` is for display only. The `+` lets a re-review after a force-push update the ref. The ref lives outside `refs/remotes/origin/` because a plain `git fetch --prune` deletes anything there that is not a branch on the remote, and a branch named `pr/<n>` would overwrite it.
 
 When `git rev-parse pr-review/<n>` differs from `<headRefOid>`, the branch moved after the `gh` call. Run `gh pr view <n> --json headRefOid` once more. If the refreshed value matches the ref, continue with the pull ref and the refreshed `<headRefOid>`. If it still differs, take the SHA fallback below with the refreshed `<headRefOid>`.
 
-The SHA fallback is also taken when the pull ref cannot be fetched (a remote that does not publish it). A failed combined fetch leaves the base stale, so the fallback fetches the base together with the head commit and passes the SHA as `<HEAD>`:
+The SHA fallback is also taken when the pull ref cannot be fetched (a remote that does not publish it). A failed combined fetch leaves the base stale, so the fallback fetches the base together with the head commit, and `<headRefOid>` is the head:
 
 ```sh
 git fetch origin <baseRefName> <headRefOid>
@@ -47,7 +47,7 @@ git fetch origin <baseRefName> <headRefOid>
 
 Every consumer of `<HEAD>` takes a commit-ish, so a bare SHA works in the `<BASE>...<HEAD>` diff, in `git rev-parse`, in `git grep`, and in `git worktree add`. If the branch is force-pushed after the `gh` call, the review stays on the commit `gh` reported.
 
-Once `<HEAD>` resolves, `git rev-parse <HEAD>` gives `<HEAD_SHA>`, the full SHA of the commit this run reviews. Step 4 prints it for each PR. The head is always the newest one `gh` reports, never the commit the working tree happens to be on, and no argument selects another.
+Once the head resolves, `git rev-parse pr-review/<n>` (or `git rev-parse <headRefOid>` after the fallback) gives `<HEAD_SHA>`, the full SHA of the commit this run reviews. From here on `<HEAD>` is `<HEAD_SHA>`: the size script, step 2, and every stage get the SHA and never the ref. `refs/pr-review/<n>` is shared by every worktree of the clone, so a second review of the same PR started after a push moves it while this run's stages are still reading, and they would read a commit other than the one the report names. Step 4 prints `<HEAD_SHA>` for each PR. The head is always the newest one `gh` reports, never the commit the working tree happens to be on, and no argument selects another.
 
 Then run `git rev-parse HEAD` once, before any stage starts. A caller that prepared this checkout before the review started (a CI runner that checks the PR out, runs setup, and then invokes this skill) may have checked out an older commit, or the branch may have been pushed since. For each PR whose `<HEAD_SHA>` differs from that commit, keep both SHAs for `## Not available in this run` in step 4. The working tree is on one commit, so in a stack every PR but the one checked out gets a line. The review goes on either way: step 2 runs its script in a scratch worktree, and every stage reads through git, when the working tree is not a clean checkout of `<HEAD>`.
 
@@ -152,7 +152,7 @@ Each prompt is one of the templates below with these slots filled:
 | --- | --- |
 | `<BRIEF>` | the whole brief from step 2, for this PR |
 | `<BASE>` | `origin/<baseRefName>` from step 1, or the previous PR's `<HEAD>` in a stack |
-| `<HEAD>` | `pr-review/<n>` from step 1, or `<headRefOid>` when step 1 fell back to the SHA |
+| `<HEAD>` | `<HEAD_SHA>` from step 1, the SHA and never the ref `pr-review/<n>` |
 | `<PR_TITLE>` | the PR title |
 | `<PR_URL>` | the PR url |
 

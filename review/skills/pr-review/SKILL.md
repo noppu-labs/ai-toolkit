@@ -35,11 +35,11 @@ Before the fetch, check that `origin` is the repository `gh` resolves pull reque
 git fetch origin <baseRefName> +refs/pull/<n>/head:refs/pr-review/<n>
 ```
 
-The base and head passed to every stage are then `origin/<baseRefName>` and `pr-review/<n>`. `headRefName` is for display only. The `+` lets a re-review after a force-push update the ref. The ref lives outside `refs/remotes/origin/` because a plain `git fetch --prune` deletes anything there that is not a branch on the remote, and a branch named `pr/<n>` would overwrite it.
+The base passed to every stage is then `origin/<baseRefName>`, and the head is the commit `pr-review/<n>` points at, passed as its SHA (`<HEAD_SHA>` below). `headRefName` is for display only. The `+` lets a re-review after a force-push update the ref. The ref lives outside `refs/remotes/origin/` because a plain `git fetch --prune` deletes anything there that is not a branch on the remote, and a branch named `pr/<n>` would overwrite it.
 
 When `git rev-parse pr-review/<n>` differs from `<headRefOid>`, the branch moved after the `gh` call. Run `gh pr view <n> --json headRefOid` once more. If the refreshed value matches the ref, continue with the pull ref and the refreshed `<headRefOid>`. If it still differs, take the SHA fallback below with the refreshed `<headRefOid>`.
 
-The SHA fallback is also taken when the pull ref cannot be fetched (a remote that does not publish it). A failed combined fetch leaves the base stale, so the fallback fetches the base together with the head commit and passes the SHA as `<HEAD>`:
+The SHA fallback is also taken when the pull ref cannot be fetched (a remote that does not publish it). A failed combined fetch leaves the base stale, so the fallback fetches the base together with the head commit, and `<headRefOid>` is the head:
 
 ```sh
 git fetch origin <baseRefName> <headRefOid>
@@ -47,7 +47,7 @@ git fetch origin <baseRefName> <headRefOid>
 
 Every consumer of `<HEAD>` takes a commit-ish, so a bare SHA works in the `<BASE>...<HEAD>` diff, in `git rev-parse`, in `git grep`, and in `git worktree add`. If the branch is force-pushed after the `gh` call, the review stays on the commit `gh` reported.
 
-Once `<HEAD>` resolves, `git rev-parse <HEAD>` gives `<HEAD_SHA>`, the full SHA of the commit this run reviews. Step 4 prints it for each PR. The head is always the newest one `gh` reports, never the commit the working tree happens to be on, and no argument selects another.
+Once the head resolves, `git rev-parse pr-review/<n>` (or `git rev-parse <headRefOid>` after the fallback) gives `<HEAD_SHA>`, the full SHA of the commit this run reviews. From here on `<HEAD>` is `<HEAD_SHA>`: the size script, step 2, and every stage get the SHA and never the ref. `refs/pr-review/<n>` is shared by every worktree of the clone, so a second review of the same PR started after a push moves it while this run's stages are still reading, and they would read a commit other than the one the report names. Step 4 prints `<HEAD_SHA>` for each PR. The head is always the newest one `gh` reports, never the commit the working tree happens to be on, and no argument selects another.
 
 Then run `git rev-parse HEAD` once, before any stage starts. A caller that prepared this checkout before the review started (a CI runner that checks the PR out, runs setup, and then invokes this skill) may have checked out an older commit, or the branch may have been pushed since. For each PR whose `<HEAD_SHA>` differs from that commit, keep both SHAs for `## Not available in this run` in step 4. The working tree is on one commit, so in a stack every PR but the one checked out gets a line. The review goes on either way: step 2 runs its script in a scratch worktree, and every stage reads through git, when the working tree is not a clean checkout of `<HEAD>`.
 
@@ -119,7 +119,7 @@ If a tool named `Workflow` is listed, the brief of step 2, the three stage subag
 ]
 ```
 
-`head` carries whatever step 1 resolved: `pr-review/<n>`, or `<headRefOid>` after the SHA fallback. `headSha` is step 1's `<HEAD_SHA>`, the full 40-character SHA, which the script prints as that PR's `Reviewed head:` line; it rejects a missing or shortened one. The same holds for the example with `instructions` below.
+`head` names what step 1 resolved the head from, `pr-review/<n>`, or `<headRefOid>` after the SHA fallback, and the script only logs it. `headSha` is step 1's `<HEAD_SHA>`, the full 40-character SHA: the script fills `<HEAD>` with it in the brief and in every stage prompt and prints it as that PR's `Reviewed head:` line, so the stages read the commit the report names. It rejects a missing or shortened one. The same holds for the example with `instructions` below.
 
 The workflow builds each brief in a subagent, runs the three stage prompts below with every return validated against a schema, and returns `{ report, counts }`. `report` is the step 4 report without the first-pass merge: every correctness finding carries `hand review only`, every PR section has its `Reviewed head:` line, and the roll-up already names what the brief and the stages skipped. `counts` is one `{ number, correctness, typeSafety, comments }` per PR, a finding count per stage or `null` for a stage that did not report. Skip step 2 and the stage dispatch below, hold the result, and go to step 4 for the merge. The orchestrator still never opens the diff.
 
@@ -156,7 +156,7 @@ code-review xhigh <number>
 code-review max <number>
 ```
 
-Step 1's `code-review=` is the level. `high` and `xhigh` run their angles in one context; `max` runs them as subagents, so a diff too big for one context still gets every angle.
+Step 1's `code-review=` is the level. `high` and `xhigh` run their angles in one context; `max` runs them as subagents, so a diff too big for one context still gets every angle. The skill gets only the PR number, so the stage templates' instruction to read files at `<HEAD>` does not reach it: when the working tree is on another commit it may have read that one, and step 4 says so in the report.
 
 The skill runs its review in a background subagent and returns only that subagent's name. Its report arrives later as a task completion notification addressed to the session that invoked it. Invoked from the orchestrator, that is the orchestrator. Invoked from inside a stage subagent, the harness parents the background subagent to the top-level session anyway, so the notification bypasses the stage, and the stage waits for a result that never reaches it. That is why the stage template below reviews by hand and does not invoke `code-review`.
 
@@ -212,7 +212,7 @@ Each prompt is one of the templates below with these slots filled:
 | --- | --- |
 | `<BRIEF>` | the whole brief from step 2, for this PR |
 | `<BASE>` | `origin/<baseRefName>` from step 1, or the previous PR's `<HEAD>` in a stack |
-| `<HEAD>` | `pr-review/<n>` from step 1, or `<headRefOid>` when step 1 fell back to the SHA |
+| `<HEAD>` | `<HEAD_SHA>` from step 1, the SHA and never the ref `pr-review/<n>` |
 | `<PR_TITLE>` | the PR title |
 | `<PR_URL>` | the PR url |
 
@@ -397,7 +397,7 @@ Rules for the body:
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
 - `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it. If `code-review` was not listed, it is named here with the reason and the line says that `correctness-review` replaced it. If the first pass, `code-review` or `correctness-review`, returned no report, it is named here with the reason, and the correctness findings carry the `hand review only` label. When some but not all of a split first pass's subagents did not report, the angles they owned are named here, and the findings of the subagents that did report keep `correctness-review only`. When every stage had everything, the section says so in one line rather than being dropped.
 - When step 1 fell back to the SHA for a PR, `## Not available in this run` says which trigger applied (`refs/pull/<n>/head` was not fetchable, or the branch moved after the `gh` call) and names the SHA reviewed, so the reader knows the head came from `gh` rather than from the pull ref.
-- When step 1 found the working tree on a commit other than a PR's `<HEAD_SHA>`, `## Not available in this run` says so in one line per PR, naming both SHAs: `PR <n>: the working tree was at <sha> when the review started, not at the reviewed head <HEAD_SHA>. The stages read its files through git, and the tests, linters, and type checkers they ran saw the working tree.`
+- When step 1 found the working tree on a commit other than a PR's `<HEAD_SHA>`, `## Not available in this run` says so in one line per PR, naming both SHAs: `PR <n>: the working tree was at <sha> when the review started, not at the reviewed head <HEAD_SHA>. The stages read its files through git, and the tests, linters, and type checkers they ran saw the working tree.` When the first pass was `code-review`, the line goes on: `The code-review pass gets a PR number and no instruction to read at the head, so its findings may come from the working tree.`
 
 On the workflow path the script has written everything above except the first-pass merge, which stays a model step. It runs the same way whether the first pass was `code-review` or the `correctness-review` stage, with that pass's label: a finding both passes reported becomes one entry relabelled `both passes`; a finding only the first pass reported is added under `### Correctness` with `code-review only` or `correctness-review only`; the `hand review only` labels the script wrote stay on the rest; when `code-review` was not listed, add it to `## Not available in this run` with the reason and say that `correctness-review` replaced it; when the first pass returned no report, add it there with the reason; when step 1 used the SHA fallback, add its line, naming the trigger and the SHA reviewed, to `## Not available in this run`; and when step 1 found the working tree on a commit other than a PR's `<HEAD_SHA>`, add that PR's line there. Do not rewrite the rest of the report. When the finding you add lands under a `### Correctness` that reads `No findings.`, or a line you add to `## Not available in this run` lands in a roll-up that reads `Every stage had everything it needed.`, replace that line. When `### Correctness` reads `The stage did not report.`, keep that line and add the `code-review only` or `correctness-review only` findings under it.
 
