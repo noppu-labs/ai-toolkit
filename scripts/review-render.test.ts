@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { join } from "node:path";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -238,11 +240,18 @@ function getError(input: unknown): string {
   throw new Error("expected renderComments to throw");
 }
 
-function runCli(
+type CliResult = { status: number | null; stdout: string; stderr: string };
+
+function runCli(input: string, ...args: string[]): CliResult {
+  return runScriptAt(scriptPath, input, ...args);
+}
+
+function runScriptAt(
+  path: string,
   input: string,
   ...args: string[]
-): { status: number | null; stdout: string; stderr: string } {
-  const result = spawnSync("node", [scriptPath, ...args], {
+): CliResult {
+  const result = spawnSync("node", [path, ...args], {
     input,
     encoding: "utf8",
   });
@@ -1483,8 +1492,13 @@ describe("headSha", () => {
 
   it("treats a null headSha as absent", () => {
     expect(
-      renderComments({ headSha: null, comments: [comment] }).headSha,
-    ).toBeNull();
+      renderComments({ headSha: null, comments: [comment] }),
+    ).not.toHaveProperty("headSha");
+    expect(
+      JSON.parse(
+        runCli(JSON.stringify({ headSha: null, comments: [comment] })).stdout,
+      ),
+    ).not.toHaveProperty("headSha");
   });
 
   it.each([
@@ -1735,6 +1749,32 @@ describe("render-comments.mjs", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("comments[0]:");
     expect(result.stdout).toBe("");
+  });
+
+  // A plugin cache or a `skills` install can reach the script through a
+  // symlinked directory, where Node's module URL is the resolved path.
+  it("runs when invoked through a symlinked directory", () => {
+    const root = mkdtempSync(join(tmpdir(), "render-comments-"));
+
+    try {
+      const link = join(root, "scripts");
+
+      symlinkSync(dirname(scriptPath), link, "dir");
+
+      const linked = join(link, "render-comments.mjs");
+      const ok = runScriptAt(linked, payload);
+      const bad = runScriptAt(
+        linked,
+        JSON.stringify({ headSha: "main", comments: [] }),
+      );
+
+      expect(ok.status).toBe(0);
+      expect(ok.stdout).toBe(runCli(payload).stdout);
+      expect(bad.status).toBe(1);
+      expect(bad.stderr).toContain("headSha must be a full SHA");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("exits 1 on input that is not JSON", () => {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 export const LABELS = {
   correctness: [
@@ -322,11 +322,7 @@ function findVerdictProblems(verdict, comments) {
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/u;
 
-/**
- * `headSha` is optional, like the verdict. When present it is the commit the
- * review covered, which a caller compares with `git rev-parse HEAD`, so a ref
- * name or a shortened SHA is rejected.
- */
+/** A caller compares `headSha` with `git rev-parse HEAD`, so a ref name or a shortened SHA is rejected. */
 function findHeadShaProblems(headSha) {
   if (headSha === undefined || headSha === null) {
     return [];
@@ -453,9 +449,14 @@ export function renderComments(input) {
   }
 
   const counters = new Map();
+  // A null `headSha` means the report had no head, which the JSON says by
+  // carrying no key.
+  const kept = Object.entries(input).filter(
+    ([key, value]) => key !== "headSha" || isPresent(value),
+  );
 
   return {
-    ...input,
+    ...Object.fromEntries(kept),
     comments: comments.map((comment) => renderComment(comment, counters)),
   };
 }
@@ -538,6 +539,20 @@ function main(args) {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+// Node resolves symlinks in the module URL but leaves `process.argv[1]` as
+// typed, so both sides are resolved: a symlinked install would otherwise
+// print nothing and exit 0.
+function isMainModule() {
+  try {
+    return (
+      realpathSync(process.argv[1]) ===
+      realpathSync(fileURLToPath(import.meta.url))
+    );
+  } catch {
+    return false;
+  }
+}
+
+if (isMainModule()) {
   main(process.argv.slice(2));
 }
