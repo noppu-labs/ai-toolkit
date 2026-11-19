@@ -10,6 +10,7 @@ type Pr = {
   title: string;
   base: string;
   head: string;
+  headSha: string;
   url: string;
   instructions?: Instructions;
 };
@@ -317,7 +318,7 @@ function stageTemplate(key: StageKey, pr: Pr, brief: string): string {
   return fill(fencedAfter(STAGE_MARKERS[key]), {
     BRIEF: brief,
     BASE: pr.base,
-    HEAD: pr.head,
+    HEAD: pr.headSha,
     PR_TITLE: pr.title,
     PR_URL: pr.url,
   });
@@ -326,7 +327,7 @@ function stageTemplate(key: StageKey, pr: Pr, brief: string): string {
 function briefTemplate(pr: Pr): string {
   return fill(
     sectionOf("## Step 2: structural brief", "## Step 3: run the passes"),
-    { BASE: pr.base, HEAD: pr.head },
+    { BASE: pr.base, HEAD: pr.headSha },
   );
 }
 
@@ -347,12 +348,16 @@ function expectedCounts(
   return { heading: texts.includes(1) ? 1 : 0, texts };
 }
 
+// biome-ignore lint/security/noSecrets: a commit SHA fixture, not a secret
+const HEAD_SHA: string = "59867ee01a72ef9bd06c524fa9650d4cdc74b9ac";
+
 function makePr(overrides: Partial<Pr> = {}): Pr {
   return {
     number: 117,
     title: "fix(review): dash comments",
     base: "origin/main",
     head: "pr-review/117",
+    headSha: HEAD_SHA,
     url: "https://github.com/noppu-labs/ai-toolkit/pull/117",
     ...overrides,
   };
@@ -387,6 +392,15 @@ function findPrompt(run: Run, label: string): Prompt {
 
 function countOccurrences(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
+}
+
+// The pattern step 4 of SKILL.md gives a caller for finding the line.
+const REVIEWED_HEAD_LINE: RegExp = /^Reviewed head: ([0-9a-f]{40})$/gm;
+
+function reviewedHeads(report: string): string[] {
+  return [...report.matchAll(REVIEWED_HEAD_LINE)].map(
+    (match) => match[1] ?? "",
+  );
 }
 
 function sectionBetween(report: string, from: string, to: string): string {
@@ -721,6 +735,26 @@ describe("args", () => {
       /args\[1\]\.url must be a non-empty string/,
     ],
     [
+      [{ ...makePr(), headSha: undefined }],
+      /args\[0\]\.headSha must be the full 40-character SHA/,
+    ],
+    [
+      [{ ...makePr(), headSha: "pr-review/117" }],
+      /args\[0\]\.headSha must be the full 40-character SHA/,
+    ],
+    [
+      [makePr(), { ...makePr({ number: 118 }), headSha: HEAD_SHA.slice(0, 7) }],
+      /args\[1\]\.headSha must be the full 40-character SHA/,
+    ],
+    [
+      [{ ...makePr(), headSha: HEAD_SHA.toUpperCase() }],
+      /args\[0\]\.headSha must be the full 40-character SHA/,
+    ],
+    [
+      [{ ...makePr(), headSha: 59_867 }],
+      /args\[0\]\.headSha must be the full 40-character SHA/,
+    ],
+    [
       [{ ...makePr(), instructions: "be strict" }],
       /args\[0\]\.instructions must be an object/,
     ],
@@ -749,6 +783,52 @@ describe("args", () => {
   });
 });
 
+// The skill builds `args` from these examples, so each must pass the script's
+// validation once `<HEAD_SHA>` holds a SHA: a key the script requires and the
+// example leaves out costs every workflow-path run one rejected call.
+function argsExamples(): unknown[][] {
+  const section = sectionOf(
+    "### Workflow path",
+    "### Correctness, first pass: `code-review`",
+  );
+  const blocks = [...section.matchAll(/```json\n([\s\S]*?)\n```/g)].map(
+    (match) => match[1] ?? "",
+  );
+
+  return blocks.map((block) => {
+    const parsed: unknown = JSON.parse(
+      block.replaceAll("<HEAD_SHA>", HEAD_SHA),
+    );
+
+    return Array.isArray(parsed) ? parsed : [parsed];
+  });
+}
+
+describe("args examples in SKILL.md", () => {
+  it("has the plain example and the one with instructions", () => {
+    expect(argsExamples()).toHaveLength(2);
+  });
+
+  it.each([0, 1])(
+    "example %i passes the script's validation",
+    async (index) => {
+      const args = argsExamples()[index] ?? [];
+      const fixtures = Object.fromEntries(
+        args.flatMap((pr) =>
+          Object.entries(
+            cleanFixtures({ ...makePr(), ...(pr as Partial<Pr>) }),
+          ),
+        ),
+      );
+      const run = await runScript(args, fixtures);
+
+      expect(reviewedHeads(run.result.report)).toEqual(
+        args.map(() => HEAD_SHA),
+      );
+    },
+  );
+});
+
 describe("report", () => {
   it("follows the step 4 skeleton, one section per PR in merge order", async () => {
     const second = makePr({ number: 118, title: "feat: second", url: "u118" });
@@ -760,7 +840,7 @@ describe("report", () => {
 
     expect(
       report.startsWith(
-        "# Review: 117, 118\n\n## 117 fix(review): dash comments\n",
+        `# Review: 117, 118\n\n## 117 fix(review): dash comments\n${EXAMPLE_PR.url}\n\nReviewed head: ${HEAD_SHA}\n\n### Correctness\n`,
       ),
     ).toBe(true);
     expect(report.indexOf("## 117 ")).toBeLessThan(report.indexOf("## 118 "));
@@ -771,6 +851,30 @@ describe("report", () => {
       1,
     );
     expect(report.endsWith("\n")).toBe(true);
+  });
+
+  it("prints each PR's reviewed head under its url, where step 4's skeleton puts it", async () => {
+    // biome-ignore lint/security/noSecrets: a commit SHA fixture, not a secret
+    const secondSha = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c";
+    const second = makePr({
+      number: 118,
+      title: "feat: second",
+      head: secondSha,
+      headSha: secondSha,
+      url: "u118",
+    });
+    const { result } = await runScript([EXAMPLE_PR, second], {
+      ...EXAMPLE_FIXTURES,
+      ...cleanFixtures(second),
+    });
+
+    expect(skill).toContain(
+      "## <number> <title>\n<url>\n\nReviewed head: <HEAD_SHA>\n\n### Correctness\n",
+    );
+    expect(reviewedHeads(result.report)).toEqual([HEAD_SHA, secondSha]);
+    expect(
+      sectionBetween(result.report, "## 118 ", "## Not available"),
+    ).toContain(`u118\n\nReviewed head: ${secondSha}\n\n### Correctness\n`);
   });
 
   it("keeps every finding under its stage with its anchor, label, and cross-references", async () => {
@@ -858,7 +962,7 @@ describe("report", () => {
     );
 
     expect(result.report).toContain(
-      "## 117 fix(review): dash comments\nhttps://github.com/noppu-labs/ai-toolkit/pull/117\n\n### Correctness\nThe stage did not report.\n\n### Type safety\nThe stage did not report.\n\n### Comments\nThe stage did not report.\n\n## Not available in this run\n",
+      `## 117 fix(review): dash comments\nhttps://github.com/noppu-labs/ai-toolkit/pull/117\n\nReviewed head: ${HEAD_SHA}\n\n### Correctness\nThe stage did not report.\n\n### Type safety\nThe stage did not report.\n\n### Comments\nThe stage did not report.\n\n## Not available in this run\n`,
     );
     expect(result.report).toContain(
       "- PR 117: the pipeline stopped before consolidation",
@@ -1004,6 +1108,37 @@ describe("report properties", () => {
     );
   });
 
+  it("prints one reviewed head per PR, in merge order, reported or not", {
+    timeout: WHOLE_SCRIPT_TIMEOUT_MS,
+  }, async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        makeCaseArb(),
+        fc.array(fc.stringMatching(/^[0-9a-f]{40}$/), {
+          minLength: 3,
+          maxLength: 3,
+        }),
+        fc.boolean(),
+        async (testCase, shas, dropFirst) => {
+          const prs = testCase.prs.map((pr, index) => ({
+            ...pr,
+            headSha: shas[index] ?? HEAD_SHA,
+          }));
+          const drop = dropFirst ? prs.slice(0, 1).map((pr) => pr.number) : [];
+          const { result } = await runScript(
+            prs,
+            fixturesFor({ ...testCase, prs }),
+            { drop },
+          );
+
+          expect(reviewedHeads(result.report)).toEqual(
+            prs.map((pr) => pr.headSha),
+          );
+        },
+      ),
+    );
+  });
+
   it("names each skipped tool once, case-insensitively", {
     timeout: WHOLE_SCRIPT_TIMEOUT_MS,
   }, async () => {
@@ -1145,7 +1280,7 @@ describe("robustness", () => {
       "Structural brief:\nsee git diff <BASE>...<HEAD> and <PR_URL>\n",
     );
     expect(prompt).toContain('Review PR "fix: <HEAD> in titles" (');
-    expect(prompt).toContain("Base ref origin/main, head ref pr-review/117.");
+    expect(prompt).toContain(`Base ref origin/main, head ref ${HEAD_SHA}.`);
   });
 
   it("strips a leading anchor from the text, and only the exact anchor", async () => {
@@ -1239,18 +1374,94 @@ describe("PR head resolution", () => {
     // biome-ignore lint/security/noSecrets: a commit SHA fixture, not a secret
     ["a bare SHA", "59867ee01a72ef9bd06c524fa9650d4cdc74b9ac"],
   ])(
-    "fills <HEAD> with %s in the brief's in-place check and worktree fallback",
+    "fills <HEAD> with headSha when head is %s, in the brief's in-place check and worktree fallback",
     async (_label, head) => {
       const run = await runScript([{ ...EXAMPLE_PR, head }], EXAMPLE_FIXTURES);
       const prompt = findPrompt(run, "brief:117").prompt;
 
       expect(prompt).toContain(
-        `\`git rev-parse HEAD\` equals \`git rev-parse ${head}\``,
+        `\`git rev-parse HEAD\` equals \`git rev-parse ${HEAD_SHA}\``,
       );
       expect(prompt).toContain(
-        `git worktree add <scratch>/pr-review-<number> ${head}`,
+        `git worktree add <scratch>/pr-review-<number> ${HEAD_SHA}`,
       );
       expect(prompt).not.toContain("<HEAD>");
     },
   );
+
+  // `refs/pr-review/<n>` is shared by every worktree of a clone, so a second
+  // review of the same PR can move it while this run's agents still read it.
+  it("never hands the movable head ref to the brief or a stage", async () => {
+    const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
+
+    expect(run.prompts).toHaveLength(4);
+
+    for (const { label, prompt } of run.prompts) {
+      expect(prompt, label).not.toContain(EXAMPLE_PR.head);
+      expect(prompt.replace(/\s+/g, " "), label).toContain(
+        `Base ref origin/main, head ref ${EXAMPLE_PR.headSha}.`,
+      );
+    }
+  });
+});
+
+function readSkill(...segments: string[]): string {
+  return readFileSync(
+    join(import.meta.dirname, "..", "review", ...segments, "SKILL.md"),
+    "utf8",
+  );
+}
+
+// Templates are hard-wrapped and name the head as the `<HEAD>` slot, while the
+// skills write one line and `<head>`. Neither difference is drift.
+function flatten(text: string): string {
+  return text.replace(/\s+/g, " ").replaceAll("<HEAD>", "<head>");
+}
+
+describe("head guard", () => {
+  const guard: string =
+    readSkill("skills", "correctness-review")
+      .split("\n")
+      .find((line) => line.startsWith("- Read files as they are at the head."))
+      ?.slice(2) ?? "";
+
+  it("starts from the sentence correctness-review states", () => {
+    expect(guard).toBe(
+      "Read files as they are at the head. When the working tree is not a clean checkout of `<head>`, read them with `git show <head>:<path>` and search them with `git grep <pattern> <head>`.",
+    );
+  });
+
+  it.each(["type-safety-review", "comment-audit", "pr-comments"])(
+    "is worded the same in %s",
+    (name) => {
+      expect(flatten(readSkill("skills", name))).toContain(guard);
+    },
+  );
+
+  it.each([
+    "Correctness stage, the first pass:",
+    ...Object.values(STAGE_MARKERS),
+  ])('is a paragraph of its own in the template under "%s"', (marker) => {
+    const paragraphs = fencedAfter(marker).split("\n\n");
+
+    expect(paragraphs.map(flatten)).toContain(guard);
+  });
+
+  it("reaches every stage prompt of the workflow with the head filled in", async () => {
+    const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
+    const filled = guard.replaceAll("<head>", EXAMPLE_PR.headSha);
+
+    for (const key of STAGE_KEYS) {
+      expect(
+        findPrompt(run, `${key}:117`).prompt.replace(/\s+/g, " "),
+      ).toContain(filled);
+    }
+  });
+
+  it("is in all four templates of the OpenCode pr-review", () => {
+    const override = flatten(readSkill("opencode", "skills", "pr-review"));
+
+    expect(countOccurrences(override, guard)).toBe(4);
+    expect(countOccurrences(flatten(skill), guard)).toBe(4);
+  });
 });

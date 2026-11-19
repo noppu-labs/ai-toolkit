@@ -35,17 +35,21 @@ Before the fetch, check that `origin` is the repository `gh` resolves pull reque
 git fetch origin <baseRefName> +refs/pull/<n>/head:refs/pr-review/<n>
 ```
 
-The base and head passed to every stage are then `origin/<baseRefName>` and `pr-review/<n>`. `headRefName` is for display only. The `+` lets a re-review after a force-push update the ref. The ref lives outside `refs/remotes/origin/` because a plain `git fetch --prune` deletes anything there that is not a branch on the remote, and a branch named `pr/<n>` would overwrite it.
+The base passed to every stage is then `origin/<baseRefName>`, and the head is the commit `pr-review/<n>` points at, passed as its SHA (`<HEAD_SHA>` below). `headRefName` is for display only. The `+` lets a re-review after a force-push update the ref. The ref lives outside `refs/remotes/origin/` because a plain `git fetch --prune` deletes anything there that is not a branch on the remote, and a branch named `pr/<n>` would overwrite it.
 
 When `git rev-parse pr-review/<n>` differs from `<headRefOid>`, the branch moved after the `gh` call. Run `gh pr view <n> --json headRefOid` once more. If the refreshed value matches the ref, continue with the pull ref and the refreshed `<headRefOid>`. If it still differs, take the SHA fallback below with the refreshed `<headRefOid>`.
 
-The SHA fallback is also taken when the pull ref cannot be fetched (a remote that does not publish it). A failed combined fetch leaves the base stale, so the fallback fetches the base together with the head commit and passes the SHA as `<HEAD>`:
+The SHA fallback is also taken when the pull ref cannot be fetched (a remote that does not publish it). A failed combined fetch leaves the base stale, so the fallback fetches the base together with the head commit, and `<headRefOid>` is the head:
 
 ```sh
 git fetch origin <baseRefName> <headRefOid>
 ```
 
 Every consumer of `<HEAD>` takes a commit-ish, so a bare SHA works in the `<BASE>...<HEAD>` diff, in `git rev-parse`, in `git grep`, and in `git worktree add`. If the branch is force-pushed after the `gh` call, the review stays on the commit `gh` reported.
+
+Once the head resolves, `git rev-parse pr-review/<n>` (or `git rev-parse <headRefOid>` after the fallback) gives `<HEAD_SHA>`, the full SHA of the commit this run reviews. From here on `<HEAD>` is `<HEAD_SHA>`: the size script, step 2, and every stage get the SHA and never the ref. `refs/pr-review/<n>` is shared by every worktree of the clone, so a second review of the same PR started after a push moves it while this run's stages are still reading, and they would read a commit other than the one the report names. Step 4 prints `<HEAD_SHA>` for each PR. The head is always the newest one `gh` reports, never the commit the working tree happens to be on, and no argument selects another.
+
+Then run `git rev-parse HEAD` once, before any stage starts. A caller that prepared this checkout before the review started (a CI runner that checks the PR out, runs setup, and then invokes this skill) may have checked out an older commit, or the branch may have been pushed since. For each PR whose `<HEAD_SHA>` differs from that commit, keep both SHAs for `## Not available in this run` in step 4. The working tree is on one commit, so in a stack every PR but the one checked out gets a line. The review goes on either way: step 2 runs its script in a scratch worktree, and every stage reads through git, when the working tree is not a clean checkout of `<HEAD>`.
 
 Size each PR once its `<BASE>` and `<HEAD>` resolve, with the bundled script, which reads the same diff the stages review:
 
@@ -55,7 +59,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/pr-size.sh <BASE> <HEAD>
 
 It prints one line that starts with `lines=<n>` and ends with `correctness-review=1|3|4`, the number of subagents that run the `correctness-review` first pass: 1 up to 200 lines, 3 up to 1200, and 4 over that. The field between them is for Claude Code and is not used here. Take the count as printed and never recount by hand. The script counts added plus deleted lines and leaves out lockfiles, binary files, and the unchanged part of a moved or renamed file, so a file moved without edits counts zero. Each PR of a stack is sized on its own diff, since its `<BASE>` is the head of the PR below it. The number of files plays no part: a change spread over many files but a few hundred lines still fits in one context. The field sets how the first correctness pass runs in step 3. More subagents spread the same angles over more contexts rather than review more deeply, so the cutoffs are low. The thresholds live in the script and are a starting point to tune, not a measured value.
 
-State the resolved pairs before starting, one line per PR: number, title, base, head, url, the script's line, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, `origin/<baseRefName>` still does not resolve, or the size script fails, stop and say which number failed. Do not guess a base ref.
+State the resolved pairs before starting, one line per PR: number, title, base, head, `<HEAD_SHA>`, url, the script's line, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, `origin/<baseRefName>` still does not resolve, or the size script fails, stop and say which number failed. Do not guess a base ref.
 
 ## Step 2: structural brief
 
@@ -120,6 +124,10 @@ Correctness stage, the first pass:
 Review PR "<PR_TITLE>" (<PR_URL>) for correctness. Base ref <BASE>, head ref <HEAD>.
 Only what the branch adds is in scope: git diff <BASE>...<HEAD>, three dots.
 
+Read files as they are at the head. When the working tree is not a clean checkout
+of `<HEAD>`, read them with `git show <HEAD>:<path>` and search them with
+`git grep <pattern> <HEAD>`.
+
 Structural brief:
 <BRIEF>
 
@@ -144,7 +152,7 @@ Each prompt is one of the templates below with these slots filled:
 | --- | --- |
 | `<BRIEF>` | the whole brief from step 2, for this PR |
 | `<BASE>` | `origin/<baseRefName>` from step 1, or the previous PR's `<HEAD>` in a stack |
-| `<HEAD>` | `pr-review/<n>` from step 1, or `<headRefOid>` when step 1 fell back to the SHA |
+| `<HEAD>` | `<HEAD_SHA>` from step 1, the SHA and never the ref `pr-review/<n>` |
 | `<PR_TITLE>` | the PR title |
 | `<PR_URL>` | the PR url |
 
@@ -155,6 +163,10 @@ Correctness stage, the second pass:
 ```text
 Review PR "<PR_TITLE>" (<PR_URL>) for correctness. Base ref <BASE>, head ref <HEAD>.
 Only what the branch adds is in scope: git diff <BASE>...<HEAD>, three dots.
+
+Read files as they are at the head. When the working tree is not a clean checkout
+of `<HEAD>`, read them with `git show <HEAD>:<path>` and search them with
+`git grep <pattern> <HEAD>`.
 
 Structural brief:
 <BRIEF>
@@ -215,6 +227,10 @@ Type safety stage:
 ```text
 Review PR "<PR_TITLE>" (<PR_URL>) for type safety. Base ref <BASE>, head ref <HEAD>.
 
+Read files as they are at the head. When the working tree is not a clean checkout
+of `<HEAD>`, read them with `git show <HEAD>:<path>` and search them with
+`git grep <pattern> <HEAD>`.
+
 Structural brief:
 <BRIEF>
 
@@ -247,6 +263,10 @@ Comments stage:
 ```text
 Review PR "<PR_TITLE>" (<PR_URL>) for comments and documentation. Base ref <BASE>,
 head ref <HEAD>.
+
+Read files as they are at the head. When the working tree is not a clean checkout
+of `<HEAD>`, read them with `git show <HEAD>:<path>` and search them with
+`git grep <pattern> <HEAD>`.
 
 Structural brief:
 <BRIEF>
@@ -296,6 +316,8 @@ One report, written by the orchestrator from the subagent responses. It is the w
 ## <number> <title>
 <url>
 
+Reviewed head: <HEAD_SHA>
+
 ### Correctness
 ### Type safety
 ### Comments
@@ -306,16 +328,18 @@ One report, written by the orchestrator from the subagent responses. It is the w
 Rules for the body:
 
 - One section per PR, in the merge order given as input, holding the three stage sections.
+- Under its url, every PR section has the line `Reviewed head: <HEAD_SHA>`, with the full 40-character SHA from step 1 and nothing else on the line. It is there for every PR, including one whose stages did not report, so a caller finds the commit the review covered with `^Reviewed head: [0-9a-f]{40}$` under that PR's heading and compares it with the commit it checked out.
 - Every finding keeps its `path:line` from the HEAD side, so it can be pasted as a PR review comment, and keeps its outcome clause, which decides its label downstream.
 - A finding two stages both reported stays under each stage that reported it, suffixed `also reported by <stage>`. The orchestrator has not read the diff and does not decide whether two claims at one line are one finding; `pr-comments` shows it once (step 5).
 - `### Correctness` merges the two passes. A finding both passes reported appears once, labelled `both passes`. A finding one pass reported keeps its label, `correctness-review only` or `hand review only`, so the reader knows how much weight it carries. A first-pass finding from a subagent that reviewed by hand because it could not invoke the skill is labelled `hand review only`. Where the passes disagree, both claims are listed under the finding; the orchestrator does not pick a side, since it has not read the diff.
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
 - `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it, and, when the brief came from the fallback commands, notes that the structural brief came from the fallback commands and carries no graph or language-server detail. If every first-pass subagent returned no report, the first pass is named here with the reason, and the correctness findings carry the `hand review only` label. When some but not all of a split first pass's subagents did not report, the angles they owned are named here, and the findings of the subagents that did report keep `correctness-review only`. When every stage had everything, the section says so in one line, besides the brief note when there is one, rather than being dropped.
 - When step 1 fell back to the SHA for a PR, `## Not available in this run` says which trigger applied (`refs/pull/<n>/head` was not fetchable, or the branch moved after the `gh` call) and names the SHA reviewed, so the reader knows the head came from `gh` rather than from the pull ref.
+- When step 1 found the working tree on a commit other than a PR's `<HEAD_SHA>`, `## Not available in this run` says so in one line per PR, naming both SHAs: `PR <n>: the working tree was at <sha> when the review started, not at the reviewed head <HEAD_SHA>. The stages read its files through git, and the tests, linters, and type checkers they ran saw the working tree.`
 
 ## Step 5: comments for the author
 
-The consolidated report is written for the reviewer and is not what a PR author reads. When the findings are going onto the PR, invoke `@pr-comments` with the report: it drops the pass labels and rule ids, grades each finding from a fixed label, and gives it a code the author can refer to.
+The consolidated report is written for the reviewer and is not what a PR author reads. When the findings are going onto the PR, invoke `@pr-comments` with the report: it drops the pass labels and rule ids, grades each finding from a fixed label, and gives it a code the author can refer to. Its JSON output carries the `Reviewed head:` SHA of a one-PR report as `headSha`.
 
 ## Style
 

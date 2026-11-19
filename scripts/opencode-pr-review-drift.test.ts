@@ -111,6 +111,56 @@ function expectedOverrideBlock(marker: string): string {
   });
 }
 
+function stepOf(source: string, number: number): string {
+  const start: number = source.indexOf(`\n## Step ${number}: `);
+  const end: number = source.indexOf(`\n## Step ${number + 1}: `, start);
+
+  if (start < 0 || end < 0) {
+    throw new Error(`step ${number} not found`);
+  }
+
+  return source.slice(start, end);
+}
+
+// Each step is compared line by line, blank lines dropped. A line that opens
+// with one of these prefixes differs by design and is left out of both copies;
+// every other line must match after the declared swaps.
+function linesOf(text: string, skip: readonly string[]): string[] {
+  return text
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .filter((line) => !skip.some((prefix) => line.startsWith(prefix)));
+}
+
+// OpenCode has no `code-review` level, so the size script's output reads
+// differently.
+const STEP_ONE_OWN_LINES: readonly string[] = ["It prints one line"];
+
+// OpenCode has no `code-review` pass and no workflow path, and its roll-up
+// also notes a fallback brief.
+const STEP_FOUR_OWN_LINES: readonly string[] = [
+  "- `### Correctness` merges the two passes.",
+  "- `## Not available in this run` names every skill",
+  "On the workflow path the script",
+];
+
+const CODE_REVIEW_MISMATCH_CLAUSE: string =
+  " When the first pass was `code-review`, the line goes on: `The code-review pass gets a PR number and no instruction to read at the head, so its findings may come from the working tree.`";
+
+function applyStepFourSwaps(source: string): string {
+  const withoutClause: string = swapOnce(
+    source,
+    CODE_REVIEW_MISMATCH_CLAUSE,
+    "",
+  );
+
+  return swapOnce(
+    withoutClause,
+    "`review:pr-comments` shows it once (step 5)",
+    "`pr-comments` shows it once (step 5)",
+  );
+}
+
 describe("OpenCode pr-review override", () => {
   for (const marker of MARKERS) {
     it(`keeps the "${marker}" template in step with the Claude skill`, () => {
@@ -135,6 +185,36 @@ describe("OpenCode pr-review override", () => {
         ids: IDS,
       }),
     );
+  });
+
+  it("keeps step 1 in step with the Claude skill, bar the size script's output", () => {
+    expect(linesOf(stepOf(override, 1), STEP_ONE_OWN_LINES)).toEqual(
+      linesOf(stepOf(claude, 1), STEP_ONE_OWN_LINES),
+    );
+  });
+
+  it("keeps step 4's report skeleton and rules in step with the Claude skill", () => {
+    expect(linesOf(stepOf(override, 4), STEP_FOUR_OWN_LINES)).toEqual(
+      linesOf(applyStepFourSwaps(stepOf(claude, 4)), STEP_FOUR_OWN_LINES),
+    );
+  });
+
+  it("leaves out of the step comparisons only lines each copy has", () => {
+    for (const [number, prefixes, sources] of [
+      [1, STEP_ONE_OWN_LINES, [claude, override]],
+      [4, STEP_FOUR_OWN_LINES.slice(0, 2), [claude, override]],
+      [4, STEP_FOUR_OWN_LINES.slice(2), [claude]],
+    ] as const) {
+      for (const source of sources) {
+        for (const prefix of prefixes) {
+          expect(
+            stepOf(source, number)
+              .split("\n")
+              .filter((line) => line.startsWith(prefix)),
+          ).toHaveLength(1);
+        }
+      }
+    }
   });
 
   it("falls back to the git-only brief when investigate-brief is not listed", () => {
