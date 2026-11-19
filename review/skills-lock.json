@@ -3,7 +3,7 @@
   "skills": {
     "comment-audit": {
       "sourceType": "local",
-      "vendoredHash": "95f43c80a245219176183a78c47814b556ae6a7b2e14a69debe28d298353cabf"
+      "vendoredHash": "f7ad9d3de0ebea69e5369f0aaa207e690acf01376b0da99840db612611fa0492"
     },
     "correctness-review": {
       "sourceType": "local",

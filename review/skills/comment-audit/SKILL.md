@@ -55,6 +55,8 @@ In this order, stopping at the first source that answers:
 
 Echo the resolved values at the top of the report.
 
+With `--apply`, check the working tree here, before step 1: the edits land in it, so it must be a clean checkout of the audited head. The check fails when `git rev-parse HEAD` differs from `git rev-parse '<head>^{commit}'` (`<head>` is the `head` resolved above, and `^{commit}` peels an annotated tag), or when `git status --porcelain --untracked-files=no` prints anything, which is a tracked file with an uncommitted change. Step 1 reads through git when the tree is not a clean checkout, so edits made on any other tree would land on lines the verdicts were not read from. When the check fails, say which half failed and carry on in report mode: steps 1 to 5 run and the report is written, and only the edits and the commit of apply mode are skipped.
+
 When a row marked `yes` cannot be resolved and no answer is available, stop and report which value is missing. Do not guess a base ref.
 
 ### Python commands
@@ -165,7 +167,7 @@ The template's two summary requirements are easy to drop and both are mandatory:
 
 ## Apply mode
 
-- The edits land in the working tree, so it must be on the audited head. When `git rev-parse HEAD` differs from `git rev-parse <head>`, stop and say so.
+- When step 0's working-tree check failed, make no edit and no commit. The report is already written; the final message names the check that failed.
 - Edit comments, docblocks, JSDoc, the README and topic files beside it, and schema descriptions only. Never change code.
 - A comment that is WRONG is corrected to match the code, never the code changed to match the comment. List every correction.
 - A comment that exists because the code is confusing is left in place and listed.
