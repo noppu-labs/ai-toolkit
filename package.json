@@ -18,12 +18,12 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.6",
-    "@opencode/plugin": "2.2.5",
+    "@biomejs/biome": "2.6.8",
+    "@opencode/plugin": "2.3.0",
     "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "^5.1.0",
     "fast-check": "^4.10.2",
-    "markdownlint-cli2": "^0.24.0",
+    "markdownlint-cli2": "^0.24.1",
     "tsx": "^4.23.15",
     "typescript": "7.1.0-beta",
     "vitest": "^5.0.0"
