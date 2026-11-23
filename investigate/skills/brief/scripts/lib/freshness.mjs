@@ -1,41 +1,68 @@
+import { realpathSync } from "node:fs";
 import path from "node:path";
 import { run } from "./exec.mjs";
 
-const BLOCK_LINES = 10;
+// A name `gitnexus list` shows twice gets a `  (<path>)` suffix, which is not
+// part of the name. String ops, not a regex: `\s+\(.*\)$` backtracks.
+function entryName(line) {
+  const name = line.trim();
+  const suffix = name.indexOf(" (");
+  return suffix !== -1 && name.endsWith(")")
+    ? name.slice(0, suffix).trimEnd()
+    : name;
+}
 
-function blocksFor(stdout, repoName) {
-  const lines = stdout.split("\n");
-  const blocks = [];
-  lines.forEach((l, idx) => {
-    if (l.trim() === repoName) {
-      blocks.push(lines.slice(idx, idx + BLOCK_LINES).join("\n"));
-    }
-  });
-  return blocks;
+// `gitnexus list` separates entries with a blank line. The separator class
+// excludes `\n`, so a run of blank lines cannot backtrack.
+function entries(stdout) {
+  return stdout
+    .split(/\n[ \t\r]*\n/)
+    .map((block) => block.trim())
+    .filter((block) => block !== "")
+    .map((block) => ({ block, name: entryName(block.split("\n")[0] ?? "") }));
 }
 
 function pathOf(block) {
   return block.match(/Path:\s+(\S+)/)?.[1] ?? null;
 }
 
-// Two clones can share a repo name, so take the block whose Path is this root.
-function pickBlock(blocks, repoRoot) {
-  return blocks.find((b) => {
-    const p = pathOf(b);
-    return p === null || path.resolve(p) === path.resolve(repoRoot);
+function realOrResolved(p) {
+  try {
+    return realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+function samePath(a, b) {
+  return realOrResolved(a) === realOrResolved(b);
+}
+
+// The Path decides, not the name: a linked worktree is registered under
+// whatever --name it was indexed with, never this directory's basename, and
+// two clones can share a name. A same-name entry with no Path line still counts.
+function pickBlock(all, repoName, repoRoot) {
+  const byPath = all.find((e) => {
+    const p = pathOf(e.block);
+    return p !== null && samePath(p, repoRoot);
   });
+  if (byPath) return byPath.block;
+  return all.find((e) => e.name === repoName && pathOf(e.block) === null)
+    ?.block;
 }
 
 export function parseGitnexusList(stdout, repoName, repoRoot) {
-  const blocks = blocksFor(stdout, repoName);
-  if (blocks.length === 0) {
+  const all = entries(stdout);
+  const block = pickBlock(all, repoName, repoRoot);
+  const sameName = all.filter((e) => e.name === repoName);
+  if (block === undefined && sameName.length === 0) {
     return {
       ok: false,
-      note: `repo "${repoName}" is not in the gitnexus registry`,
+      note: `repo "${repoName}" (${repoRoot}) is not in the gitnexus registry`,
     };
   }
-  const block = pickBlock(blocks, repoRoot);
   if (block === undefined) {
+    const blocks = sameName.map((e) => e.block);
     return {
       ok: false,
       note: `registry entry "${repoName}" points at ${pathOf(blocks[0] ?? "")}, not ${repoRoot}`,

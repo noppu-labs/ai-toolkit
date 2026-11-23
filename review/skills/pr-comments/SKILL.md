@@ -18,7 +18,7 @@ A review report is written for the reviewer. This skill rewrites it for the PR a
 | `format=` | `markdown` (default) or `json`. |
 | `out=` | Path the result is written to. Without it, the result is the response. |
 
-This skill changes nothing in the repository and posts nothing. Whoever calls it decides what to do with the comments.
+This skill changes no file in the repository and posts nothing; the one git command it may run that writes is the `git fetch` of a reviewed commit the clone lacks (step 1). Whoever calls it decides what to do with the comments.
 
 ## Read first
 
@@ -29,12 +29,16 @@ This skill changes nothing in the repository and posts nothing. Whoever calls it
 
 Walk every stage section of the report and take one entry per finding. Each entry needs a `path:line` on the head side of the diff; a finding with no anchor is a diagnostics note, not a comment.
 
-- A comment-audit `TRIM` or `DELETE` also needs the span of the comment it rules on, as HEAD lines. The comments stage gives it as `L<start>-L<end>`; when only `L<start>` is given, read the comment in the file at HEAD and take its last line as the end, since an audit report may quote a multi-line comment on one line. That span becomes `suggestion.startLine` and `suggestion.endLine`.
+- A comment-audit `TRIM` or `DELETE` also needs the span of the comment it rules on, as HEAD lines. The comments stage gives it as `L<start>-L<end>`; when only `L<start>` is given, read the comment in the file at its `<head>` and take its last line as the end, since an audit report may quote a multi-line comment on one line. That span becomes `suggestion.startLine` and `suggestion.endLine`.
 - A comment-audit `KEEP` that proposes no change is dropped. A `KEEP` that proposes a change is kept and labelled by what it proposes.
 - A finding listed under two stages appears once, under the stage that ruled on it most precisely.
 - At most 20 correctness, 20 type safety, and 40 comment findings. When a cap cuts, the least severe go first, and the cut is recorded in diagnostics.
 
 Order: correctness, then type safety, then comments, each in the order the report gave them.
+
+The consolidated report of `review:pr-review` names the commit it reviewed on a `Reviewed head: <sha>` line under each PR's url. That SHA is the `<head>` of every finding in that PR section. When the report holds one PR section and that section has the line, the SHA also goes into the JSON of step 6 as `headSha`. A report of several PRs has one `<head>` per section and no `headSha`: leave the key out, since one SHA cannot describe comments from several heads. A single stage report and pasted findings have neither. The SHA is copied from the report and never taken from `git rev-parse HEAD`, which is the commit checked out, not the one reviewed.
+
+Step 1 and the suggestions of step 3 read each finding's file at that finding's `<head>`. In a report of several PRs that is the `Reviewed head:` SHA of the PR section the finding came from, never the working tree, which is on one commit at most. Read files as they are at the head. When the working tree is not a clean checkout of `<head>`, read them with `git show <head>:<path>` and search them with `git grep <pattern> <head>`. When `<head>` is not in this clone (`git cat-file -e '<head>^{commit}'` fails, as it does for a report written in another clone), run `git fetch origin <head>` and read again. When the fetch fails, never read the checked-out file in its place: write the fix of every finding at that `<head>` as prose, with no `suggestion`, and name the `<head>` that could not be fetched in diagnostics. A finding with no `<head>` is read from the working tree.
 
 ## Step 2: classify
 
@@ -60,7 +64,7 @@ An entry may carry `suggestion: { "startLine": n, "endLine": m, "replacement": "
 - Every line in the range is in the same diff hunk on the head side. GitHub rejects a multi-line comment that reaches outside it.
 - One location. A fix that also needs a change elsewhere stays prose.
 - Literal file text, never a description of a change. It is not scrubbed or edited.
-- Built from those lines as read from the file at HEAD, not from the report's quote: indentation and comment markers (`//`, ` * `, `#`) stay as the file has them.
+- Built from those lines as read from the file at its `<head>`, not from the report's quote: indentation and comment markers (`//`, ` * `, `#`) stay as the file has them.
 - A comment that shares a line with code, or a description beside a type annotation (`@param`, `@return`, `@var`, and similar), keeps that code or annotation in the replacement, or the finding stays prose. An empty replacement is only for lines that are wholly comment.
 
 By category:
@@ -81,7 +85,7 @@ Verdict:
 
 Summary: two to four sentences on what the review found in the author's code, in the same voice as the bodies. No greeting, no praise, no sign-off.
 
-Diagnostics: everything the summary may not say, for whoever runs the review rather than the author. A stage that did not report, a tool that was unavailable, a cap that cut findings, a conclusion that could not be verified. Empty when the review ran clean and complete and step 5 had nothing to add.
+Diagnostics: everything the summary may not say, for whoever runs the review rather than the author. A stage that did not report, a tool that was unavailable, a working tree that was not on the reviewed head, a reviewed head that could not be fetched, a cap that cut findings, a conclusion that could not be verified. Empty when the review ran clean and complete and step 5 had nothing to add.
 
 ## Step 5: humanize
 
@@ -100,6 +104,7 @@ Write the classified entries to a JSON file in the scratchpad:
   "verdict": "request_changes",
   "summary": "...",
   "diagnostics": "",
+  "headSha": "59867ee01a72ef9bd06c524fa9650d4cdc74b9ac",
   "comments": [
     { "path": "app/Services/DiscountSync.php", "line": 88, "category": "correctness", "label": "Error handling", "body": "..." },
     { "path": "app/Services/DiscountSync.php", "line": 40, "category": "comments", "label": "Trim", "body": "...", "suggestion": { "startLine": 40, "endLine": 42, "replacement": "    /** Retried once: the vendor API drops the first call after idle. */" } }
@@ -107,13 +112,15 @@ Write the classified entries to a JSON file in the scratchpad:
 }
 ```
 
+`headSha` is optional: the report's `Reviewed head:` SHA from step 1, or no key at all.
+
 Then run:
 
 ```sh
 node ${CLAUDE_PLUGIN_ROOT}/skills/pr-comments/scripts/render-comments.mjs --format markdown < findings.json
 ```
 
-The script rejects a label that is not in its category, a missing `path` or `line`, an empty body (or one that is only reviewer vocabulary), and a `suggestion` that replaces more than six lines, whose range does not contain `line`, that sits on `Move`, `Wrong`, `Question`, or `Unsure`, or beside a body that still carries a fenced block (backticks or tildes), naming the comment by index. It also rejects a verdict that disagrees with the severities present: `comment` beside a 🔴 or 🟠, `request_changes` with none, or `approve` with any comment at all. Fix the entry and run it again. It assigns the codes, grades the severity from the label, strips any reviewer vocabulary a body still starts with, and puts the header on its own line above the body, and renders a `suggestion` as a GitHub suggestion block after the body, widening the fence past any backticks inside the replacement. With a `suggestion` it also sets the review-comment fields from the range: `line` to its last line, `side` to `RIGHT`, and for more than one line `start_line` to its first and `start_side` to `RIGHT`. The JSON keeps the finding's own line as `anchor`; the markdown prints `path:start-end` for more than one line and `path:line` otherwise. Its output is the result; do not write codes, emoji, or headers by hand, and do not reorder or edit what it prints.
+The script rejects a label that is not in its category, a missing `path` or `line`, an empty body (or one that is only reviewer vocabulary), and a `suggestion` that replaces more than six lines, whose range does not contain `line`, that sits on `Move`, `Wrong`, `Question`, or `Unsure`, or beside a body that still carries a fenced block (backticks or tildes), naming the comment by index. It also rejects a verdict that disagrees with the severities present: `comment` beside a 🔴 or 🟠, `request_changes` with none, or `approve` with any comment at all; and a `headSha` that is not a full SHA of 40 lower-case hex characters, so a branch name or a shortened SHA never reaches a caller that compares it with `git rev-parse HEAD`. Fix the entry and run it again. It assigns the codes, grades the severity from the label, strips any reviewer vocabulary a body still starts with, and puts the header on its own line above the body, and renders a `suggestion` as a GitHub suggestion block after the body, widening the fence past any backticks inside the replacement. With a `suggestion` it also sets the review-comment fields from the range: `line` to its last line, `side` to `RIGHT`, and for more than one line `start_line` to its first and `start_side` to `RIGHT`. The JSON keeps the finding's own line as `anchor`; the markdown prints `path:start-end` for more than one line and `path:line` otherwise. Its output is the result; do not write codes, emoji, or headers by hand, and do not reorder or edit what it prints.
 
 ## Output
 
@@ -142,7 +149,7 @@ The docblock repeats the method name and the retry count the code shows. Keep th
 Diagnostics: <text, or the line is absent>
 ````
 
-With `format=json`, the script's JSON instead: each comment keeps the `startLine`, `endLine`, and `replacement` of its `suggestion`, and its `body` already ends with the rendered suggestion block, so a poster sends `body` as-is and never builds a second block from `replacement`. A comment with a `suggestion` also carries `line`, `side`, and for a range of more than one line `start_line` and `start_side`, already set from the range, with the finding's own line as `anchor`: a poster sends `path`, `body`, `line`, `side`, and, when present, `start_line` and `start_side` as they are, and nothing else: GitHub rejects the whole review with a 422 that names each key it does not know, so `anchor`, `code`, `category`, `label`, and `suggestion` never go in the request. A comment without a `suggestion` carries no `side`, `start_line`, `start_side`, or `anchor`, and its `line` is the finding's, so the finding's line of any comment is `anchor ?? line`. With `out=`, the same content written to that path and a one-line response naming it.
+With `format=json`, the script's JSON instead: each comment keeps the `startLine`, `endLine`, and `replacement` of its `suggestion`, and its `body` already ends with the rendered suggestion block, so a poster sends `body` as-is and never builds a second block from `replacement`. A comment with a `suggestion` also carries `line`, `side`, and for a range of more than one line `start_line` and `start_side`, already set from the range, with the finding's own line as `anchor`: a poster sends `path`, `body`, `line`, `side`, and, when present, `start_line` and `start_side` as they are, and nothing else: GitHub rejects the whole review with a 422 that names each key it does not know, so `anchor`, `code`, `category`, `label`, and `suggestion` never go in the request. A comment without a `suggestion` carries no `side`, `start_line`, `start_side`, or `anchor`, and its `line` is the finding's, so the finding's line of any comment is `anchor ?? line`. When step 1 set `headSha`, for a report of one PR, the top level carries it, beside `verdict`, `summary`, `diagnostics`, and `comments`; the key is absent otherwise, and a consumer that does not know it can ignore it. A caller compares `headSha` with the commit it checked out to learn whether the comments describe that commit. It is not a GitHub field: a poster that wants the review attached to the reviewed commit sends its value as the review's `commit_id`. The markdown output never prints it. With `out=`, the same content written to that path and a one-line response naming it.
 
 ## Common mistakes
 

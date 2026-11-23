@@ -13,7 +13,7 @@ This skill is a checklist, not an editor. It walks the types a diff or a path in
 
 One of two things is in scope, never both:
 
-- **A diff**, when `base=` and `head=` are given, with the same defaults as step 0 of [../comment-audit/SKILL.md](../comment-audit/SKILL.md) when either is omitted. Read `git diff BASE...HEAD`, three dots, so only what the branch adds is ruled on.
+- **A diff**, when `base=` and `head=` are given, with the same defaults as step 0 of [../comment-audit/SKILL.md](../comment-audit/SKILL.md) when either is omitted. Read `git diff BASE...HEAD`, three dots, so only what the branch adds is ruled on. Read files as they are at the head. When the working tree is not a clean checkout of `<head>`, read them with `git show <head>:<path>` and search them with `git grep <pattern> <head>`. `<head>` is the resolved `head`.
 - **A path**, when a path is given as the argument. Every file under it is in scope whatever its git state, and `base=` and `head=` are ignored.
 
 Generated code is out of scope. Skip the paths that step 0 of [../comment-audit/SKILL.md](../comment-audit/SKILL.md) excludes from `dirs=`. List what was skipped in the report.

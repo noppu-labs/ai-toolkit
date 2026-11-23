@@ -30,7 +30,9 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/brief/scripts/brief.mjs" <target-dir> [--max-
 - Redirect the output to a file and read the file, as above. A large brief overruns the
   harness's output cap when printed directly.
 - Run in a checkout that has `vendor/` or `node_modules/` and any code-graph indexes. A bare
-  worktree degrades resolved types and omits graph sections.
+  worktree degrades resolved types and omits graph sections. A linked worktree with its own
+  indexes counts: gitnexus is found by the worktree's path, whatever `--name` it was indexed
+  under.
 - Sources recognised: PHP, and JS/TS including `.mjs`, `.cjs`, `.mts`, `.cts`. Files come
   from `git ls-files` (tracked, plus untracked files that are not ignored). `vendor/`,
   `node_modules/`, dot-directories, and symlinks are skipped.

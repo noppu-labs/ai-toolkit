@@ -57,6 +57,10 @@ The commands run here produce the brief. Their output goes into the brief, not i
 const CORRECTNESS_TEMPLATE = `Review PR "<PR_TITLE>" (<PR_URL>) for correctness. Base ref <BASE>, head ref <HEAD>.
 Only what the branch adds is in scope: git diff <BASE>...<HEAD>, three dots.
 
+Read files as they are at the head. When the working tree is not a clean checkout
+of \`<HEAD>\`, read them with \`git show <HEAD>:<path>\` and search them with
+\`git grep <pattern> <HEAD>\`.
+
 Structural brief:
 <BRIEF>
 
@@ -114,6 +118,10 @@ Every skill, tool, or check you could not use, with the reason.`;
 
 const TYPE_SAFETY_TEMPLATE = `Review PR "<PR_TITLE>" (<PR_URL>) for type safety. Base ref <BASE>, head ref <HEAD>.
 
+Read files as they are at the head. When the working tree is not a clean checkout
+of \`<HEAD>\`, read them with \`git show <HEAD>:<path>\` and search them with
+\`git grep <pattern> <HEAD>\`.
+
 Structural brief:
 <BRIEF>
 
@@ -142,6 +150,10 @@ the skill reported as skipped for being generated or vendored.`;
 
 const COMMENTS_TEMPLATE = `Review PR "<PR_TITLE>" (<PR_URL>) for comments and documentation. Base ref <BASE>,
 head ref <HEAD>.
+
+Read files as they are at the head. When the working tree is not a clean checkout
+of \`<HEAD>\`, read them with \`git show <HEAD>:<path>\` and search them with
+\`git grep <pattern> <HEAD>\`.
 
 Structural brief:
 <BRIEF>
@@ -228,6 +240,10 @@ const STAGES = [
 
 const PASS_LABEL = "hand review only";
 
+// A caller reads the reviewed commit from this line, so it is written for
+// every PR, whether or not its stages reported.
+const REVIEWED_HEAD = "Reviewed head:";
+
 // One pass over the template, so a slot value that itself contains a slot
 // token (a brief quoting `git diff <BASE>...<HEAD>`, a title) is left alone.
 function fill(template, slots) {
@@ -264,10 +280,13 @@ function validateInstructions(value, at) {
   return instructions;
 }
 
+// A ref name or a shortened SHA would not compare with a caller's `git rev-parse HEAD`.
+const FULL_SHA = /^[0-9a-f]{40}$/;
+
 function validatePr(item, index) {
   const at = `args[${index}]`;
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
-    throw new Error(`${at} must be an object with number, title, base, head, and url`);
+    throw new Error(`${at} must be an object with number, title, base, head, headSha, and url`);
   }
   if (!Number.isInteger(item.number) || item.number < 1) {
     throw new Error(`${at}.number must be a positive integer`);
@@ -277,8 +296,19 @@ function validatePr(item, index) {
       throw new Error(`${at}.${field} must be a non-empty string`);
     }
   }
+  if (typeof item.headSha !== "string" || !FULL_SHA.test(item.headSha)) {
+    throw new Error(`${at}.headSha must be the full 40-character SHA that git rev-parse prints for head`);
+  }
   const instructions = validateInstructions(item.instructions, `${at}.instructions`);
-  return { number: item.number, title: item.title, base: item.base, head: item.head, url: item.url, instructions };
+  return {
+    number: item.number,
+    title: item.title,
+    base: item.base,
+    head: item.head,
+    headSha: item.headSha,
+    url: item.url,
+    instructions,
+  };
 }
 
 function validateArgs(input) {
@@ -286,7 +316,7 @@ function validateArgs(input) {
     throw new Error("args arrived as a string; pass the PR list as a JSON array value, not a JSON-encoded string");
   }
   if (!Array.isArray(input) || input.length === 0) {
-    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, url, instructions? }, ...]");
+    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, headSha, url, instructions? }, ...]");
   }
   const prs = input.map((pr, index) => validatePr(pr, index));
   const numbers = new Set();
@@ -313,9 +343,12 @@ function instructionsBlock(pr, key) {
   return parts.length === 0 ? "" : `${INSTRUCTIONS_HEADING}\n\n${parts.join("\n\n")}\n\n`;
 }
 
+// `<HEAD>` is filled with `headSha`, never `head`: `refs/pr-review/<n>` is
+// shared by every worktree of the clone, so a second review of the same PR
+// can move it while this run's agents are still reading.
 function briefPrompt(pr) {
-  const header = `Build the structural brief for PR #${pr.number} "${pr.title}" (${pr.url}). Base ref ${pr.base}, head ref ${pr.head}. Only what the branch adds is in scope: git diff ${pr.base}...${pr.head}, three dots. Do not review the change; the brief is the input every reviewer of this PR gets.`;
-  const body = fill(STEP2_TEMPLATE, { BASE: pr.base, HEAD: pr.head });
+  const header = `Build the structural brief for PR #${pr.number} "${pr.title}" (${pr.url}). Base ref ${pr.base}, head ref ${pr.headSha}. Only what the branch adds is in scope: git diff ${pr.base}...${pr.headSha}, three dots. Do not review the change; the brief is the input every reviewer of this PR gets.`;
+  const body = fill(STEP2_TEMPLATE, { BASE: pr.base, HEAD: pr.headSha });
   return `${header}\n\n${body}\n\n${instructionsBlock(pr, "brief")}${BRIEF_TRAILER}`;
 }
 
@@ -323,7 +356,7 @@ function stagePrompt(stage, pr, brief) {
   const body = fill(stage.template, {
     BRIEF: brief,
     BASE: pr.base,
-    HEAD: pr.head,
+    HEAD: pr.headSha,
     PR_TITLE: pr.title,
     PR_URL: pr.url,
   });
@@ -449,7 +482,7 @@ function renderStage(result, results) {
 }
 
 function renderPr(pr, item) {
-  const lines = [`## ${pr.number} ${pr.title}`, pr.url, ""];
+  const lines = [`## ${pr.number} ${pr.title}`, pr.url, "", `${REVIEWED_HEAD} ${pr.headSha}`, ""];
   if (!item) {
     for (const stage of STAGES) {
       lines.push(stage.heading, "The stage did not report.", "");
@@ -543,6 +576,9 @@ function countFindings(prs, items) {
 
 const prs = validateArgs(args);
 log(`Reviewing ${prs.length} PR${prs.length === 1 ? "" : "s"}: ${prs.map((pr) => pr.number).join(", ")}`);
+for (const pr of prs) {
+  log(`PR ${pr.number}: reviewing ${pr.headSha} (head ${pr.head})`);
+}
 const items = await pipeline(prs, runBrief, runStages);
 phase("Consolidate");
 const report = renderReport(prs, items);

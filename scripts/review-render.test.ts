@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { join } from "node:path";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -238,11 +240,18 @@ function getError(input: unknown): string {
   throw new Error("expected renderComments to throw");
 }
 
-function runCli(
+type CliResult = { status: number | null; stdout: string; stderr: string };
+
+function runCli(input: string, ...args: string[]): CliResult {
+  return runScriptAt(scriptPath, input, ...args);
+}
+
+function runScriptAt(
+  path: string,
   input: string,
   ...args: string[]
-): { status: number | null; stdout: string; stderr: string } {
-  const result = spawnSync("node", [scriptPath, ...args], {
+): CliResult {
+  const result = spawnSync("node", [path, ...args], {
     input,
     encoding: "utf8",
   });
@@ -1292,7 +1301,9 @@ describe("renderComments", () => {
   });
 
   const extrasArb: fc.Arbitrary<Record<string, unknown>> = fc.dictionary(
-    fc.string({ minLength: 1 }).filter((key) => key !== "comments"),
+    fc
+      .string({ minLength: 1 })
+      .filter((key) => key !== "comments" && key !== "headSha"),
     fc.jsonValue(),
   );
 
@@ -1454,6 +1465,118 @@ describe("verdict validation", () => {
         }
       }),
     );
+  });
+});
+
+describe("headSha", () => {
+  // biome-ignore lint/security/noSecrets: a commit SHA fixture, not a secret
+  const HEAD_SHA: string = "59867ee01a72ef9bd06c524fa9650d4cdc74b9ac";
+  const comment: InputComment = makeComment();
+
+  it("carries a full SHA to the top level of the JSON, where the input put it", () => {
+    const rendered = renderComments({
+      verdict: "request_changes",
+      headSha: HEAD_SHA,
+      comments: [comment],
+    });
+
+    expect(rendered.headSha).toBe(HEAD_SHA);
+    expect(Object.keys(rendered)).toEqual(["verdict", "headSha", "comments"]);
+  });
+
+  it("adds no key when the input has none", () => {
+    expect(renderComments({ comments: [comment] })).not.toHaveProperty(
+      "headSha",
+    );
+  });
+
+  it("treats a null headSha as absent", () => {
+    expect(
+      renderComments({ headSha: null, comments: [comment] }),
+    ).not.toHaveProperty("headSha");
+    expect(
+      JSON.parse(
+        runCli(JSON.stringify({ headSha: null, comments: [comment] })).stdout,
+      ),
+    ).not.toHaveProperty("headSha");
+  });
+
+  it.each([
+    ["a shortened SHA", HEAD_SHA.slice(0, 7)],
+    ["an upper-case SHA", HEAD_SHA.toUpperCase()],
+    ["a ref name", "pr-review/117"],
+    ["a SHA with a trailing newline", `${HEAD_SHA}\n`],
+    ["a longer hex string", `${HEAD_SHA}0`],
+    ["an empty string", ""],
+    ["a number", 59_867],
+    ["an array", [HEAD_SHA]],
+  ])("rejects %s", (_label, headSha) => {
+    expect(getError({ headSha, comments: [comment] })).toBe(
+      "headSha must be a full SHA of 40 lower-case hex characters",
+    );
+  });
+
+  it("reports a verdict problem and a headSha problem together", () => {
+    expect(
+      getError({ verdict: "approve", headSha: "main", comments: [comment] }),
+    ).toBe(
+      [
+        "verdict approve requires an empty comment list",
+        "headSha must be a full SHA of 40 lower-case hex characters",
+      ].join("\n"),
+    );
+  });
+
+  it("accepts every 40-character lower-case hex string unchanged", () => {
+    fc.assert(
+      fc.property(
+        fc.stringMatching(/^[0-9a-f]{40}$/),
+        makeCommentListArb(),
+        (headSha, comments) => {
+          expect(renderComments({ headSha, comments }).headSha).toBe(headSha);
+        },
+      ),
+    );
+  });
+
+  it("never prints it in the markdown", () => {
+    const rendered = renderComments({
+      verdict: "request_changes",
+      summary: "One finding.",
+      headSha: HEAD_SHA,
+      comments: [comment],
+    });
+
+    expect(formatMarkdown(rendered)).toBe(
+      formatMarkdown(
+        renderComments({
+          verdict: "request_changes",
+          summary: "One finding.",
+          comments: [comment],
+        }),
+      ),
+    );
+    expect(formatMarkdown(rendered)).not.toContain(HEAD_SHA);
+  });
+
+  it("prints it in the CLI's JSON and leaves the CLI's markdown alone", () => {
+    const withSha = JSON.stringify({ headSha: HEAD_SHA, comments: [comment] });
+    const without = JSON.stringify({ comments: [comment] });
+
+    expect(JSON.parse(runCli(withSha).stdout).headSha).toBe(HEAD_SHA);
+    expect(JSON.parse(runCli(without).stdout)).not.toHaveProperty("headSha");
+    expect(runCli(withSha, "--format", "markdown").stdout).toBe(
+      runCli(without, "--format", "markdown").stdout,
+    );
+  });
+
+  it("exits 1 and names the key when the CLI gets a shortened SHA", () => {
+    const result = runCli(
+      JSON.stringify({ headSha: HEAD_SHA.slice(0, 12), comments: [comment] }),
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("headSha must be a full SHA");
   });
 });
 
@@ -1626,6 +1749,32 @@ describe("render-comments.mjs", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("comments[0]:");
     expect(result.stdout).toBe("");
+  });
+
+  // A plugin cache or a `skills` install can reach the script through a
+  // symlinked directory, where Node's module URL is the resolved path.
+  it("runs when invoked through a symlinked directory", () => {
+    const root = mkdtempSync(join(tmpdir(), "render-comments-"));
+
+    try {
+      const link = join(root, "scripts");
+
+      symlinkSync(dirname(scriptPath), link, "dir");
+
+      const linked = join(link, "render-comments.mjs");
+      const ok = runScriptAt(linked, payload);
+      const bad = runScriptAt(
+        linked,
+        JSON.stringify({ headSha: "main", comments: [] }),
+      );
+
+      expect(ok.status).toBe(0);
+      expect(ok.stdout).toBe(runCli(payload).stdout);
+      expect(bad.status).toBe(1);
+      expect(bad.stderr).toContain("headSha must be a full SHA");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("exits 1 on input that is not JSON", () => {

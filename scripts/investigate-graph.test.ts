@@ -40,6 +40,10 @@ type GraphContext = {
 };
 type GraphModule = {
   parseGraphContext: (stdout: string) => GraphContext | null;
+  graphContext: (
+    ctx: { repoRoot: string; repoName: string; env: NodeJS.ProcessEnv },
+    symbolName: string,
+  ) => GraphContext | null;
   codegraphOverview: (
     ctx: { repoRoot: string; env: NodeJS.ProcessEnv },
     names: string[],
@@ -170,6 +174,68 @@ describe("parseGitnexusList", () => {
     ).toMatchObject({
       ok: false,
       note: expect.stringContaining("points at /tmp/clone-a"),
+    });
+  });
+
+  it("finds a linked worktree by its path when it was indexed under another name", () => {
+    const worktree = [
+      "  GitNexus List (1.6.12)",
+      "",
+      "  Indexed Repositories (2)",
+      "",
+      "  my-repo",
+      "    Path:    /tmp/my-repo",
+      "    Commit:  1111111",
+      "    Branch:  main",
+      "",
+      "  my-repo-run-42",
+      "    Path:    /tmp/worktrees/run-42",
+      "    Commit:  2222222",
+      "",
+    ].join("\n");
+    expect(
+      freshness.parseGitnexusList(worktree, "run-42", "/tmp/worktrees/run-42"),
+    ).toEqual({ ok: true, indexed: "2222222", branch: "?" });
+  });
+
+  it("reads a name gitnexus disambiguates with a path suffix", () => {
+    const shared = [
+      "  my-repo  (/tmp/clone-a)",
+      "    Path:    /tmp/clone-a",
+      "    Commit:  1111111",
+      "",
+      "  my-repo  (/tmp/my-repo)",
+      "    Path:    /tmp/my-repo",
+      "    Commit:  2222222",
+      "    Branch:  dev",
+      "",
+    ].join("\n");
+    expect(
+      freshness.parseGitnexusList(shared, "my-repo", "/tmp/elsewhere"),
+    ).toMatchObject({
+      ok: false,
+      note: expect.stringContaining("points at /tmp/clone-a"),
+    });
+    expect(
+      freshness.parseGitnexusList(shared, "my-repo", "/tmp/my-repo"),
+    ).toEqual({ ok: true, indexed: "2222222", branch: "dev" });
+  });
+
+  it("never takes the next entry's commit for an entry that has none", () => {
+    const listing = [
+      "my-repo",
+      "  Path:    /tmp/my-repo",
+      "",
+      "other",
+      "  Path:    /tmp/other",
+      "  Commit:  3333333",
+      "",
+    ].join("\n");
+    expect(
+      freshness.parseGitnexusList(listing, "my-repo", "/tmp/my-repo"),
+    ).toMatchObject({
+      ok: false,
+      note: expect.stringContaining("could not parse"),
     });
   });
 
@@ -308,6 +374,30 @@ describe("parseGraphContext", () => {
       processes: ["p1", { name: "p2" }],
       epistemic: "graph",
     });
+  });
+});
+
+describe("graphContext", () => {
+  it("asks gitnexus for the repo by its path, not its directory name", () => {
+    const root = mkdtempSync(join(tmpdir(), "investigate-wt-"));
+    const env = {
+      PATH: FAKE_GITNEXUS_PATH,
+      FAKE_GITNEXUS_CONTEXT: '{"status":"found","symbol":{}}',
+      FAKE_GITNEXUS_REPO: root,
+    };
+    expect(
+      graph.graphContext({ repoRoot: root, repoName: "run-42", env }, "Foo"),
+    ).toMatchObject({ status: "found" });
+    expect(
+      graph.graphContext(
+        {
+          repoRoot: root,
+          repoName: "run-42",
+          env: { ...env, FAKE_GITNEXUS_REPO: "run-42" },
+        },
+        "Foo",
+      ),
+    ).toBeNull();
   });
 });
 
