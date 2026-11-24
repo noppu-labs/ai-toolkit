@@ -1488,3 +1488,32 @@ describe("head guard", () => {
     expect(countOccurrences(flatten(skill), guard)).toBe(4);
   });
 });
+
+describe("correctness-review naming check", () => {
+  const correctness: string = readFileSync(
+    join(
+      import.meta.dirname,
+      "..",
+      "review",
+      "skills",
+      "correctness-review",
+      "SKILL.md",
+    ),
+    "utf8",
+  );
+
+  it("excludes naming in the drop rule except a name that contradicts its signature", () => {
+    expect(correctness).toMatch(
+      /^ {2}- style, naming, formatting, and design preference, except a name that contradicts its signature/m,
+    );
+  });
+
+  it("grades a contradicting name as a harmless Convention finding in the reading rules", () => {
+    const readingRules = correctness.slice(
+      correctness.indexOf("## Reading rules"),
+      correctness.indexOf("## Angles"),
+    );
+
+    expect(readingRules).toMatch(/contradicts[\s\S]*harmless[\s\S]*Convention/);
+  });
+});
