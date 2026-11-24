@@ -39,12 +39,12 @@ Keep an explicit closure when:
   (`fn ($value) => $this->format($value)`) whenever the target has optional/variadic parameters that
   the extra arguments could land in.
 - The call adapts its input: reorders arguments, fixes a captured value, or dereferences first
-  (`fn (Clinic $clinic): string => $clinic->genie_clinic_id`).
+  (`fn (Clinic $clinic): string => $clinic->external_id`).
 - The body is more than a single forwarding call.
 - The closure's signature narrows types for PHPStan (e.g. the method accepts `mixed` but the
   collection holds a specific DTO and you want the assertion).
-- Inside attribute arguments callables are not constant expressions and will not compile — and
-  closure-carrying attribute values crash bref's opcache file cache (see tech-stack notes).
+- Inside attribute arguments: before PHP 8.5 a callable is not a constant expression and will not
+  compile, and from 8.5 closure-carrying attribute values crash bref's opcache file cache.
 
 ## Comments
 
@@ -120,7 +120,7 @@ if (filled($routeParam)) { ... }
 ## Backend component structure
 
 All domain logic, DTOs, enums, and queries live under `app/Services/{Domain}/`. One folder per business
-capability (`Auth`, `UserInvite`, `GenieApi`, `Patient`, …). Each service folder owns everything that
+capability (`Auth`, `UserInvite`, `Billing`, `Patient`, …). Each service folder owns everything that
 capability needs:
 
 ```text
