@@ -81,6 +81,13 @@ that belongs in \`asyncio.to_thread\` or an async client; and a module-level
 environment read that raises at import time and so leaves the module untestable.
 These are leads, not rules: each finding still ends with its outcome.
 
+For a function or method the diff adds or renames, check that its name agrees with
+what it does, as the reading rules of \`review:correctness-review\` describe: a method that
+returns a boolean and changes nothing but reads as a command
+(\`skipNotification()\` for \`shouldSkipNotification()\`), or a question or getter name
+on a method that changes state. Leave names a framework or interface fixes alone. Such
+a finding proposes the new name and ends with harmless.
+
 When the diff calls a third-party library or works around one, check the call
 against that library's docs. Take the source from the brief's doc sources: one whose
 verdict starts with USE, or the pinned id when it starts with PIN; any other verdict
@@ -146,7 +153,8 @@ Every check you ran, with the command and its result.
 
 ## Skipped
 Every skill, tool, or check you could not use, with the reason. Include the paths
-the skill reported as skipped for being generated or vendored.`;
+the skill reported as skipped for being generated or vendored, and any rule it did
+not apply, with the reason.`;
 
 const COMMENTS_TEMPLATE = `Review PR "<PR_TITLE>" (<PR_URL>) for comments and documentation. Base ref <BASE>,
 head ref <HEAD>.

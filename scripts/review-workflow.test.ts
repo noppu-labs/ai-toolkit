@@ -500,23 +500,44 @@ describe("prompts", () => {
     ["pr-review SKILL.md", skill],
     [
       "the OpenCode pr-review SKILL.md",
-      readFileSync(
-        join(
-          import.meta.dirname,
-          "..",
-          "review",
-          "opencode",
-          "skills",
-          "pr-review",
-          "SKILL.md",
-        ),
-        "utf8",
-      ),
+      readSkill("opencode", "skills", "pr-review"),
     ],
   ])("names PHP-1 to PHP-6 in the type-safety stage of %s", (_name, text) => {
     expect(text).toMatch(/PHP-1\\?` to \\?`PHP-6/);
     expect(text).not.toMatch(/PHP-1\\?` to \\?`PHP-5/);
   });
+
+  it.each([
+    ["the workflow script", source],
+    ["pr-review SKILL.md", skill],
+    [
+      "the OpenCode pr-review SKILL.md",
+      readSkill("opencode", "skills", "pr-review"),
+    ],
+  ])(
+    "asks the hand review to check names against what they do in %s",
+    (_name, text) => {
+      expect(flatten(text)).toContain(
+        "check that its name agrees with what it does",
+      );
+    },
+  );
+
+  it.each([
+    ["the workflow script", source],
+    ["pr-review SKILL.md", skill],
+    [
+      "the OpenCode pr-review SKILL.md",
+      readSkill("opencode", "skills", "pr-review"),
+    ],
+  ])(
+    "relays rules the type-safety skill did not apply in %s",
+    (_name, text) => {
+      expect(flatten(text)).toContain(
+        "and any rule it did not apply, with the reason",
+      );
+    },
+  );
 
   it("builds the brief prompt around step 2 of SKILL.md with the refs filled", async () => {
     const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
@@ -1490,17 +1511,7 @@ describe("head guard", () => {
 });
 
 describe("correctness-review naming check", () => {
-  const correctness: string = readFileSync(
-    join(
-      import.meta.dirname,
-      "..",
-      "review",
-      "skills",
-      "correctness-review",
-      "SKILL.md",
-    ),
-    "utf8",
-  );
+  const correctness: string = readSkill("skills", "correctness-review");
 
   it("excludes naming in the drop rule except a name that contradicts its signature", () => {
     expect(correctness).toMatch(
@@ -1515,5 +1526,74 @@ describe("correctness-review naming check", () => {
     );
 
     expect(readingRules).toMatch(/contradicts[\s\S]*harmless[\s\S]*Convention/);
+  });
+
+  it("flags a boolean name only when the method changes no state", () => {
+    expect(correctness).toMatch(
+      /returns a boolean, changes no state, and its name reads as a command/,
+    );
+    expect(correctness).toMatch(/reports whether it succeeded keeps its verb/);
+  });
+});
+
+describe("type-safety-review PHP-6 wiring", () => {
+  const typeSafety: string = readSkill("skills", "type-safety-review");
+  const php: string = readFileSync(
+    join(
+      import.meta.dirname,
+      "..",
+      "review",
+      "skills",
+      "type-safety-review",
+      "references",
+      "php.md",
+    ),
+    "utf8",
+  );
+  const taxonomy: string = readFileSync(
+    join(
+      import.meta.dirname,
+      "..",
+      "review",
+      "skills",
+      "pr-comments",
+      "references",
+      "taxonomy.md",
+    ),
+    "utf8",
+  );
+
+  it("lists PHP-1 to PHP-6 in the rules, the counts, and the severity tiers", () => {
+    expect(typeSafety).toContain("Rule ids are `PHP-1` through `PHP-6`");
+    expect(typeSafety).toContain("every id from `PHP-1` to `PHP-6`");
+    expect(typeSafety).toContain("6. A simplification (`PHP-6`).");
+  });
+
+  it("reports a rule it did not apply, with the reason", () => {
+    expect(typeSafety).toContain("and any rule not applied, with the reason");
+  });
+
+  it("maps PHP-6 to the Simplification label", () => {
+    expect(taxonomy).toMatch(/^\| `PHP-6` .*\| Simplification \|$/m);
+  });
+
+  it("gates PHP-6 on the lower of the platform and required PHP versions", () => {
+    expect(php).toMatch(/lower of/);
+  });
+
+  it("keeps callables a framework resolves, serialises, or compares, and constant expressions", () => {
+    expect(php).toMatch(/resolves through its container/);
+    expect(php).toMatch(/serialised/);
+    expect(php).toMatch(/constant expression/);
+  });
+
+  it("keeps closures whose receiver is nullsafe or evaluated per call", () => {
+    expect(php).toMatch(/nullsafe/);
+    expect(php).toMatch(/evaluated on every call/);
+  });
+
+  it("uses a built-in example that really receives an extra argument", () => {
+    expect(php).toContain("->filter(is_numeric(...))");
+    expect(php).not.toContain("->map(strtoupper(...))");
   });
 });

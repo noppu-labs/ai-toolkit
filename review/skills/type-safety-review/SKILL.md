@@ -61,7 +61,7 @@ final readonly class InvoiceTotals
 
 The report is the whole output of this skill. It has two parts, in this order:
 
-1. A count per rule id, listing every id from `PHP-1` to `PHP-6`, `TS-1` to `TS-4`, and `PY-1` to `PY-5` including the ones with zero findings, then the paths skipped as generated or vendored.
+1. A count per rule id, listing every id from `PHP-1` to `PHP-6`, `TS-1` to `TS-4`, and `PY-1` to `PY-5` including the ones with zero findings, then the paths skipped as generated or vendored, and any rule not applied, with the reason.
 2. The findings, grouped by file, most severe first both within a file and between files.
 
 Severity order, highest first:

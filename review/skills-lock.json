@@ -7,7 +7,7 @@
     },
     "correctness-review": {
       "sourceType": "local",
-      "vendoredHash": "2e2e1e480b28b62fa4c0cf612115510541facdb9822be5da35537dfbaad88027"
+      "vendoredHash": "153115d783d47e88cdab8f581c5a87e8c60c6a6180f75c3bab01d8b0cb41976e"
     },
     "pr-comments": {
       "sourceType": "local",
@@ -15,11 +15,11 @@
     },
     "pr-review": {
       "sourceType": "local",
-      "vendoredHash": "ad1605510f8b1601d3b3b97bfd50b42b796cc4301af119928ae27efaf7a84403"
+      "vendoredHash": "33ee295f759c183b36fd2e2dfb1219429cb30a2beb9ab1a8635bbd314f7dfa67"
     },
     "type-safety-review": {
       "sourceType": "local",
-      "vendoredHash": "c1ea990ae29ce565fb53fe299e4e8f8b4638557e9ea6db0b78ffbf6b3a6c0599"
+      "vendoredHash": "e723b9d9e8bfc76974b8b4b3bf6fb254e122135dba87ebf797046a09958420d7"
     },
     "writing-comments": {
       "sourceType": "local",
