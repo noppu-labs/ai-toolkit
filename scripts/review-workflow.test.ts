@@ -1592,6 +1592,14 @@ describe("type-safety-review PHP-6 wiring", () => {
     expect(php).toMatch(/evaluated on every call/);
   });
 
+  it("allows static and function callables in constant expressions from PHP 8.5", () => {
+    expect(php).toMatch(/PHP 8\.5/);
+  });
+
+  it("keeps a readonly non-nullable receiver a finding", () => {
+    expect(php).toMatch(/readonly property with a non-nullable type/);
+  });
+
   it("uses a built-in example that really receives an extra argument", () => {
     expect(php).toContain("->filter(is_numeric(...))");
     expect(php).not.toContain("->map(strtoupper(...))");
