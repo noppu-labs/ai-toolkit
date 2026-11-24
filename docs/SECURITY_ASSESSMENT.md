@@ -2,7 +2,7 @@
 
 This page lists security problems that could occur in AI Toolkit, how likely and how costly each one is, what the code and the repository settings do about it, and what remains. It looks at the software as well as the repository, because the plugins steer an agent in someone else's project.
 
-It was last reviewed on 2026-11-24, at `laravel` 0.1.5, `inertia-react` 0.1.3, `review` 0.13.1, `investigate` 0.2.3 and `opencode-toolkit-core` 0.1.2. [ARCHITECTURE.md](ARCHITECTURE.md) describes the actors and interfaces named here. To report a vulnerability, see [SECURITY.md](../SECURITY.md).
+It was last reviewed on 2026-11-24, at `laravel` 0.1.5, `inertia-react` 0.1.3, `review` 0.13.1, `investigate` 0.2.4 and `opencode-toolkit-core` 0.1.2. [ARCHITECTURE.md](ARCHITECTURE.md) describes the actors and interfaces named here. To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 
 ## What is worth protecting
 
@@ -18,6 +18,7 @@ It was last reviewed on 2026-11-24, at `laravel` 0.1.5, `inertia-react` 0.1.3, `
 - Plugin content is instruction, and the toolkit enforces nothing itself. The agent decides what to do with a skill, and the user's permission settings decide what the agent may run.
 - Upstream skill repositories are untrusted until a maintainer has read their content in a pull request.
 - The scripts trust whatever `git`, `node`, `python3` and the optional tools resolve to on `PATH`.
+- A repository that someone else wrote is untrusted input to the brief script, and so is the head of a pull request under review. Its file names, contents and configuration reach the tools the script starts.
 - A reply from context7.com is untrusted input that ends up in a brief an agent reads.
 - A pull request to this repository is untrusted until merged, and its code runs in CI before that.
 - The other plugin repositories that the `/opencode` pages are copied from are untrusted input to the `opencode-sync` workflow.
@@ -53,7 +54,7 @@ The brief script starts `git`, `gitnexus`, `codegraph`, `ast-grep`, `phpantom_ls
 
 Optional tools are probed with `--version` first, and a tool that is absent or fails is reported in the brief and skipped.
 
-What remains: the scripts do not check which binary a name resolves to, and they pass the whole environment on to it. The language servers and the graph tools are third-party programs that read the repository with the user's permissions, and this project does not review or pin them.
+What remains: the scripts do not check which binary a name resolves to, and they pass the whole environment on to it. The language servers and the graph tools are third-party programs that run inside the repository with the user's permissions, and this project does not review or pin them. [Risk 11](#11-a-brief-or-a-review-runs-on-a-hostile-repository) covers a repository the user did not write.
 
 ### 4. The context7 lookup reveals something or brings something back
 
@@ -122,3 +123,13 @@ Impact: low. Likelihood: low.
 The Worker has no secret, no database and no binding other than the static assets. `/api/consent` accepts only `POST`, requires an `Origin` header equal to its own origin, accepts three fixed values and answers with a cookie that holds one of them. `/api/consent-mode` asks first whenever the visitor's country is missing or unknown. `/api/badges/npm-downloads` requests a fixed list of URLs at npm and caches the answer at the edge for six hours. The Worker's code is held to the same coverage threshold as the repository's scripts.
 
 What remains: Cloudflare builds and deploys every push to `main` with no approval step in between, and the hosting configuration lives in a Cloudflare account that one person holds. While npm's API is failing, an uncached badge request repeats the calls to npm. [ADR-014](adr/014-site-analytics-behind-consent.md) and [ADR-015](adr/015-opt-out-analytics-outside-europe.md) cover when the site's pages load Google Analytics.
+
+### 11. A brief or a review runs on a hostile repository
+
+Impact: high, because whatever runs does so as the user. Likelihood: low on the user's own projects, medium for anyone who runs a brief on a repository they did not write or reviews pull requests from people they do not know.
+
+The brief script reads a path in a repository and starts `git` inside it, along with `ast-grep`, `gitnexus`, `codegraph`, `phpantom_lsp` and `typescript-language-server` when they are installed. `investigate:deep` and `investigate:spec` run the script first. `review:pr-review` runs it on a checkout of the pull request's head, so the pull request's author chooses what the script reads. The stage instructions of `review:pr-review` also allow the review agents to run the project's tests and linters, which is code from the pull request.
+
+Through `investigate` 0.2.3, a file name in the target repository could reach `git`, `gitnexus` and `codegraph` as a command-line option, and git has an option that runs a command. Since 0.2.4 the script takes a symbol name from a file name only when the name is an identifier, and it passes every name to those tools as a search pattern or after `--`. The script starts each tool with an argument list and no shell, rejects a target that begins with a dash, and skips symbolic links when it reads source files. `--no-lsp` leaves the language servers out.
+
+What remains: the brief script is not hardened against a hostile repository. Every tool it starts runs inside the target with the user's permissions, and some of them act on configuration and code they find there. This project does not review those tools or pin their versions, and nothing in the toolkit sandboxes the script, the agents or the tests an agent runs. Run a brief or a review of a repository or pull request from an unknown author in a container or another disposable environment, without credentials the work does not need.
