@@ -150,10 +150,10 @@ describe("release-notes.sh", () => {
     ]);
   });
 
-  it("names a two-parent merge commit by its PR title", () => {
+  it("lists a two-parent merge once, by its PR title, and not the branch's commits", () => {
     git("switch", "-q", "-c", "feature");
     write("demo/feature.md", "feature\n");
-    const branch = commit("feat(demo): on the branch");
+    commit("feat(demo): on the branch");
     git("switch", "-q", "main");
     write("demo/README.md", "main side\n");
     const side = commit("fix(demo): on main");
@@ -169,13 +169,122 @@ describe("release-notes.sh", () => {
     );
     const merge = git("rev-parse", "--short", "HEAD");
 
-    expect(notes("demo", "demo@0.1.0").sort()).toEqual(
-      [
-        `- feat(demo): the PR title (#9) (${merge})`,
-        `- feat(demo): on the branch (${branch})`,
-        `- fix(demo): on main (${side})`,
-      ].sort(),
+    expect(notes("demo", "demo@0.1.0")).toEqual([
+      `- feat(demo): the PR title (#9) (${merge})`,
+      `- fix(demo): on main (${side})`,
+    ]);
+  });
+
+  it("lists a merge whose branch alone changed the directory", () => {
+    git("switch", "-q", "-c", "feature");
+    write("demo/feature.md", "feature\n");
+    commit("feat(demo): on the branch");
+    git("switch", "-q", "main");
+    write("other/file.txt", "x\n");
+    commit("chore(other): unrelated");
+    git(
+      "merge",
+      "-q",
+      "--no-ff",
+      "feature",
+      "-m",
+      "Merge pull request #10 from org/feature",
+      "-m",
+      "feat(demo): the PR title",
     );
+    const merge = git("rev-parse", "--short", "HEAD");
+
+    expect(notes("demo", "demo@0.1.0")).toEqual([
+      `- feat(demo): the PR title (#10) (${merge})`,
+    ]);
+  });
+
+  it("leaves out a merge whose only change to the directory is plugin.json metadata", () => {
+    git("switch", "-q", "-c", "site");
+    write("demo/.claude-plugin/plugin.json", manifest("0.1.0", "https://b"));
+    write("site/page.ts", "x\n");
+    commit("feat(site): link plugins to their own pages");
+    git("switch", "-q", "main");
+    write("other/file.txt", "x\n");
+    commit("chore(other): unrelated");
+    git(
+      "merge",
+      "-q",
+      "--no-ff",
+      "site",
+      "-m",
+      "Merge pull request #11 from org/site",
+      "-m",
+      "feat(site): link plugins to their own pages",
+    );
+
+    expect(notes("demo", "demo@0.1.0")).toEqual(["- Maintenance release"]);
+  });
+
+  it("keeps a plugin.json commit that changes a field other than metadata", () => {
+    write(
+      "demo/.claude-plugin/plugin.json",
+      `${JSON.stringify({ name: "demo", version: "0.1.0", homepage: "https://a", mcpServers: { x: { command: "x" } } }, null, 2)}\n`,
+    );
+    const sha = commit("feat(demo): add an MCP server");
+
+    expect(notes("demo", "demo@0.1.0")).toEqual([
+      `- feat(demo): add an MCP server (${sha})`,
+    ]);
+  });
+
+  it("leaves out a commit that only reorders the manifest's keys", () => {
+    write(
+      "demo/.claude-plugin/plugin.json",
+      `${JSON.stringify({ homepage: "https://a", version: "0.1.0", name: "demo" }, null, 2)}\n`,
+    );
+    commit("style(demo): reorder plugin.json");
+
+    expect(notes("demo", "demo@0.1.0")).toEqual(["- Maintenance release"]);
+  });
+
+  it("keeps a plugin.json commit when the manifest does not parse", () => {
+    write("demo/.claude-plugin/plugin.json", "{ broken\n");
+    const broken = commit("chore(demo): break plugin.json");
+    write("demo/.claude-plugin/plugin.json", "{ still broken\n");
+    const still = commit("chore(demo): still broken");
+
+    expect(notes("demo", "demo@0.1.0")).toEqual([
+      `- chore(demo): still broken (${still})`,
+      `- chore(demo): break plugin.json (${broken})`,
+    ]);
+  });
+
+  it("names a merge commit whose body is larger than a pipe buffer", () => {
+    write("demo/README.md", "demo 2\n");
+    const padding =
+      "a line of the PR description, long enough to pad.\n".repeat(4000);
+    const sha = commit(
+      `Merge pull request #30 from org/big\n\nfeat(demo): big PR\n\n${padding}`,
+    );
+
+    expect(notes("demo", "demo@0.1.0")).toEqual([
+      `- feat(demo): big PR (#30) (${sha})`,
+    ]);
+  });
+
+  it("accepts the directory with a trailing slash or a leading ./", () => {
+    write("demo/.claude-plugin/plugin.json", manifest("0.1.0", "https://b"));
+    commit("feat(site): link plugins to their own pages");
+
+    expect(notes("demo/", "demo@0.1.0")).toEqual(["- Maintenance release"]);
+    expect(notes("./demo", "demo@0.1.0")).toEqual(["- Maintenance release"]);
+  });
+
+  it("fails when git log rejects the range", () => {
+    const result = spawnSync("bash", [script, "demo", "nope@9.9.9"], {
+      cwd: repo,
+      encoding: "utf8",
+      env: { ...process.env, ...gitEnv },
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toBe("");
   });
 
   it("applies no metadata rule to a shared package without plugin.json", () => {
