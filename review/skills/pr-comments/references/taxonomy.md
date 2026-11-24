@@ -25,6 +25,7 @@ Every comment carries one `category` (the stage that found it) and one `label` f
 | `typeSafety` | `TPS` | Duplicate type | 🟡 |
 | `typeSafety` | `TPS` | Missing sanity check | 🟡 |
 | `typeSafety` | `TPS` | Pseudo-type | 🟡 |
+| `typeSafety` | `TPS` | Simplification | 🟡 |
 | `comments` | `DOC` | Wrong | 🔴 |
 | `comments` | `DOC` | Delete | 🟡 |
 | `comments` | `DOC` | Move | 🟡 |
@@ -55,6 +56,7 @@ The stage reports use their own identifiers. Translate each to the closest label
 | `PHP-3` (array-shape pseudo-type without a stated reason) | Pseudo-type |
 | `PHP-4` (duplicate type) | Duplicate type |
 | `PHP-5` (missing `strict_types`, return type, or collection generics) | Missing sanity check |
+| `PHP-6` (closure that only forwards its arguments, or a string or array callable, where a first-class callable fits) | Simplification |
 | `TS-1` (`any`) | Mixed on a boundary |
 | `TS-1` (unchecked `as`) | Unchecked cast |
 | `TS-2` (loose object where a discriminated union belongs) | Pseudo-type |
