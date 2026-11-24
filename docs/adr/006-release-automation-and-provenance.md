@@ -78,7 +78,11 @@ two merges cannot race on tag creation.
   nothing happens, silently. This is the flip side of explicit versioning and is
   documented rather than solved.
 - Generated release notes are commit subjects, which are only as good as the commit
-  hygiene behind them.
+  hygiene behind them. `scripts/release-notes.sh` walks main's first-parent history, so
+  each merged PR is one line, and lists a GitHub merge commit by its PR title. It leaves
+  out commits whose only change to the plugin is to `plugin.json` metadata fields
+  (homepage, description and the like). A change to any other field, version included,
+  is listed.
 - Old releases published before attestation existed had no provenance; a one-off backfill
   workflow attested tarballs for those retroactively, but their provenance is inherently
   weaker (it proves the backfill built them, not the original release).
