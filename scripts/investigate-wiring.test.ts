@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -6,6 +6,10 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { git } from "./fixtures/investigate-git.ts";
 import type { Hit } from "./fixtures/investigate-types.ts";
+import {
+  FAKE_MARKER_PATH,
+  MARKER_OPTION_NAME,
+} from "./fixtures/marker-tool.ts";
 import { makeFakeToolPath, makeNoToolsPath } from "./fixtures/no-tools-path.ts";
 
 type Buckets = Record<string, Hit[]>;
@@ -294,6 +298,75 @@ describe("wiringFor", () => {
       .map((h) => h.filePath);
     expect(listed).not.toContain("app/Services/Invoice.php");
     expect(listed).toContain("app/Providers/AppServiceProvider.php");
+  });
+});
+
+// What git needs before a name read as an option does anything: the four paths
+// the scan excludes, and a tracked source file holding the first glob's text,
+// which git takes as the pattern once the name is gone.
+function makeOptionRepo(): { ctx: Ctx; marker: string } {
+  const cwd = mkdtempSync(join(tmpdir(), "investigate-wiring-opt-"));
+  git(cwd, "init", "-q", "-b", "main");
+  for (const dir of ["doc", "storage", "dist", "build", "src"]) {
+    mkdirSync(join(cwd, dir));
+    writeFileSync(join(cwd, dir, "keep.txt"), "x\n");
+  }
+  writeFileSync(join(cwd, "src", "globs.ts"), 'const glob = "*.php";\n');
+  writeFileSync(join(cwd, "src", "store.ts"), "const a = store$;\nlet store\n");
+  writeFileSync(
+    join(cwd, "src", "shop.mjs"),
+    "export class $Store {}\nexport class Cart {}\n",
+  );
+  git(cwd, "add", ".");
+  git(cwd, "commit", "-q", "-m", "base");
+  const marker = join(cwd, "marker.txt");
+  return {
+    marker,
+    ctx: {
+      repoRoot: cwd,
+      relTarget: "app",
+      files: [],
+      env: { PATH: FAKE_MARKER_PATH, FAKE_MARKER_FILE: marker },
+    },
+  };
+}
+
+describe("wiringFor on hostile names", () => {
+  it("searches for a name that looks like a git option instead of obeying it", () => {
+    const { ctx, marker } = makeOptionRepo();
+    expect(wiring.wiringFor(ctx, MARKER_OPTION_NAME, "app/own.php")).toEqual(
+      {},
+    );
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it("matches the name as fixed text, not as a pattern", () => {
+    const { ctx } = makeOptionRepo();
+    const hits = (sym: string): string[] =>
+      Object.values(wiring.wiringFor(ctx, sym, "app/own.php") ?? {})
+        .flat()
+        .map((h) => `${h.filePath}:${h.lineNo}`);
+    expect(hits("store$")).toEqual(["src/store.ts:1"]);
+    expect(hits("st.re")).toEqual([]);
+  });
+});
+
+describe("duplicateDefinitions on hostile names", () => {
+  it("finds a name holding $ and does not read a name as a pattern", () => {
+    const { ctx } = makeOptionRepo();
+    expect(wiring.duplicateDefinitions(ctx, "$Store", "app/own.php")).toEqual([
+      "src/shop.mjs:1",
+    ]);
+    expect(wiring.duplicateDefinitions(ctx, ".*", "app/own.php")).toEqual([]);
+    expect(wiring.duplicateDefinitions(ctx, "C.rt", "app/own.php")).toEqual([]);
+  });
+
+  it("never runs a command named by a name that looks like a git option", () => {
+    const { ctx, marker } = makeOptionRepo();
+    expect(
+      wiring.duplicateDefinitions(ctx, MARKER_OPTION_NAME, "app/own.php"),
+    ).toEqual([]);
+    expect(existsSync(marker)).toBe(false);
   });
 });
 

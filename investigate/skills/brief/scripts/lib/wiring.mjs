@@ -208,12 +208,15 @@ export function astGrepScan(ctx) {
 
 export function wiringFor(ctx, sym, ownFile) {
   // git grep: tracked files only, so vendor/ and node_modules/ drop out for free.
+  // `-e` marks sym as the pattern, so git never reads it as an option, and `-F`
+  // matches it as text: `$` is legal in a JS name and an anchor in a pattern.
   const res = run(
     "git",
     [
       "grep",
-      "-nw",
+      "-nwF",
       "--no-color",
+      "-e",
       sym,
       "--",
       ...SOURCE_GLOBS,
@@ -242,7 +245,8 @@ export function duplicateDefinitions(ctx, sym, ownFile) {
     [
       "grep",
       "-nwE",
-      `(class|interface|trait|enum) ${sym}`,
+      "-e",
+      `(class|interface|trait|enum) ${esc(sym)}`,
       "--",
       ...DEFINITION_GLOBS,
     ],

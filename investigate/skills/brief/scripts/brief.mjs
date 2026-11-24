@@ -278,7 +278,7 @@ async function buildBrief(opts, io) {
   const tools = { git: "ran" };
   const freshness = indexFreshness(ctx);
   tools.gitnexus = gitnexusStatus(freshness);
-  const { symbols, truncated } = deriveSymbols(
+  const { symbols, truncated, unnamed } = deriveSymbols(
     ctx.files,
     ctx.repoRoot,
     opts.maxSymbols,
@@ -303,6 +303,7 @@ async function buildBrief(opts, io) {
       basenameFiles: new Set(
         symbols.filter((s) => s.basenameFallback).map((s) => s.file),
       ),
+      unnamedFiles: new Set(unnamed),
     }),
     ...render.renderDependencies(deps.rows, deps.unread),
     ...render.renderDocSources(docs.gate, docs.skippedReason),
