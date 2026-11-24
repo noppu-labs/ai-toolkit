@@ -41,6 +41,26 @@ jobs:
               if (m.name !== p) throw new Error('plugin.json name mismatch: ' + p);
             }
           "
+      # release.yml makes the same comparison in each plugin's npm build, but
+      # by then the tag and the GitHub release already exist. A loader change
+      # without a version bump fails here instead, on the pull request.
+      - name: Loader matches its published version
+        run: |
+          set -euo pipefail
+          core_dir=packages/opencode-toolkit-core
+          name=$(node -p "require('./$core_dir/package.json').name")
+          version=$(node -p "require('./$core_dir/package.json').version")
+          published=$(npm view "$name@$version" dist.integrity 2>/dev/null || true)
+          if [[ -z "$published" ]]; then
+            echo "::notice::$name@$version is not on npm yet."
+            exit 0
+          fi
+          local_integrity=$(cd "$core_dir" && npm pack --dry-run --json --ignore-scripts | jq -r '.[0].integrity')
+          if [[ "$published" != "$local_integrity" ]]; then
+            echo "::error::$core_dir differs from published $name@$version; bump its version, and patch-bump each plugin that depends on it"
+            exit 1
+          fi
+          echo "$name@$version on npm matches the packed loader."
       - name: Plugin validation
         run: |
           npm ci --ignore-scripts --prefix .github/tools
