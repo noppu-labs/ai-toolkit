@@ -15,11 +15,11 @@
     },
     "pr-review": {
       "sourceType": "local",
-      "vendoredHash": "90f256d56b19e977a46a5a36736f0590f214f5839031f82ac3c7e01ea5c41664"
+      "vendoredHash": "ad1605510f8b1601d3b3b97bfd50b42b796cc4301af119928ae27efaf7a84403"
     },
     "type-safety-review": {
       "sourceType": "local",
-      "vendoredHash": "8c0d7fe6e0242238790463a000c3c11a00b6d9e97839bac4f392d360c467f239"
+      "vendoredHash": "c1ea990ae29ce565fb53fe299e4e8f8b4638557e9ea6db0b78ffbf6b3a6c0599"
     },
     "writing-comments": {
       "sourceType": "local",

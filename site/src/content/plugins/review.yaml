@@ -34,7 +34,7 @@ highlights:
     - label: types
       title: Type findings propose a shape
       body: >-
-        `type-safety-review` rules a diff or a path against numbered rules (`PHP-1` to `PHP-5`,
+        `type-safety-review` rules a diff or a path against numbered rules (`PHP-1` to `PHP-6`,
         `TS-1` to `TS-4`, `PY-1` to `PY-5`), quotes the line and proposes the type to use
         instead, without editing any file.
     - label: comments

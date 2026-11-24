@@ -495,6 +495,29 @@ describe("every workflow script", () => {
 });
 
 describe("prompts", () => {
+  it.each([
+    ["the workflow script", source],
+    ["pr-review SKILL.md", skill],
+    [
+      "the OpenCode pr-review SKILL.md",
+      readFileSync(
+        join(
+          import.meta.dirname,
+          "..",
+          "review",
+          "opencode",
+          "skills",
+          "pr-review",
+          "SKILL.md",
+        ),
+        "utf8",
+      ),
+    ],
+  ])("names PHP-1 to PHP-6 in the type-safety stage of %s", (_name, text) => {
+    expect(text).toMatch(/PHP-1\\?` to \\?`PHP-6/);
+    expect(text).not.toMatch(/PHP-1\\?` to \\?`PHP-5/);
+  });
+
   it("builds the brief prompt around step 2 of SKILL.md with the refs filled", async () => {
     const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
     const prompt = findPrompt(run, "brief:117");
