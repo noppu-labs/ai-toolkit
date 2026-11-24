@@ -149,12 +149,7 @@ jobs:
               exit 1
             fi
             prev=$(git tag -l "$plugin@*" --sort=-v:refname | head -1)
-            if [[ -n "$prev" ]]; then
-              git log "$prev..HEAD" --pretty='- %s (%h)' -- "$dir/" > notes.md
-            else
-              git log --pretty='- %s (%h)' -- "$dir/" > notes.md
-            fi
-            [[ -s notes.md ]] || echo "- Maintenance release" > notes.md
+            scripts/release-notes.sh "$dir" "$prev" > notes.md
             if [[ "$dir" == packages/* ]]; then
               message="$plugin package $version"
             else
