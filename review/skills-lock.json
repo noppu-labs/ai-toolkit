@@ -7,19 +7,19 @@
     },
     "correctness-review": {
       "sourceType": "local",
-      "vendoredHash": "f48bd54682a65f1b9147f5ca13394cb7d1532ed007f78e12a348d81592987bde"
+      "vendoredHash": "8acfee3b72eab3912b0cc97a687c01f1ad4d7433c9f1b0c6d344a7694373e64d"
     },
     "pr-comments": {
       "sourceType": "local",
-      "vendoredHash": "2671f0c7e594205129d6590f4425a21dfc6c1f834c1c5d4f03837151a2c16965"
+      "vendoredHash": "3e80118d2427d276d8fa366dc4298cc3e4ccce944c906cffdc503fa06dcbed89"
     },
     "pr-review": {
       "sourceType": "local",
-      "vendoredHash": "90f256d56b19e977a46a5a36736f0590f214f5839031f82ac3c7e01ea5c41664"
+      "vendoredHash": "33ee295f759c183b36fd2e2dfb1219429cb30a2beb9ab1a8635bbd314f7dfa67"
     },
     "type-safety-review": {
       "sourceType": "local",
-      "vendoredHash": "8c0d7fe6e0242238790463a000c3c11a00b6d9e97839bac4f392d360c467f239"
+      "vendoredHash": "81b16df6c69bf50c9673100edf7976423fdbbbb1d52eb43e56eba72d5f007356"
     },
     "writing-comments": {
       "sourceType": "local",

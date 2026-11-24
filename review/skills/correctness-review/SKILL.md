@@ -32,6 +32,11 @@ On OpenCode the skill is `correctness-review`.
 
 - Read every changed file whole, not only its hunks. A hunk shows what changed; the file shows the state it runs against.
 - Before reading a function's body, state its contract in a sentence or two: what it accepts, what it returns, what it changes, what it throws, and what its callers rely on. Then read the body against that statement. A body that breaks its contract is a candidate.
+- For a function or method the diff adds or renames, check that its name agrees with the contract you just stated. A name that contradicts it is a candidate, because a caller reads the name and not the body:
+  - it returns a boolean, changes no state, and its name reads as a command: `skipNotification(): bool` reads as an action, so propose `shouldSkipNotification()` or another name that reads as a question (an `is`, `has`, `can`, `should`, `was`, or `needs` prefix). A method that acts and reports whether it succeeded keeps its verb (`save(): bool`, `tryAcquire(): bool`);
+  - its name reads as a question or a getter (`isActive()`, `hasAccess()`, `getTotal()`) but it changes state other than caching its own result.
+
+  Leave a name alone when a framework or interface fixes it (policy methods such as `view()` and `update()`, a form request's `authorize()`, a rule's `passes()`), when it overrides a parent or implements an interface, when it is a test method, when it already reads as a question: a third-person verb (`exists()`, `contains()`, `matches()`, `supports()`, `allows()`) or an adjective or participle (`valid()`, `empty()`, `expired()`, `enabled()`), when it is a get-or-create name (`firstOrCreate()`), and when the instruction files read above set a different naming convention. The finding proposes the new name and ends with harmless; pr-comments labels it Convention.
 - Assume every external call can fail: network, filesystem, database, subprocess, parsing, a third-party API. For each one, ask what the caller does and what state is left half-written when it errors, times out, returns nothing, or runs twice.
 - A search hit is not a read. Open the definition before ruling on it.
 
@@ -96,7 +101,7 @@ Rule on each candidate now.
 - These are never findings:
   - a problem on a line the diff does not change, unless the change makes it newly reachable, in which case the finding sits on the changed line;
   - anything a linter, compiler, or type checker reports;
-  - style, naming, formatting, and design preference.
+  - style, naming, formatting, and design preference, except a name that contradicts its signature as the reading rules describe.
 - There is no quota. When nothing survives, `## Findings` says `No findings.` and nothing else.
 
 ## Output

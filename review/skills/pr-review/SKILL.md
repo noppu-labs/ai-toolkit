@@ -248,6 +248,13 @@ that belongs in `asyncio.to_thread` or an async client; and a module-level
 environment read that raises at import time and so leaves the module untestable.
 These are leads, not rules: each finding still ends with its outcome.
 
+For a function or method the diff adds or renames, check that its name agrees with
+what it does, as the reading rules of `review:correctness-review` describe: a method that
+returns a boolean and changes nothing but reads as a command
+(`skipNotification()` for `shouldSkipNotification()`), or a question or getter name
+on a method that changes state. Leave names a framework or interface fixes alone. Such
+a finding proposes the new name and ends with harmless.
+
 When the diff calls a third-party library or works around one, check the call
 against that library's docs. Take the source from the brief's doc sources: one whose
 verdict starts with USE, or the pinned id when it starts with PIN; any other verdict
@@ -298,7 +305,7 @@ Structural brief:
 
 Invoke `review:type-safety-review base=<BASE> head=<HEAD>`. That skill returns its
 report as its response and writes no file. Relay its findings in the shape below,
-keeping each finding's rule id (`PHP-1` to `PHP-5`, `TS-1` to `TS-4`, `PY-1` to
+keeping each finding's rule id (`PHP-1` to `PHP-6`, `TS-1` to `TS-4`, `PY-1` to
 `PY-5`), its verbatim quote, and its proposed shape.
 
 That skill inherits comment-audit's `base=`/`head=` detection and its ask. Both are
@@ -317,7 +324,8 @@ Every check you ran, with the command and its result.
 
 ## Skipped
 Every skill, tool, or check you could not use, with the reason. Include the paths
-the skill reported as skipped for being generated or vendored.
+the skill reported as skipped for being generated or vendored, and any rule it did
+not apply, with the reason.
 ```
 
 Comments stage:

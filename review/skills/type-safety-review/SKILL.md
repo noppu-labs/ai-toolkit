@@ -1,6 +1,6 @@
 ---
 name: type-safety-review
-description: Review a diff or a path for type-safety findings (mixed and any, unstructured arrays where a DTO belongs, array-shape pseudo-types without a reason, duplicate types, unchecked casts). Use during PR review, before opening a PR, or when asked about type coverage or type hierarchy. Calibrated on PHP and PHPStan first, with TypeScript and Python sections.
+description: Review a diff or a path for type-safety findings (mixed and any, unstructured arrays where a DTO belongs, array-shape pseudo-types without a reason, duplicate types, unchecked casts, closures that only forward to a method). Use during PR review, before opening a PR, or when asked about type coverage or type hierarchy. Calibrated on PHP and PHPStan first, with TypeScript and Python sections.
 ---
 
 # Type-safety review
@@ -30,7 +30,7 @@ For Python, run the type checker and the lint command that step 0 of [../comment
 
 ## Rules
 
-Read [references/php.md](references/php.md) for PHP, [references/typescript.md](references/typescript.md) for TypeScript, and [references/python.md](references/python.md) for Python. Rule ids are `PHP-1` through `PHP-5`, `TS-1` through `TS-4`, and `PY-1` through `PY-5`. Every finding carries exactly one rule id, and no finding is reported without one.
+Read [references/php.md](references/php.md) for PHP, [references/typescript.md](references/typescript.md) for TypeScript, and [references/python.md](references/python.md) for Python. Rule ids are `PHP-1` through `PHP-6`, `TS-1` through `TS-4`, and `PY-1` through `PY-5`. Every finding carries exactly one rule id, and no finding is reported without one.
 
 ## Finding format
 
@@ -61,7 +61,7 @@ final readonly class InvoiceTotals
 
 The report is the whole output of this skill. It has two parts, in this order:
 
-1. A count per rule id, listing every id from `PHP-1` to `PHP-5`, `TS-1` to `TS-4`, and `PY-1` to `PY-5` including the ones with zero findings, then the paths skipped as generated or vendored.
+1. A count per rule id, listing every id from `PHP-1` to `PHP-6`, `TS-1` to `TS-4`, and `PY-1` to `PY-5` including the ones with zero findings, then the paths skipped as generated or vendored, and any rule not applied, with the reason.
 2. The findings, grouped by file, most severe first both within a file and between files.
 
 Severity order, highest first:
@@ -71,6 +71,7 @@ Severity order, highest first:
 3. A duplicate type (`PHP-4`, `TS-4`, `PY-4`).
 4. A pseudo-type without a stated reason, and the loose object it maps to in TypeScript (`PHP-3`, `TS-2`, and a `PY-3` `TypedDict` or `# type: ignore` without a reason).
 5. A missing sanity check (`PHP-5`, `PY-5`).
+6. A simplification (`PHP-6`).
 
 Nothing outside the report is produced. A finding proposes a shape; it never applies one.
 

@@ -495,6 +495,50 @@ describe("every workflow script", () => {
 });
 
 describe("prompts", () => {
+  it.each([
+    ["the workflow script", source],
+    ["pr-review SKILL.md", skill],
+    [
+      "the OpenCode pr-review SKILL.md",
+      readSkill("opencode", "skills", "pr-review"),
+    ],
+  ])("names PHP-1 to PHP-6 in the type-safety stage of %s", (_name, text) => {
+    expect(text).toMatch(/PHP-1\\?` to \\?`PHP-6/);
+    expect(text).not.toMatch(/PHP-1\\?` to \\?`PHP-5/);
+  });
+
+  it.each([
+    ["the workflow script", source],
+    ["pr-review SKILL.md", skill],
+    [
+      "the OpenCode pr-review SKILL.md",
+      readSkill("opencode", "skills", "pr-review"),
+    ],
+  ])(
+    "asks the hand review to check names against what they do in %s",
+    (_name, text) => {
+      expect(flatten(text)).toContain(
+        "check that its name agrees with what it does",
+      );
+    },
+  );
+
+  it.each([
+    ["the workflow script", source],
+    ["pr-review SKILL.md", skill],
+    [
+      "the OpenCode pr-review SKILL.md",
+      readSkill("opencode", "skills", "pr-review"),
+    ],
+  ])(
+    "relays rules the type-safety skill did not apply in %s",
+    (_name, text) => {
+      expect(flatten(text)).toContain(
+        "and any rule it did not apply, with the reason",
+      );
+    },
+  );
+
   it("builds the brief prompt around step 2 of SKILL.md with the refs filled", async () => {
     const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
     const prompt = findPrompt(run, "brief:117");
@@ -1463,5 +1507,118 @@ describe("head guard", () => {
 
     expect(countOccurrences(override, guard)).toBe(4);
     expect(countOccurrences(flatten(skill), guard)).toBe(4);
+  });
+});
+
+describe("correctness-review naming check", () => {
+  const correctness: string = readSkill("skills", "correctness-review");
+
+  it("excludes naming in the drop rule except a name that contradicts its signature", () => {
+    expect(correctness).toMatch(
+      /^ {2}- style, naming, formatting, and design preference, except a name that contradicts its signature/m,
+    );
+  });
+
+  it("grades a contradicting name as a harmless Convention finding in the reading rules", () => {
+    const readingRules = correctness.slice(
+      correctness.indexOf("## Reading rules"),
+      correctness.indexOf("## Angles"),
+    );
+
+    expect(readingRules).toMatch(/contradicts[\s\S]*harmless[\s\S]*Convention/);
+  });
+
+  it("flags a boolean name only when the method changes no state", () => {
+    expect(correctness).toMatch(
+      /returns a boolean, changes no state, and its name reads as a command/,
+    );
+    expect(correctness).toMatch(/reports whether it succeeded keeps its verb/);
+  });
+});
+
+describe("type-safety-review PHP-6 wiring", () => {
+  const typeSafety: string = readSkill("skills", "type-safety-review");
+  const php: string = readFileSync(
+    join(
+      import.meta.dirname,
+      "..",
+      "review",
+      "skills",
+      "type-safety-review",
+      "references",
+      "php.md",
+    ),
+    "utf8",
+  );
+  const taxonomy: string = readFileSync(
+    join(
+      import.meta.dirname,
+      "..",
+      "review",
+      "skills",
+      "pr-comments",
+      "references",
+      "taxonomy.md",
+    ),
+    "utf8",
+  );
+
+  it("lists PHP-1 to PHP-6 in the rules, the counts, and the severity tiers", () => {
+    expect(typeSafety).toContain("Rule ids are `PHP-1` through `PHP-6`");
+    expect(typeSafety).toContain("every id from `PHP-1` to `PHP-6`");
+    expect(typeSafety).toContain("6. A simplification (`PHP-6`).");
+  });
+
+  it("reports a rule it did not apply, with the reason", () => {
+    expect(typeSafety).toContain("and any rule not applied, with the reason");
+  });
+
+  it("maps PHP-6 to the Simplification label", () => {
+    expect(taxonomy).toMatch(/^\| `PHP-6` .*\| Simplification \|$/m);
+  });
+
+  it("gates PHP-6 on the lower of the platform and required PHP versions", () => {
+    expect(php).toContain(
+      "take the lower of `config.platform.php` and the lowest version `require.php` allows",
+    );
+  });
+
+  it("keeps callables a framework resolves, serialises, or compares, and constant expressions", () => {
+    expect(php).toMatch(/resolves through its container/);
+    expect(php).toMatch(/serialised/);
+    expect(php).toContain(
+      "or part of a constant expression (an attribute argument, a constant, a property or parameter default)",
+    );
+  });
+
+  it("keeps a closure whose return value the receiver reads and the rewrite would change", () => {
+    expect(php).toContain("`Collection::each()` stops at the first `false`");
+    expect(php).toContain(
+      "A target that returns `void`, or a receiver that ignores the return value",
+    );
+  });
+
+  it("does not propose a first-class callable as the argument of call_user_func", () => {
+    expect(php).not.toContain("`call_user_func`");
+  });
+
+  it("keeps closures whose receiver is nullsafe or evaluated per call", () => {
+    expect(php).toMatch(/nullsafe/);
+    expect(php).toMatch(/evaluated on every call/);
+  });
+
+  it("allows static and function callables in constant expressions from PHP 8.5", () => {
+    expect(php).toContain(
+      "When the project's minimum is PHP 8.5 or higher, a first-class callable of a function or a static method does compile there and stays a finding",
+    );
+  });
+
+  it("keeps a readonly non-nullable receiver a finding", () => {
+    expect(php).toMatch(/readonly property with a non-nullable type/);
+  });
+
+  it("uses a built-in example that really receives an extra argument", () => {
+    expect(php).toContain("->filter(is_numeric(...))");
+    expect(php).not.toContain("->map(strtoupper(...))");
   });
 });

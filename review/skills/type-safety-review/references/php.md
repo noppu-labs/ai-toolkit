@@ -26,3 +26,21 @@ Two types with the same field set, or a type that is another type plus one field
 - `declare(strict_types=1)` at the top of every file.
 - A return type on every method, including `void` and `never`.
 - Generics on every collection type (`Collection<int, Item>`, `array<string, int>`).
+
+## PHP-6: first-class callables over forwarding closures
+
+A closure whose body is one call that passes the closure's parameters on unchanged and in order is a finding. So is a string callable (`'strlen'`) or an array callable (`[$this, 'format']`) passed straight to a function that calls it: `array_map`, `usort`, a `Collection` method. Propose the first-class callable: `$this->format(...)`, `self::format(...)`, `Formatter::format(...)`, `strlen(...)`.
+
+The rule applies only when the project's minimum PHP version is 8.1 or higher, because first-class callable syntax arrived in 8.1. Read the nearest `composer.json` above the changed file and take the lower of `config.platform.php` and the lowest version `require.php` allows (`^8.0 || ^8.1` allows 8.0, `>=8.2` allows 8.2), or whichever of the two is set. With no `composer.json`, or a constraint you cannot resolve, the rule does not fire, and the report says why.
+
+Keep the closure or the callable, and report nothing, when:
+
+- The receiver passes arguments the closure drops, and the target would take them or rejects them. `Collection::map()` calls its callback with `($value, $key)`, so `->map($this->format(...))` feeds the key into `format(Row $row, int $pad = 0)`. `Collection::filter()` passes both too, and `->filter(is_numeric(...))` throws `ArgumentCountError`, because a built-in function rejects arguments past its last parameter. A user-defined target with no optional or variadic parameter ignores the extras and stays a finding.
+- The closure adapts its input: it reorders arguments, binds a captured value (`fn (Row $row) => $this->format($row, $width)`), or reads a property first (`fn (User $user) => $user->email`).
+- The closure returns something other than what the target returns, and the receiver reads it. A statement body with no `return` (`function (Item $item) { $this->process($item); }`), like a closure declared `: void`, returns null, while the first-class callable returns what the target returns. `Collection::each()` stops at the first `false`, so `->each($this->process(...))` ends the loop early when `process()` returns `false`. A target that returns `void`, or a receiver that ignores the return value (`array_walk`), leaves it a finding.
+- The body does more than one forwarding call.
+- The receiver is a property that can be null or reassigned, or a method call, evaluated on every call of the closure (`fn ($row) => $this->formatter->format($row)`), where the first-class callable would read it once, when it is created, and fail then if it is null. A readonly property with a non-nullable type reads the same either way and stays a finding. The call is nullsafe (`$this->formatter?->format($row)`) or a constructor (`new Row($data)`); neither has a first-class form.
+- The closure's typed parameter narrows what static analysis knows, because the target accepts `mixed` or a wider type.
+- The string or array callable is a value a framework resolves through its container (a route action such as `[UserController::class, 'index']`, an event listener, a scheduled job), a value that is serialised or cached (configuration, a queued payload), a value compared later by identity (a callback registered and later removed), or part of a constant expression (an attribute argument, a constant, a property or parameter default). Before PHP 8.5 no closure compiles there. When the project's minimum is PHP 8.5 or higher, a first-class callable of a function or a static method does compile there and stays a finding; one bound to `$this` still does not.
+
+Say which gain applies. Against a string or array callable, the first-class callable fails when it is created rather than when it is called, and editors find its usages and rename it with the target. Against a closure with untyped parameters, it carries the target's parameter and return types. A closure whose parameters are already typed loses nothing; the finding is then only that the shorter form says the same thing.
