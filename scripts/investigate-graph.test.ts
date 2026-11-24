@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -401,7 +401,56 @@ describe("graphContext", () => {
   });
 });
 
+function readArgv(file: string): string[] {
+  return JSON.parse(readFileSync(file, "utf8")) as string[];
+}
+
+describe("graphContext on hostile names", () => {
+  it("passes a name that looks like an option after --, as the symbol", () => {
+    const root = mkdtempSync(join(tmpdir(), "investigate-gx-argv-"));
+    const argvFile = join(root, "argv.json");
+    graph.graphContext(
+      {
+        repoRoot: root,
+        repoName: "run-42",
+        env: { PATH: FAKE_GITNEXUS_PATH, FAKE_ARGV_FILE: argvFile },
+      },
+      "--repo=elsewhere",
+    );
+    expect(readArgv(argvFile)).toEqual([
+      "context",
+      "--repo",
+      root,
+      "--",
+      "--repo=elsewhere",
+    ]);
+  });
+});
+
 describe("codegraphOverview", () => {
+  it("passes names that look like options after --, as the query", () => {
+    const root = mkdtempSync(join(tmpdir(), "investigate-cg-argv-"));
+    mkdirSync(join(root, ".codegraph"));
+    const argvFile = join(root, "argv.json");
+    graph.codegraphOverview(
+      {
+        repoRoot: root,
+        env: { PATH: FAKE_CODEGRAPH_PATH, FAKE_ARGV_FILE: argvFile },
+      },
+      ["--path=/elsewhere", "Foo"],
+    );
+    expect(readArgv(argvFile)).toEqual([
+      "explore",
+      "--max-files",
+      "0",
+      "--no-color",
+      "--",
+      "--path=/elsewhere",
+      "Foo",
+      "callers and relationships",
+    ]);
+  });
+
   it("returns null when the repo has no .codegraph directory", () => {
     const root = mkdtempSync(join(tmpdir(), "investigate-cg-"));
     expect(

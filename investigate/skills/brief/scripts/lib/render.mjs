@@ -83,14 +83,20 @@ export function renderIndex(freshness) {
   ];
 }
 
+function fileNote(rel, notes) {
+  if (notes?.unnamedFiles?.has(rel)) {
+    return " (file name is not an identifier; no symbol section)";
+  }
+  return notes?.basenameFiles?.has(rel)
+    ? " (no named exports; basename used)"
+    : "";
+}
+
 export function renderFiles(files, repoRoot, truncated, maxSymbols, notes) {
   const lines = [`## Files (${files.length})`];
   for (const f of files) {
     const rel = path.relative(repoRoot, f);
-    const note = notes?.basenameFiles?.has(rel)
-      ? " (no named exports; basename used)"
-      : "";
-    lines.push(`- ${rel}${note}`);
+    lines.push(`- ${rel}${fileNote(rel, notes)}`);
   }
   if (truncated) {
     lines.push(

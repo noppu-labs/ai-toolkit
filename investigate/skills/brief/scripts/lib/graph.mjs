@@ -43,18 +43,20 @@ export function parseGraphContext(stdout) {
 
 export function graphContext(ctx, symbolName) {
   // By path: a linked worktree's registry name is not its directory name,
-  // and a name two checkouts share is ambiguous to gitnexus.
-  const res = run("gitnexus", ["context", symbolName, "--repo", ctx.repoRoot], {
-    cwd: ctx.repoRoot,
-    env: ctx.env,
-    timeout: 10_000,
-  });
+  // and a name two checkouts share is ambiguous to gitnexus. The name goes
+  // after `--`, so gitnexus never reads it as an option.
+  const res = run(
+    "gitnexus",
+    ["context", "--repo", ctx.repoRoot, "--", symbolName],
+    { cwd: ctx.repoRoot, env: ctx.env, timeout: 10_000 },
+  );
   if (res.error || res.status !== 0) return null;
   return parseGraphContext(res.stdout);
 }
 
 export function codegraphOverview(ctx, symNames) {
   if (!existsSync(path.join(ctx.repoRoot, ".codegraph"))) return null;
+  // The names go after `--`, so codegraph never reads one as an option.
   const res = run(
     "codegraph",
     [
@@ -62,6 +64,7 @@ export function codegraphOverview(ctx, symNames) {
       "--max-files",
       "0",
       "--no-color",
+      "--",
       ...symNames,
       "callers and relationships",
     ],

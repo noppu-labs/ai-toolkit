@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -13,6 +14,10 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { git } from "./fixtures/investigate-git.ts";
 import type { Hit, Sym, TsCallers } from "./fixtures/investigate-types.ts";
+import {
+  FAKE_MARKER_PATH,
+  MARKER_OPTION_NAME,
+} from "./fixtures/marker-tool.ts";
 import {
   makeFakeLspPath,
   makeFakeToolsPath,
@@ -628,6 +633,39 @@ describe("brief.mjs", () => {
     expect(out).toContain("- ui/Dialog.tsx (no named exports; basename used)");
     expect(out).toContain("## Button (ui/Button.tsx)");
     expect(out).toContain("## Dialog (ui/Dialog.tsx)");
+  });
+
+  it("lists a file whose name looks like a git option without running what it names", () => {
+    const cwd = makeRepo();
+    for (const dir of ["doc", "storage", "dist", "build", "hostile"]) {
+      mkdirSync(join(cwd, dir));
+      writeFileSync(join(cwd, dir, "keep.txt"), "x\n");
+    }
+    writeFileSync(join(cwd, "src", "globs.ts"), 'const glob = "*.php";\n');
+    writeFileSync(join(cwd, "hostile", `${MARKER_OPTION_NAME}.php`), "<?php\n");
+    writeFileSync(join(cwd, "hostile", `${MARKER_OPTION_NAME}.ts`), "let a;\n");
+    writeFileSync(
+      join(cwd, "hostile", "Ledger.php"),
+      "<?php\nclass Ledger {}\n",
+    );
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "hostile");
+    const marker = join(cwd, "marker.txt");
+    const r = runBriefWith(
+      { PATH: FAKE_MARKER_PATH, FAKE_MARKER_FILE: marker },
+      cwd,
+      "hostile",
+      "--no-docs",
+      "--no-lsp",
+    );
+    expect(r.status).toBe(0);
+    expect(existsSync(marker)).toBe(false);
+    const note = "(file name is not an identifier; no symbol section)";
+    expect(r.stdout).toContain(`- hostile/${MARKER_OPTION_NAME}.php ${note}`);
+    expect(r.stdout).toContain(`- hostile/${MARKER_OPTION_NAME}.ts ${note}`);
+    expect(r.stdout).toContain("- hostile/Ledger.php\n");
+    expect(r.stdout).toContain("## Ledger (hostile/Ledger.php)");
+    expect(r.stdout).not.toContain(`## ${MARKER_OPTION_NAME}`);
   });
 
   // root ignores file modes, so the chmod cannot make the file unreadable there.

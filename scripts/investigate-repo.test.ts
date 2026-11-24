@@ -16,7 +16,7 @@ type RepoModule = {
     files: string[],
     repoRoot: string,
     maxSymbols: number,
-  ) => { symbols: Sym[]; truncated: boolean };
+  ) => { symbols: Sym[]; truncated: boolean; unnamed: string[] };
   resolveRepo: (targetArg: string) => {
     target: string;
     repoRoot: string;
@@ -481,6 +481,97 @@ describe("deriveSymbols", () => {
         basenameFallback: true,
       },
     ]);
+  });
+
+  it("names no symbol after a file whose name is not an identifier, and lists the file as unnamed", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-unnamed-"));
+    const names = [
+      "--open-files-in-pager=marker-tool.php",
+      "2024_01_01_create_users_table.php",
+      "-rf.php",
+      "Invoice.php",
+      "--flag=value.ts",
+      "use-toast.ts",
+      "welcome.blade.php",
+      "Café.php",
+    ];
+    for (const name of names) writeFileSync(join(cwd, name), "<?php\n");
+    const derived = repo.deriveSymbols(
+      names.map((name) => join(cwd, name)),
+      cwd,
+      15,
+    );
+    expect(derived.symbols).toEqual([
+      { name: "Invoice", file: "Invoice.php", kind: "php" },
+      { name: "welcome", file: "welcome.blade.php", kind: "php" },
+    ]);
+    expect(derived.unnamed).toEqual([
+      "--open-files-in-pager=marker-tool.php",
+      "2024_01_01_create_users_table.php",
+      "-rf.php",
+      "--flag=value.ts",
+      "use-toast.ts",
+      "Café.php",
+    ]);
+  });
+
+  it("lists a short or generic file name as neither a symbol nor unnamed", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-generic-"));
+    const derived = repo.deriveSymbols(
+      [join(cwd, "index.php"), join(cwd, "Api.php")],
+      cwd,
+      15,
+    );
+    expect(derived).toEqual({ symbols: [], truncated: false, unnamed: [] });
+  });
+
+  it("derives only identifiers, whatever the files are called", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-names-"));
+    fc.assert(
+      fc.property(
+        fc.array(
+          fc.oneof(
+            fc.string({ unit: "binary" }),
+            fc.stringMatching(/^-{1,2}[a-z-]{1,12}(=[ -~]{0,12})?$/),
+            fc.stringMatching(/^[A-Za-z_$][\w$]{0,12}$/),
+          ),
+          { maxLength: 8 },
+        ),
+        (names) => {
+          const files = names.map((name) => join(cwd, `${name}.php`));
+          const { symbols } = repo.deriveSymbols(files, cwd, 15);
+          for (const sym of symbols) {
+            expect(sym.name).toMatch(/^[A-Za-z_$][\w$]*$/);
+            expect(sym.name.startsWith("-")).toBe(false);
+          }
+        },
+      ),
+    );
+  });
+
+  it("keeps every identifier file name that is long enough and not generic", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-kept-"));
+    fc.assert(
+      fc.property(
+        fc
+          .stringMatching(/^[A-Za-z_$][\w$]{3,20}$/)
+          .filter(
+            (name) =>
+              !/^(index|types|schemas|utils|helpers|config|constants)$/i.test(
+                name,
+              ),
+          ),
+        (name) => {
+          const derived = repo.deriveSymbols(
+            [join(cwd, `${name}.php`)],
+            cwd,
+            15,
+          );
+          expect(derived.symbols.map((s) => s.name)).toEqual([name]);
+          expect(derived.unnamed).toEqual([]);
+        },
+      ),
+    );
   });
 
   it("caps the symbol list and reports truncation", () => {

@@ -198,11 +198,20 @@ function symbolsOf(file, repoRoot) {
   return names.map((name) => ({ name, file: rel, kind: "ts" }));
 }
 
+// A file name is whatever the repository's author typed, and a symbol name
+// becomes a command-line argument and a search pattern. Only an identifier is
+// a symbol: a name such as `--flag=value` would be read as an option. The
+// files left out are returned in `unnamed`, so the brief can say so.
 export function deriveSymbols(files, repoRoot, maxSymbols) {
   const seen = new Set();
   const all = [];
+  const unnamed = [];
   for (const file of files) {
     for (const sym of symbolsOf(file, repoRoot)) {
+      if (!IDENT_RE.test(sym.name)) {
+        unnamed.push(sym.file);
+        continue;
+      }
       if (!usable(sym.name, seen)) continue;
       seen.add(sym.name);
       all.push(sym);
@@ -211,5 +220,6 @@ export function deriveSymbols(files, repoRoot, maxSymbols) {
   return {
     symbols: all.slice(0, maxSymbols),
     truncated: all.length > maxSymbols,
+    unnamed,
   };
 }

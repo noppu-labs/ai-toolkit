@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 // Stands in for codegraph: `explore` prints FAKE_CODEGRAPH_LINES numbered lines
-// and exits with FAKE_CODEGRAPH_EXIT (default 0).
-const [command] = process.argv.slice(2);
+// and exits with FAKE_CODEGRAPH_EXIT (default 0). With FAKE_ARGV_FILE set, it
+// writes its arguments there as JSON.
+import { writeFileSync } from "node:fs";
+
+const args = process.argv.slice(2);
+const [command] = args;
+
+if (process.env.FAKE_ARGV_FILE) {
+  writeFileSync(process.env.FAKE_ARGV_FILE, JSON.stringify(args));
+}
 
 if (command === "--version") {
   process.stdout.write("codegraph 0.0.0-fake\n");
