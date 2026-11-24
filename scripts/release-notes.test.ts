@@ -25,7 +25,9 @@ function git(...args: string[]): string {
     env: { ...process.env, ...gitEnv },
   });
   if (result.status !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+    throw new Error(
+      `git ${args.join(" ")} failed: ${result.error?.message ?? result.stderr}`,
+    );
   }
 
   return result.stdout.trim();
@@ -41,9 +43,13 @@ function manifest(version: string, homepage: string): string {
   return `${JSON.stringify({ name: "demo", version, homepage }, null, 2)}\n`;
 }
 
+// The message goes through a file: Linux caps one argument at 128 KiB, and a
+// test needs a merge body larger than that.
 function commit(message: string): string {
+  const file = join(repo, ".git", "TEST_COMMIT_MSG");
+  writeFileSync(file, message);
   git("add", "-A");
-  git("commit", "-q", "-m", message);
+  git("commit", "-q", "-F", file);
 
   return git("rev-parse", "--short", "HEAD");
 }
