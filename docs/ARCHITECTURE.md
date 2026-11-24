@@ -143,7 +143,7 @@ The toolkit executes none of this content. The agent decides what happens in the
 
 `investigate:brief` has the agent run `brief.mjs` on a path. `investigate:deep`, `investigate:spec` and `review:pr-review` run it first too. The script:
 
-1. Resolves the repository with `git rev-parse --show-toplevel` and lists the source files under the target with `git ls-files`. It keeps PHP and JavaScript/TypeScript files and skips symlinks, test files, `vendor/`, `node_modules/` and dot-directories.
+1. Resolves the repository with `git rev-parse`, refuses a target that is inside a git directory, and lists the source files under the target with `git ls-files`. It keeps PHP and JavaScript/TypeScript files and skips symlinks, test files, `vendor/`, `node_modules/` and dot-directories.
 2. Picks up to 15 symbols from those files (`--max-symbols`), in file path order, to describe in detail.
 3. Asks `gitnexus list` whether the repository has a call-graph index and how far behind `HEAD` it is.
 4. Unless `--no-lsp` is given, starts `phpantom_lsp --stdio` for PHP symbols and `typescript-language-server --stdio` for JavaScript/TypeScript symbols, sends them the files behind the symbols, and asks for method signatures and incoming calls.
@@ -154,7 +154,7 @@ The toolkit executes none of this content. The agent decides what happens in the
 9. For each symbol, runs `git grep` for references and same-named definitions, and `gitnexus context` when gitnexus has the repository in its registry.
 10. Prints the brief as Markdown on standard output. The skill has the agent redirect it to a file in the temp directory and read that.
 
-Each tool is looked up on `PATH`. A missing or failing tool is reported in the brief's Tools section and its part is left out. The run stops only when `git` is missing, or when the target does not exist, is outside a repository or holds no source files.
+Each tool is looked up on `PATH`. A missing or failing tool is reported in the brief's Tools section and its part is left out. The run stops only when `git` is missing or older than 2.13, or when the target does not exist, is outside a repository, is inside a git directory or holds no source files.
 
 ### Reviewing a pull request
 

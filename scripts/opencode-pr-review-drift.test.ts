@@ -230,10 +230,38 @@ describe("OpenCode pr-review override", () => {
       "git diff -U0 <BASE>...<HEAD> | grep -E '^@@'",
       "git diff <BASE>...<HEAD> | grep -E '^\\+(export )?",
       "git diff <BASE>...<HEAD> -- '*.py' | grep -E",
-      "git grep -nw <symbol> <HEAD>",
+      "git grep -nw -e <symbol> <HEAD>",
     ]) {
       expect(step).toContain(command);
     }
+  });
+
+  it("passes the symbol to git grep as a pattern in every copy of the template", () => {
+    const workflow: string = readFileSync(
+      resolve(REVIEW_ROOT, "workflows", "pr-review-stages.js"),
+      "utf8",
+    ).replaceAll("\\`", "`");
+
+    for (const copy of [claude, override, workflow]) {
+      expect(copy).toContain("\ngit grep -nw -e <symbol> <HEAD>\n");
+      expect(copy).toContain("`git grep -nw -e <symbol> <HEAD> -- '*.py'`");
+      expect(copy).toContain(
+        "`<symbol>` is an identifier, passed after `-e` so that git reads it as the pattern: skip a name that is not an identifier, and never paste one that starts with a dash.",
+      );
+      expect(copy).not.toMatch(/git grep -nw <symbol>/);
+    }
+  });
+
+  it("passes the name to git grep as a pattern in the correctness-review caller search", () => {
+    const correctness: string = readFileSync(
+      resolve(REVIEW_ROOT, "skills", "correctness-review", "SKILL.md"),
+      "utf8",
+    );
+
+    expect(correctness).toContain(
+      "find its callers on the head with `git grep -n -e <name> <head>`",
+    );
+    expect(correctness).not.toMatch(/git grep -n <name>/);
   });
 
   it("only notes the fallback brief when it was used", () => {

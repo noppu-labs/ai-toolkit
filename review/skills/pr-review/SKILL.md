@@ -81,16 +81,16 @@ git diff --stat <BASE>...<HEAD>
 git diff -U0 <BASE>...<HEAD> | grep -E '^@@'
 git diff <BASE>...<HEAD> | grep -E '^\+(export )?(async )?(function|class|const|interface|type) |^\+[[:space:]]*(public|protected|private) function'
 git diff <BASE>...<HEAD> -- '*.py' | grep -E '^\+[[:space:]]*(async )?def [A-Za-z_]|^\+[[:space:]]*class [A-Za-z_]'
-git grep -nw <symbol> <HEAD>
+git grep -nw -e <symbol> <HEAD>
 ```
 
-`<BASE>` and `<HEAD>` are the two refs resolved in step 1, the same slots step 3 fills.
+`<BASE>` and `<HEAD>` are the two refs resolved in step 1, the same slots step 3 fills. `<symbol>` is an identifier, passed after `-e` so that git reads it as the pattern: skip a name that is not an identifier, and never paste one that starts with a dash.
 
 The first gives the shape of the change. The next three give the added or changed functions, classes, and methods, from the hunk headers and from the added lines. The last runs once per changed symbol and gives its callers on the head ref, which is what tells a stage whether a signature change has call sites the PR missed.
 
 Every anchor in the third and fourth commands carries a `+`, so it matches added lines and not the context lines around them. Dropping the `+` inverts the result: every unchanged declaration in the hunk matches and every added one does not, and the per-symbol `git grep` then has nothing to run on.
 
-The fourth command is for Python. A Python method is indented under its class, so its anchors allow leading whitespace before `def` and `class`. It reads only `*.py` files, as a separate command, because those indented anchors otherwise match markdown prose and nested TypeScript classes. For a Python symbol, run the caller command as `git grep -nw <symbol> <HEAD> -- '*.py'`. The word match finds a call, a decorator argument, and a reference passed as a value, such as `Depends(get_db)` or `callbacks=[handler]`, and the pathspec keeps a same-named symbol in another language out of the list. Search for the bare name, never a dotted module path: a Python project without a package layout imports a sibling module by bare name and may load a hyphenated script file by path.
+The fourth command is for Python. A Python method is indented under its class, so its anchors allow leading whitespace before `def` and `class`. It reads only `*.py` files, as a separate command, because those indented anchors otherwise match markdown prose and nested TypeScript classes. For a Python symbol, run the caller command as `git grep -nw -e <symbol> <HEAD> -- '*.py'`. The word match finds a call, a decorator argument, and a reference passed as a value, such as `Depends(get_db)` or `callbacks=[handler]`, and the pathspec keeps a same-named symbol in another language out of the list. Search for the bare name, never a dotted module path: a Python project without a package layout imports a sibling module by bare name and may load a hyphenated script file by path.
 
 An empty caller list for a Python symbol is not evidence of dead code when the symbol is a function a decorator registers (a web route, a CLI command, a pytest fixture), a method a framework calls by name (a pydantic validator, a `__dunder__` method), or a module imported for what it does at import time. None of them has a textual caller. List such a symbol in the brief as `callers unresolved`, not with an empty caller list.
 

@@ -1,6 +1,6 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import { run } from "./exec.mjs";
+import { git, run } from "./exec.mjs";
 
 // A name `gitnexus list` shows twice gets a `  (<path>)` suffix, which is not
 // part of the name. String ops, not a regex: `\s+\(.*\)$` backtracks.
@@ -108,7 +108,7 @@ function listFailure(list) {
 }
 
 function gitOut(ctx, args) {
-  const res = run("git", args, { cwd: ctx.repoRoot, env: ctx.env });
+  const res = git(args, { cwd: ctx.repoRoot, env: ctx.env });
   return res.status === 0 ? res.stdout.trim() : null;
 }
 

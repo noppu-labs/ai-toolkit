@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { probe, run } from "./exec.mjs";
+import { git, probe, run } from "./exec.mjs";
 import { isTestPath } from "./repo.mjs";
 
 export const CATEGORIES = [
@@ -210,8 +210,7 @@ export function wiringFor(ctx, sym, ownFile) {
   // git grep: tracked files only, so vendor/ and node_modules/ drop out for free.
   // `-e` marks sym as the pattern, so git never reads it as an option, and `-F`
   // matches it as text: `$` is legal in a JS name and an anchor in a pattern.
-  const res = run(
-    "git",
+  const res = git(
     [
       "grep",
       "-nwF",
@@ -240,8 +239,7 @@ export function wiringFor(ctx, sym, ownFile) {
 // The wiring scan matches by word, so a same-named class elsewhere makes
 // external hits ambiguous. Surface it instead of conflating the two.
 export function duplicateDefinitions(ctx, sym, ownFile) {
-  const res = run(
-    "git",
+  const res = git(
     [
       "grep",
       "-nwE",

@@ -15,6 +15,22 @@ export function makeNoToolsPath(): string {
   return bin;
 }
 
+// A PATH holding node, a stand-in under git's name, and fakes under real tool
+// names. Its own directory: makeNoToolsPath has already taken the name `git`.
+export function makeFakeGitPath(
+  fakeGit: string,
+  fakes: Record<string, string>,
+): string {
+  const bin = mkdtempSync(join(tmpdir(), "investigate-fake-git-bin-"));
+  symlinkSync(process.execPath, join(bin, "node"));
+  for (const [name, fake] of Object.entries({ ...fakes, git: fakeGit })) {
+    chmodSync(fake, 0o755);
+    symlinkSync(fake, join(bin, name));
+  }
+
+  return bin;
+}
+
 // NO_TOOLS_PATH plus fakes under real tool names, as { name: fakeScript }.
 export function makeFakeToolsPath(fakes: Record<string, string>): string {
   const bin = makeNoToolsPath();
