@@ -88,6 +88,13 @@ that proves CI built it from the tagged commit:
 gh attestation verify <plugin>-<version>.tgz --repo noppu-labs/ai-toolkit
 ```
 
+## Feedback and contributing
+
+Report bugs and request features in
+[GitHub Issues](https://github.com/noppu-labs/ai-toolkit/issues). To contribute a change, read
+[CONTRIBUTING.md](CONTRIBUTING.md). Report a vulnerability privately, as
+[SECURITY.md](SECURITY.md) describes.
+
 ## Forking this repo
 
 You can fork this repo and adapt the plugins to your own stack. If you do, follow

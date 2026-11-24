@@ -7,6 +7,15 @@ commands, scripts, hook and workflow, and the shared npm package in
 skills, the tests, the release pipeline and the website in `site/`.
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) shows how the parts fit together.
 
+## Reporting bugs and requesting features
+
+Report a bug or ask for a feature in
+[GitHub Issues](https://github.com/noppu-labs/ai-toolkit/issues). Name the plugin and its
+version, the harness you use (Claude Code, OpenCode or another), and what you expected to
+happen. A change is proposed as a pull request against `main`, which has to pass the checks
+listed under [Before opening a pull request](#before-opening-a-pull-request). Report a security
+problem privately, as [SECURITY.md](SECURITY.md) describes, and not in a public issue.
+
 ## Prerequisites
 
 - Node.js >= 22.23.4, the minimum for the site's Astro build. Node 24 is recommended: CI
