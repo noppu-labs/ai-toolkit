@@ -1578,13 +1578,28 @@ describe("type-safety-review PHP-6 wiring", () => {
   });
 
   it("gates PHP-6 on the lower of the platform and required PHP versions", () => {
-    expect(php).toMatch(/lower of/);
+    expect(php).toContain(
+      "take the lower of `config.platform.php` and the lowest version `require.php` allows",
+    );
   });
 
   it("keeps callables a framework resolves, serialises, or compares, and constant expressions", () => {
     expect(php).toMatch(/resolves through its container/);
     expect(php).toMatch(/serialised/);
-    expect(php).toMatch(/constant expression/);
+    expect(php).toContain(
+      "or part of a constant expression (an attribute argument, a constant, a property or parameter default)",
+    );
+  });
+
+  it("keeps a closure whose return value the receiver reads and the rewrite would change", () => {
+    expect(php).toContain("`Collection::each()` stops at the first `false`");
+    expect(php).toContain(
+      "A target that returns `void`, or a receiver that ignores the return value",
+    );
+  });
+
+  it("does not propose a first-class callable as the argument of call_user_func", () => {
+    expect(php).not.toContain("`call_user_func`");
   });
 
   it("keeps closures whose receiver is nullsafe or evaluated per call", () => {
@@ -1593,7 +1608,9 @@ describe("type-safety-review PHP-6 wiring", () => {
   });
 
   it("allows static and function callables in constant expressions from PHP 8.5", () => {
-    expect(php).toMatch(/PHP 8\.5/);
+    expect(php).toContain(
+      "When the project's minimum is PHP 8.5 or higher, a first-class callable of a function or a static method does compile there and stays a finding",
+    );
   });
 
   it("keeps a readonly non-nullable receiver a finding", () => {
