@@ -7,6 +7,15 @@ Report suspected vulnerabilities privately via
 please don't open a public issue. Include enough detail to reproduce: the affected plugin,
 skill, or workflow, and the impact. You can expect an initial response within a week.
 
+## Disclosure policy
+
+The project follows coordinated disclosure. A report stays private while it is assessed and
+fixed. Once a fixed plugin or package version is released, the project publishes the
+vulnerability as a
+[GitHub security advisory](https://github.com/noppu-labs/ai-toolkit/security/advisories) on
+this repository, with the affected versions, how to tell whether you are affected, and the
+version that fixes it.
+
 ## Scope
 
 This repository ships plugin content (skills, rules, agents) and the CI that releases it. In

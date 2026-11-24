@@ -29,47 +29,9 @@ describe the repo as it is, so if the code and an ADR disagree, fix one of them.
 
 ## How the pieces fit together
 
-```mermaid
-graph TB
-    subgraph Upstreams["Upstream skill repos"]
-        UP["Public GitHub repos"]
-    end
-
-    subgraph Repo["This repository"]
-        SYNC["skills-sync CLI<br/>(TypeScript, ADR-002/003)"]
-        PLUGINS["Plugins: laravel, inertia-react<br/>(vendored skills, agents, rules)"]
-        LOCK["skills-lock.json<br/>(per-plugin baselines)"]
-        SITEGEN["Astro build, catalog loader<br/>(ADR-008/012)"]
-    end
-
-    subgraph CI["GitHub Actions"]
-        QUALITY["quality: Biome, markdownlint,<br/>typecheck, sync verify (ADR-004)"]
-        TESTS["tests + fuzz: Vitest,<br/>fast-check (ADR-005)"]
-        RELEASE["release: tag, tarball,<br/>provenance (ADR-006)"]
-    end
-
-    subgraph CF["Cloudflare"]
-        PAGES["Workers Builds: assets<br/>+ badge Worker (ADR-010)"]
-    end
-
-    subgraph Out["Consumers"]
-        CC["Claude Code<br/>/plugin install"]
-        REL["GitHub Releases<br/>(attested tarballs)"]
-        SITE["toolkit.noppu.com catalog<br/>+ npm downloads badge"]
-    end
-
-    UP -- "status / diff / pull" --> SYNC
-    SYNC -- "baseline hashes" --> LOCK
-    SYNC -- "vendor / update" --> PLUGINS
-    PLUGINS --> QUALITY
-    PLUGINS --> TESTS
-    PLUGINS -- "version bump merged" --> RELEASE
-    RELEASE --> REL
-    PLUGINS -- "manifests + frontmatter" --> SITEGEN
-    SITEGEN --> PAGES
-    PAGES --> SITE
-    PLUGINS -- "installed from main" --> CC
-```
+The diagram of the plugins, the shared package, CI, the release pipeline and the website is in
+[ARCHITECTURE.md](../ARCHITECTURE.md#how-the-pieces-fit-together), with the actors and the
+interfaces of the released assets.
 
 ## Adding a new ADR
 
