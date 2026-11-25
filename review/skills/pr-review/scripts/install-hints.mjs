@@ -14,21 +14,17 @@
 // pins are read only at the root and in lockfile directories; Makefile,
 // justfile, Taskfile, setup scripts and docs only at the root.
 
-import { execFileSync } from "node:child_process";
-import { accessSync, constants, statSync } from "node:fs";
-import { delimiter, isAbsolute, join, posix } from "node:path";
+import { posix } from "node:path";
+import { findExecutable } from "./lib/exec.mjs";
+import { makeGit } from "./lib/git.mjs";
+import { recognisedLockfile } from "./lib/lockfiles.mjs";
+import { dirOf, isSafePath, isVendored, pathIn } from "./lib/paths.mjs";
+import { compare, sortBy } from "./lib/sort.mjs";
+import { listTree, makeSource } from "./lib/tree.mjs";
 
 const INSTALL_LIKE = /install|setup|bootstrap|init/i;
 const DOCS_HEADING = /install|setup|getting started|bootstrap|init/i;
 const REF_ARG = /^[^-\s][^\s]*$/;
-const SAFE_PATH = /^[A-Za-z0-9._/@+ -]+$/;
-const EXECUTABLE_SUFFIXES =
-  process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
-const MODE_REASONS = new Map([
-  ["120000", "symlink"],
-  ["160000", "submodule"],
-]);
-
 const NPM_HOOKS = [
   "preinstall",
   "install",
@@ -52,22 +48,6 @@ const COMPOSER_HOOKS = [
   "post-package-install",
 ];
 
-const LOCKFILES = new Map([
-  ["composer.lock", { manager: "composer", command: "composer install" }],
-  ["package-lock.json", { manager: "npm", command: "npm ci" }],
-  [
-    "pnpm-lock.yaml",
-    { manager: "pnpm", command: "pnpm install --frozen-lockfile" },
-  ],
-  ["yarn.lock", { manager: "yarn", command: "yarn install --frozen-lockfile" }],
-  ["bun.lock", { manager: "bun", command: "bun install --frozen-lockfile" }],
-  ["bun.lockb", { manager: "bun", command: "bun install --frozen-lockfile" }],
-  ["uv.lock", { manager: "uv", command: "uv sync --locked" }],
-  ["poetry.lock", { manager: "poetry", command: "poetry install" }],
-  ["Gemfile.lock", { manager: "bundler", command: "bundle install" }],
-  ["go.sum", { manager: "go", command: "go mod download" }],
-]);
-
 const MANAGER_BINARIES = { bundler: "bundle" };
 
 const MAKE_FILES = ["Makefile", "makefile", "GNUmakefile"];
@@ -81,150 +61,23 @@ const SCRIPT_FILES = [
 ];
 const DOCS_FILES = ["README.md", "CONTRIBUTING.md", "CLAUDE.md", "AGENTS.md"];
 
-function compare(a, b) {
-  if (a < b) {
-    return -1;
-  }
-
-  return a > b ? 1 : 0;
-}
-
-function sortBy(items, ...keys) {
-  return [...items].sort((a, b) => {
-    for (const key of keys) {
-      const order = compare(a[key], b[key]);
-
-      if (order !== 0) {
-        return order;
-      }
-    }
-
-    return 0;
-  });
-}
-
-function isExecutableFile(candidate) {
-  try {
-    if (!statSync(candidate).isFile()) {
-      return false;
-    }
-
-    accessSync(candidate, constants.X_OK);
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Absolute PATH entries only, so a file in the working directory cannot stand
-// in for the real tool.
-function findExecutable(name) {
-  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
-    if (!isAbsolute(dir)) {
-      continue;
-    }
-
-    for (const suffix of EXECUTABLE_SUFFIXES) {
-      const candidate = join(dir, `${name}${suffix}`);
-
-      if (isExecutableFile(candidate)) {
-        return candidate;
-      }
-    }
-  }
-
-  return null;
-}
-
-let gitPath = "git";
-
-function git(args) {
-  return execFileSync(gitPath, args, {
-    encoding: "utf8",
-    maxBuffer: 1 << 28,
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-}
-
-function resolveCommit(arg) {
+function resolveCommit(git, arg) {
   if (!REF_ARG.test(arg)) {
     return null;
   }
 
   try {
-    const sha = git(["rev-parse", "--verify", "--quiet", `${arg}^{commit}`]);
+    const sha = git.text([
+      "rev-parse",
+      "--verify",
+      "--quiet",
+      `${arg}^{commit}`,
+    ]);
 
     return /^[0-9a-f]{40}$/.test(sha.trim()) ? sha.trim() : null;
   } catch {
     return null;
   }
-}
-
-function listTree(sha) {
-  const modes = new Map();
-  const output = git(["ls-tree", "-r", "--full-tree", "-z", sha]);
-
-  for (const record of output.split("\0")) {
-    const tab = record.indexOf("\t");
-
-    if (tab !== -1) {
-      modes.set(record.slice(tab + 1), record.slice(0, record.indexOf(" ")));
-    }
-  }
-
-  return modes;
-}
-
-function isSafePath(path) {
-  return (
-    SAFE_PATH.test(path) &&
-    !path.split("/").some((part) => part.startsWith("-"))
-  );
-}
-
-function makeSource(sha, modes) {
-  const cache = new Map();
-  const skipped = new Map();
-  const skip = (path, reason) => {
-    skipped.set(`${path}\0${reason}`, { path, reason });
-  };
-  const admit = (path) => {
-    const reason = MODE_REASONS.get(modes.get(path));
-
-    if (reason === undefined) {
-      return true;
-    }
-
-    skip(path, reason);
-
-    return false;
-  };
-  const read = (path) => {
-    if (!modes.has(path) || !admit(path)) {
-      return null;
-    }
-
-    if (!cache.has(path)) {
-      try {
-        cache.set(path, git(["show", `${sha}:${path}`]));
-      } catch {
-        skip(path, "unreadable");
-        cache.set(path, null);
-      }
-    }
-
-    return cache.get(path);
-  };
-
-  return {
-    has: (path) => modes.has(path),
-    paths: () => [...modes.keys()],
-    admit,
-    read,
-    skip,
-    skipped: () => sortBy([...skipped.values()], "path", "reason"),
-  };
 }
 
 function splitLines(text) {
@@ -241,38 +94,6 @@ function parseJsonObject(text) {
   } catch {
     return null;
   }
-}
-
-function isVendored(path) {
-  const segments = path.split("/").slice(0, -1);
-
-  return segments.includes("vendor") || segments.includes("node_modules");
-}
-
-function dirOf(path) {
-  const dir = posix.dirname(path);
-
-  return dir === "." ? "" : dir;
-}
-
-function pathIn(dir, name) {
-  return dir === "" ? name : `${dir}/${name}`;
-}
-
-function recognisedLockfile(src, path) {
-  const entry = LOCKFILES.get(posix.basename(path));
-
-  if (entry === undefined || isVendored(path)) {
-    return null;
-  }
-
-  const safe = isSafePath(path);
-
-  if (!safe) {
-    src.skip(path, "unsafe-path");
-  }
-
-  return src.admit(path) && safe ? entry : null;
 }
 
 function findLockfiles(src) {
@@ -634,8 +455,8 @@ function findEnvExample(src) {
   return [".env.example", ".env.dist"].find((file) => src.has(file)) ?? null;
 }
 
-function collectHints(sha) {
-  const src = makeSource(sha, listTree(sha));
+function collectHints(git, sha) {
+  const src = makeSource(git, sha, listTree(git, sha));
   const lockfiles = findLockfiles(src);
   const dirs = uniqueSorted(["", ...lockfiles.map((lock) => dirOf(lock.path))]);
   const manifests = readManifests(src);
@@ -669,7 +490,7 @@ function main() {
     return 1;
   }
 
-  gitPath = found;
+  const git = makeGit(found);
 
   const arg = process.argv[2];
 
@@ -679,7 +500,7 @@ function main() {
     return 1;
   }
 
-  const sha = resolveCommit(arg);
+  const sha = resolveCommit(git, arg);
 
   if (sha === null) {
     process.stderr.write(`install-hints: cannot read ${arg}\n`);
@@ -687,7 +508,7 @@ function main() {
     return 1;
   }
 
-  process.stdout.write(`${JSON.stringify(collectHints(sha), null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(collectHints(git, sha), null, 2)}\n`);
 
   return 0;
 }
