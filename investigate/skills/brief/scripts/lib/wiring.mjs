@@ -36,10 +36,7 @@ const DEFINITION_GLOBS = [
   "*.cts",
 ];
 const GREP_LINE_RE = /^([^:]+):(\d+):(.*)$/;
-// `git grep -z -n` prints each match as path NUL line NUL text LF, with the
-// path as git stores it: not quoted, and whole when it holds a colon or a
-// newline. `-I` keeps out the "Binary file … matches" lines, which have no NUL.
-const GREP_RECORD_RE = /([^\0]*)\0(\d+)\0([^\n]*)\n/g;
+const LINE_NO_RE = /^\d+$/;
 // ast-grep matches the AST, so these hits are multi-line-safe and immune to
 // comments and strings. One scan per pattern across AST_SCAN_DIRS, filtered per symbol afterwards.
 const AST_PATTERNS = [
@@ -74,12 +71,32 @@ export function parseGrepLine(line) {
   return hit && forDisplay(hit);
 }
 
+// `git grep -z -n` prints each match as path NUL line NUL text LF, with the
+// path as git stores it: not quoted, and whole when it holds a colon or a
+// newline. `-I` keeps out the "Binary file … matches" lines, which have no NUL.
+// Reading stops at the first part that is not a whole record, so each
+// character is looked at a bounded number of times.
 function grepRecords(stdout) {
-  return [...stdout.matchAll(GREP_RECORD_RE)].map((m) => ({
-    filePath: m[1],
-    lineNo: m[2],
-    text: m[3].trim(),
-  }));
+  const records = [];
+  let start = 0;
+  while (start < stdout.length) {
+    const pathEnd = stdout.indexOf("\0", start);
+    if (pathEnd === -1) break;
+    const lineNoEnd = stdout.indexOf("\0", pathEnd + 1);
+    if (lineNoEnd === -1) break;
+    const lineNo = stdout.slice(pathEnd + 1, lineNoEnd);
+    if (!LINE_NO_RE.test(lineNo)) break;
+    const textEnd = stdout.indexOf("\n", lineNoEnd + 1);
+    if (textEnd === -1) break;
+    records.push({
+      filePath: stdout.slice(start, pathEnd),
+      lineNo,
+      text: stdout.slice(lineNoEnd + 1, textEnd).trim(),
+    });
+    start = textEnd + 1;
+  }
+
+  return records;
 }
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -1,6 +1,7 @@
 import {
   chmodSync,
   existsSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -63,7 +64,7 @@ type DirFs = {
   ) => { dev: bigint; ino: bigint };
 };
 type LoadCheckModule = {
-  storedName: (parent: string, name: string, fs?: DirFs) => string;
+  storedName: (parent: string, name: string, fs?: Partial<DirFs>) => string;
 };
 
 const libDir: string = join(
@@ -799,6 +800,29 @@ describe("storedName", () => {
     expect(() => loadCheck.storedName("/r", "node_modules", fs)).toThrow(
       /node_modules/,
     );
+  });
+
+  it("lists the real directory when it is given only lstatSync", () => {
+    const dir = makeTempDir("investigate-stored-");
+    writeFileSync(join(dir, "src"), "");
+    writeFileSync(join(dir, "node_module\u017f"), "");
+    const ids: Record<string, bigint> = { src: 3n, "node_module\u017f": 7n };
+    const lstatSync = (file: string): { dev: bigint; ino: bigint } => ({
+      dev: 1n,
+      ino: ids[file.slice(dir.length + 1)] ?? 7n,
+    });
+    expect(loadCheck.storedName(dir, "node_modules", { lstatSync })).toBe(
+      "node_module\u017f",
+    );
+  });
+
+  it("stats the real entries when it is given only readdirSync", () => {
+    const dir = makeTempDir("investigate-stored-");
+    writeFileSync(join(dir, "src"), "");
+    writeFileSync(join(dir, "stored"), "");
+    linkSync(join(dir, "stored"), join(dir, "asked"));
+    const readdirSync = (): string[] => ["src", "stored"];
+    expect(loadCheck.storedName(dir, "asked", { readdirSync })).toBe("stored");
   });
 
   it("throws on a filesystem that numbers nothing, where any entry would match", () => {
