@@ -30,8 +30,7 @@ Extract every file, class, and module the document references or proposes to cha
 
 - Map each class to its module directory: `git grep -lw -e <ClassName>` to find the
   definition, then take the service or feature directory that contains it. The name comes
-  from the document, so it goes after `-e`: git then reads it as the pattern and never as
-  an option.
+  from the document, so it goes after `-e`, where git cannot read it as an option.
 - Prefer modules the spec CHANGES over modules it merely mentions.
 - Dedupe to at most about four. Say which you dropped.
 

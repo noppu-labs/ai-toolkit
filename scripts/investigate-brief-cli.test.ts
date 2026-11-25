@@ -1188,7 +1188,7 @@ describe("brief.mjs with gitnexus and codegraph on PATH", () => {
 function runWithFakeCodegraph(
   cwd: string,
   target: string,
-): { stdout: string; argvFile: string } {
+): { status: number | null; stdout: string; argvFile: string } {
   const argvFile = join(mkdtempSync(join(tmpdir(), "investigate-cg-")), "a");
   const r = runBriefWith(
     {
@@ -1202,9 +1202,8 @@ function runWithFakeCodegraph(
     "--no-docs",
     "--no-lsp",
   );
-  expect(r.status).toBe(0);
 
-  return { stdout: r.stdout, argvFile };
+  return { status: r.status, stdout: r.stdout, argvFile };
 }
 
 describe("brief.mjs and the codegraph index", () => {
@@ -1219,6 +1218,7 @@ describe("brief.mjs and the codegraph index", () => {
     git(cwd, "add", ".");
     git(cwd, "commit", "-qm", "migration");
     const r = runWithFakeCodegraph(cwd, "database/migrations");
+    expect(r.status).toBe(0);
     expect(r.stdout).toContain("- codegraph: not needed (no symbols)");
     expect(r.stdout).not.toContain("## Module graph");
     expect(existsSync(r.argvFile)).toBe(false);
@@ -1231,6 +1231,7 @@ describe("brief.mjs and the codegraph index", () => {
     git(cwd, "add", "-f", ".codegraph/.gitignore");
     git(cwd, "commit", "-qm", "index ignore file");
     const r = runWithFakeCodegraph(cwd, "app/Services");
+    expect(r.status).toBe(0);
     expect(r.stdout).toContain("- codegraph: ran");
     expect(r.stdout).toContain("## Module graph");
   });
@@ -1245,6 +1246,7 @@ describe("brief.mjs and the codegraph index", () => {
       git(cwd, "add", "-f", `${dir}/codegraph.db`);
       git(cwd, "commit", "-qm", "committed index");
       const r = runWithFakeCodegraph(cwd, "app/Services");
+      expect(r.status).toBe(0);
       expect(r.stdout).toContain(
         "- codegraph: skipped (.codegraph is tracked by git)",
       );
