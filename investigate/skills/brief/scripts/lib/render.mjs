@@ -285,11 +285,18 @@ export function renderDocSources(gate, skippedReason) {
   ];
 }
 
-export function renderCodegraph(lines) {
+export function renderCodegraph(lines, above = null) {
   if (!lines) return [];
+  const source = above
+    ? [
+        `> codegraph read the index in ${above}, a directory above this repository, so the graph is that project's and can reach past this one.`,
+        "",
+      ]
+    : [];
   return [
     "## Module graph (codegraph — includes inheritance edges the gitnexus PHP graph lacks)",
     "",
+    ...source,
     // Indented past three spaces, a line of codegraph's output cannot start a
     // heading, a list or a quote.
     ...lines.map((line) => (line ? `    ${line}` : line)),

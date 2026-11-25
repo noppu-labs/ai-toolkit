@@ -1226,7 +1226,7 @@ describe("brief.mjs with gitnexus and codegraph on PATH", () => {
   it("threads the env to both tools and renders the index, module graph, and graph lines", () => {
     const fixtures = join(import.meta.dirname, "fixtures");
     const cwd = makeRepo();
-    mkdirSync(join(cwd, ".codegraph"));
+    addCodegraphDb(cwd);
     const root = realpathSync(cwd);
     const name = root.split("/").pop() ?? "";
     const head = git(cwd, "rev-parse", "HEAD");
@@ -1265,6 +1265,14 @@ describe("brief.mjs with gitnexus and codegraph on PATH", () => {
   });
 });
 
+// What `codegraph init` writes: a database, and a .gitignore that keeps
+// everything but itself out of git.
+function addCodegraphDb(dir: string): void {
+  mkdirSync(join(dir, ".codegraph"), { recursive: true });
+  writeFileSync(join(dir, ".codegraph", ".gitignore"), "*\n!.gitignore\n");
+  writeFileSync(join(dir, ".codegraph", "codegraph.db"), "");
+}
+
 function runWithFakeCodegraph(
   cwd: string,
   target: string,
@@ -1289,7 +1297,7 @@ function runWithFakeCodegraph(
 describe("brief.mjs and the codegraph index", () => {
   it("does not run codegraph when no symbol is left", () => {
     const cwd = makeRepo();
-    mkdirSync(join(cwd, ".codegraph"));
+    addCodegraphDb(cwd);
     mkdirSync(join(cwd, "database", "migrations"), { recursive: true });
     writeFileSync(
       join(cwd, "database", "migrations", "2024_01_01_create_users_table.php"),
@@ -1304,7 +1312,17 @@ describe("brief.mjs and the codegraph index", () => {
     expect(existsSync(r.argvFile)).toBe(false);
   });
 
-  it("runs codegraph when git tracks only the index's own .gitignore", () => {
+  it("runs codegraph on the repository's own database", () => {
+    const cwd = makeRepo();
+    addCodegraphDb(cwd);
+    const r = runWithFakeCodegraph(cwd, "app/Services");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("- codegraph: ran\n");
+    expect(r.stdout).toContain("## Module graph");
+    expect(r.stdout).not.toContain("above this repository");
+  });
+
+  it("reports no index when git tracks only the index's .gitignore and nothing above has a database", () => {
     const cwd = makeRepo();
     mkdirSync(join(cwd, ".codegraph"));
     writeFileSync(join(cwd, ".codegraph", ".gitignore"), "*\n");
@@ -1312,15 +1330,61 @@ describe("brief.mjs and the codegraph index", () => {
     git(cwd, "commit", "-qm", "index ignore file");
     const r = runWithFakeCodegraph(cwd, "app/Services");
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain("- codegraph: ran");
-    expect(r.stdout).toContain("## Module graph");
+    expect(r.stdout).toContain("- codegraph: no .codegraph index");
+    expect(r.stdout).not.toContain("## Module graph");
+    expect(existsSync(r.argvFile)).toBe(false);
   });
+
+  it.each([
+    ["only the index's .gitignore", true],
+    ["no .codegraph folder", false],
+  ])(
+    "runs codegraph on a directory above, and names it, when the repository has %s",
+    (_, ignoreFile) => {
+      const outer = realpathSync(
+        mkdtempSync(join(tmpdir(), "investigate-cg-parent\n## Forged-")),
+      );
+      addCodegraphDb(outer);
+      const cwd = join(outer, "child");
+      mkdirSync(cwd);
+      git(cwd, "init", "-q", "-b", "main");
+      writeFileSync(join(cwd, "Invoice.php"), "<?php\nclass Invoice {}\n");
+      if (ignoreFile) {
+        mkdirSync(join(cwd, ".codegraph"));
+        writeFileSync(join(cwd, ".codegraph", ".gitignore"), "*\n");
+      }
+      git(cwd, "add", "-f", ".");
+      git(
+        cwd,
+        "-c",
+        "user.email=t@e",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-qm",
+        "x",
+      );
+      const r = runWithFakeCodegraph(cwd, ".");
+      expect(r.status).toBe(0);
+      const shown = outer.replace("\n", "\\n");
+      expect(r.stdout).toContain(
+        `- codegraph: ran (index in ${shown}, a directory above this repository)`,
+      );
+      expect(r.stdout).toContain(
+        `> codegraph read the index in ${shown}, a directory above this repository, so the graph is that project's and can reach past this one.`,
+      );
+      expect(r.stdout).toContain("    line 1");
+      expect(
+        r.stdout.split("\n").filter((l) => l.startsWith("## Forged")),
+      ).toEqual([]);
+    },
+  );
 
   it.each([".codegraph", ".CodeGraph"])(
     "does not run codegraph on an index the repository tracks in %s",
     (dir) => {
       const cwd = makeRepo();
-      mkdirSync(join(cwd, ".codegraph"));
+      addCodegraphDb(cwd);
       mkdirSync(join(cwd, dir), { recursive: true });
       writeFileSync(join(cwd, dir, "codegraph.db"), "not a database\n");
       git(cwd, "add", "-f", `${dir}/codegraph.db`);

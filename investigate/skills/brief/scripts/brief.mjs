@@ -233,19 +233,24 @@ const CODEGRAPH_SKIPS = {
 // and print unrelated symbols as the target's module graph.
 function runCodegraph(ctx, symbols, tools) {
   const index = codegraphIndex(ctx);
-  if (index !== "present" || symbols.length === 0) {
-    tools.codegraph = CODEGRAPH_SKIPS[index] ?? "not needed (no symbols)";
+  if (index.state !== "present" || symbols.length === 0) {
+    tools.codegraph = CODEGRAPH_SKIPS[index.state] ?? "not needed (no symbols)";
     return null;
   }
   const lines = codegraphOverview(
     ctx,
     symbols.map((s) => s.name),
   );
-  tools.codegraph = codegraphStatus({
+  const status = codegraphStatus({
     probeOk: probe("codegraph", ctx.env),
     lines,
   });
-  return lines;
+  // codegraph walks up to an index above the repository on its own.
+  const above = index.root === ctx.repoRoot ? null : index.root;
+  tools.codegraph = above
+    ? `${status} (index in ${above}, a directory above this repository)`
+    : status;
+  return lines && { lines, above };
 }
 
 function runAstGrep(ctx, tools) {
@@ -323,7 +328,7 @@ async function buildBrief(opts, io) {
     }),
     ...render.renderDependencies(deps.rows, deps.unread),
     ...render.renderDocSources(docs.gate, docs.skippedReason),
-    ...render.renderCodegraph(cg),
+    ...render.renderCodegraph(cg?.lines ?? null, cg?.above ?? null),
     ...symbols.flatMap((sym) => symbolSection(ctx, sym, state)),
     ...render.renderFooter(),
   ];

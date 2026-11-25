@@ -1,10 +1,11 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { git, run, withoutPathspecVars } from "./exec.mjs";
 
 const CODEGRAPH_CAP = 80;
 const INDEX_DIR = ".codegraph";
 const INDEX_IGNORE_FILE = `${INDEX_DIR}/.gitignore`;
+const INDEX_DB = "codegraph.db";
 
 const isObject = (v) =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -56,30 +57,65 @@ export function graphContext(ctx, symbolName) {
   return parseGraphContext(res.stdout);
 }
 
-/**
- * Whether the repository has a codegraph index the brief may read: "absent",
- * "present", "tracked" when git tracks anything under `.codegraph` but the
- * `.gitignore` codegraph writes there (the repository supplies its own index),
- * or "unknown" when git cannot say.
- */
-export function codegraphIndex(ctx) {
-  if (!existsSync(path.join(ctx.repoRoot, INDEX_DIR))) return "absent";
+function hasIndexDb(dir) {
+  try {
+    return statSync(path.join(dir, INDEX_DIR, INDEX_DB)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+// The directory codegraph reads from when the repository has no database of
+// its own: like codegraph, the nearest one above that holds
+// `.codegraph/codegraph.db`, up to the filesystem root.
+function indexAbove(dir) {
+  let current = dir;
+  for (;;) {
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+    if (hasIndexDb(current)) return current;
+  }
+}
+
+// git tracks anything under `.codegraph` but the `.gitignore` codegraph
+// writes there, so the repository supplies its own index; or null when git
+// cannot say.
+function tracksIndex(ctx) {
   // icase: on a filesystem that folds case, `.CodeGraph` is the same folder.
   const res = git(["ls-files", "-z", "--", `:(icase,literal)${INDEX_DIR}`], {
     cwd: ctx.repoRoot,
     env: withoutPathspecVars(ctx.env),
   });
-  if (res.error || res.status !== 0) return "unknown";
-  const tracked = res.stdout
+  if (res.error || res.status !== 0) return null;
+
+  return res.stdout
     .split("\0")
     .filter(Boolean)
     .some((entry) => entry.toLowerCase() !== INDEX_IGNORE_FILE);
+}
 
-  return tracked ? "tracked" : "present";
+/**
+ * The codegraph index the brief may read. `state` is "tracked" when the
+ * repository tracks its own index, "unknown" when git cannot say, "present"
+ * with the `root` codegraph will read (the repository, or a directory above
+ * it), or "absent".
+ */
+export function codegraphIndex(ctx) {
+  if (existsSync(path.join(ctx.repoRoot, INDEX_DIR))) {
+    const tracked = tracksIndex(ctx);
+    if (tracked === null) return { state: "unknown" };
+    if (tracked) return { state: "tracked" };
+    if (hasIndexDb(ctx.repoRoot)) {
+      return { state: "present", root: ctx.repoRoot };
+    }
+  }
+  const above = indexAbove(ctx.repoRoot);
+
+  return above ? { state: "present", root: above } : { state: "absent" };
 }
 
 export function codegraphOverview(ctx, symNames) {
-  if (!existsSync(path.join(ctx.repoRoot, ".codegraph"))) return null;
   // The names go after `--`, so codegraph never reads one as an option.
   const res = run(
     "codegraph",

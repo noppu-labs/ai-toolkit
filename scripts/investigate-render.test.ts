@@ -35,7 +35,7 @@ type RenderModule = {
     gate: Gate | null,
     skippedReason: string | null,
   ) => string[];
-  renderCodegraph: (lines: string[] | null) => string[];
+  renderCodegraph: (lines: string[] | null, above?: string | null) => string[];
   renderSymbol: (sym: Sym, parts: Parts) => string[];
   renderHeader: (relTarget: string, repoName: string) => string[];
   renderTools: (tools: Record<string, string>) => string[];
@@ -192,6 +192,14 @@ describe("renderCodegraph", () => {
       "## Module graph (codegraph — includes inheritance edges the gitnexus PHP graph lacks)",
       "",
       "    a",
+      "",
+    ]);
+  });
+
+  it("says when the graph came from an index in a directory above the repository", () => {
+    expect(render.renderCodegraph(["a"], "/work/parent").slice(1, 4)).toEqual([
+      "",
+      "> codegraph read the index in /work/parent, a directory above this repository, so the graph is that project's and can reach past this one.",
       "",
     ]);
   });
