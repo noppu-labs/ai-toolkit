@@ -195,11 +195,36 @@ function holdsGitEntry(dir) {
   }
 }
 
-// A location present in `dir` inside a nested repository: the location, or a
-// folder between it and `tree` (or `dir`, when no tree holds it), holds a
-// `.git` entry. git does not answer for files in another repository, so a
-// folder a removed submodule or a separate clone left there can supply code
-// whatever the outer index says. Returns [nested folder, location] or null.
+function isRealDir(full) {
+  try {
+    return lstatSync(full).isDirectory();
+  } catch (e) {
+    if (e?.code === "ENOENT" || e?.code === "ENOTDIR") return false;
+    throw e;
+  }
+}
+
+// The folders inside `full` down to the package the server loads,
+// `typescript` and then `typescript/lib`, that hold a `.git` entry. It stops
+// at the first one that is missing or is not a real directory, so a linked
+// `node_modules/typescript` (an `npm link`) is never descended.
+function nestedBelow(full) {
+  let current = full;
+  for (const part of ["typescript", "lib"]) {
+    current = path.join(current, part);
+    if (!isRealDir(current)) return null;
+    if (holdsGitEntry(current)) return current;
+  }
+
+  return null;
+}
+
+// A location present in `dir` inside a nested repository: the location, a
+// folder between it and `tree` (or `dir`, when no tree holds it), or the
+// TypeScript package inside it holds a `.git` entry. git does not answer for
+// files in another repository, so a folder a removed submodule or a separate
+// clone left there can supply code whatever the outer index says. Returns
+// [nested folder, location] or null.
 function nestedIn(dir, tree, present) {
   const stop = tree ?? dir;
   for (const loc of present) {
@@ -208,6 +233,8 @@ function nestedIn(dir, tree, present) {
       if (holdsGitEntry(current)) return [current, loc];
       current = path.dirname(current);
     }
+    const below = nestedBelow(path.join(dir, loc));
+    if (below !== null) return [below, loc];
   }
 
   return null;

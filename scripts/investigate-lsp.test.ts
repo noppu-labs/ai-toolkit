@@ -570,6 +570,70 @@ describe("tsLspCallers in a repository that tracks code the server loads", () =>
     expect(run.out).toEqual(nestedSkip(".yarn", ".yarn/sdks"));
   });
 
+  // A TypeScript package the repository once tracked as a submodule at `rel`,
+  // removed in a later commit: git leaves the folder and its .git file.
+  function leaveRemovedTsSubmodule(root: string, rel: string): void {
+    const sub = makeTempDir("investigate-sub-");
+    git(sub, "init", "-q", "-b", "main");
+    commitFiles(sub, {
+      "package.json": '{"name":"typescript","version":"9.9.9"}\n',
+      "lib/tsserver.js": "\n",
+    });
+    git(
+      root,
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      "-q",
+      "-f",
+      sub,
+      rel,
+    );
+    git(root, "commit", "-qm", "submodule");
+    git(root, "rm", "-q", "--cached", rel);
+    git(root, "rm", "-q", ".gitmodules");
+    git(root, "commit", "-qm", "drop the submodule");
+  }
+
+  it.each([
+    ["node_modules/typescript", "node_modules"],
+    [".yarn/sdks/typescript", ".yarn/sdks"],
+  ])(
+    "does not start it when a removed submodule leaves %s on disk",
+    async (rel, location) => {
+      const root = makeTsRepo();
+      leaveRemovedTsSubmodule(root, rel);
+      expect(existsSync(join(root, rel, ".git"))).toBe(true);
+      const run = await runTsPass(root);
+      expect(run.started).toBe(false);
+      expect(run.out).toEqual(nestedSkip(rel, location));
+    },
+  );
+
+  it("starts it when node_modules/typescript is a link to a TypeScript checkout with its own .git", async () => {
+    const checkout = makeTempDir("investigate-ts-checkout-");
+    git(checkout, "init", "-q", "-b", "main");
+    commitFiles(checkout, {
+      "package.json": '{"name":"typescript","version":"9.9.9"}\n',
+      "lib/tsserver.js": "\n",
+    });
+    const root = makeTsRepo();
+    mkdirSync(join(root, "node_modules"));
+    symlinkSync(checkout, join(root, "node_modules", "typescript"));
+    const run = await runTsPass(root);
+    expect(run.started).toBe(true);
+  });
+
+  it("treats a .git link that points nowhere as a nested repository", async () => {
+    const root = makeTsRepo();
+    writeFiles(root, { ".yarn/sdks/typescript/package.json": "{}\n" });
+    symlinkSync(join(root, "missing"), join(root, ".yarn", ".git"));
+    const run = await runTsPass(root);
+    expect(run.started).toBe(false);
+    expect(run.out).toEqual(nestedSkip(".yarn", ".yarn/sdks"));
+  });
+
   it("still finds a tracked file when the environment turns pathspec magic off", async () => {
     const root = makeTsRepo();
     commitFiles(root, { ".yarn/sdks/typescript/package.json": "{}\n" });
@@ -732,6 +796,17 @@ describe("storedName", () => {
 
   it("throws when no stored entry has that identity, so the check fails closed", () => {
     const fs = foldingFs({ src: 3n, node_modules: 7n });
+    expect(() => loadCheck.storedName("/r", "node_modules", fs)).toThrow(
+      /node_modules/,
+    );
+  });
+
+  it("throws on a filesystem that numbers nothing, where any entry would match", () => {
+    const fs = foldingFs({
+      src: 0n,
+      node_moduleſ: 0n,
+      node_modules: 0n,
+    });
     expect(() => loadCheck.storedName("/r", "node_modules", fs)).toThrow(
       /node_modules/,
     );
