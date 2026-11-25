@@ -52,19 +52,21 @@ npm plugin is the supported route there.
 - The consolidated report has a `Reviewed head: <sha>` line under each PR's url, with the full SHA. A caller finds it with `^Reviewed head: [0-9a-f]{40}$` and compares it with `git rev-parse HEAD`. When the two differed at the start of the run, `## Not available in this run` says so, one line per PR.
 - `pr-comments` copies that SHA into its `format=json` output as the optional top-level `headSha`, for a report of one PR. A poster can send it as the review's `commit_id`. For a report of several PRs it reads each finding's file at the `Reviewed head:` of that finding's PR section and leaves `headSha` out.
 
-Two things are not covered. The tests, linters, and type checkers a stage runs still read the working tree, so their results describe the commit checked out. And the harness's `code-review` skill, which runs the first correctness pass on Claude Code, gets only the PR number and none of these instructions, so it may have read the working tree; its findings are merged under the same `Reviewed head:` line, and the mismatch line in `## Not available in this run` says so.
+Two things are not covered. Unless you chose a worktree or a check-out at the start (see below), the tests, linters, and type checkers a stage runs still read the working tree, so their results describe the commit checked out. And the harness's `code-review` skill, which runs the first correctness pass on Claude Code, gets only the PR number and none of these instructions, so it may have read the working tree; its findings are merged under the same `Reviewed head:` line, and the mismatch line in `## Not available in this run` says so.
 
 ### Setting up the head
 
 In an interactive session, when the working tree is not at a PR's head, `pr-review` asks once how to get there, through `AskUserQuestion` on Claude Code or `question` on OpenCode:
 
 - Check out the PR in this tree. This is offered only when the tree is clean. The skill runs `git switch --detach` to the head and switches back afterwards. It is the one choice that also fixes the `code-review` first pass, which reads the current checkout. For a stack it checks out the top of the stack.
-- A scratch worktree with the install run in it, one per PR in a stack. The tests and checkers of the stages then run against the head, not the tree you started in. The worktree is removed when the review ends.
+- A scratch worktree with the install run in it, one per PR in a stack, except a PR already at the tree's commit, which gets none. The tests and checkers of the stages then run against the head, not the tree you started in. The worktree is removed when the review ends.
 - Continue as is.
+
+A cancelled or unanswered question means continue as is. A check-out is not switched back when the tree has become dirty: the report lists the dirty paths and the `git switch` command to run. When the PR changes a lockfile, `vendor/` and `node_modules` in a check-out may be stale.
 
 The install runs code from the PR: lockfile commands, and any install hooks the PR defines such as `postinstall` or `post-install-cmd`. The question shows the install command and those hooks before you answer, and a typed answer such as "without scripts" runs the install with `--ignore-scripts` or `--no-scripts`. Answering the question grants nothing: the commands then run as ordinary Bash calls, one at a time, so your permission mode and allow rules decide whether each one prompts.
 
-The question never appears in `claude -p`, which has no permission host to answer it, or in `opencode run`. Those runs behave as before, and a caller that prepares its own checkout keeps doing so.
+The question does not appear in `claude -p` without a permission host to answer it, or in `opencode run`. Those runs behave as before, and a caller that prepares its own checkout keeps doing so.
 
 ## The task-output hook
 
