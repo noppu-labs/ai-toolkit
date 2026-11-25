@@ -28,7 +28,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+} from "node:path";
 import { findExecutable } from "./lib/exec.mjs";
 import { makeGit } from "./lib/git.mjs";
 import { recognisedLockfile } from "./lib/lockfiles.mjs";
@@ -49,6 +56,12 @@ const SAFE_GIT = [
   "core.hooksPath=/dev/null",
   "-c",
   "submodule.recurse=false",
+];
+const SESSION_PATHSPECS = [
+  ".claude",
+  ".mcp.json",
+  ":(glob)**/.claude/**",
+  ":(glob)**/.mcp.json",
 ];
 const OPERATION_MARKERS = [
   "MERGE_HEAD",
@@ -219,7 +232,7 @@ function describeCheckoutProblem(entry) {
 }
 
 function describeScratchProblem(entry) {
-  const paths = [entry.path, entry.parent];
+  const paths = [entry.root, entry.path, entry.parent];
 
   if (!paths.every((path) => typeof path === "string" && isAbsolute(path))) {
     return `entry ${entry.id} has a path that is not absolute`;
@@ -227,9 +240,10 @@ function describeScratchProblem(entry) {
 
   if (
     entry.path !== join(entry.parent, HEAD_DIR) ||
+    dirname(entry.parent) !== entry.root ||
     !basename(entry.parent).startsWith(SCRATCH_PREFIX)
   ) {
-    return `entry ${entry.id} has a path outside a ${SCRATCH_PREFIX}* directory`;
+    return `entry ${entry.id} has a path outside a ${SCRATCH_PREFIX}* directory inside its root`;
   }
 
   return null;
@@ -309,10 +323,20 @@ function saveRecord(ctx, entries) {
 
   const temp = `${file}.${process.pid}.tmp`;
 
-  writeFileSync(temp, `${JSON.stringify({ version: 1, entries }, null, 2)}\n`, {
-    mode: 0o600,
-  });
-  renameSync(temp, file);
+  try {
+    writeFileSync(
+      temp,
+      `${JSON.stringify({ version: 1, entries }, null, 2)}\n`,
+      { mode: 0o600 },
+    );
+    renameSync(temp, file);
+  } catch (error) {
+    rmSync(temp, { force: true });
+    refuse(
+      "record-write-failed",
+      `the record cannot be written: ${error.message}`,
+    );
+  }
 }
 
 function dropEntry(ctx, id) {
@@ -395,8 +419,7 @@ function sessionConfigPaths(ctx, currentSha, sha) {
     currentSha,
     sha,
     "--",
-    ".claude",
-    ".mcp.json",
+    ...SESSION_PATHSPECS,
   ]);
 
   return output
@@ -421,6 +444,14 @@ function isCheckoutEntry(entry) {
   return entry.kind === "checkout";
 }
 
+function describeRecord(loaded) {
+  if (loaded.problem !== undefined) {
+    return { unreadable: true, detail: loaded.problem };
+  }
+
+  return loaded.entries.length === 0 ? null : { entries: loaded.entries };
+}
+
 function runPlan(ctx, shas) {
   if (shas.length === 0) {
     refuse("usage", "plan needs at least one head sha");
@@ -434,12 +465,6 @@ function runPlan(ctx, shas) {
   const current = listLockfiles(ctx.git, treeSha);
   const loaded = loadRecord(ctx);
   const clean = statusPaths(ctx, false).length === 0;
-  const record =
-    loaded.problem === undefined
-      ? loaded.entries.length === 0
-        ? null
-        : { entries: loaded.entries }
-      : { unreadable: true, detail: loaded.problem };
 
   return {
     ok: true,
@@ -447,7 +472,7 @@ function runPlan(ctx, shas) {
     branch: currentBranch(ctx),
     clean,
     checkout: planCheckout(ctx, loaded.entries ?? [], loaded.problem, clean),
-    record,
+    record: describeRecord(loaded),
     heads: shas.map((sha) => ({
       headSha: sha,
       atTree: sha === treeSha,
@@ -463,13 +488,31 @@ function switchBackArgs(entry) {
     : ["switch", "--no-overwrite-ignore", entry.branch];
 }
 
-function switchBackCommand(ctx, entry) {
-  const words =
-    entry.branch === null
-      ? ["switch", "--detach", entry.fromSha]
-      : ["switch", entry.branch];
+function shellLine(words) {
+  return words.map(quoteShell).join(" ");
+}
 
-  return ["git", "-C", ctx.top, ...words].map(quoteShell).join(" ");
+function switchBackCommand(ctx, entry) {
+  return shellLine([
+    "git",
+    ...SAFE_GIT,
+    "-C",
+    ctx.top,
+    ...switchBackArgs(entry),
+  ]);
+}
+
+function keepCommitsCommand(ctx, entry, sha) {
+  const keep = shellLine([
+    "git",
+    "-C",
+    ctx.top,
+    "branch",
+    `pr-review-kept-${sha.slice(0, 12)}`,
+    sha,
+  ]);
+
+  return `${keep} && ${switchBackCommand(ctx, entry)}`;
 }
 
 function changeTree(ctx, args) {
@@ -560,12 +603,68 @@ function switchToHead(ctx, entry) {
   );
 }
 
-function makeScratch(entries, kind, sha) {
-  const parent = realpathSync(mkdtempSync(join(tmpdir(), SCRATCH_PREFIX)));
+function describeRootProblem(dir) {
+  if (dir === "" || !isAbsolute(dir)) {
+    return "it must be an absolute path";
+  }
+
+  try {
+    const stat = lstatSync(dir);
+
+    return stat.isDirectory() && !stat.isSymbolicLink()
+      ? null
+      : "it must be a real directory, not a symlink or a file";
+  } catch {
+    return "it does not exist";
+  }
+}
+
+function describeOverlap(ctx, root, explicit) {
+  const common = ctx.git
+    .text(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+    .trim();
+
+  for (const tree of [realOrSame(ctx.top), realOrSame(common)]) {
+    if (root === tree || isInside(tree, root)) {
+      return `it is inside ${tree}`;
+    }
+
+    if (explicit && isInside(root, tree)) {
+      return `it contains ${tree}`;
+    }
+  }
+
+  return null;
+}
+
+function resolveRoot(ctx, requested) {
+  const explicit = requested !== null;
+  const problem = explicit ? describeRootProblem(requested) : null;
+
+  if (problem !== null) {
+    refuse("bad-scratch", `--scratch ${requested}: ${problem}`);
+  }
+
+  const root = realOrSame(explicit ? requested : tmpdir());
+  const overlap = describeOverlap(ctx, root, explicit);
+
+  if (overlap !== null) {
+    refuse(
+      "bad-scratch",
+      `the scratch directory ${root} is unusable: ${overlap}`,
+    );
+  }
+
+  return root;
+}
+
+function makeScratch(entries, kind, sha, root) {
+  const parent = realpathSync(mkdtempSync(join(root, SCRATCH_PREFIX)));
   const entry = {
     id: randomUUID(),
     kind,
     headSha: sha,
+    root,
     path: join(parent, HEAD_DIR),
     parent,
   };
@@ -575,16 +674,30 @@ function makeScratch(entries, kind, sha) {
   return { entry, entries: [...entries, entry] };
 }
 
+function recordScratch(ctx, scratch) {
+  try {
+    saveRecord(ctx, scratch.entries);
+  } catch (error) {
+    rmSync(scratch.entry.parent, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 function abandonScratch(ctx, entry, detail) {
   dropEntry(ctx, entry.id);
   rmSync(entry.parent, { recursive: true, force: true });
   refuse("setup-failed", detail);
 }
 
-function enterWorktree(ctx, sha, entries) {
-  const scratch = makeScratch(entries, "worktree", sha);
+function enterWorktree(ctx, sha, entries, requested) {
+  const scratch = makeScratch(
+    entries,
+    "worktree",
+    sha,
+    resolveRoot(ctx, requested),
+  );
 
-  saveRecord(ctx, scratch.entries);
+  recordScratch(ctx, scratch);
 
   const result = changeTree(ctx, [
     "worktree",
@@ -644,10 +757,15 @@ function cloneInto(ctx, entry) {
   return switched;
 }
 
-function enterClone(ctx, sha, entries) {
-  const scratch = makeScratch(entries, "clone", sha);
+function enterClone(ctx, sha, entries, requested) {
+  const scratch = makeScratch(
+    entries,
+    "clone",
+    sha,
+    resolveRoot(ctx, requested),
+  );
 
-  saveRecord(ctx, scratch.entries);
+  recordScratch(ctx, scratch);
 
   const result = cloneInto(ctx, scratch.entry);
 
@@ -670,16 +788,39 @@ const ENTERS = new Map([
   ["clone", enterClone],
 ]);
 
-function runEnter(ctx, [kind, sha]) {
+function takeScratch(args) {
+  const rest = [...args];
+  const at = rest.indexOf("--scratch");
+
+  if (at === -1) {
+    return { rest, scratch: null };
+  }
+
+  const scratch = rest[at + 1] ?? "";
+
+  rest.splice(at, 2);
+
+  return { rest, scratch };
+}
+
+function runEnter(ctx, args) {
+  const {
+    rest: [kind, sha],
+    scratch,
+  } = takeScratch(args);
   const enter = ENTERS.get(kind);
 
   if (enter === undefined) {
     refuse("usage", "enter takes checkout, worktree or clone and a head sha");
   }
 
+  if (scratch !== null && kind === "checkout") {
+    refuse("usage", "--scratch applies to worktree and clone only");
+  }
+
   requireCommit(ctx, sha);
 
-  return enter(ctx, sha, requireRecord(ctx));
+  return enter(ctx, sha, requireRecord(ctx), scratch);
 }
 
 function declineCheckout(ctx, entry, reason, detail, extra = {}) {
@@ -715,12 +856,15 @@ function restoreCheckout(ctx, entry) {
     return declineCheckout(ctx, entry, "not-detached", `HEAD is on ${branch}`);
   }
 
-  if (currentHead(ctx) !== entry.headSha) {
+  const head = currentHead(ctx);
+
+  if (head !== entry.headSha) {
     return declineCheckout(
       ctx,
       entry,
       "head-moved",
-      "HEAD is no longer at the checked-out head; commits made here would be left behind",
+      "HEAD is no longer at the checked-out head; the command first keeps the current commit on a branch",
+      { command: keepCommitsCommand(ctx, entry, head) },
     );
   }
 
@@ -800,6 +944,12 @@ function restoreWorktree(ctx, entry) {
     };
   }
 
+  const problem = describeParentProblem(entry);
+
+  if (problem !== null) {
+    return { declined: { reason: "not-ours", detail: problem } };
+  }
+
   const result = changeTree(ctx, ["worktree", "remove", "--force", entry.path]);
 
   if (result.status !== 0) {
@@ -814,24 +964,35 @@ function restoreWorktree(ctx, entry) {
   return { restored: {} };
 }
 
-function describeCloneProblem(entry) {
-  const tmp = realOrSame(tmpdir());
-
+function describeParentProblem(entry) {
   if (isLink(entry.parent) || isLink(entry.path)) {
-    return "the clone or its directory is a symlink";
+    return "the scratch directory or its head directory is a symlink";
   }
 
   const parent = realOrSame(entry.parent);
 
-  if (!isInside(tmp, parent) || !basename(parent).startsWith(SCRATCH_PREFIX)) {
-    return `${entry.parent} is not a ${SCRATCH_PREFIX}* directory inside the temp directory`;
+  if (
+    dirname(parent) !== realOrSame(entry.root) ||
+    !basename(parent).startsWith(SCRATCH_PREFIX)
+  ) {
+    return `${entry.parent} is not a ${SCRATCH_PREFIX}* directory directly inside the recorded root`;
+  }
+
+  return null;
+}
+
+function describeCloneProblem(entry) {
+  const problem = describeParentProblem(entry);
+
+  if (problem !== null) {
+    return problem;
   }
 
   if (readMarker(entry.parent) !== entry.id) {
     return "the marker file in the clone's directory does not match the record";
   }
 
-  return realOrSame(entry.path) === join(parent, HEAD_DIR)
+  return realOrSame(entry.path) === join(realOrSame(entry.parent), HEAD_DIR)
     ? null
     : "the clone is not where the record says";
 }
@@ -872,8 +1033,9 @@ function runRestore(ctx) {
   const restored = [];
   const declined = [];
   const lockfiles = [];
+  const entries = requireRecord(ctx);
 
-  for (const entry of [...requireRecord(ctx)].reverse()) {
+  for (const entry of [...entries].reverse()) {
     const outcome = RESTORERS.get(entry.kind)(ctx, entry);
     const named = { id: entry.id, kind: entry.kind, headSha: entry.headSha };
 
@@ -887,6 +1049,7 @@ function runRestore(ctx) {
   }
 
   const summary = {
+    recorded: entries.length,
     restored,
     declined,
     changedLockfiles: sortBy(lockfiles, "path"),

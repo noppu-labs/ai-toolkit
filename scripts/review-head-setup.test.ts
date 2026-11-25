@@ -8,11 +8,12 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 const script = join(
@@ -170,7 +171,12 @@ function isJson(value: unknown): value is Json {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function run(cwd: string, args: string[], bin: string = makeBin()): Outcome {
+function run(
+  cwd: string,
+  args: string[],
+  bin: string = makeBin(),
+  env: Record<string, string> = {},
+): Outcome {
   if (!cwd.startsWith(sandbox)) {
     throw new Error(`refusing to run against ${cwd}`);
   }
@@ -178,7 +184,7 @@ function run(cwd: string, args: string[], bin: string = makeBin()): Outcome {
   const result = spawnSync(process.execPath, [script, ...args], {
     cwd,
     encoding: "utf8",
-    env: { PATH: bin, TMPDIR: scratch, ...gitEnv },
+    env: { PATH: bin, TMPDIR: scratch, ...gitEnv, ...env },
   });
   const parsed: unknown = JSON.parse(result.stdout);
 
@@ -187,6 +193,17 @@ function run(cwd: string, args: string[], bin: string = makeBin()): Outcome {
   }
 
   return { status: result.status, json: parsed, stderr: result.stderr };
+}
+
+function switchCommand(dir: string, name: string): string {
+  return `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C ${dir} switch --no-overwrite-ignore ${name}`;
+}
+
+function runShell(command: string): void {
+  spawnSync("sh", ["-c", command], {
+    encoding: "utf8",
+    env: { ...process.env, ...gitEnv },
+  });
 }
 
 function listAt(json: Json, key: string): Json[] {
@@ -497,6 +514,33 @@ describe("head-setup.mjs", () => {
       expect(lockfiles).toHaveLength(1);
     });
 
+    it("finds nested session config even when the pathspec environment is set", () => {
+      const { dir, head } = makeFixture(
+        { "app/.claude/settings.json": "1\n", "app/.mcp.json": "1\n" },
+        {
+          "app/.claude/settings.json": "2\n",
+          "app/.mcp.json": "2\n",
+          ".claude/root.md": "r\n",
+          "app/other.txt": "o\n",
+        },
+      );
+      const expected = [
+        ".claude/root.md",
+        "app/.claude/settings.json",
+        "app/.mcp.json",
+      ];
+
+      for (const env of [
+        {},
+        { GIT_LITERAL_PATHSPECS: "1" },
+        { GIT_NOGLOB_PATHSPECS: "1" },
+      ]) {
+        const outcome = run(dir, ["plan", head], makeBin(), env);
+
+        expect(headsOf(outcome)[0]?.sessionConfig).toEqual(expected);
+      }
+    });
+
     it("diffs session config against the current commit, not the base", () => {
       const dir = makeRepo({
         ".claude/a.md": "1\n",
@@ -779,9 +823,7 @@ describe("head-setup.mjs", () => {
       expect(outcome.status).toBe(1);
       expect(outcome.json).toMatchObject({ reason: "switch-back-failed" });
       expect(String(outcome.json.detail)).toContain("boom");
-      expect(String(outcome.json.detail)).toContain(
-        `git -C ${dir} switch main`,
-      );
+      expect(String(outcome.json.detail)).toContain(switchCommand(dir, "main"));
       expect(headOf(dir)).toBe(head);
       expect(readRecord(dir).entries).toHaveLength(1);
     });
@@ -876,11 +918,51 @@ describe("head-setup.mjs", () => {
         {
           kind: "checkout",
           reason: "head-moved",
-          command: `git -C ${dir} switch main`,
+          command: expect.stringContaining(switchCommand(dir, "main")),
         },
       ]);
       expect(readRecord(dir).entries).toHaveLength(1);
       expect(branchOf(dir)).toBe("");
+    });
+
+    it("prints a switch command that cannot overwrite an ignored file", () => {
+      const dir = makeRepo({ "keep.env": "tracked\n" });
+
+      git(dir, "switch", "-q", "-c", "drop");
+      git(dir, "rm", "-q", "keep.env");
+      commit(dir, { ".gitignore": "keep.env\n" });
+
+      const head = headOf(dir);
+
+      git(dir, "switch", "-q", "main");
+      enter(dir, "checkout", head);
+      write(dir, "keep.env", "mine\n");
+
+      const outcome = run(dir, ["restore"]);
+      const declined = listAt(outcome.json, "declined");
+
+      expect(declined).toMatchObject([{ reason: "switch-failed" }]);
+
+      runShell(String(declined[0]?.command));
+
+      expect(readFileSync(join(dir, "keep.env"), "utf8")).toBe("mine\n");
+      expect(headOf(dir)).toBe(head);
+    });
+
+    it("prints a head-moved command that keeps the commits first", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+
+      const mine = commit(dir, { "mine.txt": "m\n" });
+      const declined = listAt(run(dir, ["restore"]).json, "declined");
+
+      runShell(String(declined[0]?.command));
+
+      const kept = `pr-review-kept-${mine.slice(0, 12)}`;
+
+      expect(git(dir, "rev-parse", kept)).toBe(mine);
+      expect(branchOf(dir)).toBe("main");
     });
 
     it("declines with the dirty paths when the tree changed", () => {
@@ -920,7 +1002,7 @@ describe("head-setup.mjs", () => {
 
       expect(outcome.status).toBe(1);
       expect(listAt(outcome.json, "declined")).toMatchObject([
-        { reason: "switch-failed", command: `git -C ${dir} switch main` },
+        { reason: "switch-failed", command: switchCommand(dir, "main") },
       ]);
       expect(headOf(dir)).toBe(head);
 
@@ -955,9 +1037,11 @@ describe("head-setup.mjs", () => {
 
       const declined = listAt(run(dir, ["restore"]).json, "declined");
 
-      expect(declined[0]?.command).toBe(
-        `git -C ${dir} switch 'feat/x;touch$IFS'\\''y'\\'''`,
-      );
+      const command = String(declined[0]?.command);
+      const quoted = String.raw`'feat/x;touch$IFS'\''y'\'''`;
+
+      expect(command).toContain(" && git ");
+      expect(command.endsWith(switchCommand(dir, quoted))).toBe(true);
     });
 
     it("lists the lockfiles that differ between the head and where it returned", () => {
@@ -978,6 +1062,7 @@ describe("head-setup.mjs", () => {
 
       expect(run(dir, ["restore"]).json).toEqual({
         ok: true,
+        recorded: 0,
         restored: [],
         declined: [],
         changedLockfiles: [],
@@ -1041,7 +1126,12 @@ describe("head-setup.mjs", () => {
       writeRecord(dir, {
         version: 1,
         entries: [
-          { ...record.entries[0], path: join(victim, "head"), parent: victim },
+          {
+            ...record.entries[0],
+            path: join(victim, "head"),
+            parent: victim,
+            root: sandbox,
+          },
         ],
       });
 
@@ -1128,18 +1218,13 @@ describe("head-setup.mjs", () => {
       ).toEqual([]);
     });
 
-    it("refuses to delete a path outside the temp directory", () => {
+    it("refuses to delete a pr-review directory without the marker, even with a matching root", () => {
       const { dir, head } = makeSource();
-      const parent = join(sandbox, "outside", "pr-review-x");
+      const parent = join(sandbox, "pr-review-victim-root");
       const path = join(parent, "head");
 
       mkdirSync(path, { recursive: true });
       write(path, "keep.txt", "x\n");
-      write(
-        parent,
-        ".pr-review-marker",
-        "11111111-1111-1111-1111-111111111111",
-      );
       writeRecord(dir, {
         version: 1,
         entries: [
@@ -1147,6 +1232,7 @@ describe("head-setup.mjs", () => {
             id: "11111111-1111-1111-1111-111111111111",
             kind: "clone",
             headSha: head,
+            root: sandbox,
             path,
             parent,
           },
@@ -1215,6 +1301,152 @@ describe("head-setup.mjs", () => {
 
       expect(outcome.status).toBe(1);
       expect(existsSync(join(victim, "head", "keep.txt"))).toBe(true);
+    });
+  });
+
+  describe("--scratch and the recorded root", () => {
+    function makeRoot(): string {
+      const root = nextPath("custom");
+
+      mkdirSync(root);
+
+      return realpathSync(root);
+    }
+
+    it.each(["worktree", "clone"])(
+      "puts a %s under the given root and restores it under another TMPDIR",
+      (kind) => {
+        const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+        const root = makeRoot();
+        const entered = run(dir, ["enter", kind, head, "--scratch", root]);
+        const path = pathOf(entered);
+
+        expect(entered.status).toBe(0);
+        expect(dirname(dirname(path))).toBe(root);
+        expect(readRecord(dir).entries).toMatchObject([{ kind, root }]);
+
+        const elsewhere = nextPath("other-tmp");
+
+        mkdirSync(elsewhere);
+
+        const restored = run(dir, ["restore"], makeBin(), {
+          TMPDIR: elsewhere,
+        });
+
+        expect(restored.status).toBe(0);
+        expect(existsSync(path)).toBe(false);
+        expect(readdirSync(root)).toEqual([]);
+      },
+    );
+
+    it("accepts the option before the sha", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const root = makeRoot();
+      const entered = run(dir, ["enter", "worktree", "--scratch", root, head]);
+
+      expect(entered.status).toBe(0);
+      expect(dirname(dirname(pathOf(entered)))).toBe(root);
+    });
+
+    it("refuses a scratch directory that is not a plain absolute directory outside the repository", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const root = makeRoot();
+      const link = nextPath("link");
+      const file = nextPath("file");
+      const inside = join(dir, "inside");
+      const inGit = join(dir, ".git", "inside");
+
+      symlinkSync(root, link);
+      writeFileSync(file, "x");
+      mkdirSync(inside);
+      mkdirSync(inGit);
+
+      const bad = [
+        "relative",
+        join("..", basename(root)),
+        join(sandbox, "missing"),
+        link,
+        file,
+        inside,
+        inGit,
+        dir,
+        join(dir, ".git"),
+        dirname(dir),
+      ];
+
+      for (const value of bad) {
+        const outcome = run(dir, [
+          "enter",
+          "worktree",
+          head,
+          "--scratch",
+          value,
+        ]);
+
+        expect(outcome.status).toBe(1);
+        expect(outcome.json).toMatchObject({ reason: "bad-scratch" });
+      }
+
+      expect(
+        run(dir, ["enter", "worktree", head, "--scratch"]).json,
+      ).toMatchObject({
+        reason: "bad-scratch",
+      });
+      expect(existsSync(recordPath(dir))).toBe(false);
+      expect(readdirSync(root)).toEqual([]);
+      expect(scratchEntries()).toEqual([]);
+    });
+  });
+
+  describe("restore from the wrong directory", () => {
+    it("reports how many entries it found", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const path = pathOf(enter(dir, "worktree", head));
+      const wrong = run(path, ["restore"]);
+
+      expect(wrong.status).toBe(0);
+      expect(wrong.json).toMatchObject({ ok: true, recorded: 0 });
+      expect(run(dir, ["restore"]).json).toMatchObject({ recorded: 1 });
+    });
+  });
+
+  describe("the record file", () => {
+    it("is replaced atomically by a later write", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "worktree", head);
+
+      const before = statSync(recordPath(dir)).ino;
+
+      enter(dir, "worktree", head);
+
+      expect(statSync(recordPath(dir)).ino).not.toBe(before);
+      expect(readRecord(dir).entries).toHaveLength(2);
+    });
+
+    it("keeps the previous record, and leaves no scratch, when a write fails", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "worktree", head);
+
+      const before = readFileSync(recordPath(dir), "utf8");
+      const gitDir = gitDirOf(dir);
+
+      chmodSync(gitDir, 0o555);
+
+      try {
+        const outcome = enter(dir, "worktree", head);
+
+        expect(outcome.status).toBe(1);
+        expect(outcome.json).toMatchObject({ reason: "record-write-failed" });
+      } finally {
+        chmodSync(gitDir, 0o755);
+      }
+
+      expect(readFileSync(recordPath(dir), "utf8")).toBe(before);
+      expect(
+        scratchEntries().filter((name) => name.startsWith("pr-review-")),
+      ).toHaveLength(1);
     });
   });
 
@@ -1298,6 +1530,53 @@ describe("head-setup.mjs", () => {
               headSha: sha,
               path: "pr-review-x/head",
               parent: "pr-review-x",
+            },
+          ],
+        }),
+      ],
+      [
+        "no root",
+        JSON.stringify({
+          version: 1,
+          entries: [
+            {
+              id: validId,
+              kind: "clone",
+              headSha: sha,
+              path: "/tmp/pr-review-x/head",
+              parent: "/tmp/pr-review-x",
+            },
+          ],
+        }),
+      ],
+      [
+        "a parent that is not directly inside the root",
+        JSON.stringify({
+          version: 1,
+          entries: [
+            {
+              id: validId,
+              kind: "clone",
+              headSha: sha,
+              root: "/tmp/other",
+              path: "/tmp/pr-review-x/head",
+              parent: "/tmp/pr-review-x",
+            },
+          ],
+        }),
+      ],
+      [
+        "a relative root",
+        JSON.stringify({
+          version: 1,
+          entries: [
+            {
+              id: validId,
+              kind: "clone",
+              headSha: sha,
+              root: "tmp",
+              path: "/tmp/pr-review-x/head",
+              parent: "/tmp/pr-review-x",
             },
           ],
         }),
