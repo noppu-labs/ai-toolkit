@@ -254,11 +254,11 @@ const REVIEWED_HEAD = "Reviewed head:";
 
 const CHECKOUT_TEMPLATE = `## Checkout of the head
 
-The head is checked out at \`<CHECKOUT>\`, a clean checkout of \`<HEAD>\` with its
-dependencies installed. Work there: read and search files in that directory, run
-tests, linters, and type checkers from it, and build the brief there in place
-instead of creating a worktree. The \`git show\` and \`git grep\` fallback above is not
-needed for files there.`;
+The head is checked out at \`<CHECKOUT>\`, a clean checkout of \`<HEAD>\` where the
+orchestrator ran the project's install; the report says whether it succeeded. Work
+there: read and search files in that directory, run tests, linters, and type
+checkers from it, and build the brief there in place instead of creating a
+worktree. Read files there directly rather than through \`git show\` or \`git grep\`.`;
 
 // One pass over the template, so a slot value that itself contains a slot
 // token (a brief quoting `git diff <BASE>...<HEAD>`, a title) is left alone.

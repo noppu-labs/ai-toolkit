@@ -133,6 +133,29 @@ function linesOf(text: string, skip: readonly string[]): string[] {
     .filter((line) => !skip.some((prefix) => line.startsWith(prefix)));
 }
 
+// The text from a heading to the next heading of the same or a higher level.
+function sectionOf(source: string, heading: string): string {
+  const start: number = source.indexOf(`\n${heading}\n`);
+
+  if (start < 0) {
+    throw new Error(`section ${heading} not found`);
+  }
+
+  const depth: number = heading.indexOf(" ");
+  const next: RegExpExecArray | null = new RegExp(`\\n#{1,${depth}} `).exec(
+    source.slice(start + 1),
+  );
+
+  return source.slice(
+    start,
+    next === null ? undefined : start + 1 + next.index,
+  );
+}
+
+// The first paragraph of the cleanup section names what the run waits for, and
+// the two copies wait for different things.
+const CLEANUP_OWN_LINES: readonly string[] = ["Undo what step 1 set up"];
+
 // OpenCode has no `code-review` level, so the size script's output reads
 // differently.
 const STEP_ONE_OWN_LINES: readonly string[] = ["It prints one line"];
@@ -157,9 +180,26 @@ const STACK_TOP_CODE_REVIEW_CLAUSE: string =
 const CODE_REVIEW_MISMATCH_CLAUSE: string =
   " When the first pass was `code-review`, the line goes on: `The code-review pass gets a PR number and no instruction to read at the head, so its findings may come from the working tree.`";
 
-function applyStepFourSwaps(source: string): string {
-  const withoutClause: string = swapOnce(
+const WORKTREE_MISMATCH_SENTENCE: string =
+  "For a PR that got a worktree, leave out everything before the `code-review` sentence: its stages and gates ran in the worktree at its head, so only that sentence still holds, and it is printed alone when the first pass was `code-review`.";
+
+// OpenCode names its shell tool `bash`.
+function applyStepOneSwaps(source: string): string {
+  return swapOnce(
     source,
+    "one Bash call at a time",
+    "one `bash` call at a time",
+  );
+}
+
+function applyStepFourSwaps(source: string): string {
+  const withoutWorktreeClaude: string = swapOnce(
+    source,
+    WORKTREE_MISMATCH_SENTENCE,
+    "For a PR that got a worktree, the line is not printed, since its stages and gates ran in the worktree at its head.",
+  );
+  const withoutClause: string = swapOnce(
+    withoutWorktreeClaude,
     CODE_REVIEW_MISMATCH_CLAUSE,
     "",
   );
@@ -210,7 +250,42 @@ describe("OpenCode pr-review override", () => {
     ];
 
     expect(linesOf(stepOf(override, 1), skip)).toEqual(
-      linesOf(stepOf(claude, 1), skip),
+      linesOf(applyStepOneSwaps(stepOf(claude, 1)), skip),
+    );
+  });
+
+  it("keeps the cleanup section in step with the Claude skill, bar its first paragraph", () => {
+    expect(
+      linesOf(
+        sectionOf(override, "## Cleanup on every exit"),
+        CLEANUP_OWN_LINES,
+      ),
+    ).toEqual(
+      linesOf(sectionOf(claude, "## Cleanup on every exit"), CLEANUP_OWN_LINES),
+    );
+    expect(
+      linesOf(sectionOf(override, "## Cleanup on every exit"), []).filter(
+        (line) => line.startsWith(CLEANUP_OWN_LINES[0] ?? ""),
+      ),
+    ).toHaveLength(1);
+    expect(
+      linesOf(sectionOf(claude, "## Cleanup on every exit"), []).filter(
+        (line) => line.startsWith(CLEANUP_OWN_LINES[0] ?? ""),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("keeps the head-setup section in step with the Claude skill", () => {
+    const skip: readonly string[] = [
+      ...STEP_ONE_OWN_LINES,
+      ...STEP_ONE_CLAUDE_ONLY_LINES,
+    ];
+
+    expect(linesOf(sectionOf(override, "### Set up the head"), skip)).toEqual(
+      linesOf(
+        applyStepOneSwaps(sectionOf(claude, "### Set up the head")),
+        skip,
+      ),
     );
   });
 
@@ -359,10 +434,23 @@ describe("head setup", () => {
       });
 
       it("has one cleanup section that the stop paths point to", () => {
+        const pointer: string = "`## Cleanup on every exit`";
+        const stop: string =
+          stepOf(source, 1)
+            .split("\n")
+            .find((line) => line.startsWith("State the resolved pairs")) ?? "";
+        const stepThree: string = stepOf(source, 3);
+        const holdMarker: string =
+          name === "claude"
+            ? "If the run stops after agents have run"
+            : "A subagent cannot spawn subagents";
+        const hold: string =
+          stepThree.split("\n").find((line) => line.startsWith(holdMarker)) ??
+          "";
+
         expect(source.split("\n## Cleanup on every exit\n")).toHaveLength(2);
-        expect(
-          source.split("Cleanup on every exit").length - 1,
-        ).toBeGreaterThanOrEqual(3);
+        expect(stop).toContain(pointer);
+        expect(hold).toContain(pointer);
       });
 
       it("keeps the setup section inside step 1", () => {
