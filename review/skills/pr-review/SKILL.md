@@ -142,6 +142,20 @@ When the prompt that invoked this skill asks for instructions to reach the stage
 
 The script appends them to that agent's prompt after the filled template and before the trailer, under `## Additional instructions from the caller`, `all` first and the agent's own key after it; `all` reaches the brief and all three stages. An instruction that fits no single stage goes under `all`. Give each PR of a stack its own `out=` path, since the comments stages of a stack run at once. A PR without `instructions` gets no such section. The script rejects an unknown key, or a value that is not a non-empty string, naming the key. Never rewrite the templates to carry the caller's instructions, and never drop them.
 
+When step 1 set up a scratch worktree of the head for a PR, add `checkout`, the absolute path of that worktree, to that PR. The script appends the `Checkout of the head` block below, with that path and `headSha` filled in, to the brief and to every stage prompt of that PR, before any caller instructions, and logs the path. It rejects an empty or relative path. A PR without `checkout` gets no such block.
+
+```json
+{
+  "number": 117,
+  "title": "<title>",
+  "base": "origin/<baseRefName>",
+  "head": "pr-review/<n>",
+  "headSha": "<HEAD_SHA>",
+  "url": "<url>",
+  "checkout": "/tmp/pr-review-117"
+}
+```
+
 The Workflow tool exists only in Claude Code with workflows enabled. When it is not listed (another harness, `disableWorkflows`, a plan without workflows), or the call fails before any agent runs (a syntax error in the script, a refused launch, or `not found` because only the skill is installed, as after `npx skills add`), continue as written: build the briefs, dispatch the stage subagents, and consolidate by hand. Both paths produce the same report shape. The exception is a rejected `args`: the call fails before any agent runs, but the tool result names the field, as in `args[0].instructions.typesafety is not a known key`, so fix that field and call the workflow once more instead of continuing by hand.
 
 If the run stops after agents have run (the tool result reports an error, or the run was stopped from `/workflows`), relaunch it once with the `scriptPath` and `resumeFromRunId` from the first result and the same `args` verbatim, `instructions` included, as the Workflow tool documents: completed agents return their saved results, and the failed agent and those started after it run again. The same relaunch covers a PR where one or two stage sections read `The stage did not report.` (that stage's agent died or exhausted its schema retries): its completed agents return from the saved results and the missing stage runs again. When a stage is still missing after the relaunch, dispatch that stage by hand with the template below and a brief rebuilt per step 2, and replace its roll-up line. A PR whose three stage sections all read `The stage did not report.` did not complete inside the workflow: build its brief and dispatch its three stage subagents by hand, as below, and write that PR's section by the step 4 rules before the first-pass merge, replacing its roll-up line `PR <n>: the pipeline stopped before consolidation, so no stage reported` with what those stages skipped.
@@ -217,6 +231,20 @@ Each prompt is one of the templates below with these slots filled:
 | `<PR_URL>` | the PR url |
 
 Instructions the invoking prompt asked to add to a stage, or to every stage, go after the filled template, under `## Additional instructions from the caller`, the same place the workflow puts them, and never inside the template. Instructions aimed at the brief, or at every agent, apply to step 2 whenever it runs by hand, including a brief rebuilt after a relaunch.
+
+When step 1 set up a scratch worktree for a PR, append this block, filled, after each filled stage template and before any caller instructions, and use that worktree for the brief of step 2. On the workflow path, pass the worktree path as that PR's `checkout`.
+
+Checkout block:
+
+```text
+## Checkout of the head
+
+The head is checked out at `<CHECKOUT>`, a clean checkout of `<HEAD>` with its
+dependencies installed. Work there: read and search files in that directory, run
+tests, linters, and type checkers from it, and build the brief there in place
+instead of creating a worktree. The `git show` and `git grep` fallback above is not
+needed for files there.
+```
 
 Correctness stage, the second pass:
 

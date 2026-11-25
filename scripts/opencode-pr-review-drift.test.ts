@@ -45,6 +45,7 @@ const MARKERS: readonly string[] = [
   "Correctness stage, the second pass:",
   "Type safety stage:",
   "Comments stage:",
+  "Checkout block:",
 ];
 
 function fencedAfter(source: string, marker: string): string {

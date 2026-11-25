@@ -13,6 +13,7 @@ type Pr = {
   headSha: string;
   url: string;
   instructions?: Instructions;
+  checkout?: string;
 };
 
 type Skipped = { tool: string; reason: string };
@@ -764,6 +765,94 @@ describe("instructions", () => {
   });
 });
 
+function filledCheckoutBlock(pr: Pr): string {
+  return fill(fencedAfter("Checkout block:"), {
+    CHECKOUT: pr.checkout ?? "",
+    HEAD: pr.headSha,
+  });
+}
+
+describe("checkout", () => {
+  const CHECKOUT_HEADING: string = "## Checkout of the head";
+  const PATH: string = "/tmp/pr-review-117";
+
+  it("appends the checkout block to the brief and every stage prompt, before instructions", async () => {
+    const pr = makePr({ checkout: PATH, instructions: { all: "X" } });
+    const run = await runScript([pr], cleanFixtures(pr));
+    const block = filledCheckoutBlock(pr);
+
+    expect(block).toContain(PATH);
+    expect(block).toContain(HEAD_SHA);
+
+    const expectedStart: Array<[string, string]> = [
+      ["brief:117", briefTemplate(pr)],
+      ...STAGE_KEYS.map((key): [string, string] => [
+        `${key}:117`,
+        stageTemplate(key, pr, "BRIEF TEXT"),
+      ]),
+    ];
+
+    for (const [label, template] of expectedStart) {
+      const prompt = findPrompt(run, label).prompt;
+
+      expect(prompt).toContain(
+        `${template}\n\n${block}\n\n${INSTRUCTIONS_HEADING}`,
+      );
+      expect(prompt.indexOf(block)).toBeLessThan(
+        prompt.indexOf(INSTRUCTIONS_HEADING),
+      );
+    }
+  });
+
+  it("leaves prompts byte-for-byte unchanged without checkout", async () => {
+    const pr = makePr();
+    const run = await runScript([pr], cleanFixtures(pr));
+
+    expect(findPrompt(run, "brief:117").prompt).toContain(
+      `${briefTemplate(pr)}\n\n${BRIEF_TRAILER_START}`,
+    );
+
+    for (const key of STAGE_KEYS) {
+      expect(findPrompt(run, `${key}:117`).prompt).toContain(
+        `${stageTemplate(key, pr, "BRIEF TEXT")}\n\n${STAGE_TRAILER_START}`,
+      );
+    }
+
+    for (const entry of run.prompts) {
+      expect(entry.prompt).not.toContain(CHECKOUT_HEADING);
+    }
+  });
+
+  it("keeps one PR's checkout out of the other PR's prompts", async () => {
+    const first = makePr({ checkout: PATH });
+    const second = makePr({ number: 118 });
+    const run = await runScript([first, second], {
+      ...cleanFixtures(first),
+      ...cleanFixtures(second),
+    });
+
+    for (const entry of run.prompts) {
+      const has = entry.prompt.includes(CHECKOUT_HEADING);
+
+      expect(has).toBe(entry.label.endsWith(":117"));
+    }
+
+    expect(run.logs).toContain("PR 117: working in /tmp/pr-review-117");
+  });
+
+  it("copies the checkout block from SKILL.md verbatim", async () => {
+    const pr = makePr({ checkout: "C:\\work\\pr 117" });
+    const run = await runScript([pr], cleanFixtures(pr));
+    const block = filledCheckoutBlock(pr);
+
+    expect(run.prompts).toHaveLength(4);
+
+    for (const entry of run.prompts) {
+      expect(entry.prompt).toContain(block);
+    }
+  });
+});
+
 describe("args", () => {
   it.each([
     [undefined, /non-empty array/],
@@ -797,6 +886,18 @@ describe("args", () => {
     [
       [{ ...makePr(), headSha: 59_867 }],
       /args\[0\]\.headSha must be the full 40-character SHA/,
+    ],
+    [
+      [{ ...makePr(), checkout: "" }],
+      /args\[0\]\.checkout must be an absolute path/,
+    ],
+    [
+      [{ ...makePr(), checkout: "relative/dir" }],
+      /args\[0\]\.checkout must be an absolute path/,
+    ],
+    [
+      [{ ...makePr(), checkout: 7 }],
+      /args\[0\]\.checkout must be an absolute path/,
     ],
     [
       [{ ...makePr(), instructions: "be strict" }],
@@ -849,11 +950,11 @@ function argsExamples(): unknown[][] {
 }
 
 describe("args examples in SKILL.md", () => {
-  it("has the plain example and the one with instructions", () => {
-    expect(argsExamples()).toHaveLength(2);
+  it("has the plain example, the one with instructions, and the one with checkout", () => {
+    expect(argsExamples()).toHaveLength(3);
   });
 
-  it.each([0, 1])(
+  it.each([0, 1, 2])(
     "example %i passes the script's validation",
     async (index) => {
       const args = argsExamples()[index] ?? [];

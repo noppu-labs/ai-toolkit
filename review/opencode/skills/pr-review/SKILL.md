@@ -158,6 +158,20 @@ Each prompt is one of the templates below with these slots filled:
 
 Instructions the invoking prompt asked to add to a stage, or to every stage, go after the filled template, under `## Additional instructions from the caller`, and never inside the template. Instructions aimed at the brief, or at every agent, apply to step 2.
 
+When step 1 set up a scratch worktree for a PR, append this block, filled, after each filled stage template and before any caller instructions, and use that worktree for the brief of step 2. On the workflow path, pass the worktree path as that PR's `checkout`.
+
+Checkout block:
+
+```text
+## Checkout of the head
+
+The head is checked out at `<CHECKOUT>`, a clean checkout of `<HEAD>` with its
+dependencies installed. Work there: read and search files in that directory, run
+tests, linters, and type checkers from it, and build the brief there in place
+instead of creating a worktree. The `git show` and `git grep` fallback above is not
+needed for files there.
+```
+
 Correctness stage, the second pass:
 
 ```text

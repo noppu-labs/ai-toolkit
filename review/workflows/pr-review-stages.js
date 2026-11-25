@@ -252,10 +252,18 @@ const PASS_LABEL = "hand review only";
 // every PR, whether or not its stages reported.
 const REVIEWED_HEAD = "Reviewed head:";
 
+const CHECKOUT_TEMPLATE = `## Checkout of the head
+
+The head is checked out at \`<CHECKOUT>\`, a clean checkout of \`<HEAD>\` with its
+dependencies installed. Work there: read and search files in that directory, run
+tests, linters, and type checkers from it, and build the brief there in place
+instead of creating a worktree. The \`git show\` and \`git grep\` fallback above is not
+needed for files there.`;
+
 // One pass over the template, so a slot value that itself contains a slot
 // token (a brief quoting `git diff <BASE>...<HEAD>`, a title) is left alone.
 function fill(template, slots) {
-  return template.replace(/<(BRIEF|BASE|HEAD|PR_TITLE|PR_URL)>/g, (token, slot) =>
+  return template.replace(/<(BRIEF|BASE|HEAD|PR_TITLE|PR_URL|CHECKOUT)>/g, (token, slot) =>
     slot in slots ? slots[slot] : token,
   );
 }
@@ -291,6 +299,8 @@ function validateInstructions(value, at) {
 // A ref name or a shortened SHA would not compare with a caller's `git rev-parse HEAD`.
 const FULL_SHA = /^[0-9a-f]{40}$/;
 
+const ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:[\\/])/;
+
 function validatePr(item, index) {
   const at = `args[${index}]`;
   if (item === null || typeof item !== "object" || Array.isArray(item)) {
@@ -308,6 +318,9 @@ function validatePr(item, index) {
     throw new Error(`${at}.headSha must be the full 40-character SHA that git rev-parse prints for head`);
   }
   const instructions = validateInstructions(item.instructions, `${at}.instructions`);
+  if (item.checkout !== undefined && !(typeof item.checkout === "string" && ABSOLUTE_PATH.test(item.checkout))) {
+    throw new Error(`${at}.checkout must be an absolute path`);
+  }
   return {
     number: item.number,
     title: item.title,
@@ -316,6 +329,7 @@ function validatePr(item, index) {
     headSha: item.headSha,
     url: item.url,
     instructions,
+    checkout: item.checkout,
   };
 }
 
@@ -324,7 +338,7 @@ function validateArgs(input) {
     throw new Error("args arrived as a string; pass the PR list as a JSON array value, not a JSON-encoded string");
   }
   if (!Array.isArray(input) || input.length === 0) {
-    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, headSha, url, instructions? }, ...]");
+    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, headSha, url, instructions?, checkout? }, ...]");
   }
   const prs = input.map((pr, index) => validatePr(pr, index));
   const numbers = new Set();
@@ -351,13 +365,21 @@ function instructionsBlock(pr, key) {
   return parts.length === 0 ? "" : `${INSTRUCTIONS_HEADING}\n\n${parts.join("\n\n")}\n\n`;
 }
 
+// Ends in its own blank line, like instructionsBlock.
+function checkoutBlock(pr) {
+  if (pr.checkout === undefined) {
+    return "";
+  }
+  return `${fill(CHECKOUT_TEMPLATE, { CHECKOUT: pr.checkout, HEAD: pr.headSha })}\n\n`;
+}
+
 // `<HEAD>` is filled with `headSha`, never `head`: `refs/pr-review/<n>` is
 // shared by every worktree of the clone, so a second review of the same PR
 // can move it while this run's agents are still reading.
 function briefPrompt(pr) {
   const header = `Build the structural brief for PR #${pr.number} "${pr.title}" (${pr.url}). Base ref ${pr.base}, head ref ${pr.headSha}. Only what the branch adds is in scope: git diff ${pr.base}...${pr.headSha}, three dots. Do not review the change; the brief is the input every reviewer of this PR gets.`;
   const body = fill(STEP2_TEMPLATE, { BASE: pr.base, HEAD: pr.headSha });
-  return `${header}\n\n${body}\n\n${instructionsBlock(pr, "brief")}${BRIEF_TRAILER}`;
+  return `${header}\n\n${body}\n\n${checkoutBlock(pr)}${instructionsBlock(pr, "brief")}${BRIEF_TRAILER}`;
 }
 
 function stagePrompt(stage, pr, brief) {
@@ -368,7 +390,7 @@ function stagePrompt(stage, pr, brief) {
     PR_TITLE: pr.title,
     PR_URL: pr.url,
   });
-  return `${body}\n\n${instructionsBlock(pr, stage.key)}${STAGE_TRAILER}`;
+  return `${body}\n\n${checkoutBlock(pr)}${instructionsBlock(pr, stage.key)}${STAGE_TRAILER}`;
 }
 
 async function runBrief(pr) {
@@ -586,6 +608,9 @@ const prs = validateArgs(args);
 log(`Reviewing ${prs.length} PR${prs.length === 1 ? "" : "s"}: ${prs.map((pr) => pr.number).join(", ")}`);
 for (const pr of prs) {
   log(`PR ${pr.number}: reviewing ${pr.headSha} (head ${pr.head})`);
+  if (pr.checkout !== undefined) {
+    log(`PR ${pr.number}: working in ${pr.checkout}`);
+  }
 }
 const items = await pipeline(prs, runBrief, runStages);
 phase("Consolidate");
