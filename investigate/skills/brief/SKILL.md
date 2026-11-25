@@ -103,9 +103,9 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
   name with a space are two examples; `user-profile.blade.php` and `vite.config.ts` keep
   their sections. The brief runs no search for such a file, so its callers are UNRESOLVED.
   A line counts as a reference only when no letter, mark, number, `_` or `$` sits right
-  before or after the name. After a name taken from a file name, a `-` also ends the match:
-  `button` does not list `<x-button-group />`, and a file named `retries.ts` with no named
-  export does not list `retries--`. A `.` on either side and a `-` before the name still
+  before or after the name. For a name taken from a file name, a `-` right after it also
+  rules the line out: `button` does not list `<x-button-group />`, and a file named
+  `retries.ts` with no named export does not list `retries--`. A `.` on either side and a `-` before the name still
   count as boundaries, so `vite.config` also lists `vite.config.local` and `user-profile`
   also lists `admin-user-profile`. Check such lines by hand.
 - **Third-party surface**: each package the target imports, with its INSTALLED version and
@@ -126,12 +126,12 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
   parent-class callers, string-based dynamic usage, and third-party behaviour. Anything not
   listed in the brief is UNRESOLVED, not absent.
 
-Each line of the brief is one line of output. A line break, another control character
-except tab, or a format character such as U+202E in anything the brief quotes (a path, a
-lockfile string, a source line, a tool's output) prints as an escape such as `\n`, and
-codegraph's lines are indented. Nothing from the repository can add a line or start a
-heading. A backslash prints as itself, so `\n` in a path can also be a backslash and an `n`
-in the file's name: a printed path is for reading, not for pasting into a command.
+A line break, another control character except tab, or a format character such as U+202E
+in anything the brief quotes (a path, a lockfile string, a source line, a tool's output)
+prints as an escape such as `\n`, and codegraph's lines are indented, so nothing from the
+repository can add a line or start a heading. A backslash prints as itself, so `\n` in a
+path can also be a backslash and an `n` in the file's name. Read a printed path; do not
+paste it into a command.
 
 ## Doc-source verdicts
 
