@@ -1366,7 +1366,7 @@ describe("brief.mjs and the codegraph index", () => {
       );
       const r = runWithFakeCodegraph(cwd, ".");
       expect(r.status).toBe(0);
-      const shown = outer.replace("\n", "\\n");
+      const shown = outer.replaceAll("\n", "\\n");
       expect(r.stdout).toContain(
         `- codegraph: ran (index in ${shown}, a directory above this repository)`,
       );
