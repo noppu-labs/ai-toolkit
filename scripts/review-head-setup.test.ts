@@ -541,6 +541,34 @@ describe("head-setup.mjs", () => {
       }
     });
 
+    it("lists opencode.json, opencode.jsonc and .opencode at any depth", () => {
+      const { dir, head } = makeFixture(
+        {},
+        {
+          "opencode.json": "1\n",
+          "opencode.jsonc": "1\n",
+          ".opencode/plugin.ts": "1\n",
+          "app/opencode.json": "1\n",
+          "app/opencode.jsonc": "1\n",
+          "app/.opencode/agent/a.md": "1\n",
+          "app/notopencode.json": "1\n",
+          "other.txt": "1\n",
+        },
+      );
+
+      expect(
+        headsOf({ status: 0, json: plan(dir, head), stderr: "" })[0]
+          ?.sessionConfig,
+      ).toEqual([
+        ".opencode/plugin.ts",
+        "app/.opencode/agent/a.md",
+        "app/opencode.json",
+        "app/opencode.jsonc",
+        "opencode.json",
+        "opencode.jsonc",
+      ]);
+    });
+
     it("diffs session config against the current commit, not the base", () => {
       const dir = makeRepo({
         ".claude/a.md": "1\n",
@@ -1447,6 +1475,87 @@ describe("head-setup.mjs", () => {
       expect(
         scratchEntries().filter((name) => name.startsWith("pr-review-")),
       ).toHaveLength(1);
+    });
+  });
+
+  describe("restore with ids", () => {
+    function idOf(outcome: Outcome): string {
+      const id = outcome.json.id;
+
+      if (typeof id !== "string") {
+        throw new Error("no id in the output");
+      }
+
+      return id;
+    }
+
+    it("prints the entry's id from every enter", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const worktree = enter(dir, "worktree", head);
+      const clone = enter(dir, "clone", head);
+
+      expect(readRecord(dir).entries.map((entry) => entry.id)).toEqual([
+        idOf(worktree),
+        idOf(clone),
+      ]);
+      expect(idOf(enter(dir, "checkout", head))).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it("restores only the named entries and keeps the total in recorded", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const left = enter(dir, "worktree", head);
+      const mine = enter(dir, "worktree", head);
+      const outcome = run(dir, ["restore", idOf(mine)]);
+
+      expect(outcome.status).toBe(0);
+      expect(outcome.json).toMatchObject({ ok: true, recorded: 2 });
+      expect(listAt(outcome.json, "restored")).toMatchObject([
+        { id: idOf(mine) },
+      ]);
+      expect(existsSync(pathOf(mine))).toBe(false);
+      expect(existsSync(pathOf(left))).toBe(true);
+      expect(readRecord(dir).entries).toMatchObject([{ id: idOf(left) }]);
+    });
+
+    it("still restores everything without arguments", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const first = enter(dir, "worktree", head);
+      const second = enter(dir, "worktree", head);
+
+      expect(run(dir, ["restore"]).status).toBe(0);
+      expect(existsSync(pathOf(first))).toBe(false);
+      expect(existsSync(pathOf(second))).toBe(false);
+    });
+
+    it("refuses a malformed or unknown id and touches nothing", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const entered = enter(dir, "worktree", head);
+      const before = readFileSync(recordPath(dir), "utf8");
+
+      for (const [args, reason] of [
+        [["not-an-id"], "bad-id"],
+        [["--all"], "bad-id"],
+        [[idOf(entered), "22222222-2222-2222-2222-222222222222"], "unknown-id"],
+      ] as const) {
+        const outcome = run(dir, ["restore", ...args]);
+
+        expect(outcome.status).toBe(1);
+        expect(outcome.json).toMatchObject({ ok: false, reason });
+        expect(existsSync(pathOf(entered))).toBe(true);
+        expect(readFileSync(recordPath(dir), "utf8")).toBe(before);
+      }
+    });
+
+    it("reports recorded 0 for an id from the wrong directory", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const entered = enter(dir, "worktree", head);
+      const wrong = run(pathOf(entered), ["restore", idOf(entered)]);
+
+      expect(wrong.status).toBe(1);
+      expect(wrong.json).toMatchObject({
+        reason: "unknown-id",
+        recorded: 0,
+      });
     });
   });
 

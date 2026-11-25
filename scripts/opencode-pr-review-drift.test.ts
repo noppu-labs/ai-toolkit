@@ -430,8 +430,11 @@ const SAFETY_SENTENCES: readonly string[] = [
   "`ok: false` means continue as is, with its reason recorded.",
   "no project entry point and no `.env` copy in the user's checkout",
   "enter worktree <HEAD_SHA> --scratch '<dir>'",
-  "not for lockfiles under test or fixture directories",
-  'Otherwise install only for the lockfiles the plan reports `changed` or with `dependencies: "missing"`, each with its own command',
+  "choose the root lockfile and those the gates need, never lockfiles under test or fixture directories",
+  'Otherwise install only for the chosen lockfiles the plan reports `changed` or with `dependencies: "missing"`: no project entry point and no `.env` copy in the user\'s checkout.',
+  "says the scripts run in the user's checkout, and says the user's own dependencies are reinstalled after switching back when a lockfile changed",
+  "When the plan has a `record` and a question can be asked, ask about it first, in its own question: restore it (`restore` with no ids), or leave it.",
+  "After a restore, run the plan again before the setup question, because the tree moved, and name the `changedLockfiles` the restore printed in the report without reinstalling them.",
   "A command that fails is recorded with its reason and the review goes on.",
   "git -C '<path>' status --porcelain --untracked-files=no",
   "git -C '<path>' reset --hard <HEAD_SHA>",
@@ -446,7 +449,8 @@ const WITHOUT_SCRIPTS_ROWS: readonly string[] = [
   "| uv | `uv sync --frozen --no-install-local --no-build` |",
   "| poetry | `--no-root --no-directory`, with `POETRY_INSTALLER_ONLY_BINARY=:all:` |",
   "| go | `go mod download`, unchanged |",
-  "| bundler, any project entry point | no install; say why |",
+  "| bundler | no install; say why |",
+  "| a project entry point | not run; the chosen lockfiles' commands run with the flags above, or no install when there is none |",
 ];
 
 const APPEND_RULE: string =
@@ -470,10 +474,11 @@ const OVERRIDE_CLEANUP_ORDER: readonly string[] = [
 ];
 
 const CLEANUP_SENTENCES: readonly string[] = [
-  "head-setup.mjs restore` from the directory step 1 ran in.",
-  "`recorded: 0` after an `enter` means the wrong directory: say so and rerun there.",
-  "For each `changedLockfiles` entry that this run installed, run its normal command again in the user's checkout, scripts on.",
-  "For each `declined` entry, print its reason, paths and command, and reinstall nothing for it.",
+  "head-setup.mjs restore <id>...` from the directory step 1 ran in",
+  "`recorded: 0` after an `enter`, in a result or in an `unknown-id` refusal, means the wrong directory: say so and rerun there.",
+  "For each `changedLockfiles` entry that this run installed, run its normal command again in the user's checkout, scripts on, as the installs paragraph of step 1 says.",
+  "For each `declined` entry, print its reason, its paths and its command when it has one, and reinstall nothing for it.",
+  "with the `id` each `enter` of this run printed and never an id from a leftover record",
 ];
 
 describe("head setup", () => {
@@ -608,6 +613,12 @@ describe("head setup, Claude copy only", () => {
     );
     expect(sectionOf(override, "### Set up the head")).not.toContain(
       "code-review",
+    );
+  });
+
+  it("never lets the first-pass merge add a second setup line", () => {
+    expect(stepOf(claude, 4)).toContain(
+      "the script has written each setup line from its PR's `setup`, so the merge never adds one; add only the stack-top lines and the cleanup lines there too.",
     );
   });
 

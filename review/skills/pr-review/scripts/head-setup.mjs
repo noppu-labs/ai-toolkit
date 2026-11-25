@@ -7,7 +7,7 @@
 // Usage (run anywhere inside the working tree):
 //   node head-setup.mjs plan <head-sha>...
 //   node head-setup.mjs enter checkout|worktree|clone <head-sha>
-//   node head-setup.mjs restore
+//   node head-setup.mjs restore [<id>...]
 //   node head-setup.mjs forget
 //
 // It never installs anything and never runs a file from the tree. Every git
@@ -62,6 +62,9 @@ const SESSION_PATHSPECS = [
   ".mcp.json",
   ":(glob)**/.claude/**",
   ":(glob)**/.mcp.json",
+  ":(glob)**/opencode.json",
+  ":(glob)**/opencode.jsonc",
+  ":(glob)**/.opencode/**",
 ];
 const OPERATION_MARKERS = [
   "MERGE_HEAD",
@@ -558,6 +561,7 @@ function enterCheckout(ctx, sha, entries) {
 
   return {
     ok: true,
+    id: entry.id,
     kind: "checkout",
     headSha: sha,
     from: entry.branch ?? fromSha,
@@ -711,7 +715,13 @@ function enterWorktree(ctx, sha, entries, requested) {
     abandonScratch(ctx, scratch.entry, result.stderr.trim());
   }
 
-  return { ok: true, kind: "worktree", headSha: sha, path: scratch.entry.path };
+  return {
+    ok: true,
+    id: scratch.entry.id,
+    kind: "worktree",
+    headSha: sha,
+    path: scratch.entry.path,
+  };
 }
 
 function originUrl(ctx) {
@@ -775,6 +785,7 @@ function enterClone(ctx, sha, entries, requested) {
 
   return {
     ok: true,
+    id: scratch.entry.id,
     kind: "clone",
     headSha: sha,
     path: scratch.entry.path,
@@ -1029,13 +1040,35 @@ const RESTORERS = new Map([
   ["clone", restoreClone],
 ]);
 
-function runRestore(ctx) {
+function selectEntries(entries, ids) {
+  if (ids.length === 0) {
+    return entries;
+  }
+
+  for (const id of ids) {
+    if (!UUID.test(id)) {
+      refuse("bad-id", `${id} is not an entry id printed by enter`, {
+        recorded: entries.length,
+      });
+    }
+
+    if (!entries.some((entry) => entry.id === id)) {
+      refuse("unknown-id", `${id} is not recorded for this working tree`, {
+        recorded: entries.length,
+      });
+    }
+  }
+
+  return entries.filter((entry) => ids.includes(entry.id));
+}
+
+function runRestore(ctx, ids) {
   const restored = [];
   const declined = [];
   const lockfiles = [];
   const entries = requireRecord(ctx);
 
-  for (const entry of [...entries].reverse()) {
+  for (const entry of [...selectEntries(entries, ids)].reverse()) {
     const outcome = RESTORERS.get(entry.kind)(ctx, entry);
     const named = { id: entry.id, kind: entry.kind, headSha: entry.headSha };
 
