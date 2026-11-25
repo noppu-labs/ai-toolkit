@@ -74,6 +74,7 @@ Every tool the brief used reports a status. Read these before trusting any other
 | `FAILED (...)` | Tool is present but errored. Treat its section as UNRESOLVED, not empty. |
 | `unavailable (<note>)`, `UNAVAILABLE (no global fetch)` | Tool could not run. Section is UNRESOLVED. |
 | `not on PATH`, `no .codegraph index` | Tool absent. Section is UNRESOLVED, not empty. |
+| `ran (index in <dir>, a directory above this repository)` | The repository has no codegraph database of its own, so codegraph read the nearest one above it, as codegraph itself does. The Module graph is that project's and can name code outside this repository. |
 | `skipped (--no-lsp)`, `skipped (--no-docs)` | Deliberately not run. |
 | `skipped (… where the server loads code from; set INVESTIGATE_BRIEF_TRUST_REPO_TS=1 to run it)`, `skipped (the TypeScript the server would run (…) loads a plugin from any path …)`, `skipped (could not tell whether the repository tracks code the server loads …)` | The TypeScript pass did not start, because it could have run code the repository supplies. Callers come from the wiring scan only. Run it anyway only for a repository you trust. |
 | `skipped (.codegraph is tracked by git)`, `skipped (could not tell whether git tracks .codegraph)` | codegraph did not run, and the brief has no Module graph section. Either the repository commits files under `.codegraph` other than the `.gitignore` codegraph writes there, so the index came with the repository, or git could not list that folder. |
@@ -98,18 +99,25 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
   `(file name cannot be used as a symbol; no symbol section)` marks a file that takes its
   symbol from its file name (a PHP file, or a JS/TS file with no usable export name) when
   that name does not start with a letter, `_` or `$`, or holds anything other than letters,
-  digits, `_`, `$`, `.` and `-`. A migration that starts with a date and a name with a space
-  are two examples; `user-profile.blade.php` and `vite.config.ts` keep their sections. The
-  brief runs no search for such a file, so its callers are UNRESOLVED. The brief prints a
-  line break or another control character in a path as an escape such as `\n`, so a path
-  never spans two lines and cannot start a heading.
+  combining marks, numbers, `_`, `$`, `.` and `-`. A migration that starts with a date and a
+  name with a space are two examples; `user-profile.blade.php` and `vite.config.ts` keep
+  their sections. The brief runs no search for such a file, so its callers are UNRESOLVED.
+  A line counts as a reference only when no letter, mark, number, `_` or `$` sits right
+  before or after the name. After a name taken from a file name, a `-` also ends the match:
+  `button` does not list `<x-button-group />`, and a file named `retries.ts` with no named
+  export does not list `retries--`. A `.` on either side and a `-` before the name still
+  count as boundaries, so `vite.config` also lists `vite.config.local` and `user-profile`
+  also lists `admin-user-profile`. Check such lines by hand.
 - **Third-party surface**: each package the target imports, with its INSTALLED version and
   where to read its source. Use these, never the manifest's caret range: `^3.1.0` is not a
   fact, `3.3.1` is. When no lockfile was read for the target's PHP or JS/TS sources, the
   section opens with an `UNRESOLVED: no <lockfile> was read` line.
 - **Doc sources**: per-package context7 id and a version-alignment verdict (see below).
-- **Module graph**: codegraph blast radius and inheritance edges, when a `.codegraph` index
-  exists that git does not track and the target has at least one symbol.
+- **Module graph**: codegraph blast radius and inheritance edges, when the target has at
+  least one symbol and codegraph has a database to read: the repository's own
+  `.codegraph/codegraph.db`, if git does not track it, or else the nearest directory above
+  the repository that holds one. When the database is above the repository, a line under
+  the heading names that directory. `no .codegraph index` means neither exists.
 - **Per-symbol sections**: for each class or function in scope, resolved method types
   (language server), verified callers, graph callers (a lower bound), textual wiring grouped
   into buckets (container resolution, provider bindings, DI type-hints, other references),
@@ -117,6 +125,13 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
 - **Unresolved by construction**: what no pass here can see, such as interface and
   parent-class callers, string-based dynamic usage, and third-party behaviour. Anything not
   listed in the brief is UNRESOLVED, not absent.
+
+Each line of the brief is one line of output. A line break, another control character
+except tab, or a format character such as U+202E in anything the brief quotes (a path, a
+lockfile string, a source line, a tool's output) prints as an escape such as `\n`, and
+codegraph's lines are indented. Nothing from the repository can add a line or start a
+heading. A backslash prints as itself, so `\n` in a path can also be a backslash and an `n`
+in the file's name: a printed path is for reading, not for pasting into a command.
 
 ## Doc-source verdicts
 
