@@ -7,21 +7,31 @@
 // lockfiles, install entry points, install hooks, runtime pins, the tools those
 // imply (and whether each is on PATH), and an env example file. The shape is
 // described by ../references/install-hints.schema.json. It decides nothing: the
-// caller picks the install command.
+// caller picks the install command. Install hooks come from every tracked
+// package.json and composer.json outside vendor/ and node_modules/ (workspace
+// members run theirs on install); entry-point scripts and runtime pins are read
+// only at the root and in lockfile directories.
 
 import { execFileSync } from "node:child_process";
 import { accessSync, constants, statSync } from "node:fs";
 import { delimiter, join, posix } from "node:path";
 
 const INSTALL_LIKE = /install|setup|bootstrap|init/i;
-const DOCS_HEADING = /install|setup|getting started|bootstrap/i;
-const SHA_ARG = /^[0-9a-fA-F]{4,40}$/;
+const DOCS_HEADING = /install|setup|getting started|bootstrap|init/i;
 const REF_ARG = /^[^-\s][^\s]*$/;
 
-const NPM_HOOKS = ["preinstall", "install", "postinstall", "prepare"];
+const NPM_HOOKS = [
+  "preinstall",
+  "install",
+  "postinstall",
+  "preprepare",
+  "prepare",
+  "postprepare",
+];
 const COMPOSER_HOOKS = [
   "pre-install-cmd",
   "post-install-cmd",
+  "pre-autoload-dump",
   "post-autoload-dump",
 ];
 
@@ -85,7 +95,7 @@ function git(args) {
 }
 
 function resolveCommit(arg) {
-  if (!SHA_ARG.test(arg) && !REF_ARG.test(arg)) {
+  if (!REF_ARG.test(arg)) {
     return null;
   }
 
@@ -289,21 +299,24 @@ function hookCommand(value) {
   return null;
 }
 
-function readManifests(read, dirs) {
+function readManifests(read, files) {
   const manifests = [];
   const kinds = [
     ["composer.json", "composer-script", COMPOSER_HOOKS],
     ["package.json", "npm-script", NPM_HOOKS],
   ];
 
-  for (const dir of dirs) {
-    for (const [file, kind, hooks] of kinds) {
-      const path = pathIn(dir, file);
-      const json = parseJsonObject(read(path));
+  for (const path of files) {
+    const kind = kinds.find(([file]) => posix.basename(path) === file);
 
-      if (json !== null) {
-        manifests.push({ path, kind, hooks, json });
-      }
+    if (kind === undefined || isVendored(path)) {
+      continue;
+    }
+
+    const json = parseJsonObject(read(path));
+
+    if (json !== null) {
+      manifests.push({ path, kind: kind[1], hooks: kind[2], json });
     }
   }
 
@@ -461,9 +474,12 @@ function collectHints(sha) {
   const read = makeReader(sha, tree);
   const lockfiles = findLockfiles(files, tree);
   const dirs = uniqueSorted(["", ...lockfiles.map((lock) => dirOf(lock.path))]);
-  const manifests = readManifests(read, dirs);
+  const manifests = readManifests(read, files);
+  const topManifests = manifests.filter((manifest) =>
+    dirs.includes(dirOf(manifest.path)),
+  );
   const entryPoints = sortBy(
-    [...findRootEntries(read, tree), ...findManifestEntries(manifests)],
+    [...findRootEntries(read, tree), ...findManifestEntries(topManifests)],
     "path",
     "kind",
   );
@@ -473,7 +489,7 @@ function collectHints(sha) {
     lockfiles,
     entryPoints,
     installHooks: findInstallHooks(manifests),
-    runtimes: findRuntimes(read, dirs, manifests),
+    runtimes: findRuntimes(read, dirs, topManifests),
     tools: findTools(lockfiles, entryPoints),
     envExample: findEnvExample(tree),
   };

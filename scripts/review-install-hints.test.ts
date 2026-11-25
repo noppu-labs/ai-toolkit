@@ -333,6 +333,58 @@ describe("install-hints.mjs", () => {
     ]);
   });
 
+  it("reports a workspace member's install hook but not a vendored one", () => {
+    const result = hints({
+      "package.json": JSON.stringify({ workspaces: ["packages/*"] }),
+      "package-lock.json": "{}\n",
+      "packages/a/package.json": JSON.stringify({
+        scripts: { postinstall: "node a.js", preprepare: "x", build: "y" },
+      }),
+      "packages/b/composer.json": JSON.stringify({
+        scripts: { "pre-autoload-dump": "@php b" },
+      }),
+      "vendor/pkg/composer.json": JSON.stringify({
+        scripts: { "post-install-cmd": "evil" },
+      }),
+      "packages/a/node_modules/x/package.json": JSON.stringify({
+        scripts: { postinstall: "evil" },
+      }),
+    });
+
+    expect(result.installHooks).toEqual([
+      {
+        path: "packages/a/package.json",
+        name: "postinstall",
+        command: "node a.js",
+      },
+      { path: "packages/a/package.json", name: "preprepare", command: "x" },
+      {
+        path: "packages/b/composer.json",
+        name: "pre-autoload-dump",
+        command: "@php b",
+      },
+    ]);
+    expect(result.entryPoints).toEqual([]);
+  });
+
+  it("recognises postprepare as an npm hook", () => {
+    const result = hints({
+      "package.json": JSON.stringify({ scripts: { postprepare: "p" } }),
+    });
+
+    expect(result.installHooks).toEqual([
+      { path: "package.json", name: "postprepare", command: "p" },
+    ]);
+  });
+
+  it("lists init headings in docs", () => {
+    const result = hints({ "README.md": "# T\n## Init the project\n" });
+
+    expect(result.entryPoints).toEqual([
+      { path: "README.md", kind: "docs-section", names: ["Init the project"] },
+    ]);
+  });
+
   it("lists docs headings about installing", () => {
     const result = hints({
       "README.md":
