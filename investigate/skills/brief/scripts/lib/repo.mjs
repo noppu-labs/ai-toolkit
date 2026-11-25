@@ -26,6 +26,11 @@ export const TS_EXT_RE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
 const TEST_FILE_RE = /\.(test|spec|stories)\.(?:[cm]?[jt]s|[jt]sx)$/;
 const MIN_NAME_LENGTH = 4;
 const IDENT_RE = /^[A-Za-z_$][\w$]*$/;
+// A symbol taken from a file name: a letter, `_` or `$` first, so it can never
+// read as an option, then letters, combining marks (macOS stores `é` as `e`
+// and a mark), digits, `_`, `$`, `.` and `-`. That keeps `user-profile` and
+// `vite.config`, and leaves out a dated migration, spaces and punctuation.
+const FILE_NAME_SYMBOL_RE = /^[\p{L}_$][\p{L}\p{M}\p{N}_$.-]*$/u;
 // `[^\S\r\n\u2028\u2029]` is `\s` minus line terminators, shared by EXPORT_RE,
 // EXPORT_LIST_RE, DEFAULT_IDENT_RE, CJS_DEFAULT_RE and CJS_NAMED_RE: `^\s*`
 // under the m flag rescans every following blank line from each line start
@@ -260,16 +265,16 @@ function symbolsOf(file, repoRoot) {
 }
 
 // A file name is whatever the repository's author typed, and a symbol name
-// becomes a command-line argument and a search pattern. Only an identifier is
-// a symbol: a name such as `--flag=value` would be read as an option. The
-// files left out are returned in `unnamed`, so the brief can say so.
+// becomes a command-line argument, a search pattern and a heading. A file whose
+// name fails FILE_NAME_SYMBOL_RE is returned in `unnamed`, so the brief can say
+// it has no section.
 export function deriveSymbols(files, repoRoot, maxSymbols) {
   const seen = new Set();
   const all = [];
   const unnamed = [];
   for (const file of files) {
     for (const sym of symbolsOf(file, repoRoot)) {
-      if (!IDENT_RE.test(sym.name)) {
+      if (!FILE_NAME_SYMBOL_RE.test(sym.name)) {
         unnamed.push(sym.file);
         continue;
       }

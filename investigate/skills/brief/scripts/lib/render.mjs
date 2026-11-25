@@ -85,7 +85,7 @@ export function renderIndex(freshness) {
 
 function fileNote(rel, notes) {
   if (notes?.unnamedFiles?.has(rel)) {
-    return " (file name is not an identifier; no symbol section)";
+    return " (file name cannot be used as a symbol; no symbol section)";
   }
   return notes?.basenameFiles?.has(rel)
     ? " (no named exports; basename used)"

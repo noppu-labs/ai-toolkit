@@ -151,14 +151,24 @@ describe("classifyHit", () => {
   });
 });
 
+// `git grep -z` output for lines written as path:line:text.
+function grepOutput(...lines: string[]): string {
+  return lines
+    .map((line) => {
+      const [file, lineNo, ...text] = line.split(":");
+      return `${file}\0${lineNo}\0${text.join(":")}\n`;
+    })
+    .join("");
+}
+
 describe("bucketHits", () => {
   it("drops internal hits, lets ast hits claim lines, and routes test paths to test", () => {
-    const grep = [
+    const grep = grepOutput(
       "app/Services/Invoice.php:2:class Invoice {}",
       "app/Providers/AppServiceProvider.php:2:$this->app->singleton(Invoice::class, fn () => new Invoice());",
       "app/Http/InvoiceController.php:3:public function __construct(Invoice $invoice)",
       "tests/InvoiceTest.php:2:$x = new Invoice();",
-    ].join("\n");
+    );
     const ast: Hit[] = [
       {
         category: "binding",
@@ -176,7 +186,9 @@ describe("bucketHits", () => {
   });
 
   it("lets an ast hit take a line the text classifier would file elsewhere", () => {
-    const grep = "app/Jobs/Run.php:3:$x = new Invoice(); // Invoice::class";
+    const grep = grepOutput(
+      "app/Jobs/Run.php:3:$x = new Invoice(); // Invoice::class",
+    );
     const ast: Hit[] = [
       {
         category: "container",
@@ -209,7 +221,7 @@ describe("bucketHits", () => {
     const b = wiring.bucketHits(
       "Invoice",
       "app/Services",
-      `app/Http/InvoiceController.php:3:${line}`,
+      grepOutput(`app/Http/InvoiceController.php:3:${line}`),
       null,
     );
     expect(b.typehint).toHaveLength(1);
@@ -227,11 +239,11 @@ describe("bucketHits", () => {
   });
 
   it("routes co-located *.test.* and *.spec.* files to test references", () => {
-    const grep = [
+    const grep = grepOutput(
       "src/use.spec.ts:1:import { Invoice } from './Invoice';",
       "src/Invoice.test.tsx:4:render(<Invoice />)",
       "src/page.tsx:2:<Invoice />",
-    ].join("\n");
+    );
     const b = wiring.bucketHits("Invoice", "lib", grep, null);
     expect(b.test?.map((h) => h.filePath)).toEqual([
       "src/use.spec.ts",
@@ -466,6 +478,62 @@ describe("astGrepScan", () => {
       hits: null,
       error: "ERROR: fake pattern failure",
     });
+  });
+});
+
+// git quotes a path holding a byte outside ASCII unless it is told not to, so
+// the quoted form never equals the relative path the brief compares it with.
+function makeOddPathRepo(): Ctx {
+  const cwd = mkdtempSync(join(tmpdir(), "investigate-wiring-paths-"));
+  git(cwd, "init", "-q", "-b", "main");
+  mkdirSync(join(cwd, "app", "Modèles"), { recursive: true });
+  writeFileSync(
+    join(cwd, "app", "Modèles", "InvoiceModel.php"),
+    "<?php\nclass InvoiceModel {}\n",
+  );
+  writeFileSync(join(cwd, "app", "use.php"), "<?php\nnew InvoiceModel();\n");
+  writeFileSync(join(cwd, "app", "a:b.php"), "<?php\nnew InvoiceModel();\n");
+  writeFileSync(
+    join(cwd, "app", "new\nline.php"),
+    "<?php\nnew InvoiceModel();\n",
+  );
+  writeFileSync(join(cwd, "app", "bin.php"), "InvoiceModel\0binary\n");
+  git(cwd, "add", ".");
+  git(cwd, "commit", "-q", "-m", "base");
+  return {
+    repoRoot: cwd,
+    relTarget: "app/Modèles",
+    files: [join(cwd, "app", "Modèles", "InvoiceModel.php")],
+    env: { PATH: NO_TOOLS_PATH },
+  };
+}
+
+describe("git grep output read by path", () => {
+  const own = "app/Modèles/InvoiceModel.php";
+
+  it("knows a non-ASCII path as the symbol's own file", () => {
+    const ctx = makeOddPathRepo();
+    expect(wiring.duplicateDefinitions(ctx, "InvoiceModel", own)).toEqual([]);
+    const listed = Object.values(
+      wiring.wiringFor(ctx, "InvoiceModel", own) ?? {},
+    )
+      .flat()
+      .map((h) => h.filePath);
+    expect(listed).not.toContain(own);
+  });
+
+  it("reads a path holding a colon or a newline whole, and skips binary files", () => {
+    const listed = Object.values(
+      wiring.wiringFor(makeOddPathRepo(), "InvoiceModel", own) ?? {},
+    )
+      .flat()
+      .map((h) => `${h.filePath}:${h.lineNo}`)
+      .sort();
+    expect(listed).toEqual([
+      "app/a:b.php:2",
+      "app/new\nline.php:2",
+      "app/use.php:2",
+    ]);
   });
 });
 

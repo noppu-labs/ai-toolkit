@@ -92,9 +92,11 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
   wrong map.
 - **Files**: the source files in scope. A note says when symbol detail was capped, and
   `(no named exports; basename used)` marks a JS/TS file with no usable export name, whose symbol is its file name.
-  `(file name is not an identifier; no symbol section)` marks a file that takes its symbol
-  from its file name (a PHP file, or a JS/TS file with no usable export name) when that name
-  is not an identifier, such as `use-toast.ts` or a migration that starts with a date. The
+  `(file name cannot be used as a symbol; no symbol section)` marks a file that takes its
+  symbol from its file name (a PHP file, or a JS/TS file with no usable export name) when
+  that name does not start with a letter, `_` or `$`, or holds anything other than letters,
+  digits, `_`, `$`, `.` and `-`. A migration that starts with a date and a name with a space
+  are two examples; `user-profile.blade.php` and `vite.config.ts` keep their sections. The
   brief runs no search for such a file, so its callers are UNRESOLVED.
 - **Third-party surface**: each package the target imports, with its INSTALLED version and
   where to read its source. Use these, never the manifest's caret range: `^3.1.0` is not a

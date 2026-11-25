@@ -36,6 +36,10 @@ const DEFINITION_GLOBS = [
   "*.cts",
 ];
 const GREP_LINE_RE = /^([^:]+):(\d+):(.*)$/;
+// `git grep -z -n` prints each match as path NUL line NUL text LF, with the
+// path as git stores it: not quoted, and whole when it holds a colon or a
+// newline. `-I` keeps out the "Binary file … matches" lines, which have no NUL.
+const GREP_RECORD_RE = /([^\0]*)\0(\d+)\0([^\n]*)\n/g;
 // ast-grep matches the AST, so these hits are multi-line-safe and immune to
 // comments and strings. One scan per pattern across AST_SCAN_DIRS, filtered per symbol afterwards.
 const AST_PATTERNS = [
@@ -68,6 +72,14 @@ const forDisplay = (hit) => ({ ...hit, text: hit.text.slice(0, TEXT_CAP) });
 export function parseGrepLine(line) {
   const hit = splitGrepLine(line);
   return hit && forDisplay(hit);
+}
+
+function grepRecords(stdout) {
+  return [...stdout.matchAll(GREP_RECORD_RE)].map((m) => ({
+    filePath: m[1],
+    lineNo: m[2],
+    text: m[3].trim(),
+  }));
 }
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -143,10 +155,8 @@ function claimAstHits(buckets, sym, relTarget, astHits) {
 export function bucketHits(sym, relTarget, grepStdout, astHits) {
   const buckets = {};
   const claimed = claimAstHits(buckets, sym, relTarget, astHits);
-  for (const line of grepStdout.split("\n")) {
-    const hit = splitGrepLine(line);
+  for (const hit of grepRecords(grepStdout)) {
     if (
-      !hit ||
       isInternal(hit.filePath, relTarget) ||
       claimed.has(`${hit.filePath}:${hit.lineNo}`)
     ) {
@@ -214,6 +224,8 @@ export function wiringFor(ctx, sym, ownFile) {
     [
       "grep",
       "-nwF",
+      "-I",
+      "-z",
       "--no-color",
       "-e",
       sym,
@@ -243,6 +255,8 @@ export function duplicateDefinitions(ctx, sym, ownFile) {
     [
       "grep",
       "-nwE",
+      "-I",
+      "-z",
       "-e",
       `(class|interface|trait|enum) ${esc(sym)}`,
       "--",
@@ -251,9 +265,7 @@ export function duplicateDefinitions(ctx, sym, ownFile) {
     { cwd: ctx.repoRoot, timeout: 10_000, env: ctx.env },
   );
   if (res.error || (res.status !== 0 && res.status !== 1)) return [];
-  return (res.stdout ?? "")
-    .split("\n")
-    .filter(Boolean)
-    .map((l) => l.split(":").slice(0, 2).join(":"))
-    .filter((loc) => !loc.startsWith(`${ownFile}:`));
+  return grepRecords(res.stdout ?? "")
+    .filter((hit) => hit.filePath !== ownFile)
+    .map((hit) => `${hit.filePath}:${hit.lineNo}`);
 }

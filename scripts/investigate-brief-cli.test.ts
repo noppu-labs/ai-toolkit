@@ -667,12 +667,49 @@ describe("brief.mjs", () => {
     );
     expect(r.status).toBe(0);
     expect(existsSync(marker)).toBe(false);
-    const note = "(file name is not an identifier; no symbol section)";
+    const note = "(file name cannot be used as a symbol; no symbol section)";
     expect(r.stdout).toContain(`- hostile/${MARKER_OPTION_NAME}.php ${note}`);
     expect(r.stdout).toContain(`- hostile/${MARKER_OPTION_NAME}.ts ${note}`);
     expect(r.stdout).toContain("- hostile/Ledger.php\n");
     expect(r.stdout).toContain("## Ledger (hostile/Ledger.php)");
     expect(r.stdout).not.toContain(`## ${MARKER_OPTION_NAME}`);
+  });
+
+  it("builds a section for a kebab-case Blade view and lists the code that renders it", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, "resources", "views", "components"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(cwd, "resources", "views", "components", "user-profile.blade.php"),
+      "<div>{{ $name }}</div>\n",
+    );
+    writeFileSync(
+      join(cwd, "app", "Http", "ProfileController.php"),
+      '<?php\nreturn view("components.user-profile");\n',
+    );
+    writeFileSync(
+      join(cwd, "resources", "views", "components", "2024_01_01_old.php"),
+      "<?php\n",
+    );
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "views");
+    const r = runBrief(
+      cwd,
+      "resources/views/components",
+      "--no-docs",
+      "--no-lsp",
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(
+      "## user-profile (resources/views/components/user-profile.blade.php)",
+    );
+    expect(r.stdout).toContain(
+      'app/Http/ProfileController.php:2  return view("components.user-profile");',
+    );
+    expect(r.stdout).toContain(
+      "- resources/views/components/2024_01_01_old.php (file name cannot be used as a symbol; no symbol section)",
+    );
   });
 
   it.each([".", ".."] as const)(
