@@ -72,13 +72,13 @@ graph TB
 | Coding agent | Claude Code, OpenCode, or another harness that received the skills through `npx skills add` | Loads the plugin content, decides what to do with it, and runs commands, scripts and subagents with the user's permissions |
 | `laravel` plugin | 16 skills, the `laravel-backend-specialist` agent, 4 path-scoped rules, the `install-rules` command | Tells the agent how to write Laravel code. The command has the agent copy the rules into the project's `.claude/rules/` |
 | `inertia-react` plugin | 6 skills, the `frontend-developer` agent, 2 path-scoped rules, the `install-rules` command | The same for Inertia, React and TypeScript code |
-| `review` plugin | 6 skills, four helper scripts and a Python helper, the task-output hook, the `pr-review-stages` workflow, and an OpenCode entry point | Tells the agent how to review a pull request, has it run the helper scripts and `gh`, and starts review subagents |
+| `review` plugin | 6 skills, six helper scripts with their shared `lib/` modules and a Python helper, the task-output hook, the `pr-review-stages` workflow, and an OpenCode entry point | Tells the agent how to review a pull request, has it run the helper scripts and `gh`, and starts review subagents |
 | `investigate` plugin | 3 skills, the brief script, and an OpenCode entry point | Tells the agent how to investigate code, and has it run the brief script |
 | `packages/opencode-toolkit-core` | The loader the two OpenCode packages depend on | Reads a package's `SKILL.md` files, rewrites skill names and `${CLAUDE_PLUGIN_ROOT}` in them, and registers the result with OpenCode |
 | Brief script | `investigate/skills/brief/scripts/brief.mjs` and `lib/` | Reads the target repository, starts the external tools below, queries context7.com, writes a cache in the temp directory, prints the brief |
 | Task-output hook | `review/hooks/guard-task-output.mjs`, registered by `review/hooks/hooks.json` | Denies a Claude Code `Bash` or `Read` call that names a symlinked `.output` file |
 | `pr-review-stages` workflow | `review/workflows/pr-review-stages.js`, a Claude Code dynamic workflow | Starts one brief agent and three stage agents per pull request, with prompts built from its arguments, and merges what they return |
-| Review helper scripts | `count-comment-lines.sh`, `verify-comments-only.sh`, `lib.sh` and `python-comment-lines.py` in `review/skills/comment-audit/scripts/`, `pr-size.sh` in `pr-review/scripts/`, `render-comments.mjs` in `pr-comments/scripts/` | Read git history through `git`, and print counts, line lists or rendered comments. None of them writes a file |
+| Review helper scripts | `count-comment-lines.sh`, `verify-comments-only.sh`, `lib.sh` and `python-comment-lines.py` in `review/skills/comment-audit/scripts/`, `pr-size.sh`, `install-hints.mjs`, `head-setup.mjs` and the modules in `lib/` in `pr-review/scripts/`, `render-comments.mjs` in `pr-comments/scripts/` | Read git history through `git`, and print counts, line lists, install facts or rendered comments. Only `head-setup.mjs` changes a working tree or writes a file (see [Files written](#files-written-on-the-users-machine)) |
 | Tools on `PATH` | `git`, `node`, `bash`, `awk`, and when present `python3`, `gh`, `gitnexus`, `codegraph`, `ast-grep`, `phpantom_lsp`, `typescript-language-server` | Run with the user's permissions when a script or the agent starts them. Their output goes into the brief or the review |
 
 ### External services the released code or its users reach
@@ -161,12 +161,13 @@ Each tool is looked up on `PATH`. A missing or failing tool is reported in the b
 `review:pr-review` is prose the agent follows. For each pull request it has the agent:
 
 1. Read the pull request with `gh pr view`, and fetch the base branch and the head into `refs/pr-review/<n>` with `git fetch`.
-2. Size the diff with `pr-size.sh`.
-3. Build a structural brief. With the `investigate` plugin installed that means the brief script, run in the current checkout when it is a clean checkout of the head and otherwise in a scratch worktree the agent creates and removes. Without it, the brief comes from a few `git diff` and `git grep` commands.
-4. Run the first correctness pass with the harness's `code-review` skill, or with `review:correctness-review` where there is none.
-5. Start three stage subagents (correctness, type safety, comments) and merge their reports into one.
+2. Optionally set up the head, when the working tree is not at it and a question tool is listed or the caller's prompt names a setup. `head-setup.mjs plan` reports the tree, the lockfiles and the session config the PR changes, and `install-hints.mjs` reports how the head installs. One question then offers a check-out in the tree (`git switch --detach` with hooks off, switched back afterwards), a scratch worktree, or continuing as is; a typed answer can ask for a separate clone or an install without scripts. The agent runs the install commands as ordinary Bash calls, and `head-setup.mjs restore` undoes what the run entered after the last pass.
+3. Size the diff with `pr-size.sh`.
+4. Build a structural brief. With the `investigate` plugin installed that means the brief script, run in the directory the setup made, in the current checkout when it is a clean checkout of the head, and otherwise in a scratch worktree the agent creates and removes. Without it, the brief comes from a few `git diff` and `git grep` commands.
+5. Run the first correctness pass with the harness's `code-review` skill, or with `review:correctness-review` where there is none.
+6. Start three stage subagents (correctness, type safety, comments) and merge their reports into one.
 
-On Claude Code with dynamic workflows enabled, steps 3 and 5 run through the `pr-review-stages` workflow, which validates its arguments, builds each prompt from a fixed template, checks every agent's return against a JSON schema and consolidates in plain JavaScript. Elsewhere the agent does the same steps by hand. The stage prompts tell the subagents to run the project's own tests and linters where that confirms a finding.
+On Claude Code with dynamic workflows enabled, steps 4 and 6 run through the `pr-review-stages` workflow, which validates its arguments, builds each prompt from a fixed template, checks every agent's return against a JSON schema and consolidates in plain JavaScript. Elsewhere the agent does the same steps by hand. The stage prompts tell the subagents to run the project's own tests and linters where that confirms a finding.
 
 `review:comment-audit` counts the comment lines a branch adds with `count-comment-lines.sh` and writes a report. With `--apply` it edits comments, makes one commit, and checks with `verify-comments-only.sh` that the commit changed nothing but comments. It does not push. `review:pr-comments` turns a report into comments with `render-comments.mjs` and posts nothing.
 
@@ -293,8 +294,10 @@ The workflow is invoked as `review:pr-review-stages` through Claude Code's Workf
 | `title`, `base`, `head`, `url` | Non-empty strings |
 | `headSha` | The full 40-character SHA of the commit under review |
 | `instructions` | Optional. An object with any of `brief`, `correctness`, `typeSafety`, `comments` and `all`, each a non-empty string appended to that agent's prompt |
+| `checkout` | Optional. An absolute path to a worktree or clone of the head. Adds a "Checkout of the head" block to the brief and stage prompts, and asks the brief agent for that directory's `HEAD`; a missing or different commit adds a roll-up line naming both SHAs |
+| `setup` | Optional. `{ kind, note }`, with `kind` one of `checkout`, `worktree`, `clone` or `none` (`worktree` or `clone` when `checkout` is set) and a non-empty `note`. Printed as `PR <n>: head setup: <kind>. <note>` in the roll-up |
 
-Any other shape, an unknown `instructions` key or a repeated number is rejected before an agent starts. The workflow returns `{ report, counts }`: the consolidated Markdown report, and for each pull request the number of findings per stage. [The review README](../review/README.md#the-pr-review-stages-workflow) covers versions and permissions.
+Any other shape, an unknown `instructions` or `setup` key or a repeated number is rejected before an agent starts. The workflow returns `{ report, counts }`: the consolidated Markdown report, and for each pull request the number of findings per stage. [The review README](../review/README.md#the-pr-review-stages-workflow) covers versions and permissions.
 
 ### The brief script
 
@@ -333,9 +336,13 @@ It starts these programs: `git` (`rev-parse`, `ls-files`, `grep`, `rev-list`), `
 | `verify-comments-only.sh` | `FROM TO [DIR...]` | Every changed line that is not a comment or blank, and exit 1 when there is one. Otherwise `only comment lines changed` |
 | `python-comment-lines.py` | `REF`, with NUL-separated paths on standard input | `path<TAB>line` for each comment line, then `== done`. Exit 1 when a file could not be read or parsed |
 | `pr-size.sh` | `BASE HEAD` | One line: `lines=<n> code-review=high\|xhigh\|max correctness-review=1\|3\|4` |
+| `install-hints.mjs` | `SHA` | JSON, shaped by `references/install-hints.schema.json`: the lockfiles with their likely install commands, entry points, install hooks found, runtime pins, tools on `PATH`, `.env.example`, and the files it skipped. It reads the tree at `SHA` through `git` and runs nothing from it. 1 on a bad argument |
+| `head-setup.mjs` | `plan SHA...`, `enter checkout\|worktree\|clone SHA [--scratch DIR]`, `restore [ID...]`, `forget` | One JSON object. `plan` reads the tree, the lockfiles, the session config and the record. `enter` prints the entry's `id` and, for a worktree or clone, its `path`. `restore` undoes the named entries, or all of them, and prints what it restored, declined and which lockfiles changed. 1 with `ok: false` and a `reason` when it refuses |
 | `render-comments.mjs` | `[--format json\|markdown]`, with the findings as JSON on standard input | The rendered comments. 1 on invalid input, 2 on a usage error |
 
-The two comment scripts source `lib.sh` and run `git diff`, `awk`, and the Python helper when an interpreter is found. `REVIEW_PYTHON` names the interpreter and defaults to `python3`. The helper needs Python 3.8 or later, uses only the standard library, and reads file content with `git cat-file --batch`. None of these scripts makes a network call or writes a file.
+The two comment scripts source `lib.sh` and run `git diff`, `awk`, and the Python helper when an interpreter is found. `REVIEW_PYTHON` names the interpreter and defaults to `python3`. The helper needs Python 3.8 or later, uses only the standard library, and reads file content with `git cat-file --batch`. None of these scripts makes a network call. Only `head-setup.mjs` writes a file or changes a working tree.
+
+`head-setup.mjs` calls `git` by absolute path with an argument array, and disables hooks (`core.hooksPath=/dev/null`) and submodule recursion on every call that changes a tree. A check-out is `git switch --detach --no-overwrite-ignore`, so an ignored local file is never overwritten. It records each entry in `pr-review-setup.json` in the working tree's own git directory before changing anything, refuses a second in-place check-out while one is recorded, and does not use a record that fails validation. It never installs anything: the agent does. Because the git steps run inside one `node` call, permission rules written for git commands do not match them.
 
 ### The OpenCode packages
 
@@ -369,7 +376,7 @@ GET https://context7.com/api/v1/search?query=<name>
 
 The script tells `typescript-language-server` to turn off TypeScript's automatic type acquisition, which would otherwise download type packages named by the repository.
 
-The skills also have the agent call `gh` for pull request data and `git fetch` for refs, and the `investigate` skills point the agent at whatever documentation tool its harness has. Those requests are made by the user's own tools with the user's own credentials.
+The skills also have the agent call `gh` for pull request data and `git fetch` for refs, and the `investigate` skills point the agent at whatever documentation tool its harness has. Those requests are made by the user's own tools with the user's own credentials. When the user chooses a setup, `review:pr-review` also has the agent run the project's install, so the package manager's own network calls follow.
 
 ### Files written on the user's machine
 
@@ -379,7 +386,10 @@ The skills also have the agent call `gh` for pull request data and `git fetch` f
 | The brief, redirected to `${TMPDIR:-/tmp}/brief-<module>.md` | The agent, as `investigate:brief` instructs |
 | `.claude/rules/<name>.md` in the project | The agent, on `/laravel:install-rules` or `/inertia-react:install-rules` |
 | The comment-audit report, and with `--apply` the edited comments and one commit | The agent, as `review:comment-audit` instructs |
-| `refs/pr-review/<n>` in the clone, and a scratch worktree that is removed afterwards | The agent, as `review:pr-review` instructs |
+| `refs/pr-review/<n>` in the clone | The agent, as `review:pr-review` instructs |
+| `pr-review-setup.json` in the working tree's git directory, and for a worktree or clone a marked `pr-review-*` directory inside the scratch directory (the session's, or the temp directory). `restore` removes both | `head-setup.mjs`, when the user or the caller's prompt chose a setup |
+| The head checked out in the working tree, until `restore` switches back | `head-setup.mjs`, for the check-out option |
+| `node_modules`, `vendor` and the like in the working tree or the scratch directory, and whatever else the install writes | The package manager, started by the agent for the chosen setup |
 
 ### The site's HTTP routes
 
