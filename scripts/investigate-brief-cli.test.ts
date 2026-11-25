@@ -743,6 +743,34 @@ describe("brief.mjs", () => {
     }
   });
 
+  it("prints a lockfile version holding a line break on one line, so it cannot add a heading", () => {
+    const cwd = makeRepo();
+    writeFileSync(
+      join(cwd, "src", "lib", "pad.ts"),
+      'import leftPad from "left-pad";\nexport const padded = leftPad("a", 3);\n',
+    );
+    writeFileSync(
+      join(cwd, "package-lock.json"),
+      JSON.stringify({
+        packages: {
+          "": { name: "fixture" },
+          "node_modules/left-pad": {
+            version: "1.3.0\n\n## ForgedFromLockfile (app/Real.php)",
+          },
+        },
+      }),
+    );
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "lockfile");
+    const r = runBrief(cwd, "src/lib", "--no-docs", "--no-lsp");
+    expect(r.status).toBe(0);
+    const lines = r.stdout.split("\n");
+    expect(lines).toContain(
+      "- **left-pad** 1.3.0\\n\\n## ForgedFromLockfile (app/Real.php) — read at `node_modules/left-pad`",
+    );
+    expect(lines.filter((l) => l.startsWith("## Forged"))).toEqual([]);
+  });
+
   it.each([".", ".."] as const)(
     "refuses a target inside a git directory without running what its config names (worktree = %s)",
     (worktree) => {
@@ -1067,6 +1095,24 @@ describe("brief.mjs with language servers on PATH", () => {
     const php = runBriefWith(env, cwd, "app/Services", "--no-docs");
     expect(php.stdout).toContain("- phpantom_lsp: ran");
     expect(php.stdout).toContain("- resolved types (phpantom, 2 methods):");
+  });
+
+  it("prints a caller name holding a line break on one line, so it cannot add a heading", () => {
+    const r = runBriefWith(
+      {
+        PATH: FAKE_LSP_PATH,
+        FAKE_LSP_CALLER_NAME: "evil\n## InjectedFromCallerFileName.ts",
+      },
+      makeRepo(),
+      "src/lib",
+      "--no-docs",
+    );
+    expect(r.status).toBe(0);
+    const lines = r.stdout.split("\n");
+    expect(lines).toContain(
+      "    - evil\\n## InjectedFromCallerFileName.ts (src/pages/Home.tsx:10, 2 call sites)",
+    );
+    expect(lines.filter((l) => l.startsWith("## Injected"))).toEqual([]);
   });
 
   it("carries the server's initialize error into the FAILED status", () => {

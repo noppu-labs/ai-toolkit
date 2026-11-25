@@ -43,26 +43,37 @@ const DOC_SOURCES_HEADING = "## Doc sources (context7 version gate)";
 // High-volume, low-signal categories: counts + file list only.
 const COUNT_ONLY = new Set(["test", "import"]);
 
-// A path in the repository may hold any character but NUL and `/`, and tool
-// notes and source lines can quote one. A line break in any of them would start
-// a new line of the brief, and a heading could follow it.
-const CONTROL_RE = /[\p{Cc}\u2028\u2029]/gu;
+// Paths, lockfile strings, source lines and tool output all come from the
+// repository, and any of them can hold a line break that would start a new line
+// of the brief, with a heading after it. Format characters such as U+202E
+// reorder what a terminal shows.
+const CONTROL_RE = /[\p{Cc}\p{Cf}\u2028\u2029]/gu;
 const NAMED_ESCAPES = { "\n": "\\n", "\r": "\\r" };
 
 function escapeControl(c) {
   if (c === "\t") return c;
-  const code = c.codePointAt(0)?.toString(16).padStart(4, "0");
-  return NAMED_ESCAPES[c] ?? `\\u${code}`;
+  const code = c.codePointAt(0) ?? 0;
+  const hex = code.toString(16);
+  if (code > 0xffff) return `\\u{${hex}}`;
+  return NAMED_ESCAPES[c] ?? `\\u${hex.padStart(4, "0")}`;
 }
 
-/** `text` with line breaks and other control characters shown as escapes, so it prints as one line. */
+/** `text` with line breaks, other control characters except tab, and format characters shown as escapes, so it prints as one line. */
 function printable(text) {
   return String(text).replace(CONTROL_RE, escapeControl);
 }
 
+/**
+ * The brief as written: each rendered line through `printable`, so no value
+ * a line holds can add a line or start a heading.
+ */
+export function briefText(lines) {
+  return `${lines.map(printable).join("\n")}\n`;
+}
+
 export function renderHeader(relTarget, repoName) {
   return [
-    `# Structural brief: ${printable(relTarget)} (repo: ${printable(repoName)})`,
+    `# Structural brief: ${relTarget} (repo: ${repoName})`,
     "",
     "> Deterministic pre-computation (graph + textual reference scan). Trust this over recall.",
     "> The call graph for PHP has NO inheritance edges and NO container-resolution edges —",
@@ -75,7 +86,7 @@ export function renderHeader(relTarget, repoName) {
 export function renderTools(tools) {
   const lines = ["## Tools", ""];
   for (const name of TOOL_ORDER) {
-    if (tools[name]) lines.push(`- ${name}: ${printable(tools[name])}`);
+    if (tools[name]) lines.push(`- ${name}: ${tools[name]}`);
   }
   lines.push("");
   return lines;
@@ -84,7 +95,7 @@ export function renderTools(tools) {
 export function renderIndex(freshness) {
   if (!freshness.ok) {
     return [
-      `Index: UNAVAILABLE — ${printable(freshness.note)}. Graph sections omitted; wiring scan still valid.`,
+      `Index: UNAVAILABLE — ${freshness.note}. Graph sections omitted; wiring scan still valid.`,
       "",
     ];
   }
@@ -113,7 +124,7 @@ export function renderFiles(files, repoRoot, truncated, maxSymbols, notes) {
   const lines = [`## Files (${files.length})`];
   for (const f of files) {
     const rel = path.relative(repoRoot, f);
-    lines.push(`- ${printable(rel)}${fileNote(rel, notes)}`);
+    lines.push(`- ${rel}${fileNote(rel, notes)}`);
   }
   if (truncated) {
     lines.push(
@@ -279,7 +290,9 @@ export function renderCodegraph(lines) {
   return [
     "## Module graph (codegraph — includes inheritance edges the gitnexus PHP graph lacks)",
     "",
-    ...lines,
+    // Indented past three spaces, a line of codegraph's output cannot start a
+    // heading, a list or a quote.
+    ...lines.map((line) => (line ? `    ${line}` : line)),
     "",
   ];
 }
@@ -287,7 +300,7 @@ export function renderCodegraph(lines) {
 function collisionLines(sym, dupes) {
   if (dupes.length === 0) return [];
   return [
-    `- ⚠ NAME COLLISION: ${sym.name} is also defined at ${dupes.map(printable).join(", ")} — external references below may belong to that class; verify imports before attributing.`,
+    `- ⚠ NAME COLLISION: ${sym.name} is also defined at ${dupes.join(", ")} — external references below may belong to that class; verify imports before attributing.`,
   ];
 }
 
@@ -305,7 +318,7 @@ function callerLines(tsCallers) {
     `- verified callers (ts-lsp incomingCalls on ${tsCallers.symbol}, ${tsCallers.rows.length} shown):`,
     ...tsCallers.rows.map(
       (r) =>
-        `    - ${r.name} (${printable(r.loc)}, ${r.sites} call site${r.sites === 1 ? "" : "s"})`,
+        `    - ${r.name} (${r.loc}, ${r.sites} call site${r.sites === 1 ? "" : "s"})`,
     ),
   ];
 }
@@ -319,7 +332,7 @@ function graphIncoming(graph) {
       `- graph callers (${calls.length}, lower bound):`,
       ...calls
         .slice(0, MAX_GRAPH_LIST)
-        .map((c) => `    - ${c.name} (${printable(c.filePath || "?")})`),
+        .map((c) => `    - ${c.name} (${c.filePath || "?"})`),
     );
   }
   if (imports.length) {
@@ -327,7 +340,7 @@ function graphIncoming(graph) {
       `- graph importers (${imports.length}):`,
       ...imports
         .slice(0, MAX_GRAPH_LIST)
-        .map((c) => `    - ${printable(c.filePath || c.name)}`),
+        .map((c) => `    - ${c.filePath || c.name}`),
     );
   }
   return lines;
@@ -338,12 +351,10 @@ function graphLines(sym, graph, freshnessOk) {
   const s = graph?.symbol;
   if (!s) return ["- graph: symbol not found in index"];
   if (s.filePath && !sym.file.endsWith(s.filePath) && s.filePath !== sym.file) {
-    return [
-      `- graph: name collision — resolves to ${printable(s.filePath)}, skipped`,
-    ];
+    return [`- graph: name collision — resolves to ${s.filePath}, skipped`];
   }
   const lines = [
-    `- graph: ${s.kind} at ${printable(s.filePath)}:${s.startLine}-${s.endLine} (epistemic: ${graph.epistemic || "?"})`,
+    `- graph: ${s.kind} at ${s.filePath}:${s.startLine}-${s.endLine} (epistemic: ${graph.epistemic || "?"})`,
     ...(graph.boundaries ?? []).map((b) => `- graph boundary: ${b}`),
     ...graphIncoming(graph),
   ];
@@ -369,9 +380,7 @@ function categoryLines(key, hits) {
     const filesOnly = [...new Set(hits.map((h) => h.filePath))];
     return [
       `- ${WIRING_LABELS[key]}: ${hits.length} hits across ${filesOnly.length} files`,
-      ...filesOnly
-        .slice(0, MAX_SHOWN_PER_CATEGORY)
-        .map((f) => `    - ${printable(f)}`),
+      ...filesOnly.slice(0, MAX_SHOWN_PER_CATEGORY).map((f) => `    - ${f}`),
       ...moreLine(filesOnly.length),
     ];
   }
@@ -379,10 +388,7 @@ function categoryLines(key, hits) {
     `- ${WIRING_LABELS[key]} (${hits.length}):`,
     ...hits
       .slice(0, MAX_SHOWN_PER_CATEGORY)
-      .map(
-        (h) =>
-          `    - ${printable(h.filePath)}:${h.lineNo}  ${printable(h.text)}`,
-      ),
+      .map((h) => `    - ${h.filePath}:${h.lineNo}  ${h.text}`),
     ...moreLine(hits.length),
   ];
 }
@@ -406,7 +412,7 @@ function wiringLines(wiring) {
 
 export function renderSymbol(sym, parts) {
   return [
-    `## ${sym.name} (${printable(sym.file)})`,
+    `## ${sym.name} (${sym.file})`,
     ...collisionLines(sym, parts.dupes),
     ...typeLines(parts.typeRows),
     ...callerLines(parts.tsCallers),

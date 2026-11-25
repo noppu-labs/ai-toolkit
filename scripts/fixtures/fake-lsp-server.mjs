@@ -78,7 +78,8 @@ function callersFor() {
   return [
     {
       from: {
-        name: "Home",
+        // A top-level caller takes its file's base name, which the repository chooses.
+        name: process.env.FAKE_LSP_CALLER_NAME ?? "Home",
         uri: pathToFileURL(join(root, "src", "pages", "Home.tsx")).href,
         range: { start: { line: 9 } },
       },

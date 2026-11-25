@@ -326,7 +326,7 @@ async function buildBrief(opts, io) {
     ...symbols.flatMap((sym) => symbolSection(ctx, sym, state)),
     ...render.renderFooter(),
   ];
-  await writeAll(io.stdout, `${lines.join("\n")}\n`);
+  await writeAll(io.stdout, render.briefText(lines));
 }
 
 // A pipe write can still be queued when it returns, so wait for the flush callback.
