@@ -88,17 +88,13 @@ function isInGitDir(gitDir, cwd) {
   );
 }
 
-export function resolveRepo(targetArg, env = process.env) {
-  const resolved = path.resolve(targetArg);
-  if (!existsSync(resolved))
-    throw new Error(`target does not exist: ${resolved}`);
-  // realpath: macOS tmpdir is a symlink and `git rev-parse` returns the real path,
-  // so a relative() between the two forms would climb out of the repo.
-  const target = realpathSync(resolved);
-  const cwd = statSync(target).isDirectory() ? target : path.dirname(target);
+/**
+ * The root of the working tree that holds `cwd`, a real directory, or null
+ * when git finds none. Throws when `cwd` is inside a git directory.
+ */
+export function workingTreeRoot(cwd, env = process.env) {
   const gitDirRes = git(["rev-parse", "--absolute-git-dir"], { cwd, env });
-  if (gitDirRes.status !== 0)
-    throw new Error("target is not inside a git repository");
+  if (gitDirRes.status !== 0) return null;
   const gitDir = pathAnswer(gitDirRes);
   // A git that does not know the option prints it back and exits 0.
   if (!path.isAbsolute(gitDir))
@@ -108,9 +104,21 @@ export function resolveRepo(targetArg, env = process.env) {
   if (isInGitDir(gitDir, cwd))
     throw new Error("target is inside a git directory, not a working tree");
   const gitRoot = git(["rev-parse", "--show-toplevel"], { cwd, env });
-  if (gitRoot.status !== 0)
+  if (gitRoot.status !== 0) return null;
+  return pathAnswer(gitRoot);
+}
+
+export function resolveRepo(targetArg, env = process.env) {
+  const resolved = path.resolve(targetArg);
+  if (!existsSync(resolved))
+    throw new Error(`target does not exist: ${resolved}`);
+  // realpath: macOS tmpdir is a symlink and `git rev-parse` returns the real path,
+  // so a relative() between the two forms would climb out of the repo.
+  const target = realpathSync(resolved);
+  const cwd = statSync(target).isDirectory() ? target : path.dirname(target);
+  const repoRoot = workingTreeRoot(cwd, env);
+  if (repoRoot === null)
     throw new Error("target is not inside a git repository");
-  const repoRoot = pathAnswer(gitRoot);
   return {
     target,
     repoRoot,

@@ -1028,6 +1028,35 @@ describe("brief.mjs with language servers on PATH", () => {
     );
   });
 
+  it("skips the TypeScript server, and says how to run it, when the repository tracks node_modules", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, "node_modules", "typescript"), { recursive: true });
+    writeFileSync(
+      join(cwd, "node_modules", "typescript", "package.json"),
+      "{}\n",
+    );
+    git(cwd, "add", "-f", "node_modules");
+    git(cwd, "commit", "-qm", "node_modules");
+    const log = join(mkdtempSync(join(tmpdir(), "investigate-start-")), "log");
+    const env = { PATH: FAKE_LSP_PATH, FAKE_LSP_START_LOG: log };
+    const skipped = runBriefWith(env, cwd, "src/lib", "--no-docs");
+    expect(skipped.status).toBe(0);
+    expect(skipped.stdout).toContain(
+      "- typescript-language-server: skipped (the repository tracks files in node_modules, where the server loads code from; set INVESTIGATE_BRIEF_TRUST_REPO_TS=1 to run it)",
+    );
+    expect(skipped.stdout).toContain("## formatDate (src/lib/commands.ts)");
+    expect(existsSync(log)).toBe(false);
+
+    const trusted = runBriefWith(
+      { ...env, INVESTIGATE_BRIEF_TRUST_REPO_TS: "1" },
+      cwd,
+      "src/lib",
+      "--no-docs",
+    );
+    expect(trusted.stdout).toContain("- typescript-language-server: ran");
+    expect(existsSync(log)).toBe(true);
+  });
+
   it("sends only the files behind rendered symbols to the server", () => {
     const cwd = makeRepo();
     writeFileSync(join(cwd, "app", "Services", "Zeta.php"), "<?php\n");

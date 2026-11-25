@@ -80,6 +80,7 @@ export function gitnexusStatus(freshness) {
 // A server that started but failed every file has resolved nothing, so it is
 // FAILED, not "ran (no results)".
 export function lspStatus(outcome) {
+  if (outcome.skipped) return `skipped (${outcome.skipped})`;
   if (outcome.error) return `FAILED (${outcome.error})`;
   const failed = outcome.failures.length;
   if (failed > 0) {

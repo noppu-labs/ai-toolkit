@@ -1,10 +1,16 @@
 #!/usr/bin/env node
+import { appendFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 if (process.argv.includes("--version")) {
   process.stdout.write("fake 1.0\n");
   process.exit(0);
+}
+
+// A test that asserts the server never started names a file here.
+if (process.env.FAKE_LSP_START_LOG) {
+  appendFileSync(process.env.FAKE_LSP_START_LOG, "started\n");
 }
 
 const CONFIG_REQUEST_ID = 999;
@@ -146,6 +152,15 @@ function onResponse(msg) {
   for (const m of held.splice(0)) reply(m);
 }
 
+// A test that asserts what the client sent in initialize names a file here.
+function logInitOptions(params) {
+  if (!process.env.FAKE_LSP_INIT_LOG) return;
+  appendFileSync(
+    process.env.FAKE_LSP_INIT_LOG,
+    `${JSON.stringify(params.initializationOptions ?? null)}\n`,
+  );
+}
+
 function handle(msg) {
   if (msg.method === undefined) {
     onResponse(msg);
@@ -161,6 +176,7 @@ function handle(msg) {
     return;
   }
   if (msg.method === "initialize") {
+    logInitOptions(msg.params);
     root = fileURLToPath(String(msg.params.rootUri));
     const done = exitAfterInit ? () => process.exit(0) : undefined;
     send({ jsonrpc: "2.0", id: msg.id, result: { capabilities: {} } }, done);
