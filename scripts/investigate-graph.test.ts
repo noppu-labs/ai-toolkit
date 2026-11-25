@@ -406,7 +406,17 @@ describe("graphContext", () => {
 });
 
 function readArgv(file: string): string[] {
-  return JSON.parse(readFileSync(file, "utf8")) as string[];
+  const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+  if (
+    !(
+      Array.isArray(parsed) &&
+      parsed.every((a): a is string => typeof a === "string")
+    )
+  ) {
+    throw new Error(`${file} does not hold an argument list`);
+  }
+
+  return parsed;
 }
 
 describe("graphContext on hostile names", () => {

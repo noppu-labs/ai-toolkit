@@ -583,27 +583,30 @@ describe("tsLspCallers in a repository that tracks code the server loads", () =>
 });
 
 // A server install with its own TypeScript beside it, reached through a link
-// on PATH as npm leaves a global install.
+// on PATH in npm's global layout: `<prefix>/bin/<name>` links into
+// `<prefix>/lib/node_modules`, so TypeScript resolves only from the link's
+// real location, never from the folder the link sits in.
 function makeServerInstall(tsVersion: string): string {
-  const install = makeTempDir("investigate-server-");
-  writeFiles(install, {
-    "lib/cli.mjs": readFileSync(fake, "utf8"),
-    "node_modules/typescript/package.json": JSON.stringify({
+  const prefix = makeTempDir("investigate-server-");
+  const cli = "lib/node_modules/typescript-language-server/lib/cli.mjs";
+  writeFiles(prefix, {
+    [cli]: readFileSync(fake, "utf8"),
+    "lib/node_modules/typescript/package.json": JSON.stringify({
       name: "typescript",
       version: tsVersion,
       main: "lib/typescript.js",
     }),
-    "node_modules/typescript/lib/typescript.js": "\n",
-    "node_modules/typescript/lib/tsserver.js": "\n",
+    "lib/node_modules/typescript/lib/typescript.js": "\n",
+    "lib/node_modules/typescript/lib/tsserver.js": "\n",
   });
-  chmodSync(join(install, "lib", "cli.mjs"), 0o755);
-  mkdirSync(join(install, "bin"));
+  chmodSync(join(prefix, cli), 0o755);
+  mkdirSync(join(prefix, "bin"));
   symlinkSync(
-    join(install, "lib", "cli.mjs"),
-    join(install, "bin", "typescript-language-server"),
+    join(prefix, cli),
+    join(prefix, "bin", "typescript-language-server"),
   );
 
-  return join(install, "bin", "typescript-language-server");
+  return join(prefix, "bin", "typescript-language-server");
 }
 
 function writeWorkspaceTs(root: string, version: string): void {
