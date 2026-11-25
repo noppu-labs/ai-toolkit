@@ -18,6 +18,7 @@
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
+  linkSync,
   lstatSync,
   mkdtempSync,
   readFileSync,
@@ -46,6 +47,7 @@ import { listTree, makeSource } from "./lib/tree.mjs";
 const SHA = /^[0-9a-f]{40}$/;
 const UUID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const RECORD_FILE = "pr-review-setup.json";
+const LOCK_FILE = "pr-review-setup.lock";
 const MARKER_FILE = ".pr-review-marker";
 const SCRATCH_PREFIX = "pr-review-";
 const HEAD_DIR = "head";
@@ -62,6 +64,9 @@ const SESSION_PATHSPECS = [
   ".mcp.json",
   ":(glob)**/.claude/**",
   ":(glob)**/.mcp.json",
+  ":(glob)**/CLAUDE.md",
+  ":(glob)**/CLAUDE.local.md",
+  ":(glob)**/AGENTS.md",
   ":(glob)**/opencode.json",
   ":(glob)**/opencode.jsonc",
   ":(glob)**/.opencode/**",
@@ -116,7 +121,11 @@ function makeContext() {
   const git = makeGit(gitPath, top);
   const gitDir = git.text(["rev-parse", "--absolute-git-dir"]).trim();
 
-  return { gitPath, git, top, gitDir };
+  // Calls that change the tree run in the session's own directory, so git keeps
+  // it when the head removes it.
+  const session = makeGit(gitPath, process.cwd());
+
+  return { gitPath, git, session, top, gitDir };
 }
 
 function quoteShell(word) {
@@ -139,6 +148,32 @@ function isValidBranch(name) {
         !UNSAFE_BRANCH_CHARS.includes(char),
     )
   );
+}
+
+// A path is data: a control character in it would print as a line break or an
+// escape sequence wherever the path is shown.
+function showPath(path) {
+  return [...path]
+    .map((char) => {
+      const code = char.codePointAt(0);
+
+      if (code === 10) {
+        return "\\n";
+      }
+
+      if (code === 13) {
+        return "\\r";
+      }
+
+      if (code === 9) {
+        return "\\t";
+      }
+
+      return code < 32 || code === 127 || (code >= 128 && code <= 159)
+        ? `\\x${code.toString(16).padStart(2, "0")}`
+        : char;
+    })
+    .join("");
 }
 
 function isInside(root, path) {
@@ -193,7 +228,7 @@ function statusPaths(ctx, ignoreSubmodules) {
     .text(args)
     .split("\0")
     .filter((record) => record !== "")
-    .map((record) => record.slice(3));
+    .map((record) => showPath(record.slice(3)));
 }
 
 function operationInProgress(ctx) {
@@ -390,7 +425,11 @@ function changedLockfiles(before, after) {
     const now = after.get(path);
 
     if (before.get(path)?.blob !== now?.blob) {
-      changed.push({ path, manager: (now ?? before.get(path)).manager });
+      changed.push({
+        path,
+        manager: (now ?? before.get(path)).manager,
+        exists: now !== undefined,
+      });
     }
   }
 
@@ -428,14 +467,19 @@ function sessionConfigPaths(ctx, currentSha, sha) {
   return output
     .split("\0")
     .filter((path) => path !== "")
-    .sort(compare);
+    .sort(compare)
+    .map(showPath);
 }
 
-function planCheckout(ctx, entries, problem, clean) {
+function planCheckout(ctx, entries, problem, clean, atTarget) {
   const recorded = problem !== undefined || entries.some(isCheckoutEntry);
 
   if (recorded) {
     return { offered: false, reason: "recorded" };
+  }
+
+  if (atTarget) {
+    return { offered: false, reason: "at-head" };
   }
 
   const busy = !clean || operationInProgress(ctx) !== undefined;
@@ -474,7 +518,13 @@ function runPlan(ctx, shas) {
     treeSha,
     branch: currentBranch(ctx),
     clean,
-    checkout: planCheckout(ctx, loaded.entries ?? [], loaded.problem, clean),
+    checkout: planCheckout(
+      ctx,
+      loaded.entries ?? [],
+      loaded.problem,
+      clean,
+      shas.at(-1) === treeSha,
+    ),
     record: describeRecord(loaded),
     heads: shas.map((sha) => ({
       headSha: sha,
@@ -485,23 +535,49 @@ function runPlan(ctx, shas) {
   };
 }
 
-function switchBackArgs(entry) {
+function switchBackArgs(entry, discard = false) {
+  const flags = discard ? ["--discard-changes"] : [];
+
   return entry.branch === null
-    ? ["switch", "--detach", "--no-overwrite-ignore", entry.fromSha]
-    : ["switch", "--no-overwrite-ignore", entry.branch];
+    ? ["switch", ...flags, "--detach", "--no-overwrite-ignore", entry.fromSha]
+    : ["switch", ...flags, "--no-guess", "--no-overwrite-ignore", entry.branch];
+}
+
+function branchExists(ctx, branch) {
+  return (
+    ctx.git.run(["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`])
+      .status === 0
+  );
+}
+
+// What a person should run: the plain switch back, or, when the branch is gone,
+// the one that makes it again where the check-out started.
+function printedArgs(ctx, entry, discard) {
+  if (entry.branch === null || branchExists(ctx, entry.branch)) {
+    return switchBackArgs(entry, discard);
+  }
+
+  return [
+    "switch",
+    ...(discard ? ["--discard-changes"] : []),
+    "--no-overwrite-ignore",
+    "-c",
+    entry.branch,
+    entry.fromSha,
+  ];
 }
 
 function shellLine(words) {
   return words.map(quoteShell).join(" ");
 }
 
-function switchBackCommand(ctx, entry) {
+function switchBackCommand(ctx, entry, discard = false) {
   return shellLine([
     "git",
     ...SAFE_GIT,
     "-C",
     ctx.top,
-    ...switchBackArgs(entry),
+    ...printedArgs(ctx, entry, discard),
   ]);
 }
 
@@ -519,7 +595,7 @@ function keepCommitsCommand(ctx, entry, sha) {
 }
 
 function changeTree(ctx, args) {
-  return ctx.git.run([...SAFE_GIT, ...args]);
+  return ctx.session.run([...SAFE_GIT, ...args]);
 }
 
 function enterCheckout(ctx, sha, entries) {
@@ -568,6 +644,27 @@ function enterCheckout(ctx, sha, entries) {
   };
 }
 
+function describeDiscard(ctx, entry) {
+  return `Run ${switchBackCommand(ctx, entry, true)}: it discards the listed tracked paths and leaves untracked ones.`;
+}
+
+// A switch that exits non-zero can still have written files first. Only a
+// clean tree means nothing changed and the record can go.
+function refuseFailedSwitch(ctx, entry, stderr) {
+  const left = statusPaths(ctx, true);
+
+  if (left.length === 0) {
+    dropEntry(ctx, entry.id);
+    refuse("switch-failed", stderr);
+  }
+
+  refuse(
+    "switch-incomplete",
+    `${stderr}; the switch changed the tree before it failed and the record is kept. Keep the id ${entry.id} and print the paths. ${describeDiscard(ctx, entry)}`,
+    { id: entry.id, dirtyPaths: left },
+  );
+}
+
 function switchToHead(ctx, entry) {
   const result = changeTree(ctx, [
     "switch",
@@ -577,8 +674,7 @@ function switchToHead(ctx, entry) {
   ]);
 
   if (result.status !== 0) {
-    dropEntry(ctx, entry.id);
-    refuse("switch-failed", result.stderr.trim());
+    refuseFailedSwitch(ctx, entry, result.stderr.trim());
   }
 
   const dirty = statusPaths(ctx, true);
@@ -592,8 +688,8 @@ function switchToHead(ctx, entry) {
   if (back.status !== 0) {
     refuse(
       "switch-back-failed",
-      `the head left the tree changed and switching back failed (${back.stderr.trim()}); the record is kept, run ${switchBackCommand(ctx, entry)}`,
-      { dirtyPaths: dirty },
+      `the head left the tree changed and switching back failed (${back.stderr.trim()}); the record is kept. Keep the id ${entry.id} and print the paths. ${describeDiscard(ctx, entry)}`,
+      { id: entry.id, dirtyPaths: dirty },
     );
   }
 
@@ -789,7 +885,6 @@ function enterClone(ctx, sha, entries, requested) {
     kind: "clone",
     headSha: sha,
     path: scratch.entry.path,
-    originRefsAreLocal: true,
   };
 }
 
@@ -855,10 +950,7 @@ function isBackAt(ctx, entry) {
 
 function restoreCheckout(ctx, entry) {
   if (isBackAt(ctx, entry)) {
-    return {
-      restored: { alreadyBack: true },
-      lockfiles: lockfilesSince(ctx, entry),
-    };
+    return restoreBack(ctx, entry);
   }
 
   const branch = currentBranch(ctx);
@@ -893,6 +985,15 @@ function restoreCheckout(ctx, entry) {
     );
   }
 
+  if (entry.branch !== null && !branchExists(ctx, entry.branch)) {
+    return declineCheckout(
+      ctx,
+      entry,
+      "branch-gone",
+      `the branch ${entry.branch} no longer exists; the command makes it again at ${entry.fromSha}`,
+    );
+  }
+
   const back = changeTree(ctx, switchBackArgs(entry));
 
   if (back.status !== 0) {
@@ -900,6 +1001,28 @@ function restoreCheckout(ctx, entry) {
   }
 
   return { restored: {}, lockfiles: lockfilesSince(ctx, entry) };
+}
+
+// HEAD is where the run started, but a switch that was cut short, or an edit
+// made since, can leave the tree changed. Only a clean tree drops the record.
+function restoreBack(ctx, entry) {
+  const dirty = statusPaths(ctx, true);
+
+  if (dirty.length > 0) {
+    return {
+      declined: {
+        reason: "back-but-dirty",
+        detail:
+          "HEAD is back where the run started, but the working tree has changes, so the record is kept. If you switched back yourself and these changes are yours, run `head-setup.mjs forget`.",
+        dirtyPaths: dirty,
+      },
+    };
+  }
+
+  return {
+    restored: { alreadyBack: true },
+    lockfiles: lockfilesSince(ctx, entry),
+  };
 }
 
 function lockfilesSince(ctx, entry) {
@@ -938,21 +1061,44 @@ function removeEmptyParent(parent) {
   }
 }
 
+function removeScratch(entry) {
+  rmSync(entry.path, { recursive: true, force: true });
+  rmSync(join(entry.parent, MARKER_FILE), { force: true });
+  removeEmptyParent(entry.parent);
+}
+
+// Git no longer lists the path: a crash before `worktree add`, a removal that
+// stopped half-way, or a directory that was never ours. The marker the run
+// wrote decides which, under the same guards as a clone.
+function restoreUnlisted(entry) {
+  const ours = existsSync(entry.parent) && describeCloneProblem(entry) === null;
+
+  if (ours) {
+    const present = existsSync(entry.path);
+
+    removeScratch(entry);
+
+    return { restored: present ? { leftover: true } : { missing: true } };
+  }
+
+  if (!existsSync(entry.path)) {
+    return { restored: { missing: true } };
+  }
+
+  return {
+    declined: {
+      reason: "not-a-worktree",
+      detail: `${entry.path} is not a worktree of this repository`,
+    },
+  };
+}
+
 function restoreWorktree(ctx, entry) {
   const listed = [...listedWorktrees(ctx)].map(realOrSame);
   const isListed = listed.includes(realOrSame(entry.path));
 
-  if (!existsSync(entry.path) && !isListed) {
-    return { restored: { missing: true } };
-  }
-
   if (!isListed) {
-    return {
-      declined: {
-        reason: "not-a-worktree",
-        detail: `${entry.path} is not a worktree of this repository`,
-      },
-    };
+    return restoreUnlisted(entry);
   }
 
   const problem = describeParentProblem(entry);
@@ -1027,9 +1173,7 @@ function restoreClone(_ctx, entry) {
     return { declined: { reason: "not-ours", detail: problem } };
   }
 
-  rmSync(entry.path, { recursive: true, force: true });
-  rmSync(join(entry.parent, MARKER_FILE), { force: true });
-  removeEmptyParent(entry.parent);
+  removeScratch(entry);
 
   return { restored: {} };
 }
@@ -1040,36 +1184,45 @@ const RESTORERS = new Map([
   ["clone", restoreClone],
 ]);
 
-function selectEntries(entries, ids) {
-  if (ids.length === 0) {
-    return entries;
-  }
-
+function checkIds(ids, recorded) {
   for (const id of ids) {
     if (!UUID.test(id)) {
       refuse("bad-id", `${id} is not an entry id printed by enter`, {
-        recorded: entries.length,
-      });
-    }
-
-    if (!entries.some((entry) => entry.id === id)) {
-      refuse("unknown-id", `${id} is not recorded for this working tree`, {
-        recorded: entries.length,
+        recorded,
       });
     }
   }
+}
 
-  return entries.filter((entry) => ids.includes(entry.id));
+function restoreEntry(ctx, entry) {
+  try {
+    return RESTORERS.get(entry.kind)(ctx, entry);
+  } catch (error) {
+    return {
+      declined: { reason: "error", detail: String(error?.message ?? error) },
+    };
+  }
 }
 
 function runRestore(ctx, ids) {
   const restored = [];
-  const declined = [];
   const lockfiles = [];
   const entries = requireRecord(ctx);
 
-  for (const entry of [...selectEntries(entries, ids)].reverse()) {
-    const outcome = RESTORERS.get(entry.kind)(ctx, entry);
+  checkIds(ids, entries.length);
+
+  const declined = ids
+    .filter((id) => !entries.some((entry) => entry.id === id))
+    .map((id) => ({
+      id,
+      reason: "unknown-id",
+      detail: `${id} is not recorded for this working tree`,
+    }));
+  const chosen =
+    ids.length === 0 ? entries : entries.filter((e) => ids.includes(e.id));
+
+  for (const entry of [...chosen].reverse()) {
+    const outcome = restoreEntry(ctx, entry);
     const named = { id: entry.id, kind: entry.kind, headSha: entry.headSha };
 
     if (outcome.declined === undefined) {
@@ -1107,11 +1260,98 @@ function runForget(ctx) {
   return { ok: true, forgotten: existed };
 }
 
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
+}
+
+function readLockPid(file) {
+  try {
+    const text = readFileSync(file, "utf8").trim();
+
+    return /^[0-9]+$/.test(text) ? Number(text) : null;
+  } catch {
+    return null;
+  }
+}
+
+// The pid is written to a temporary file that is then linked into place, so
+// the lock never exists without it and a reader cannot mistake a lock that is
+// still being made for an unreadable one.
+function createLock(file) {
+  const temp = `${file}.${process.pid}.tmp`;
+
+  try {
+    writeFileSync(temp, String(process.pid), { flag: "wx" });
+    linkSync(temp, file);
+
+    return true;
+  } catch (error) {
+    if (error.code === "EEXIST") {
+      return false;
+    }
+
+    throw error;
+  } finally {
+    rmSync(temp, { force: true });
+  }
+}
+
+function takeLock(ctx) {
+  const file = join(ctx.gitDir, LOCK_FILE);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (createLock(file)) {
+      return file;
+    }
+
+    const pid = readLockPid(file);
+
+    if (pid !== null && isAlive(pid)) {
+      refuse(
+        "busy",
+        `process ${pid} is running head-setup.mjs in this working tree; run one at a time. If none is running, delete ${file}`,
+      );
+    }
+
+    rmSync(file, { force: true });
+  }
+
+  refuse("busy", `${file} could not be taken`);
+}
+
+function releaseLock(file) {
+  try {
+    rmSync(file, { force: true });
+  } catch {
+    // A stale lock is taken over by the next run; it must not hide the result.
+  }
+}
+
+// enter, restore and forget read the record, change a tree and write the
+// record again, so two at once would lose one of the entries.
+function locked(command) {
+  return (ctx, args) => {
+    const file = takeLock(ctx);
+
+    try {
+      return command(ctx, args);
+    } finally {
+      releaseLock(file);
+    }
+  };
+}
+
 const COMMANDS = new Map([
   ["plan", runPlan],
-  ["enter", runEnter],
-  ["restore", runRestore],
-  ["forget", runForget],
+  ["enter", locked(runEnter)],
+  ["restore", locked(runRestore)],
+  ["forget", locked(runForget)],
 ]);
 
 function run(argv) {

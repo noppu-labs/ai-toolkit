@@ -11,10 +11,23 @@ const PATHSPEC_VARS = [
   "GIT_ICASE_PATHSPECS",
 ];
 
+// A git hook, or a linked worktree's hook, exports these, and they would point
+// every call here at that repository instead of the directory it runs in.
+const LOCATION_VARS = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_COMMON_DIR",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_NAMESPACE",
+  "GIT_PREFIX",
+];
+
 function makeEnv() {
   const env = { ...process.env, ...GIT_ENV };
 
-  for (const name of PATHSPEC_VARS) {
+  for (const name of [...PATHSPEC_VARS, ...LOCATION_VARS]) {
     delete env[name];
   }
 

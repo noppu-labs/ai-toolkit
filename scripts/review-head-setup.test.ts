@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -7,6 +7,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -14,7 +15,7 @@ import {
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { makeSandbox, realGit as realGitPath } from "./review-test-git.ts";
+import { makeSandbox, realGit } from "./review-test-git.ts";
 
 const script = join(
   import.meta.dirname,
@@ -33,9 +34,8 @@ type Outcome = { status: number | null; json: Json; stderr: string };
 type CommitOptions = { links?: Files; executable?: string[] };
 
 const sandboxRoot = makeSandbox("review-head-setup-");
-const sandbox = sandboxRoot.root;
+const sandbox: string = sandboxRoot.root;
 let scratch = join(sandbox, "scratch");
-const realGit = realGitPath;
 let counter = 0;
 
 beforeEach(() => {
@@ -175,8 +175,12 @@ function run(
   return { status: result.status, json: parsed, stderr: result.stderr };
 }
 
-function switchCommand(dir: string, name: string): string {
-  return `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C ${dir} switch --no-overwrite-ignore ${name}`;
+function switchCommand(dir: string, name: string, discard = false): string {
+  const flags = discard
+    ? "--discard-changes --no-guess --no-overwrite-ignore"
+    : "--no-guess --no-overwrite-ignore";
+
+  return `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C ${dir} switch ${flags} ${name}`;
 }
 
 function runShell(command: string, cwd: string): void {
@@ -189,7 +193,10 @@ function runShell(command: string, cwd: string): void {
 }
 
 function runPrinted(command: string, dir: string): void {
-  expect(command).toContain(` -C ${dir} `);
+  if (!command.includes(` -C ${dir} `)) {
+    throw new Error(`the printed command does not name -C ${dir}: ${command}`);
+  }
+
   runShell(command, dir);
 }
 
@@ -298,7 +305,7 @@ describe("head-setup.mjs", () => {
       write(dir, "stray.txt", "x\n");
       git(dir, "switch", "-q", "--detach", "main");
 
-      const json = plan(dir, head, base);
+      const json = plan(dir, base, head);
 
       expect(json).toMatchObject({
         branch: null,
@@ -307,7 +314,7 @@ describe("head-setup.mjs", () => {
       });
       expect(
         headsOf({ status: 0, json, stderr: "" }).map((h) => h.atTree),
-      ).toEqual([false, true]);
+      ).toEqual([true, false]);
     });
 
     it("reports a recorded check-out", () => {
@@ -828,7 +835,7 @@ describe("head-setup.mjs", () => {
 
     it("keeps the record and says so when it cannot switch back", () => {
       const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
-      const failing = `*"switch --no-overwrite-ignore main"*) echo "boom" >&2; exit 1;;\n`;
+      const failing = `*"switch --no-guess --no-overwrite-ignore main"*) echo "boom" >&2; exit 1;;\n`;
       const outcome = run(
         dir,
         ["enter", "checkout", head],
@@ -836,9 +843,17 @@ describe("head-setup.mjs", () => {
       );
 
       expect(outcome.status).toBe(1);
-      expect(outcome.json).toMatchObject({ reason: "switch-back-failed" });
+      expect(outcome.json).toMatchObject({
+        reason: "switch-back-failed",
+        id: readRecord(dir).entries[0]?.id,
+        dirtyPaths: ["notes.txt"],
+      });
       expect(String(outcome.json.detail)).toContain("boom");
-      expect(String(outcome.json.detail)).toContain(switchCommand(dir, "main"));
+      expect(String(outcome.json.detail)).toContain(
+        switchCommand(dir, "main", true),
+      );
+      expect(String(outcome.json.detail)).toContain("discards");
+      expect(String(outcome.json.detail)).toContain("untracked");
       expect(headOf(dir)).toBe(head);
       expect(readRecord(dir).entries).toHaveLength(1);
     });
@@ -1068,7 +1083,7 @@ describe("head-setup.mjs", () => {
       enter(dir, "checkout", head);
 
       expect(run(dir, ["restore"]).json.changedLockfiles).toEqual([
-        { path: "package-lock.json", manager: "npm" },
+        { path: "package-lock.json", manager: "npm", exists: true },
       ]);
     });
 
@@ -1185,8 +1200,8 @@ describe("head-setup.mjs", () => {
       expect(entered.json).toMatchObject({
         kind: "clone",
         headSha: head,
-        originRefsAreLocal: true,
       });
+      expect(entered.json).not.toHaveProperty("originRefsAreLocal");
       expect(headOf(path)).toBe(head);
       expect(branchOf(path)).toBe("");
       expect(git(path, "config", "--get", "remote.origin.url")).toBe(
@@ -1446,11 +1461,12 @@ describe("head-setup.mjs", () => {
 
       const before = readFileSync(recordPath(dir), "utf8");
       const gitDir = gitDirOf(dir);
-
-      chmodSync(gitDir, 0o555);
+      // The lock is already taken when git is first asked where the common
+      // directory is, so only the record's own write meets the closed directory.
+      const closing = `#!/bin/sh\ncase "$*" in\n*"--git-common-dir"*) "${process.execPath}" -e 'require("fs").chmodSync(process.argv[1], 0o555)' "${gitDir}";;\nesac\nexec REAL_GIT "$@"\n`;
 
       try {
-        const outcome = enter(dir, "worktree", head);
+        const outcome = run(dir, ["enter", "worktree", head], makeBin(closing));
 
         expect(outcome.status).toBe(1);
         expect(outcome.json).toMatchObject({ reason: "record-write-failed" });
@@ -1514,7 +1530,7 @@ describe("head-setup.mjs", () => {
       expect(existsSync(pathOf(second))).toBe(false);
     });
 
-    it("refuses a malformed or unknown id and touches nothing", () => {
+    it("refuses a malformed id and touches nothing", () => {
       const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
       const entered = enter(dir, "worktree", head);
       const before = readFileSync(recordPath(dir), "utf8");
@@ -1522,7 +1538,7 @@ describe("head-setup.mjs", () => {
       for (const [args, reason] of [
         [["not-an-id"], "bad-id"],
         [["--all"], "bad-id"],
-        [[idOf(entered), "22222222-2222-2222-2222-222222222222"], "unknown-id"],
+        [[idOf(entered), "not-an-id"], "bad-id"],
       ] as const) {
         const outcome = run(dir, ["restore", ...args]);
 
@@ -1540,9 +1556,46 @@ describe("head-setup.mjs", () => {
 
       expect(wrong.status).toBe(1);
       expect(wrong.json).toMatchObject({
-        reason: "unknown-id",
+        ok: false,
+        reason: "declined",
         recorded: 0,
+        declined: [{ id: idOf(entered), reason: "unknown-id" }],
       });
+    });
+
+    it("restores the ids it knows and lists an unknown one as declined", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const entered = enter(dir, "worktree", head);
+      const other = "22222222-2222-2222-2222-222222222222";
+      const outcome = run(dir, ["restore", other, idOf(entered)]);
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({
+        ok: false,
+        reason: "declined",
+        recorded: 1,
+        restored: [{ id: idOf(entered) }],
+        declined: [{ id: other, reason: "unknown-id" }],
+      });
+      expect(existsSync(pathOf(entered))).toBe(false);
+      expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("declines an id nothing recorded and touches nothing", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const entered = enter(dir, "worktree", head);
+      const before = readFileSync(recordPath(dir), "utf8");
+      const outcome = run(dir, [
+        "restore",
+        "22222222-2222-2222-2222-222222222222",
+      ]);
+
+      expect(outcome.status).toBe(1);
+      expect(listAt(outcome.json, "declined")).toMatchObject([
+        { reason: "unknown-id" },
+      ]);
+      expect(existsSync(pathOf(entered))).toBe(true);
+      expect(readFileSync(recordPath(dir), "utf8")).toBe(before);
     });
   });
 
@@ -1749,6 +1802,770 @@ describe("head-setup.mjs", () => {
       expect(existsSync(recordPath(dir))).toBe(false);
       expect(existsSync(path)).toBe(true);
       expect(run(dir, ["forget"]).json).toEqual({ ok: true, forgotten: false });
+    });
+  });
+
+  describe("a switch that fails part-way", () => {
+    const partWay = `#!/bin/sh\ncase "$*" in\n*"switch --detach --no-overwrite-ignore"*) echo dirt >> notes.txt; echo "fatal: smudge failed" >&2; exit 128;;\nesac\nexec REAL_GIT "$@"\n`;
+
+    it("keeps the record and refuses with the id, the paths and a command that discards them", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const outcome = run(dir, ["enter", "checkout", head], makeBin(partWay));
+      const id = readRecord(dir).entries[0]?.id;
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({
+        ok: false,
+        reason: "switch-incomplete",
+        id,
+        dirtyPaths: ["notes.txt"],
+      });
+
+      const detail = String(outcome.json.detail);
+
+      expect(detail).toContain(String(id));
+      expect(detail).toContain(switchCommand(dir, "main", true));
+      expect(detail).toContain("discards");
+      expect(detail).toContain("untracked");
+      expect(branchOf(dir)).toBe("main");
+    });
+
+    it("lets restore decline with the paths, name forget and keep the record", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      run(dir, ["enter", "checkout", head], makeBin(partWay));
+
+      const outcome = run(dir, ["restore"]);
+      const declined = listAt(outcome.json, "declined");
+
+      expect(outcome.status).toBe(1);
+      expect(declined).toMatchObject([
+        { reason: "back-but-dirty", dirtyPaths: ["notes.txt"] },
+      ]);
+      expect(declined[0]).not.toHaveProperty("command");
+      expect(String(declined[0]?.detail)).toContain("forget");
+      expect(readRecord(dir).entries).toHaveLength(1);
+      expect(run(dir, ["forget"]).json).toMatchObject({ forgotten: true });
+    });
+  });
+
+  describe("restore when the tree is already back", () => {
+    it("declines back-but-dirty while the tree has changes, tracked or not", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+      git(dir, "switch", "-q", "main");
+      write(dir, "mine.txt", "x\n");
+
+      const outcome = run(dir, ["restore"]);
+
+      expect(outcome.status).toBe(1);
+      expect(listAt(outcome.json, "declined")).toMatchObject([
+        { reason: "back-but-dirty", dirtyPaths: ["mine.txt"] },
+      ]);
+      expect(readRecord(dir).entries).toHaveLength(1);
+
+      rmSync(join(dir, "mine.txt"));
+      write(dir, "notes.txt", "edited\n");
+
+      expect(listAt(run(dir, ["restore"]).json, "declined")).toMatchObject([
+        { reason: "back-but-dirty", dirtyPaths: ["notes.txt"] },
+      ]);
+    });
+
+    it("still drops the entry once the tree is clean", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+      git(dir, "switch", "-q", "main");
+      write(dir, "mine.txt", "x\n");
+      run(dir, ["restore"]);
+      rmSync(join(dir, "mine.txt"));
+
+      expect(listAt(run(dir, ["restore"]).json, "restored")).toMatchObject([
+        { alreadyBack: true },
+      ]);
+      expect(existsSync(recordPath(dir))).toBe(false);
+    });
+  });
+
+  describe("the lock", () => {
+    const lockName = "pr-review-setup.lock";
+
+    function lockOf(dir: string): string {
+      return join(gitDirOf(dir), lockName);
+    }
+
+    function runAsync(
+      cwd: string,
+      args: string[],
+      bin: string,
+    ): Promise<Outcome> {
+      sandboxRoot.assertInside(cwd);
+
+      return new Promise((resolveRun, reject) => {
+        const child = spawn(process.execPath, [script, ...args], {
+          cwd,
+          env: sandboxRoot.env({ PATH: bin, TMPDIR: scratch }),
+        });
+        let out = "";
+
+        child.stdout.on("data", (chunk: Buffer) => {
+          out += chunk.toString();
+        });
+        child.on("error", reject);
+        child.on("close", (code) => {
+          const parsed: unknown = JSON.parse(out);
+
+          if (!isJson(parsed)) {
+            reject(new Error(`head-setup printed ${out}`));
+
+            return;
+          }
+
+          resolveRun({ status: code, json: parsed, stderr: "" });
+        });
+      });
+    }
+
+    it.each([
+      ["enter", ["enter", "checkout", "HEAD_SHA"]],
+      ["enter", ["enter", "worktree", "HEAD_SHA"]],
+      ["enter", ["enter", "clone", "HEAD_SHA"]],
+      ["restore", ["restore"]],
+      ["forget", ["forget"]],
+    ])("refuses %s with busy while a live process holds it", (_name, args) => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const before = headOf(dir);
+
+      writeFileSync(lockOf(dir), String(process.pid));
+
+      const outcome = run(
+        dir,
+        args.map((arg) => (arg === "HEAD_SHA" ? head : arg)),
+      );
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({ ok: false, reason: "busy" });
+      expect(readFileSync(lockOf(dir), "utf8")).toBe(String(process.pid));
+      expect(headOf(dir)).toBe(before);
+      expect(existsSync(recordPath(dir))).toBe(false);
+      expect(
+        scratchEntries().filter((name) => name.startsWith("pr-review-")),
+      ).toEqual([]);
+    });
+
+    it.each([
+      [
+        "a dead process",
+        (): string => String(spawnSync(process.execPath, ["-e", ""]).pid),
+      ],
+      ["an empty file", (): string => ""],
+      ["text", (): string => "not a pid"],
+      ["a number with text after it", (): string => `${process.pid}abc`],
+    ])("takes it over from %s", (_name, content) => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      writeFileSync(lockOf(dir), content());
+
+      expect(enter(dir, "checkout", head).status).toBe(0);
+      expect(existsSync(lockOf(dir))).toBe(false);
+      expect(run(dir, ["restore"]).status).toBe(0);
+    });
+
+    it("writes its own pid while it holds the lock", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const log = nextPath("lock-log");
+      const spy = `#!/bin/sh\ncase "$*" in\n*"switch --detach"*) read -r pid < "${lockOf(dir)}"; echo "$pid" > "${log}";;\nesac\nexec REAL_GIT "$@"\n`;
+
+      expect(run(dir, ["enter", "checkout", head], makeBin(spy)).status).toBe(
+        0,
+      );
+      expect(readFileSync(log, "utf8").trim()).toMatch(/^\d+$/);
+    });
+
+    it("is gone after a success, a refusal and a failure", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      for (const args of [
+        ["enter", "checkout", head],
+        ["enter", "checkout", head],
+        ["enter", "worktree", "0".repeat(40)],
+        ["restore", "not-an-id"],
+        ["restore"],
+        ["forget"],
+        ["plan", head],
+      ]) {
+        run(dir, args);
+
+        expect(existsSync(lockOf(dir))).toBe(false);
+      }
+    });
+
+    it("keeps every record when enters run at once", async () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const bin = makeBin();
+      const outcomes = await Promise.all(
+        [1, 2, 3, 4].map(() => runAsync(dir, ["enter", "worktree", head], bin)),
+      );
+      const done = outcomes.filter((outcome) => outcome.json.ok === true);
+
+      const refused = outcomes.filter((outcome) => outcome.json.ok === false);
+
+      expect(refused.map((outcome) => outcome.json.reason)).toEqual(
+        refused.map(() => "busy"),
+      );
+      expect(done.length + refused.length).toBe(outcomes.length);
+      expect(done.length).toBeGreaterThan(0);
+      expect(
+        readRecord(dir)
+          .entries.map((entry) => entry.id)
+          .sort(),
+      ).toEqual(done.map((outcome) => String(outcome.json.id)).sort());
+      expect(
+        git(dir, "worktree", "list", "--porcelain")
+          .split("\n")
+          .filter((line) => line.startsWith("worktree ")),
+      ).toHaveLength(done.length + 1);
+      expect(existsSync(lockOf(dir))).toBe(false);
+    });
+  });
+
+  describe("printed commands", () => {
+    it("carries --no-guess and --no-overwrite-ignore in the script's own switch back", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const log = nextPath("git-log");
+      const spy = `#!/bin/sh\necho "$*" >> "${log}"\nexec REAL_GIT "$@"\n`;
+
+      run(dir, ["enter", "checkout", head], makeBin(spy));
+      run(dir, ["restore"], makeBin(spy));
+
+      const lines = readFileSync(log, "utf8")
+        .split("\n")
+        .filter((line) => / switch /.test(line));
+
+      expect(
+        lines.some((line) =>
+          line.endsWith("switch --no-guess --no-overwrite-ignore main"),
+        ),
+      ).toBe(true);
+    });
+
+    it("declines branch-gone with a command that recreates the branch at the recorded commit", () => {
+      const { dir, head, base } = makeFixture({}, { "b.txt": "b\n" });
+
+      git(dir, "switch", "-q", "-c", "feature");
+
+      const from = commit(dir, { "f.txt": "f\n" });
+
+      git(dir, "remote", "add", "origin", join(sandbox, "nowhere"));
+      git(dir, "update-ref", "refs/remotes/origin/feature", base);
+      enter(dir, "checkout", head);
+      git(dir, "branch", "-q", "-D", "feature");
+
+      const outcome = run(dir, ["restore"]);
+      const declined = listAt(outcome.json, "declined");
+
+      expect(outcome.status).toBe(1);
+      expect(declined).toMatchObject([
+        {
+          reason: "branch-gone",
+          command: `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C ${dir} switch --no-overwrite-ignore -c feature ${from}`,
+        },
+      ]);
+      expect(headOf(dir)).toBe(head);
+      expect(readRecord(dir).entries).toHaveLength(1);
+
+      runPrinted(String(declined[0]?.command), dir);
+
+      expect(branchOf(dir)).toBe("feature");
+      expect(headOf(dir)).toBe(from);
+    });
+
+    it("prints the recreate command when a commit on the head also needs keeping", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      git(dir, "switch", "-q", "-c", "feature");
+
+      const from = headOf(dir);
+
+      enter(dir, "checkout", head);
+      commit(dir, { "mine.txt": "m\n" });
+      git(dir, "branch", "-q", "-D", "feature");
+
+      const declined = listAt(run(dir, ["restore"]).json, "declined");
+
+      runPrinted(String(declined[0]?.command), dir);
+
+      expect(branchOf(dir)).toBe("feature");
+      expect(headOf(dir)).toBe(from);
+    });
+
+    it("keeps an ignored file on the switch back to a detached start", () => {
+      const dir = makeRepo({ "keep.env": "tracked\n" });
+
+      git(dir, "switch", "-q", "-c", "drop");
+      git(dir, "rm", "-q", "keep.env");
+      commit(dir, { ".gitignore": "keep.env\n" });
+
+      const head = headOf(dir);
+
+      git(dir, "switch", "-q", "main");
+      git(dir, "switch", "-q", "--detach", "main");
+      enter(dir, "checkout", head);
+      write(dir, "keep.env", "mine\n");
+
+      const outcome = run(dir, ["restore"]);
+
+      expect(listAt(outcome.json, "declined")).toMatchObject([
+        { reason: "switch-failed" },
+      ]);
+      expect(readFileSync(join(dir, "keep.env"), "utf8")).toBe("mine\n");
+    });
+  });
+
+  describe("the session's directory", () => {
+    it("keeps a directory the head removes, so restore still runs from it", () => {
+      const dir = makeRepo({ "d/x.txt": "x\n" });
+
+      git(dir, "switch", "-q", "-c", "pr");
+      git(dir, "rm", "-rq", "d");
+      git(dir, "commit", "-q", "-m", "remove d");
+
+      const head = headOf(dir);
+      const sub = join(dir, "d");
+
+      git(dir, "switch", "-q", "main");
+
+      expect(enter(sub, "checkout", head).status).toBe(0);
+      expect(existsSync(sub)).toBe(true);
+      expect(run(sub, ["restore"]).status).toBe(0);
+      expect(branchOf(dir)).toBe("main");
+      expect(existsSync(join(sub, "x.txt"))).toBe(true);
+    });
+  });
+
+  describe("the git environment", () => {
+    it.each([
+      ["GIT_DIR", (dir: string): string => join(dir, ".git")],
+      ["GIT_INDEX_FILE", (dir: string): string => join(dir, ".git", "index")],
+      ["GIT_COMMON_DIR", (dir: string): string => join(dir, ".git")],
+      ["GIT_PREFIX", (): string => "elsewhere/"],
+      ["GIT_NAMESPACE", (): string => "ns"],
+      [
+        "GIT_OBJECT_DIRECTORY",
+        (dir: string): string => join(dir, ".git", "nope"),
+      ],
+      [
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        (dir: string): string => join(dir, ".git", "nope"),
+      ],
+    ])("ignores %s and leaves the user's tree alone", (name, value) => {
+      for (const kind of ["clone", "worktree"]) {
+        const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+        const before = [headOf(dir), branchOf(dir)];
+        const outcome = run(dir, ["enter", kind, head], makeBin(), {
+          [name]: value(dir),
+        });
+
+        expect(outcome.status).toBe(0);
+        expect([headOf(dir), branchOf(dir)]).toEqual(before);
+        expect(git(dir, "status", "--porcelain")).toBe("");
+        expect(run(dir, ["restore"]).status).toBe(0);
+      }
+    });
+
+    it("never lets GIT_WORK_TREE move the check-out", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const outcome = run(dir, ["enter", "checkout", head], makeBin(), {
+        GIT_WORK_TREE: nextPath("elsewhere"),
+      });
+
+      expect(outcome.status).toBe(0);
+      expect(headOf(dir)).toBe(head);
+    });
+  });
+
+  describe("restore that throws, and leftovers", () => {
+    it("turns a thrown restore into a declined entry and goes on with the rest", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+
+      const clone = pathOf(enter(dir, "clone", head));
+      const locked = join(clone, "locked");
+
+      write(clone, "locked/f.txt", "x\n");
+      chmodSync(locked, 0o555);
+
+      try {
+        const outcome = run(dir, ["restore"]);
+
+        expect(outcome.status).toBe(1);
+        expect(listAt(outcome.json, "restored")).toMatchObject([
+          { kind: "checkout" },
+        ]);
+        expect(listAt(outcome.json, "declined")).toMatchObject([
+          { kind: "clone", reason: "error" },
+        ]);
+        expect(branchOf(dir)).toBe("main");
+        expect(readRecord(dir).entries).toMatchObject([{ kind: "clone" }]);
+      } finally {
+        chmodSync(locked, 0o755);
+      }
+
+      expect(run(dir, ["restore"]).status).toBe(0);
+      expect(existsSync(clone)).toBe(false);
+    });
+
+    it("removes a worktree directory git no longer lists once it carries our marker", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const path = pathOf(enter(dir, "worktree", head));
+      const locked = join(path, "locked");
+
+      write(path, "locked/f.txt", "x\n");
+      chmodSync(locked, 0o555);
+
+      try {
+        expect(run(dir, ["restore"]).status).toBe(1);
+      } finally {
+        chmodSync(locked, 0o755);
+      }
+
+      const again = run(dir, ["restore"]);
+
+      expect(again.status).toBe(0);
+      expect(existsSync(path)).toBe(false);
+      expect(existsSync(dirname(path))).toBe(false);
+      expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("removes an unlisted directory of ours, but not one without the marker", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const path = pathOf(enter(dir, "worktree", head));
+
+      git(dir, "worktree", "remove", "--force", path);
+      mkdirSync(path);
+      write(path, "stray.txt", "x\n");
+
+      const outcome = run(dir, ["restore"]);
+
+      expect(outcome.status).toBe(0);
+      expect(existsSync(dirname(path))).toBe(false);
+
+      const other = pathOf(enter(dir, "worktree", head));
+
+      git(dir, "worktree", "remove", "--force", other);
+      mkdirSync(other);
+      write(other, "stray.txt", "x\n");
+      writeFileSync(join(dirname(other), ".pr-review-marker"), "someone-else");
+
+      expect(listAt(run(dir, ["restore"]).json, "declined")).toMatchObject([
+        { reason: "not-a-worktree" },
+      ]);
+      expect(existsSync(join(other, "stray.txt"))).toBe(true);
+    });
+
+    it("removes the marked directory a crash left before worktree add", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const path = pathOf(enter(dir, "worktree", head));
+      const parent = dirname(path);
+
+      git(dir, "worktree", "remove", "--force", path);
+
+      expect(existsSync(parent)).toBe(true);
+
+      const outcome = run(dir, ["restore"]);
+
+      expect(outcome.status).toBe(0);
+      expect(listAt(outcome.json, "restored")).toMatchObject([
+        { missing: true },
+      ]);
+      expect(existsSync(parent)).toBe(false);
+    });
+
+    it("leaves an unmarked directory alone when the worktree is missing", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const path = pathOf(enter(dir, "worktree", head));
+      const parent = dirname(path);
+
+      git(dir, "worktree", "remove", "--force", path);
+      writeFileSync(join(parent, ".pr-review-marker"), "someone-else");
+      write(parent, "keep.txt", "x\n");
+
+      expect(run(dir, ["restore"]).status).toBe(0);
+      expect(existsSync(join(parent, "keep.txt"))).toBe(true);
+    });
+  });
+
+  describe("the check-out target", () => {
+    it("is not offered when the last head is the tree's commit", () => {
+      const { dir, base, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      expect(plan(dir, head, base).checkout).toEqual({
+        offered: false,
+        reason: "at-head",
+      });
+      expect(plan(dir, base, head).checkout).toEqual({
+        offered: true,
+        reason: null,
+      });
+    });
+
+    it("keeps recorded ahead of at-head", () => {
+      const { dir, base, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+
+      expect(plan(dir, head, base).checkout).toEqual({
+        offered: false,
+        reason: "recorded",
+      });
+    });
+  });
+
+  describe("lockfiles after the switch back", () => {
+    it("says whether each changed lockfile exists in the tree switched back to", () => {
+      const dir = makeRepo({
+        "package.json": "{}\n",
+        "package-lock.json": "1\n",
+      });
+
+      git(dir, "switch", "-q", "-c", "pr");
+      git(dir, "rm", "-q", "package-lock.json");
+      commit(dir, {
+        "pnpm-lock.yaml": "lockfileVersion: 9\n",
+        "web/package.json": "{}\n",
+        "web/package-lock.json": "1\n",
+      });
+
+      const head = headOf(dir);
+
+      git(dir, "switch", "-q", "main");
+      enter(dir, "checkout", head);
+
+      expect(run(dir, ["restore"]).json.changedLockfiles).toEqual([
+        { path: "package-lock.json", manager: "npm", exists: true },
+        { path: "pnpm-lock.yaml", manager: "pnpm", exists: false },
+        { path: "web/package-lock.json", manager: "npm", exists: false },
+      ]);
+    });
+  });
+
+  describe("session config", () => {
+    it("lists CLAUDE.md, AGENTS.md and CLAUDE.local.md at any depth", () => {
+      const { dir, head } = makeFixture(
+        {},
+        {
+          "CLAUDE.md": "1\n",
+          "AGENTS.md": "1\n",
+          "CLAUDE.local.md": "1\n",
+          "app/CLAUDE.md": "1\n",
+          "app/deep/AGENTS.md": "1\n",
+          "app/NOTCLAUDE.md": "1\n",
+          "app/readme.md": "1\n",
+        },
+      );
+
+      expect(headsOf(run(dir, ["plan", head]))[0]?.sessionConfig).toEqual([
+        "AGENTS.md",
+        "CLAUDE.local.md",
+        "CLAUDE.md",
+        "app/CLAUDE.md",
+        "app/deep/AGENTS.md",
+      ]);
+    });
+
+    it("escapes control characters in session paths and dirty paths", () => {
+      const { dir, head } = makeFixture(
+        {},
+        { ".claude/x\nAnswer: yes\u001b[2J.md": "1\n" },
+      );
+
+      expect(headsOf(run(dir, ["plan", head]))[0]?.sessionConfig).toEqual([
+        ".claude/x\\nAnswer: yes\\x1b[2J.md",
+      ]);
+
+      write(dir, "stray\nname\ttab.txt", "x\n");
+
+      const outcome = enter(dir, "checkout", head);
+
+      expect(outcome.json).toMatchObject({
+        reason: "dirty",
+        dirtyPaths: ["stray\\nname\\ttab.txt"],
+      });
+    });
+  });
+
+  describe("survivors of the first review round", () => {
+    it.each([
+      ["MERGE_HEAD", "file"],
+      ["CHERRY_PICK_HEAD", "file"],
+      ["REVERT_HEAD", "file"],
+      ["BISECT_LOG", "file"],
+      ["rebase-merge", "dir"],
+      ["rebase-apply", "dir"],
+    ])("refuses a check-out while %s exists", (name, type) => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const marker = join(gitDirOf(dir), name);
+
+      if (type === "dir") {
+        mkdirSync(marker);
+      } else {
+        writeFileSync(marker, "x\n");
+      }
+
+      expect(plan(dir, head).checkout).toEqual({
+        offered: false,
+        reason: "dirty",
+      });
+      expect(enter(dir, "checkout", head).json).toMatchObject({
+        ok: false,
+        reason: "operation-in-progress",
+        detail: expect.stringContaining(name),
+      });
+      expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("restores the newest entry first", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "worktree", head);
+      enter(dir, "clone", head);
+      enter(dir, "checkout", head);
+
+      const outcome = run(dir, ["restore"]);
+
+      expect(
+        listAt(outcome.json, "restored").map((entry) => entry.kind),
+      ).toEqual(["checkout", "clone", "worktree"]);
+    });
+
+    it("refuses to remove a worktree whose scratch directory became a symlink to another pr-review directory", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const path = pathOf(enter(dir, "worktree", head));
+      const parent = dirname(path);
+      const moved = join(dirname(parent), "pr-review-moved");
+
+      renameSync(parent, moved);
+      symlinkSync(moved, parent);
+
+      const outcome = run(dir, ["restore"]);
+
+      expect(outcome.status).toBe(1);
+      expect(listAt(outcome.json, "declined")).toMatchObject([
+        { reason: "not-ours" },
+      ]);
+      expect(existsSync(join(moved, "head", "b.txt"))).toBe(true);
+    });
+
+    it("refuses to remove a worktree whose head directory became a symlink", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const path = pathOf(enter(dir, "worktree", head));
+      const moved = join(dirname(path), "moved");
+
+      renameSync(path, moved);
+      symlinkSync(moved, path);
+
+      const outcome = run(dir, ["restore"]);
+
+      expect(outcome.status).toBe(1);
+      expect(listAt(outcome.json, "declined")).toMatchObject([
+        { reason: "not-ours" },
+      ]);
+      expect(existsSync(join(moved, "b.txt"))).toBe(true);
+    });
+
+    it.each([
+      ["worktree add", "worktree"],
+      ["clone", "clone"],
+    ])("leaves no scratch directory when %s fails", (failing, kind) => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const wrapper = `#!/bin/sh\ncase "$*" in\n*" ${failing} "*) echo "fatal: boom" >&2; exit 128;;\nesac\nexec REAL_GIT "$@"\n`;
+      const outcome = run(dir, ["enter", kind, head], makeBin(wrapper));
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({ reason: "setup-failed" });
+      expect(
+        scratchEntries().filter((name) => name.startsWith("pr-review-")),
+      ).toEqual([]);
+      expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("keeps the clone's switch free of hooks and submodule recursion", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const hooks = nextPath("hooks");
+      const log = nextPath("hook-log");
+      const config = nextPath("global-config");
+
+      mkdirSync(hooks);
+      writeFileSync(
+        join(hooks, "post-checkout"),
+        `#!/bin/sh\necho ran >> "${log}"\n`,
+      );
+      chmodSync(join(hooks, "post-checkout"), 0o755);
+      writeFileSync(config, `[core]\n\thooksPath = ${hooks}\n`);
+
+      const outcome = run(dir, ["enter", "clone", head], makeBin(), {
+        GIT_CONFIG_GLOBAL: config,
+      });
+
+      expect(outcome.status).toBe(0);
+      expect(existsSync(log)).toBe(false);
+    });
+
+    it("never hands an origin URL that starts with a dash to remote set-url", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const log = nextPath("git-log");
+      const spy = `#!/bin/sh\necho "$*" >> "${log}"\nexec REAL_GIT "$@"\n`;
+
+      git(dir, "remote", "add", "origin", "https://example.com/x.git");
+      git(dir, "config", "remote.origin.url", "--upload-pack=touch-it");
+
+      const outcome = run(dir, ["enter", "clone", head], makeBin(spy));
+
+      expect(outcome.status).toBe(0);
+      expect(readFileSync(log, "utf8")).not.toContain("set-url");
+    });
+
+    it("sets the clone's origin to a URL that does not start with a dash", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const log = nextPath("git-log");
+      const spy = `#!/bin/sh\necho "$*" >> "${log}"\nexec REAL_GIT "$@"\n`;
+
+      git(dir, "remote", "add", "origin", "https://example.com/x.git");
+
+      run(dir, ["enter", "clone", head], makeBin(spy));
+
+      expect(readFileSync(log, "utf8")).toContain(
+        "remote set-url origin https://example.com/x.git",
+      );
+    });
+
+    it("runs every git call that changes a tree with hooks and submodule recursion off", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const log = nextPath("git-log");
+      const spy = `#!/bin/sh\necho "$*" >> "${log}"\nexec REAL_GIT "$@"\n`;
+
+      for (const kind of ["checkout", "worktree", "clone"]) {
+        run(dir, ["enter", kind, head], makeBin(spy));
+      }
+
+      run(dir, ["restore"], makeBin(spy));
+
+      const changing = readFileSync(log, "utf8")
+        .split("\n")
+        .filter((line) =>
+          / (switch|worktree add|worktree remove|clone) /.test(` ${line} `),
+        );
+
+      expect(changing.length).toBeGreaterThanOrEqual(6);
+
+      for (const line of changing) {
+        expect(line).toContain(
+          "-c core.hooksPath=/dev/null -c submodule.recurse=false",
+        );
+      }
     });
   });
 });
