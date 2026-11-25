@@ -1,24 +1,33 @@
 #!/usr/bin/env node
 // Report what a commit's tree says about installing the project, as JSON.
 //
-// Usage: node install-hints.mjs <sha>   (run with the cwd inside the repository)
+// Usage: node install-hints.mjs <sha>   (run anywhere inside the repository)
 //
-// It reads the tree at <sha> through git, never the working tree, and prints
-// lockfiles, install entry points, install hooks, runtime pins, the tools those
-// imply (and whether each is on PATH), and an env example file. The shape is
-// described by ../references/install-hints.schema.json. It decides nothing: the
-// caller picks the install command. Install hooks come from every tracked
-// package.json and composer.json outside vendor/ and node_modules/ (workspace
-// members run theirs on install); entry-point scripts and runtime pins are read
-// only at the root and in lockfile directories.
+// Reads the tree at <sha> through git, never the working tree. Shape:
+// ../references/install-hints.schema.json. It decides nothing: the caller picks
+// the install command. It lists only what it recognises, so an empty list is
+// not proof that nothing runs: installHooks holds the hooks found in readable
+// package.json and composer.json files outside vendor/ and node_modules/
+// (workspace members run theirs on install), not everything an install can
+// run. Files it would not read or list (symlinks, submodules, unreadable files,
+// invalid JSON, unsafe paths) go to `skipped`. Manifest scripts and runtime
+// pins are read only at the root and in lockfile directories; Makefile,
+// justfile, Taskfile, setup scripts and docs only at the root.
 
 import { execFileSync } from "node:child_process";
 import { accessSync, constants, statSync } from "node:fs";
-import { delimiter, join, posix } from "node:path";
+import { delimiter, isAbsolute, join, posix } from "node:path";
 
 const INSTALL_LIKE = /install|setup|bootstrap|init/i;
 const DOCS_HEADING = /install|setup|getting started|bootstrap|init/i;
 const REF_ARG = /^[^-\s][^\s]*$/;
+const SAFE_PATH = /^[A-Za-z0-9._/@+ -]+$/;
+const EXECUTABLE_SUFFIXES =
+  process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+const MODE_REASONS = new Map([
+  ["120000", "symlink"],
+  ["160000", "submodule"],
+]);
 
 const NPM_HOOKS = [
   "preinstall",
@@ -27,12 +36,20 @@ const NPM_HOOKS = [
   "preprepare",
   "prepare",
   "postprepare",
+  "prepublish",
+  "pnpm:devPreinstall",
 ];
 const COMPOSER_HOOKS = [
   "pre-install-cmd",
   "post-install-cmd",
   "pre-autoload-dump",
   "post-autoload-dump",
+  "init",
+  "pre-command-run",
+  "pre-file-download",
+  "pre-operations-exec",
+  "pre-package-install",
+  "post-package-install",
 ];
 
 const LOCKFILES = new Map([
@@ -62,7 +79,7 @@ const SCRIPT_FILES = [
   "bin/bootstrap",
   "script/bootstrap",
 ];
-const DOCS_FILES = ["README.md", "CONTRIBUTING.md", "CLAUDE.md"];
+const DOCS_FILES = ["README.md", "CONTRIBUTING.md", "CLAUDE.md", "AGENTS.md"];
 
 function compare(a, b) {
   if (a < b) {
@@ -86,8 +103,44 @@ function sortBy(items, ...keys) {
   });
 }
 
+function isExecutableFile(candidate) {
+  try {
+    if (!statSync(candidate).isFile()) {
+      return false;
+    }
+
+    accessSync(candidate, constants.X_OK);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Absolute PATH entries only, so a file in the working directory cannot stand
+// in for the real tool.
+function findExecutable(name) {
+  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+    if (!isAbsolute(dir)) {
+      continue;
+    }
+
+    for (const suffix of EXECUTABLE_SUFFIXES) {
+      const candidate = join(dir, `${name}${suffix}`);
+
+      if (isExecutableFile(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+let gitPath = "git";
+
 function git(args) {
-  return execFileSync("git", args, {
+  return execFileSync(gitPath, args, {
     encoding: "utf8",
     maxBuffer: 1 << 28,
     stdio: ["ignore", "pipe", "ignore"],
@@ -108,29 +161,79 @@ function resolveCommit(arg) {
   }
 }
 
-function makeReader(sha, tree) {
-  const cache = new Map();
+function listTree(sha) {
+  const modes = new Map();
+  const output = git(["ls-tree", "-r", "--full-tree", "-z", sha]);
 
-  return (path) => {
-    if (!tree.has(path)) {
+  for (const record of output.split("\0")) {
+    const tab = record.indexOf("\t");
+
+    if (tab !== -1) {
+      modes.set(record.slice(tab + 1), record.slice(0, record.indexOf(" ")));
+    }
+  }
+
+  return modes;
+}
+
+function isSafePath(path) {
+  return (
+    SAFE_PATH.test(path) &&
+    !path.split("/").some((part) => part.startsWith("-"))
+  );
+}
+
+function makeSource(sha, modes) {
+  const cache = new Map();
+  const skipped = new Map();
+  const skip = (path, reason) => {
+    skipped.set(`${path}\0${reason}`, { path, reason });
+  };
+  const admit = (path) => {
+    const reason = MODE_REASONS.get(modes.get(path));
+
+    if (reason === undefined) {
+      return true;
+    }
+
+    skip(path, reason);
+
+    return false;
+  };
+  const read = (path) => {
+    if (!modes.has(path) || !admit(path)) {
       return null;
     }
 
     if (!cache.has(path)) {
-      cache.set(path, git(["show", `${sha}:${path}`]));
+      try {
+        cache.set(path, git(["show", `${sha}:${path}`]));
+      } catch {
+        skip(path, "unreadable");
+        cache.set(path, null);
+      }
     }
 
     return cache.get(path);
   };
+
+  return {
+    has: (path) => modes.has(path),
+    paths: () => [...modes.keys()],
+    admit,
+    read,
+    skip,
+    skipped: () => sortBy([...skipped.values()], "path", "reason"),
+  };
+}
+
+function splitLines(text) {
+  return text.split(/\r?\n/);
 }
 
 function parseJsonObject(text) {
-  if (text === null) {
-    return null;
-  }
-
   try {
-    const value = JSON.parse(text);
+    const value = JSON.parse(text.startsWith("\uFEFF") ? text.slice(1) : text);
 
     return value !== null && typeof value === "object" && !Array.isArray(value)
       ? value
@@ -156,18 +259,34 @@ function pathIn(dir, name) {
   return dir === "" ? name : `${dir}/${name}`;
 }
 
-function findLockfiles(files, tree) {
+function recognisedLockfile(src, path) {
+  const entry = LOCKFILES.get(posix.basename(path));
+
+  if (entry === undefined || isVendored(path)) {
+    return null;
+  }
+
+  const safe = isSafePath(path);
+
+  if (!safe) {
+    src.skip(path, "unsafe-path");
+  }
+
+  return src.admit(path) && safe ? entry : null;
+}
+
+function findLockfiles(src) {
   const found = [];
 
-  for (const path of files) {
-    const entry = LOCKFILES.get(posix.basename(path));
+  for (const path of src.paths()) {
+    const entry = recognisedLockfile(src, path);
 
-    if (entry === undefined || isVendored(path)) {
+    if (entry === null) {
       continue;
     }
 
     const immutable =
-      entry.manager === "yarn" && tree.has(pathIn(dirOf(path), ".yarnrc.yml"));
+      entry.manager === "yarn" && src.has(pathIn(dirOf(path), ".yarnrc.yml"));
 
     found.push({
       path,
@@ -186,7 +305,7 @@ function uniqueSorted(names) {
 function makeTargets(text) {
   const names = [];
 
-  for (const line of text.split("\n")) {
+  for (const line of splitLines(text)) {
     const match = /^([A-Za-z0-9_][A-Za-z0-9_.-]*)\s*::?(?![:=])/.exec(line);
 
     if (match !== null) {
@@ -200,7 +319,7 @@ function makeTargets(text) {
 function justRecipes(text) {
   const names = [];
 
-  for (const line of text.split("\n")) {
+  for (const line of splitLines(text)) {
     const match = /^@?([A-Za-z_][A-Za-z0-9_-]*)(?:\s[^:=]*)?:(?!=)/.exec(line);
 
     if (match !== null) {
@@ -215,7 +334,7 @@ function taskNames(text) {
   const names = [];
   let inTasks = false;
 
-  for (const line of text.split("\n")) {
+  for (const line of splitLines(text)) {
     if (/^tasks:\s*(#.*)?$/.test(line)) {
       inTasks = true;
     } else if (/^\S/.test(line)) {
@@ -232,17 +351,46 @@ function taskNames(text) {
   return names;
 }
 
+function headingText(line) {
+  let start = 0;
+
+  while (start < 3 && line[start] === " ") {
+    start += 1;
+  }
+
+  let end = start;
+
+  while (line[end] === "#") {
+    end += 1;
+  }
+
+  if (end === start || end - start > 6 || !/\s/.test(line.charAt(end))) {
+    return "";
+  }
+
+  const text = line.slice(end).trim();
+  let close = text.length;
+
+  while (close > 0 && text[close - 1] === "#") {
+    close -= 1;
+  }
+
+  const hasClosing =
+    close < text.length && close > 0 && /\s/.test(text[close - 1]);
+
+  return hasClosing ? text.slice(0, close).trim() : text;
+}
+
 function docsHeadings(text) {
   const names = [];
   let inFence = false;
 
-  for (const line of text.split("\n")) {
+  for (const line of splitLines(text)) {
     if (/^\s*(```|~~~)/.test(line)) {
       inFence = !inFence;
     }
 
-    const match = inFence ? null : /^ {0,3}#{1,6}\s+(.+?)\s*$/.exec(line);
-    const heading = match?.[1].replace(/\s+#+$/, "").trim();
+    const heading = inFence ? "" : headingText(line);
 
     if (heading && DOCS_HEADING.test(heading)) {
       names.push(heading);
@@ -252,7 +400,7 @@ function docsHeadings(text) {
   return names;
 }
 
-function findRootEntries(read, tree) {
+function findTaskEntries(src) {
   const entries = [];
   const kinds = [
     [MAKE_FILES, "make", makeTargets],
@@ -261,9 +409,9 @@ function findRootEntries(read, tree) {
   ];
 
   for (const [files, kind, extract] of kinds) {
-    for (const path of files.filter((file) => tree.has(file))) {
+    for (const path of files.filter((file) => src.has(file))) {
       const names = uniqueSorted(
-        extract(read(path)).filter((name) => INSTALL_LIKE.test(name)),
+        extract(src.read(path) ?? "").filter((name) => INSTALL_LIKE.test(name)),
       );
 
       if (names.length > 0) {
@@ -272,12 +420,20 @@ function findRootEntries(read, tree) {
     }
   }
 
-  for (const path of SCRIPT_FILES.filter((file) => tree.has(file))) {
-    entries.push({ path, kind: "script-file", names: [] });
+  return entries;
+}
+
+function findFileEntries(src) {
+  const entries = [];
+
+  for (const path of SCRIPT_FILES.filter((file) => src.has(file))) {
+    if (src.admit(path)) {
+      entries.push({ path, kind: "script-file", names: [] });
+    }
   }
 
-  for (const path of DOCS_FILES.filter((file) => tree.has(file))) {
-    const names = uniqueSorted(docsHeadings(read(path)));
+  for (const path of DOCS_FILES.filter((file) => src.has(file))) {
+    const names = uniqueSorted(docsHeadings(src.read(path) ?? ""));
 
     if (names.length > 0) {
       entries.push({ path, kind: "docs-section", names });
@@ -285,6 +441,10 @@ function findRootEntries(read, tree) {
   }
 
   return entries;
+}
+
+function findRootEntries(src) {
+  return [...findTaskEntries(src), ...findFileEntries(src)];
 }
 
 function hookCommand(value) {
@@ -299,24 +459,45 @@ function hookCommand(value) {
   return null;
 }
 
-function readManifests(read, files) {
+function readManifest(src, path, kind) {
+  const text = src.read(path);
+
+  if (text === null) {
+    return null;
+  }
+
+  const json = parseJsonObject(text);
+  const safe = isSafePath(path);
+
+  if (json === null) {
+    src.skip(path, "invalid-json");
+
+    return null;
+  }
+
+  if (!safe) {
+    src.skip(path, "unsafe-path");
+  }
+
+  return { path, kind: kind[1], hooks: kind[2], json, safe };
+}
+
+function readManifests(src) {
   const manifests = [];
   const kinds = [
     ["composer.json", "composer-script", COMPOSER_HOOKS],
     ["package.json", "npm-script", NPM_HOOKS],
   ];
 
-  for (const path of files) {
+  for (const path of src.paths()) {
     const kind = kinds.find(([file]) => posix.basename(path) === file);
+    const manifest =
+      kind === undefined || isVendored(path)
+        ? null
+        : readManifest(src, path, kind);
 
-    if (kind === undefined || isVendored(path)) {
-      continue;
-    }
-
-    const json = parseJsonObject(read(path));
-
-    if (json !== null) {
-      manifests.push({ path, kind: kind[1], hooks: kind[2], json });
+    if (manifest !== null) {
+      manifests.push(manifest);
     }
   }
 
@@ -366,8 +547,10 @@ function findInstallHooks(manifests) {
 function toolVersions(text) {
   const found = [];
 
-  for (const line of text.split("\n")) {
-    const [tool, version] = line.replace(/#.*$/, "").trim().split(/\s+/);
+  for (const line of splitLines(text)) {
+    const hash = line.indexOf("#");
+    const body = hash === -1 ? line : line.slice(0, hash);
+    const [tool, version] = body.trim().split(/\s+/);
 
     if (tool && version) {
       found.push({ tool, version });
@@ -377,7 +560,7 @@ function toolVersions(text) {
   return found;
 }
 
-function findPinnedRuntimes(read, dir) {
+function findPinnedRuntimes(src, dir) {
   const found = [];
   const pins = [
     [".nvmrc", "node"],
@@ -386,7 +569,7 @@ function findPinnedRuntimes(read, dir) {
   ];
 
   for (const [file, tool] of pins) {
-    const version = read(pathIn(dir, file))?.trim();
+    const version = src.read(pathIn(dir, file))?.trim();
 
     if (version) {
       found.push({ path: pathIn(dir, file), tool, version });
@@ -395,7 +578,7 @@ function findPinnedRuntimes(read, dir) {
 
   const path = pathIn(dir, ".tool-versions");
 
-  for (const entry of toolVersions(read(path) ?? "")) {
+  for (const entry of toolVersions(src.read(path) ?? "")) {
     found.push({ path, ...entry });
   }
 
@@ -421,31 +604,13 @@ function findManifestRuntimes(manifests) {
   return found;
 }
 
-function findRuntimes(read, dirs, manifests) {
+function findRuntimes(src, dirs, manifests) {
   const found = [
-    ...dirs.flatMap((dir) => findPinnedRuntimes(read, dir)),
+    ...dirs.flatMap((dir) => findPinnedRuntimes(src, dir)),
     ...findManifestRuntimes(manifests),
   ];
 
   return sortBy(found, "path", "tool", "version");
-}
-
-function isOnPath(name) {
-  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
-    const candidate = join(dir, name);
-
-    try {
-      if (dir !== "" && statSync(candidate).isFile()) {
-        accessSync(candidate, constants.X_OK);
-
-        return true;
-      }
-    } catch {
-      // Not here or not executable: try the next directory.
-    }
-  }
-
-  return false;
 }
 
 function findTools(lockfiles, entryPoints) {
@@ -459,27 +624,26 @@ function findTools(lockfiles, entryPoints) {
     }
   }
 
-  return uniqueSorted(names).map((name) => ({ name, onPath: isOnPath(name) }));
+  return uniqueSorted(names).map((name) => ({
+    name,
+    onPath: findExecutable(name) !== null,
+  }));
 }
 
-function findEnvExample(tree) {
-  return [".env.example", ".env.dist"].find((file) => tree.has(file)) ?? null;
+function findEnvExample(src) {
+  return [".env.example", ".env.dist"].find((file) => src.has(file)) ?? null;
 }
 
 function collectHints(sha) {
-  const files = git(["ls-tree", "-r", "--name-only", "-z", sha])
-    .split("\0")
-    .filter((path) => path !== "");
-  const tree = new Set(files);
-  const read = makeReader(sha, tree);
-  const lockfiles = findLockfiles(files, tree);
+  const src = makeSource(sha, listTree(sha));
+  const lockfiles = findLockfiles(src);
   const dirs = uniqueSorted(["", ...lockfiles.map((lock) => dirOf(lock.path))]);
-  const manifests = readManifests(read, files);
-  const topManifests = manifests.filter((manifest) =>
-    dirs.includes(dirOf(manifest.path)),
+  const manifests = readManifests(src);
+  const topManifests = manifests.filter(
+    (manifest) => manifest.safe && dirs.includes(dirOf(manifest.path)),
   );
   const entryPoints = sortBy(
-    [...findRootEntries(read, tree), ...findManifestEntries(topManifests)],
+    [...findRootEntries(src), ...findManifestEntries(topManifests)],
     "path",
     "kind",
   );
@@ -489,13 +653,24 @@ function collectHints(sha) {
     lockfiles,
     entryPoints,
     installHooks: findInstallHooks(manifests),
-    runtimes: findRuntimes(read, dirs, topManifests),
+    runtimes: findRuntimes(src, dirs, topManifests),
     tools: findTools(lockfiles, entryPoints),
-    envExample: findEnvExample(tree),
+    envExample: findEnvExample(src),
+    skipped: src.skipped(),
   };
 }
 
 function main() {
+  const found = findExecutable("git");
+
+  if (found === null) {
+    process.stderr.write("install-hints: git not found on PATH\n");
+
+    return 1;
+  }
+
+  gitPath = found;
+
   const arg = process.argv[2];
 
   if (arg === undefined || arg === "") {

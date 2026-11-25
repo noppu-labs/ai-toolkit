@@ -11,11 +11,13 @@
     "installHooks",
     "runtimes",
     "tools",
-    "envExample"
+    "envExample",
+    "skipped"
   ],
   "properties": {
     "headSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "lockfiles": {
+      "description": "Recognised lockfiles only; a lockfile of another package manager is not listed.",
       "type": "array",
       "items": {
         "type": "object",
@@ -66,6 +68,7 @@
       }
     },
     "installHooks": {
+      "description": "Install hooks found in the readable manifests. Not a complete list: dependency scripts, tool configuration, binding.gyp and any file in skipped may run more.",
       "type": "array",
       "items": {
         "type": "object",
@@ -103,6 +106,28 @@
         }
       }
     },
-    "envExample": { "type": ["string", "null"] }
+    "envExample": { "type": ["string", "null"] },
+    "skipped": {
+      "description": "Files the script would otherwise have read or listed, with the reason it did not: a symlink or submodule is never read, an unreadable file or a package.json or composer.json that is not a JSON object cannot be used, and a path with a character outside A-Z a-z 0-9 . _ / @ + space - or a segment starting with - is kept out of lockfiles, entryPoints and runtimes.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "symlink",
+              "submodule",
+              "unreadable",
+              "invalid-json",
+              "unsafe-path"
+            ]
+          }
+        }
+      }
+    }
   }
 }
