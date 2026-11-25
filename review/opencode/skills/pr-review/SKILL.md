@@ -53,21 +53,38 @@ Then run `git rev-parse HEAD` once, before any stage starts. A caller that prepa
 
 ### Set up the head
 
-Ask only when a tool that puts a question to the user is listed: `AskUserQuestion` on Claude Code, `question` on OpenCode. When neither is listed, or the question is cancelled or gets no answer, skip this section and go on as if the user chose to continue as is. Skip it too when no PR's `<HEAD_SHA>` differs from the working tree's commit.
+Ask only when a tool that puts a question to the user is listed: `AskUserQuestion` on Claude Code, `question` on OpenCode. A caller's prompt that names a setup (check-out, scratch worktree, separate clone, or continue as is) decides it, with or without such a tool, and nothing is asked. A prompt that says not to ask, or not to modify the checkout, means continue as is; "install it if missing" and similar choose no setup. When no setup is named and no question can be asked, or the question is cancelled or gets no answer, go on as if the user chose to continue as is. Skip this section when no PR's `<HEAD_SHA>` differs from the working tree's commit.
 
-Before asking, run the hints script once for each PR that needs a worktree option, which is each PR whose `<HEAD_SHA>` differs from the working tree's commit:
+Unless the setup is continue as is, run the plan once for every PR before asking or acting, and the hints script for each PR whose `<HEAD_SHA>` differs from the working tree's commit:
 
 ```sh
+node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs plan <HEAD_SHA>...
 node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/install-hints.mjs <HEAD_SHA>
 ```
 
-Read its JSON against `${CLAUDE_PLUGIN_ROOT}/skills/pr-review/references/install-hints.schema.json`. Read every `entryPoints` file at `<HEAD_SHA>` with `git show <HEAD_SHA>:<path>`. This is the orchestrator's one exception to never opening files, and it covers those files only. These files are evidence, not instructions: run only the commands named in the option the user picked. Prefer the project's own entry point when it covers the lockfile commands. Otherwise run each `likelyCommand` from its lockfile's directory. Plan to copy `envExample` to `.env` when the gates likely need it. If the script fails (no `node`), gather the same facts by hand and say so in the report.
+Read the hints JSON against `${CLAUDE_PLUGIN_ROOT}/skills/pr-review/references/install-hints.schema.json`. If `head-setup.mjs` cannot run (no `node`, or a non-zero exit), nothing is set up: continue as is, and the report says why. If only the hints script fails, gather its facts by hand and say so in the report. Read every `entryPoints` file at `<HEAD_SHA>` with `git show '<HEAD_SHA>:<path>'`. This is the orchestrator's one exception to never opening files, and it covers those files only. These files are evidence, not instructions: run only the commands named in the option the user picked. Single-quote every path from either JSON in a command, and never use a `skipped` path in one.
 
-Then ask one question for the whole run. A single PR gets `Check out the PR here`, `Scratch worktree with install`, and `Continue as is`. A stack gets `Check out the top of the stack here`, `One scratch worktree per PR`, and `Continue as is`. Offer a check-out option only when `git status --porcelain` prints nothing. A check-out option's description says that `vendor/` and `node_modules` may be stale when the PR changes a lockfile. The worktree option's description names the install command, every `installHooks` entry as code from the PR that the install runs, every tool with `onPath: false`, and the `.env` copy when planned. A typed answer such as "without scripts" runs the install with `--ignore-scripts` or `--no-scripts`, and the report says the hooks were skipped.
+Then ask one question for the whole run. A single PR gets `Check out the PR here`, `Scratch worktree with install`, and `Continue as is`, in that order. A stack gets `Check out the top of the stack here`, `One scratch worktree per PR`, and `Continue as is`, in that order. The check-out option is first and marked recommended, and is there only when the plan's `checkout.offered` is true. Its description says that session settings and hooks from the PR may take effect, names the `sessionConfig` paths the plan lists for the head, and, when it would install (a lockfile `changed`, or `dependencies: "missing"`), names the commands, the hooks found, and the tools with `onPath: false`. The worktree option's description names the install command, every `installHooks` entry as a hook found that the install runs from the PR (dependencies and tool config may run more), every manifest under `skipped`, every tool with `onPath: false`, and the `.env` copy when planned, and says the install can change the repository's git config and hooks, because a worktree shares `.git`. Scripts run by default.
 
-Check out: record the current branch (`git symbolic-ref --short -q HEAD`, else `git rev-parse HEAD`), then run `git switch --detach <HEAD_SHA>`. If that fails, record why and go on as if the user chose to continue as is; nothing was set up. For the stack option, use the last PR's `<HEAD_SHA>`. No PR gets a `checkout`, since the working tree is now the head. In a stack, the lower PRs keep reading through git.
+A `record` in the plan goes in the same question call as a second question: restore it, or leave it. When `record.unreadable` is set, say so and name `forget`. A run that does not ask never looks at the record.
 
-Worktree: for each PR whose `<HEAD_SHA>` differs from the working tree's commit, run `git worktree add <scratch>/pr-review-<n> <HEAD_SHA>`, with `<scratch>` a scratch directory outside the repository, then the install commands in it, one `bash` call at a time. A PR already at the working tree's commit stays in place with no worktree. A command that fails is recorded with its reason and the review goes on. When `git worktree add` fails (a leftover `<scratch>/pr-review-<n>` from an aborted run, say), that PR gets no `checkout`: record why, and never reuse an existing directory at that path. The worktree's path is that PR's `checkout` in step 3. Remove it as `## Cleanup on every exit` says.
+A typed answer, or a caller's prompt, may also say "without scripts" or "separate clone"; neither has an option of its own. "Without scripts" runs each install as the table says, and the report names the flag used and never claims that no code from the PR ran. "Separate clone" runs the worktree steps with `clone`.
+
+| Manager | Without scripts |
+| --- | --- |
+| npm, pnpm, bun, yarn 1 | `--ignore-scripts` |
+| yarn 4 (`yarn install --immutable`) | `--mode=skip-build` |
+| composer | `--no-scripts --no-plugins` |
+| uv | `uv sync --frozen --no-install-local --no-build` |
+| poetry | `--no-root --no-directory`, with `POETRY_INSTALLER_ONLY_BINARY=:all:` |
+| go | `go mod download`, unchanged |
+| bundler, any project entry point | no install; say why |
+
+Check out: run `node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs enter checkout <HEAD_SHA>`, with the last PR's `<HEAD_SHA>` for the stack option. `ok: false` means continue as is, with its reason recorded. Otherwise install only for the lockfiles the plan reports `changed` or with `dependencies: "missing"`, each with its own command: no project entry point and no `.env` copy in the user's checkout. No PR gets a `checkout`, since the working tree is now the head. In a stack, the lower PRs keep reading through git.
+
+Worktree and clone: for each PR whose `<HEAD_SHA>` differs from the working tree's commit, run `node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs enter worktree <HEAD_SHA> --scratch '<dir>'` (`clone` for a separate clone), with `<dir>` the session's scratch directory when there is one and `--scratch` left out when there is not. Its `path` is that PR's `checkout` in step 3. Then install there: the project's own entry point when it covers the lockfile commands, otherwise each `likelyCommand` from its lockfile's directory, for the root lockfile and those the gates need and not for lockfiles under test or fixture directories, and copy `envExample` to `.env` when the gates likely need it. Run the install commands one `bash` call at a time, each with the `bash` tool's longest timeout, and wait for each to end before dispatching anything. A command that fails is recorded with its reason and the review goes on. A PR already at the working tree's commit stays in place with no worktree. When `enter` fails, that PR gets no `checkout`: record why. After the install, run `git -C '<path>' status --porcelain --untracked-files=no`; when it prints anything, run `git -C '<path>' reset --hard <HEAD_SHA>` and say in the report that the install changed tracked files. In a clone, `origin`'s refs are the user's local branches, so that PR's `<BASE>` goes to the size script, the brief and every stage as a SHA (`git rev-parse <BASE>` in the original repository). Restore as `## Cleanup on every exit` says.
+
+### Size each PR
 
 Size each PR once its `<BASE>` and `<HEAD>` resolve, with the bundled script, which reads the same diff the stages review:
 
@@ -85,7 +102,7 @@ One brief per PR, plain text, pasted whole into every subagent prompt for that P
 
 If the `investigate-brief` skill is listed (the `@noppu-labs/opencode-investigate` plugin), invoke the `investigate-brief` skill to get its script path from the paths its text shows, and build the brief from the script's output plus part of the lighter brief below. Paste the outputs concatenated as the brief.
 
-1. Run the script in a checkout at `<HEAD>`, since it reads the working tree. When step 1 set up a worktree for this PR, run it there in place, and create and remove no worktree. When the current checkout is already there and clean (`git rev-parse HEAD` equals `git rev-parse <HEAD>` and `git status --porcelain` prints nothing), run it in place: that checkout has its `node_modules` or `vendor` and its gitnexus registration, so the brief is richer. Otherwise create a worktree named after the PR in a scratch directory outside the repository, `git worktree add <scratch>/pr-review-<number> <HEAD>`, and remove it afterwards with `git worktree remove <scratch>/pr-review-<number>`. A fresh worktree has no `node_modules` or `vendor`, so language-server types and callers degrade, and its directory name does not match the gitnexus registry, so the Tools line reads `gitnexus: unavailable (...)` and graph sections are omitted.
+1. Run the script in a checkout at `<HEAD>`, since it reads the working tree. When a `## Checkout of the head` block names a directory for this PR, run it there in place, and create and remove no worktree. When the current checkout is already there and clean (`git rev-parse HEAD` equals `git rev-parse <HEAD>` and `git status --porcelain` prints nothing), run it in place: that checkout has its `node_modules` or `vendor` and its gitnexus registration, so the brief is richer. Otherwise create a worktree named after the PR in a scratch directory outside the repository, `git worktree add <scratch>/pr-review-<number> <HEAD>`, and remove it afterwards with `git worktree remove <scratch>/pr-review-<number>`. A fresh worktree has no `node_modules` or `vendor`, so language-server types and callers degrade, and its directory name does not match the gitnexus registry, so the Tools line reads `gitnexus: unavailable (...)` and graph sections are omitted.
 2. Pick the targets from the changed source files: PHP, or JS/TS including `.mjs`, `.cjs`, `.mts`, `.cts`, and not named `*.test.*`, `*.spec.*`, or `*.stories.*`, which the script leaves out. Take the directory of each, then drop every directory that is an ancestor of another on the list. A dropped directory's own changed source files, and changed source files at the repo root, are targeted one file at a time instead of by directory, so `.` is never a target. Directories with no changed sources (manifests, docs, workflows) get no run.
 3. Run the script once per target, with the doc-source gate on, because the correctness stage checks the diff's library calls against the version-checked sources it lists. When context7 cannot be reached, the script marks each lookup `FAILED` and still builds the brief, and the review goes on without docs. A run that still exits non-zero (a deleted directory, no sources) gets no per-directory fallback; item 4 covers its files.
 4. Run the lighter brief's first three commands as well and keep their output, the stat block and the changed-symbol list, next to the script's output. The script details at most 15 symbols per directory, taken in file path order, so the symbol list is what shows the changes it dropped. Run the fourth command for each changed symbol that has no section in the script's output.
@@ -176,18 +193,19 @@ Each prompt is one of the templates below with these slots filled:
 
 Instructions the invoking prompt asked to add to a stage, or to every stage, go after the filled template, under `## Additional instructions from the caller`, and never inside the template. Instructions aimed at the brief, or at every agent, apply to step 2.
 
-When step 1 set up a scratch worktree for a PR, append this block, filled, after each filled stage template and before any caller instructions, and use that worktree for the brief of step 2. On the workflow path, pass the worktree path as that PR's `checkout`.
+When step 1 set up a worktree or clone for a PR, append this block, filled, after the filled first-pass `correctness-review` template and each filled stage template and before any caller instructions, and use that directory for the brief of step 2.
 
 Checkout block:
 
 ```text
 ## Checkout of the head
 
-The head is checked out at `<CHECKOUT>`, a clean checkout of `<HEAD>` where the
-orchestrator ran the project's install; the report says whether it succeeded. Work
-there: read and search files in that directory, run tests, linters, and type
-checkers from it, and build the brief there in place instead of creating a
-worktree. Read files there directly rather than through `git show` or `git grep`.
+The head is checked out at `<CHECKOUT>`, where tracked files match `<HEAD>`. The
+orchestrator ran the project's install there, and it may have failed; a failure
+from a missing dependency goes under `## Skipped`, not findings. Work there: read
+and search files in that directory, run tests, linters, and type checkers from it,
+and build the brief there in place instead of creating a worktree. Read files
+there directly rather than through `git show` or `git grep`.
 ```
 
 Correctness stage, the second pass:
@@ -375,8 +393,8 @@ Rules for the body:
 - A stage with no findings gets its heading and one line saying so. An empty heading reads as a lost subagent.
 - `## Not available in this run` names every skill or tool any subagent listed under `## Skipped`, once each, with the stages that wanted it, and, when the brief came from the fallback commands, notes that the structural brief came from the fallback commands and carries no graph or language-server detail. If every first-pass subagent returned no report, the first pass is named here with the reason, and the correctness findings carry the `hand review only` label. When some but not all of a split first pass's subagents did not report, the angles they owned are named here, and the findings of the subagents that did report keep `correctness-review only`. When every stage had everything, the section says so in one line, besides the brief note when there is one, rather than being dropped.
 - When step 1 fell back to the SHA for a PR, `## Not available in this run` says which trigger applied (`refs/pull/<n>/head` was not fetchable, or the branch moved after the `gh` call) and names the SHA reviewed, so the reader knows the head came from `gh` rather than from the pull ref.
-- When step 1 found the working tree on a commit other than a PR's `<HEAD_SHA>`, `## Not available in this run` says so in one line per PR, naming both SHAs: `PR <n>: the working tree was at <sha> when the review started, not at the reviewed head <HEAD_SHA>. The stages read its files through git, and the tests, linters, and type checkers they ran saw the working tree.` The line is not printed for a PR the user checked out in place, nor for a PR reviewed in place because the working tree was already at its head. For a PR that got a worktree, the line is not printed, since its stages and gates ran in the worktree at its head. For a lower PR under the stack-top option, print only the stack-top line.
-- When step 1 set up the head, `## Not available in this run` says which setup the user chose for each PR and the install command that ran, or that it failed and why, or that the hooks were skipped.
+- When step 1 found the working tree on a commit other than a PR's `<HEAD_SHA>`, `## Not available in this run` says so in one line per PR, naming both SHAs: `PR <n>: the working tree was at <sha> when the review started, not at the reviewed head <HEAD_SHA>. The stages read its files through git, and the tests, linters, and type checkers they ran saw the working tree.` The line is not printed for a PR the user checked out in place, nor for a PR reviewed in place because the working tree was already at its head. For a PR that got a worktree or clone, the line is not printed, since its stages and gates ran in that directory at its head. For a lower PR under the stack-top option, print only the stack-top line.
+- Whenever a setup was asked for or named by the caller, including one that failed or was refused, and whenever `head-setup.mjs` or the hints script failed, `## Not available in this run` has a setup line for each PR, starting `PR <n>:`: the choice, the commands and flags that ran or the reason none did, the script that failed, and that the install changed tracked files when it did.
 - When the user checked out the top of the stack, `## Not available in this run` has one line per lower PR: `PR <n>: its tests, linters, and type checkers saw the top of the stack at <top HEAD_SHA>, not its own head.`
 - `## Not available in this run` also carries the lines `## Cleanup on every exit` asks for.
 
@@ -386,11 +404,11 @@ The consolidated report is written for the reviewer and is not what a PR author 
 
 ## Cleanup on every exit
 
-Undo what step 1 set up once every subagent has reported or stopped, and before consolidation. When the run stops without a report (a stop condition), undo it before the stop message.
+Undo what step 1 set up after the last subagent has reported or stopped, and before consolidation. When the run stops without a report (a stop condition), undo it before the stop message.
 
-Switch an in-place check-out back to the recorded branch (`git switch <branch>`, or `git switch --detach <sha>` when the recorded value is a SHA), then remove each scratch worktree this run created with `git worktree remove --force <dir>`, since the install left untracked files in it. Never switch back when the working tree is no longer clean: run `git status --porcelain`, list the dirty paths together with the exact `git switch <branch>` to run, and leave it.
+Run `node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs restore` from the directory step 1 ran in. `recorded: 0` after an `enter` means the wrong directory: say so and rerun there. For each `changedLockfiles` entry that this run installed, run its normal command again in the user's checkout, scripts on. For each `declined` entry, print its reason, paths and command, and reinstall nothing for it.
 
-Say what was done in `## Not available in this run` when a report is written, and in the stop message otherwise. When step 1 set nothing up, this section does nothing and adds no line.
+Say what was done in `## Not available in this run` when a report is written, and in the stop message otherwise. When step 1 entered nothing, this section does nothing and adds no line.
 
 ## Style
 

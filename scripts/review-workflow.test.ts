@@ -14,6 +14,7 @@ type Pr = {
   url: string;
   instructions?: Instructions;
   checkout?: string;
+  setup?: { kind: string; note: string };
 };
 
 type Skipped = { tool: string; reason: string };
@@ -24,6 +25,7 @@ type BriefOutput = {
   brief: string;
   source: "investigate" | "fallback";
   skipped: Skipped[];
+  checkoutHead?: string;
 };
 
 type StageOutput = {
@@ -765,6 +767,47 @@ describe("instructions", () => {
   });
 });
 
+type Baseline = { prompts: Prompt[]; report: string; counts: Counts[] };
+
+function isBaseline(value: unknown): value is Baseline {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    Array.isArray(record.prompts) &&
+    typeof record.report === "string" &&
+    Array.isArray(record.counts)
+  );
+}
+
+// What the script produced at 8fa20f6 for EXAMPLE_PR and EXAMPLE_FIXTURES,
+// kept as a file so the comparison does not read the head's own templates.
+function readBaseline(): Baseline {
+  const parsed: unknown = JSON.parse(
+    readFileSync(
+      join(import.meta.dirname, "fixtures", "pr-review-workflow-8fa20f6.json"),
+      "utf8",
+    ),
+  );
+
+  if (!isBaseline(parsed)) {
+    throw new Error("the 8fa20f6 baseline has an unexpected shape");
+  }
+
+  return parsed;
+}
+
+function swapOnce(source: string, from: string, to: string): string {
+  if (source.split(from).length !== 2) {
+    throw new Error(`declared swap source not found once: ${from}`);
+  }
+
+  return source.replace(from, () => to);
+}
+
 function filledCheckoutBlock(pr: Pr): string {
   return fill(fencedAfter("Checkout block:"), {
     CHECKOUT: pr.checkout ?? "",
@@ -773,7 +816,8 @@ function filledCheckoutBlock(pr: Pr): string {
 }
 
 describe("checkout", () => {
-  const CHECKOUT_HEADING: string = "## Checkout of the head";
+  // Step 2 names the heading inside a sentence, so only a line of its own is the block.
+  const CHECKOUT_HEADING: RegExp = /^## Checkout of the head$/m;
   const PATH: string = "/tmp/pr-review-117";
 
   it("appends the checkout block to the brief and every stage prompt, before instructions", async () => {
@@ -804,22 +848,28 @@ describe("checkout", () => {
     }
   });
 
-  it("leaves prompts byte-for-byte unchanged without checkout", async () => {
-    const pr = makePr();
-    const run = await runScript([pr], cleanFixtures(pr));
-
-    expect(findPrompt(run, "brief:117").prompt).toContain(
-      `${briefTemplate(pr)}\n\n${BRIEF_TRAILER_START}`,
+  it("leaves the prompts, schemas and report of 8fa20f6 unchanged without checkout and setup, bar the step 2 sentence", async () => {
+    const baseline = readBaseline();
+    const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
+    const expected = baseline.prompts.map((entry) =>
+      entry.label === "brief:117"
+        ? {
+            ...entry,
+            prompt: swapOnce(
+              entry.prompt,
+              "When step 1 set up a worktree for this PR, run it there in place",
+              "When a `## Checkout of the head` block names a directory for this PR, run it there in place",
+            ),
+          }
+        : entry,
     );
 
-    for (const key of STAGE_KEYS) {
-      expect(findPrompt(run, `${key}:117`).prompt).toContain(
-        `${stageTemplate(key, pr, "BRIEF TEXT")}\n\n${STAGE_TRAILER_START}`,
-      );
-    }
+    expect(run.prompts).toEqual(expected);
+    expect(run.result.report).toBe(baseline.report);
+    expect(run.result.counts).toEqual(baseline.counts);
 
     for (const entry of run.prompts) {
-      expect(entry.prompt).not.toContain(CHECKOUT_HEADING);
+      expect(entry.prompt).not.toMatch(CHECKOUT_HEADING);
     }
   });
 
@@ -832,7 +882,7 @@ describe("checkout", () => {
     });
 
     for (const entry of run.prompts) {
-      const has = entry.prompt.includes(CHECKOUT_HEADING);
+      const has = CHECKOUT_HEADING.test(entry.prompt);
 
       expect(has).toBe(entry.label.endsWith(":117"));
     }
@@ -850,6 +900,100 @@ describe("checkout", () => {
     for (const entry of run.prompts) {
       expect(entry.prompt).toContain(block);
     }
+  });
+});
+
+describe("setup and checkoutHead", () => {
+  const PATH: string = "/tmp/pr-review-117";
+  // biome-ignore lint/security/noSecrets: a commit SHA fixture, not a secret
+  const OTHER_SHA: string = "0123456789abcdef0123456789abcdef01234567";
+
+  it("writes one roll-up line per PR from its setup", async () => {
+    const first = makePr({
+      checkout: PATH,
+      setup: { kind: "worktree", note: "npm ci, scripts on." },
+    });
+    const second = makePr({
+      number: 118,
+      setup: { kind: "none", note: "head-setup.mjs exited 1: no node." },
+    });
+    const run = await runScript([first, second], {
+      "brief:117": makeBrief({ checkoutHead: HEAD_SHA }),
+      ...cleanFixtures(second),
+      "correctness:117": makeStage(),
+      "typeSafety:117": makeStage(),
+      "comments:117": makeStage(),
+    });
+
+    expect(run.result.report).toContain(
+      "- PR 117: head setup: worktree. npm ci, scripts on.\n",
+    );
+    expect(run.result.report).toContain(
+      "- PR 118: head setup: none. head-setup.mjs exited 1: no node.\n",
+    );
+  });
+
+  it("asks for checkoutHead, and carries it in the schema, only with checkout", async () => {
+    const withCheckout = makePr({ checkout: PATH });
+    const without = makePr({ number: 118 });
+    const run = await runScript([withCheckout, without], {
+      ...cleanFixtures(withCheckout),
+      ...cleanFixtures(without),
+    });
+    const asked = findPrompt(run, "brief:117");
+    const plain = findPrompt(run, "brief:118");
+
+    expect(asked.prompt).toContain(
+      "`git -C '/tmp/pr-review-117' rev-parse HEAD`",
+    );
+    expect(asked.prompt).toContain("`checkoutHead`");
+    expect(asked.schema).toMatchObject({
+      required: ["brief", "source", "skipped"],
+      properties: { checkoutHead: { type: "string" } },
+    });
+    expect(plain.prompt).not.toContain("checkoutHead");
+    expect(JSON.stringify(plain.schema)).not.toContain("checkoutHead");
+  });
+
+  it("adds a roll-up line naming both SHAs when checkoutHead differs", async () => {
+    const pr = makePr({ checkout: PATH });
+    const run = await runScript([pr], {
+      ...cleanFixtures(pr),
+      "brief:117": makeBrief({ checkoutHead: OTHER_SHA }),
+    });
+
+    expect(run.result.report).toContain(
+      `- PR 117: the checkout ${PATH} was reported at ${OTHER_SHA}, not at the reviewed head ${HEAD_SHA}`,
+    );
+  });
+
+  it("adds a roll-up line when checkoutHead is missing", async () => {
+    const pr = makePr({ checkout: PATH });
+    const run = await runScript([pr], cleanFixtures(pr));
+
+    expect(run.result.report).toContain(
+      `- PR 117: the checkout ${PATH} was reported at no commit, not at the reviewed head ${HEAD_SHA}`,
+    );
+  });
+
+  it("adds no line when checkoutHead matches the reviewed head", async () => {
+    const pr = makePr({ checkout: PATH });
+    const run = await runScript([pr], {
+      ...cleanFixtures(pr),
+      "brief:117": makeBrief({ checkoutHead: `${HEAD_SHA}\n` }),
+    });
+
+    expect(run.result.report).not.toContain("was reported at");
+  });
+
+  it("logs nothing about checkoutHead without checkout", async () => {
+    const pr = makePr({ setup: { kind: "checkout", note: "in place." } });
+    const run = await runScript([pr], cleanFixtures(pr));
+
+    expect(run.result.report).not.toContain("was reported at");
+    expect(run.result.report).toContain(
+      "- PR 117: head setup: checkout. in place.",
+    );
   });
 });
 
@@ -898,6 +1042,44 @@ describe("args", () => {
     [
       [{ ...makePr(), checkout: 7 }],
       /args\[0\]\.checkout must be an absolute path/,
+    ],
+    [
+      [{ ...makePr(), setup: "worktree" }],
+      /args\[0\]\.setup must be an object with kind and note/,
+    ],
+    [
+      [{ ...makePr(), setup: null }],
+      /args\[0\]\.setup must be an object with kind and note/,
+    ],
+    [
+      [{ ...makePr(), setup: { kind: "none", note: "x", extra: 1 } }],
+      /args\[0\]\.setup\.extra is not a known key/,
+    ],
+    [
+      [{ ...makePr(), setup: { kind: "tree", note: "x" } }],
+      /args\[0\]\.setup\.kind must be one of checkout, worktree, clone, none/,
+    ],
+    [
+      [{ ...makePr(), setup: { note: "x" } }],
+      /args\[0\]\.setup\.kind must be one of/,
+    ],
+    [
+      [{ ...makePr(), setup: { kind: "none", note: " " } }],
+      /args\[0\]\.setup\.note must be a non-empty string/,
+    ],
+    [
+      [{ ...makePr(), setup: { kind: "none" } }],
+      /args\[0\]\.setup\.note must be a non-empty string/,
+    ],
+    [
+      [
+        {
+          ...makePr(),
+          checkout: "/tmp/pr-review-117",
+          setup: { kind: "checkout", note: "x" },
+        },
+      ],
+      /args\[0\]\.setup\.kind must be worktree or clone when checkout is set/,
     ],
     [
       [{ ...makePr(), instructions: "be strict" }],

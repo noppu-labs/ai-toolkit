@@ -23,7 +23,7 @@ const STEP2_TEMPLATE = `One brief per PR, plain text, pasted whole into every su
 
 If the \`investigate:brief\` skill is available (the \`investigate\` plugin from this marketplace), invoke the \`investigate:brief\` skill to get its script path under \`\${CLAUDE_PLUGIN_ROOT}\`, and build the brief from the script's output plus part of the lighter brief below. Paste the outputs concatenated as the brief.
 
-1. Run the script in a checkout at \`<HEAD>\`, since it reads the working tree. When step 1 set up a worktree for this PR, run it there in place, and create and remove no worktree. When the current checkout is already there and clean (\`git rev-parse HEAD\` equals \`git rev-parse <HEAD>\` and \`git status --porcelain\` prints nothing), run it in place: that checkout has its \`node_modules\` or \`vendor\` and its gitnexus registration, so the brief is richer. Otherwise create a worktree named after the PR in a scratch directory outside the repository, \`git worktree add <scratch>/pr-review-<number> <HEAD>\`, and remove it afterwards with \`git worktree remove <scratch>/pr-review-<number>\`. A fresh worktree has no \`node_modules\` or \`vendor\`, so language-server types and callers degrade, and its directory name does not match the gitnexus registry, so the Tools line reads \`gitnexus: unavailable (...)\` and graph sections are omitted.
+1. Run the script in a checkout at \`<HEAD>\`, since it reads the working tree. When a \`## Checkout of the head\` block names a directory for this PR, run it there in place, and create and remove no worktree. When the current checkout is already there and clean (\`git rev-parse HEAD\` equals \`git rev-parse <HEAD>\` and \`git status --porcelain\` prints nothing), run it in place: that checkout has its \`node_modules\` or \`vendor\` and its gitnexus registration, so the brief is richer. Otherwise create a worktree named after the PR in a scratch directory outside the repository, \`git worktree add <scratch>/pr-review-<number> <HEAD>\`, and remove it afterwards with \`git worktree remove <scratch>/pr-review-<number>\`. A fresh worktree has no \`node_modules\` or \`vendor\`, so language-server types and callers degrade, and its directory name does not match the gitnexus registry, so the Tools line reads \`gitnexus: unavailable (...)\` and graph sections are omitted.
 2. Pick the targets from the changed source files: PHP, or JS/TS including \`.mjs\`, \`.cjs\`, \`.mts\`, \`.cts\`, and not named \`*.test.*\`, \`*.spec.*\`, or \`*.stories.*\`, which the script leaves out. Take the directory of each, then drop every directory that is an ancestor of another on the list. A dropped directory's own changed source files, and changed source files at the repo root, are targeted one file at a time instead of by directory, so \`.\` is never a target. Directories with no changed sources (manifests, docs, workflows) get no run.
 3. Run the script once per target, with the doc-source gate on, because the correctness stage checks the diff's library calls against the version-checked sources it lists. When context7 cannot be reached, the script marks each lookup \`FAILED\` and still builds the brief, and the review goes on without docs. A run that still exits non-zero (a deleted directory, no sources) gets no per-directory fallback; item 4 covers its files.
 4. Run the lighter brief's first three commands as well and keep their output, the stat block and the changed-symbol list, next to the script's output. The script details at most 15 symbols per directory, taken in file path order, so the symbol list is what shows the changes it dropped. Run the fourth command for each changed symbol that has no section in the script's output.
@@ -219,6 +219,12 @@ const BRIEF_SCHEMA = {
   required: ["brief", "source", "skipped"],
 };
 
+// With `checkout`, the brief also reports the commit the directory is on.
+const BRIEF_SCHEMA_WITH_CHECKOUT_HEAD = {
+  ...BRIEF_SCHEMA,
+  properties: { ...BRIEF_SCHEMA.properties, checkoutHead: { type: "string" } },
+};
+
 const STAGE_SCHEMA = {
   type: "object",
   properties: {
@@ -254,11 +260,12 @@ const REVIEWED_HEAD = "Reviewed head:";
 
 const CHECKOUT_TEMPLATE = `## Checkout of the head
 
-The head is checked out at \`<CHECKOUT>\`, a clean checkout of \`<HEAD>\` where the
-orchestrator ran the project's install; the report says whether it succeeded. Work
-there: read and search files in that directory, run tests, linters, and type
-checkers from it, and build the brief there in place instead of creating a
-worktree. Read files there directly rather than through \`git show\` or \`git grep\`.`;
+The head is checked out at \`<CHECKOUT>\`, where tracked files match \`<HEAD>\`. The
+orchestrator ran the project's install there, and it may have failed; a failure
+from a missing dependency goes under \`## Skipped\`, not findings. Work there: read
+and search files in that directory, run tests, linters, and type checkers from it,
+and build the brief there in place instead of creating a worktree. Read files
+there directly rather than through \`git show\` or \`git grep\`.`;
 
 // One pass over the template, so a slot value that itself contains a slot
 // token (a brief quoting `git diff <BASE>...<HEAD>`, a title) is left alone.
@@ -296,6 +303,34 @@ function validateInstructions(value, at) {
   return instructions;
 }
 
+const SETUP_KEYS = ["kind", "note"];
+
+const SETUP_KINDS = ["checkout", "worktree", "clone", "none"];
+
+function validateSetup(value, checkout, at) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${at} must be an object with kind and note`);
+  }
+  for (const key of Object.keys(value)) {
+    if (!SETUP_KEYS.includes(key)) {
+      throw new Error(`${at}.${key} is not a known key; the keys are ${SETUP_KEYS.join(", ")}`);
+    }
+  }
+  if (!SETUP_KINDS.includes(value.kind)) {
+    throw new Error(`${at}.kind must be one of ${SETUP_KINDS.join(", ")}`);
+  }
+  if (!isNonEmptyString(value.note)) {
+    throw new Error(`${at}.note must be a non-empty string`);
+  }
+  if (checkout !== undefined && value.kind !== "worktree" && value.kind !== "clone") {
+    throw new Error(`${at}.kind must be worktree or clone when checkout is set`);
+  }
+  return { kind: value.kind, note: value.note.trim() };
+}
+
 // A ref name or a shortened SHA would not compare with a caller's `git rev-parse HEAD`.
 const FULL_SHA = /^[0-9a-f]{40}$/;
 
@@ -321,6 +356,7 @@ function validatePr(item, index) {
   if (item.checkout !== undefined && !(typeof item.checkout === "string" && ABSOLUTE_PATH.test(item.checkout))) {
     throw new Error(`${at}.checkout must be an absolute path`);
   }
+  const setup = validateSetup(item.setup, item.checkout, `${at}.setup`);
   return {
     number: item.number,
     title: item.title,
@@ -330,6 +366,7 @@ function validatePr(item, index) {
     url: item.url,
     instructions,
     checkout: item.checkout,
+    setup,
   };
 }
 
@@ -338,7 +375,7 @@ function validateArgs(input) {
     throw new Error("args arrived as a string; pass the PR list as a JSON array value, not a JSON-encoded string");
   }
   if (!Array.isArray(input) || input.length === 0) {
-    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, headSha, url, instructions?, checkout? }, ...]");
+    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, headSha, url, instructions?, checkout?, setup? }, ...]");
   }
   const prs = input.map((pr, index) => validatePr(pr, index));
   const numbers = new Set();
@@ -373,13 +410,24 @@ function checkoutBlock(pr) {
   return `${fill(CHECKOUT_TEMPLATE, { CHECKOUT: pr.checkout, HEAD: pr.headSha })}\n\n`;
 }
 
+function quoteShell(text) {
+  return `'${text.replaceAll("'", "'\\''")}'`;
+}
+
+function checkoutHeadRequest(pr) {
+  if (pr.checkout === undefined) {
+    return "";
+  }
+  return ` Also run \`git -C ${quoteShell(pr.checkout)} rev-parse HEAD\` before anything else and return its output as \`checkoutHead\`.`;
+}
+
 // `<HEAD>` is filled with `headSha`, never `head`: `refs/pr-review/<n>` is
 // shared by every worktree of the clone, so a second review of the same PR
 // can move it while this run's agents are still reading.
 function briefPrompt(pr) {
   const header = `Build the structural brief for PR #${pr.number} "${pr.title}" (${pr.url}). Base ref ${pr.base}, head ref ${pr.headSha}. Only what the branch adds is in scope: git diff ${pr.base}...${pr.headSha}, three dots. Do not review the change; the brief is the input every reviewer of this PR gets.`;
   const body = fill(STEP2_TEMPLATE, { BASE: pr.base, HEAD: pr.headSha });
-  return `${header}\n\n${body}\n\n${checkoutBlock(pr)}${instructionsBlock(pr, "brief")}${BRIEF_TRAILER}`;
+  return `${header}\n\n${body}\n\n${checkoutBlock(pr)}${instructionsBlock(pr, "brief")}${BRIEF_TRAILER}${checkoutHeadRequest(pr)}`;
 }
 
 function stagePrompt(stage, pr, brief) {
@@ -399,7 +447,7 @@ async function runBrief(pr) {
     output = await agent(briefPrompt(pr), {
       label: `brief:${pr.number}`,
       phase: "Brief",
-      schema: BRIEF_SCHEMA,
+      schema: pr.checkout === undefined ? BRIEF_SCHEMA : BRIEF_SCHEMA_WITH_CHECKOUT_HEAD,
     });
   } catch (error) {
     // Schema retries exhausted or the budget ceiling: the stages still run,
@@ -530,6 +578,9 @@ function renderPr(pr, item) {
 
 function collectMisses(pr, item) {
   const misses = { tools: [], lines: [] };
+  if (pr.setup !== undefined) {
+    misses.lines.push(`PR ${pr.number}: head setup: ${pr.setup.kind}. ${pr.setup.note.split("\n").join("\n  ")}`);
+  }
   if (!item) {
     misses.lines.push(`PR ${pr.number}: the pipeline stopped before consolidation, so no stage reported`);
     return misses;
@@ -541,6 +592,12 @@ function collectMisses(pr, item) {
   }
   if (!item.brief || item.brief.brief.trim() === "") {
     misses.lines.push(`structural brief for PR ${pr.number}: the brief subagent returned nothing, so the stages ran without one`);
+  }
+  if (pr.checkout !== undefined) {
+    const found = item.brief && typeof item.brief.checkoutHead === "string" ? item.brief.checkoutHead.trim() : "";
+    if (found !== pr.headSha) {
+      misses.lines.push(`PR ${pr.number}: the checkout ${pr.checkout} was reported at ${found === "" ? "no commit" : found}, not at the reviewed head ${pr.headSha}`);
+    }
   }
   STAGES.forEach((stage, index) => {
     const output = item.outputs[index];
