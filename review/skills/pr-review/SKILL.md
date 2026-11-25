@@ -55,8 +55,8 @@ Then run `git rev-parse HEAD` once, before any stage starts. A caller that prepa
 
 Ask only when a tool that puts a question to the user is listed: `AskUserQuestion` on Claude Code, `question` on OpenCode. Who decides the setup, in this order:
 
-- A caller's prompt that names a setup (check-out, scratch worktree, separate clone, or continue as is) decides it, with or without such a tool, and nothing is asked about the setup.
-- When the prompt names no setup, one that says not to ask, or not to modify the checkout, means continue as is and gets no setup line. Describing the checkout (it is at the PR head, it is disposable) is not naming a setup, and neither is "install it if missing".
+- A caller's prompt that names a setup (check-out, scratch worktree, separate clone, or continue as is) decides it, with or without such a tool, and nothing is asked, the leftover-record question included.
+- When the prompt names no setup, one that says not to ask, or not to modify the checkout, means continue as is, gets no setup line, and asks nothing, the leftover-record question included. Describing the checkout (it is at the PR head, it is disposable) is not naming a setup, and neither is "install it if missing".
 - When no setup is named and no question can be asked, or the question is cancelled or gets no answer, go on as if the user chose to continue as is.
 - Skip this section when no PR's `<HEAD_SHA>` differs from the working tree's commit.
 
@@ -86,10 +86,10 @@ On Claude Code, the `code-review` first pass gets a PR number and reads the curr
 
 When the plan has a `record`, which is a leftover from an earlier run:
 
-- When a question can be asked, ask about it first, in its own question, even when a prompt named a setup. It says what restoring does: a check-out is switched back, and every recorded worktree and clone is removed by force, perhaps one a running review uses. The options are to restore it (`restore` with no ids), or leave it.
+- When a question can be asked and no prompt named a setup or said not to ask, ask about it first, in its own question. It says what restoring does: a check-out is switched back, and every recorded worktree and clone is removed by force, perhaps one a running review uses. The options are to restore it (`restore` with no ids), or leave it.
 - When `record.unreadable` is set, say so, name `forget`, and offer only `Continue as is`: every `enter` refuses until the record is forgotten.
 - After a restore, run the plan again before the setup question, because the tree moved, and name the `changedLockfiles` the restore printed in the report without reinstalling them. Redo the `git rev-parse HEAD` comparison of step 1 too: its SHA in the report line and the "differs" test are stale.
-- A run that does not ask never looks at the record.
+- A run that does not ask never looks at the record and leaves it alone: `enter checkout` then refuses with `already-recorded` and continues as is with that reason, and worktree and clone proceed.
 
 A typed answer, or a caller's prompt, may also say "without scripts" or "separate clone"; neither has an option of its own. "Without scripts" runs each install as the table says, and the report names the flag used and never claims that no code from the PR ran. "Separate clone" runs the worktree steps with `clone`.
 

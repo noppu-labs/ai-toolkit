@@ -404,8 +404,8 @@ const HEAD_SETUP_COPIES: ReadonlyArray<readonly [string, string]> = [
 
 const GATE_SENTENCES: readonly string[] = [
   "Ask only when a tool that puts a question to the user is listed: `AskUserQuestion` on Claude Code, `question` on OpenCode.",
-  "A caller's prompt that names a setup (check-out, scratch worktree, separate clone, or continue as is) decides it, with or without such a tool, and nothing is asked about the setup.",
-  "When the prompt names no setup, one that says not to ask, or not to modify the checkout, means continue as is and gets no setup line.",
+  "A caller's prompt that names a setup (check-out, scratch worktree, separate clone, or continue as is) decides it, with or without such a tool, and nothing is asked, the leftover-record question included.",
+  "When the prompt names no setup, one that says not to ask, or not to modify the checkout, means continue as is, gets no setup line, and asks nothing, the leftover-record question included.",
   'Describing the checkout (it is at the PR head, it is disposable) is not naming a setup, and neither is "install it if missing".',
   "When no setup is named and no question can be asked, or the question is cancelled or gets no answer, go on as if the user chose to continue as is.",
   "Skip this section when no PR's `<HEAD_SHA>` differs from the working tree's commit.",
@@ -426,7 +426,7 @@ const SAFETY_SENTENCES: readonly string[] = [
   "every manifest under `skipped`",
   "the install can change the repository's git config and hooks, because a worktree shares `.git`",
   "Scripts run by default.",
-  "A run that does not ask never looks at the record.",
+  "A run that does not ask never looks at the record and leaves it alone: `enter checkout` then refuses with `already-recorded` and continues as is with that reason, and worktree and clone proceed.",
   "When `record.unreadable` is set, say so, name `forget`, and offer only `Continue as is`: every `enter` refuses until the record is forgotten.",
   '"Without scripts" runs each install as the table says, and the report names the flag used and never claims that no code from the PR ran.',
   "enter checkout <HEAD_SHA>",
@@ -439,7 +439,7 @@ const SAFETY_SENTENCES: readonly string[] = [
   "keep that id and print its `dirtyPaths` and the command in its `detail`, and restore it in cleanup like any other",
   "and copy `envExample` to `.env` when it is not null and the gates likely need it",
   "says the scripts run in the user's checkout, and says the user's own dependencies are reinstalled after switching back when a lockfile changed",
-  "When a question can be asked, ask about it first, in its own question, even when a prompt named a setup.",
+  "When a question can be asked and no prompt named a setup or said not to ask, ask about it first, in its own question.",
   "a check-out is switched back, and every recorded worktree and clone is removed by force, perhaps one a running review uses",
   "to restore it (`restore` with no ids), or leave it",
   "After a restore, run the plan again before the setup question, because the tree moved, and name the `changedLockfiles` the restore printed in the report without reinstalling them.",
