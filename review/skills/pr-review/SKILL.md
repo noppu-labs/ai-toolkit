@@ -466,7 +466,7 @@ The consolidated report is written for the reviewer and is not what a PR author 
 
 ## Cleanup on every exit
 
-Before this skill ends for any reason (a finished report, a stop condition, or a workflow that failed after its one relaunch), undo what step 1 set up. Switch an in-place check-out back to the recorded branch (`git switch <branch>`, or `git switch --detach <sha>` when the recorded value is a SHA), then remove each scratch worktree this run created with `git worktree remove --force <dir>`, since the install left untracked files in it. Never switch back when the working tree is no longer clean: say so and leave it. Say what was done in `## Not available in this run` when a report exists, and in the stop message otherwise.
+Undo what step 1 set up once the last stage has reported and any relaunch has finished, before the orchestrator writes or merges the final report. When the run stops without a report (a stop condition, or a workflow that failed after its one relaunch), undo it before the stop message. Switch an in-place check-out back to the recorded branch (`git switch <branch>`, or `git switch --detach <sha>` when the recorded value is a SHA), then remove each scratch worktree this run created with `git worktree remove --force <dir>`, since the install left untracked files in it. Never switch back when the working tree is no longer clean: say so and leave it. Say what was done in `## Not available in this run` when a report is written, and in the stop message otherwise.
 
 ## Style
 
