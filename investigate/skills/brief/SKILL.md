@@ -53,8 +53,12 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/brief/scripts/brief.mjs" <target-dir> [--max-
   TypeScript is old enough to load a plugin from any path. Code the user installed is not
   tracked, so an installed project keeps the pass. A committed Yarn cache (`.yarn/cache` or
   `.yarn/unplugged`) counts only next to a Plug'n'Play file (`.pnp.cjs` or `.pnp.js`): with
-  Yarn's node-modules linker nothing loads from it. For a project that commits such files on
-  purpose, set `INVESTIGATE_BRIEF_TRUST_REPO_TS=1` to run the pass anyway.
+  Yarn's node-modules linker nothing loads from it. The check asks git for each place under
+  the name the disk stores, since a case-folding disk also finds it under another spelling. The
+  pass also does not start when such a place sits in a nested repository, for example a
+  folder a removed submodule left behind, because git does not answer for another
+  repository's files. For a project that commits such files on purpose, set
+  `INVESTIGATE_BRIEF_TRUST_REPO_TS=1` to run the pass anyway.
 - Exit non-zero: fix the cause, or mark that module's structure UNRESOLVED. A usage error
   (unknown flag, a second path, a bad `--max-symbols`) also exits 1. Never investigate
   silently without the brief.
@@ -76,7 +80,7 @@ Every tool the brief used reports a status. Read these before trusting any other
 | `not on PATH`, `no .codegraph index` | Tool absent. Section is UNRESOLVED, not empty. |
 | `ran (index in <dir>, a directory above this repository)` | The repository has no codegraph database of its own, so codegraph read the nearest one above it, as codegraph itself does. The Module graph is that project's and can name code outside this repository. |
 | `skipped (--no-lsp)`, `skipped (--no-docs)` | Deliberately not run. |
-| `skipped (… where the server loads code from; set INVESTIGATE_BRIEF_TRUST_REPO_TS=1 to run it)`, `skipped (the TypeScript the server would run (…) loads a plugin from any path …)`, `skipped (could not tell whether the repository tracks code the server loads …)` | The TypeScript pass did not start, because it could have run code the repository supplies. Callers come from the wiring scan only. Run it anyway only for a repository you trust. |
+| `skipped (… where the server loads code from; set INVESTIGATE_BRIEF_TRUST_REPO_TS=1 to run it)`, `skipped (a nested repository at <dir> holds <place>, where the server loads code from; …)`, `skipped (the TypeScript the server would run (…) loads a plugin from any path …)`, `skipped (could not tell whether the repository tracks code the server loads …)` | The TypeScript pass did not start, because it could have run code the repository supplies. Callers come from the wiring scan only. Run it anyway only for a repository you trust. |
 | `skipped (.codegraph is tracked by git)`, `skipped (could not tell whether git tracks .codegraph)` | codegraph did not run, and the brief has no Module graph section. Either the repository commits files under `.codegraph` other than the `.gitignore` codegraph writes there, so the index came with the repository, or git could not list that folder. |
 | `skipped (no PHP scan dirs)` | None of `app`, `config`, `routes`, `database`, `src` exists, and those are the only directories ast-grep scans. The textual wiring scan still ran. |
 | `skipped (no composer.lock read)`, `skipped (no package-lock.json read)`, `skipped (no composer.lock or package-lock.json read)` | No lockfile was read for the target's sources, so its third-party imports are UNRESOLVED. pnpm, yarn, and bun lockfiles are not read. |

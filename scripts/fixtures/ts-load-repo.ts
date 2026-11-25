@@ -23,6 +23,14 @@ export function isCaseInsensitiveTmp(): boolean {
   return existsSync(join(dir, "PROBE"));
 }
 
+/** True when this machine's temporary directory finds an entry named `stored` under the name `asked`. */
+export function tmpFolds(stored: string, asked: string): boolean {
+  const dir = makeTempDir("investigate-fold-");
+  writeFileSync(join(dir, stored), "");
+
+  return existsSync(join(dir, asked));
+}
+
 /** Writes each file, given as { relative path: content }, without committing. */
 export function writeFiles(root: string, files: Record<string, string>): void {
   for (const [rel, content] of Object.entries(files)) {

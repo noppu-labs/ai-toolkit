@@ -1,7 +1,13 @@
-import { existsSync, lstatSync, realpathSync, statSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  readdirSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
 import path from "node:path";
 import { git, withoutPathspecVars } from "./exec.mjs";
-import { workingTreeRoot } from "./repo.mjs";
+import { isOutside, workingTreeRoot } from "./repo.mjs";
 import { refusesPluginPaths, serverTypeScript } from "./ts-version.mjs";
 
 export const TRUST_VAR = "INVESTIGATE_BRIEF_TRUST_REPO_TS";
@@ -54,32 +60,79 @@ function entryParents(root, rel) {
 }
 
 /**
- * The first of `rels` (paths relative to `root`, with /) that git tracks a
- * file at or below, or under a tracked link or submodule. Throws when git
- * cannot answer, so the caller fails closed.
+ * The name `parent` stores for the entry `name` reaches. On a filesystem that
+ * folds letters, `.vscode` can reach an entry stored as `.vſcode`, which
+ * neither git's icase nor toLowerCase folds back; the stored entry is the one
+ * with the same device and inode, by lstat so a link is not followed. Throws
+ * when none matches, so the caller fails closed.
+ */
+export function storedName(parent, name, fs = { readdirSync, lstatSync }) {
+  const names = fs.readdirSync(parent);
+  if (names.includes(name)) return name;
+  const want = fs.lstatSync(path.join(parent, name), { bigint: true });
+  const found = names.find((n) => {
+    const st = fs.lstatSync(path.join(parent, n), { bigint: true });
+    return st.dev === want.dev && st.ino === want.ino;
+  });
+  if (found === undefined || want.ino === 0n) {
+    throw new Error(`could not find how ${name} is stored in ${parent}`);
+  }
+
+  return found;
+}
+
+// `rel` (below `dir`, with /) as the directories store each component.
+function storedPath(dir, rel) {
+  const out = [];
+  let parent = dir;
+  for (const part of rel.split("/")) {
+    const stored = storedName(parent, part);
+    out.push(stored);
+    parent = path.join(parent, stored);
+  }
+
+  return out.join("/");
+}
+
+const coversPath = (entry, rel) =>
+  entry === rel || entry.startsWith(`${rel}/`) || rel.startsWith(`${entry}/`);
+
+/**
+ * The index of the first of `rels` that git tracks a file at or below, or
+ * under a tracked link or submodule, or -1. Each holds two paths relative to
+ * `root`, with /: `spelled`, asked without regard to letter case, and
+ * `stored`, the spelling on disk, asked as it is. Both are needed: a clone
+ * can write a tracked `.yarn/sdks` into a folder stored as `.YARN`. Throws
+ * when git cannot answer, so the caller fails closed.
  */
 function firstTracked(root, rels, env) {
-  const asked = new Set(rels.flatMap((r) => [r, ...entryParents(root, r)]));
-  const res = git(
-    ["ls-files", "-z", "--", ...[...asked].map((r) => `:(icase,literal)${r}`)],
-    { cwd: root, env: withoutPathspecVars(env) },
-  );
+  const asked = new Set();
+  for (const { spelled, stored } of rels) {
+    for (const r of [spelled, ...entryParents(root, spelled)]) {
+      asked.add(`:(icase,literal)${r}`);
+    }
+    for (const r of [stored, ...entryParents(root, stored)]) {
+      asked.add(`:(literal)${r}`);
+    }
+  }
+  const res = git(["ls-files", "-z", "--", ...asked], {
+    cwd: root,
+    env: withoutPathspecVars(env),
+  });
   if (res.error || res.status !== 0) {
     throw new Error(
       `git ls-files failed: ${(res.stderr || res.error?.message || "").trim()}`,
     );
   }
-  const entries = res.stdout
-    .split("\0")
-    .filter(Boolean)
-    .map((e) => e.toLowerCase());
+  const entries = res.stdout.split("\0").filter(Boolean);
 
-  return rels.find((rel) => {
-    const r = rel.toLowerCase();
-    return entries.some(
-      (e) => e === r || e.startsWith(`${r}/`) || r.startsWith(`${e}/`),
-    );
-  });
+  return rels.findIndex(({ spelled, stored }) =>
+    entries.some(
+      (e) =>
+        coversPath(e.toLowerCase(), spelled.toLowerCase()) ||
+        coversPath(e, stored),
+    ),
+  );
 }
 
 const isGitDirShape = (dir) =>
@@ -108,24 +161,18 @@ function treeHolding(full, env) {
   return root;
 }
 
-// The locations present in `dir` that a working tree tracks, through their
-// spelling in the tree holding `dir` or their real location.
-function trackedIn(dir, root, present, env) {
-  const tree = root ?? treeHolding(dir, env);
-  const spelled =
-    tree === null
-      ? undefined
-      : firstTracked(
-          tree,
-          present.map((loc) =>
-            toPosix(path.relative(tree, path.join(dir, loc))),
-          ),
-          env,
-        );
-  if (spelled !== undefined) {
-    return present.find(
-      (loc) => toPosix(path.relative(tree, path.join(dir, loc))) === spelled,
-    );
+// The location present in `dir` that a working tree tracks, through its
+// spelling in `tree` (the tree holding `dir`, or null) or its real location.
+function trackedIn(dir, tree, present, env) {
+  if (tree !== null) {
+    const rels = present.map((loc) => ({
+      spelled: toPosix(path.relative(tree, path.join(dir, loc))),
+      stored: toPosix(
+        path.relative(tree, path.join(dir, storedPath(dir, loc))),
+      ),
+    }));
+    const i = firstTracked(tree, rels, env);
+    if (i !== -1) return present[i];
   }
   return present.find((loc) => {
     const full = path.join(dir, loc);
@@ -133,11 +180,37 @@ function trackedIn(dir, root, present, env) {
     if (tree !== null && real === full) return false;
     const realTree = treeHolding(real, env);
     if (realTree === null) return false;
-    return (
-      firstTracked(realTree, [toPosix(path.relative(realTree, real))], env) !==
-      undefined
-    );
+    const rel = toPosix(path.relative(realTree, real));
+    return firstTracked(realTree, [{ spelled: rel, stored: rel }], env) !== -1;
   });
+}
+
+function holdsGitEntry(dir) {
+  try {
+    lstatSync(path.join(dir, ".git"));
+    return true;
+  } catch (e) {
+    if (e?.code === "ENOENT" || e?.code === "ENOTDIR") return false;
+    throw e;
+  }
+}
+
+// A location present in `dir` inside a nested repository: the location, or a
+// folder between it and `tree` (or `dir`, when no tree holds it), holds a
+// `.git` entry. git does not answer for files in another repository, so a
+// folder a removed submodule or a separate clone left there can supply code
+// whatever the outer index says. Returns [nested folder, location] or null.
+function nestedIn(dir, tree, present) {
+  const stop = tree ?? dir;
+  for (const loc of present) {
+    let current = path.join(dir, loc);
+    while (current !== stop && !isOutside(stop, current)) {
+      if (holdsGitEntry(current)) return [current, loc];
+      current = path.dirname(current);
+    }
+  }
+
+  return null;
 }
 
 function ancestorsOf(dir) {
@@ -154,24 +227,36 @@ function ancestorsOf(dir) {
 
 const oneLine = (text, cap) => String(text).replace(/\s+/g, " ").slice(0, cap);
 
+// Why the load locations in `dir`, the repository or a directory above it,
+// make the server load code a repository supplies; null when they do not.
+function reasonAt(ctx, dir) {
+  const hasPnp = PNP_FILES.some((f) => existsSync(path.join(dir, f)));
+  const present = LOAD_LOCATIONS.filter(
+    (loc) => (hasPnp || !PNP_ONLY.has(loc)) && existsSync(path.join(dir, loc)),
+  );
+  if (present.length === 0) return null;
+  const inRepo = dir === ctx.repoRoot;
+  const tree = inRepo ? ctx.repoRoot : treeHolding(dir, ctx.env);
+  const hit = trackedIn(dir, tree, present, ctx.env);
+  if (hit !== undefined) {
+    const who = inRepo
+      ? "the repository"
+      : "a working tree above the repository";
+    return `${who} tracks files in ${hit}, where the server loads code from`;
+  }
+  const nested = nestedIn(dir, tree, present);
+  if (nested === null) return null;
+  const at = inRepo ? toPosix(path.relative(dir, nested[0])) : nested[0];
+
+  return `a nested repository at ${at} holds ${nested[1]}, where the server loads code from`;
+}
+
 // Why the repository, or a working tree around it, makes the server load
 // code it tracks; null when it does not.
 function trackedReason(ctx) {
   for (const dir of [ctx.repoRoot, ...ancestorsOf(ctx.repoRoot)]) {
-    const hasPnp = PNP_FILES.some((f) => existsSync(path.join(dir, f)));
-    const present = LOAD_LOCATIONS.filter(
-      (loc) =>
-        (hasPnp || !PNP_ONLY.has(loc)) && existsSync(path.join(dir, loc)),
-    );
-    if (present.length === 0) continue;
-    const inRepo = dir === ctx.repoRoot;
-    const hit = trackedIn(dir, inRepo ? ctx.repoRoot : null, present, ctx.env);
-    if (hit !== undefined) {
-      const who = inRepo
-        ? "the repository"
-        : "a working tree above the repository";
-      return `${who} tracks files in ${hit}, where the server loads code from`;
-    }
+    const reason = reasonAt(ctx, dir);
+    if (reason !== null) return reason;
   }
 
   return null;
