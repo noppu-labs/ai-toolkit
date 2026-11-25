@@ -1,7 +1,7 @@
 ---
 name: brief
 description: Generate a deterministic structural brief for a path before anyone reads code, covering callers, wiring, blast radius, installed third-party versions, and version-checked doc sources. Use when asked for a brief, a blast radius, who calls this, or a pre-computation for an investigation or review; the deep and spec skills call it first. Not an investigation by itself: for the full two-pass investigation use investigate:deep.
-compatibility: Requires git and Node 20+. Optional on PATH (gitnexus, codegraph, ast-grep, phpantom_lsp, typescript-language-server); the TypeScript pass needs a tsserver-based TypeScript (6 or earlier) in the target repo. By default the doc-source gate sends the names of up to 12 third-party packages the target imports (devDependencies and composer dev packages excluded) to context7.com, anonymously unless CONTEXT7_API_KEY is set; --no-docs disables that network call. Each missing tool degrades its section and is reported under Tools.
+compatibility: Requires git and Node 20+. Optional on PATH (gitnexus, codegraph, ast-grep, phpantom_lsp, typescript-language-server); the TypeScript pass needs a tsserver-based TypeScript (6 or earlier) in the target repo, and is skipped when the repository tracks files where the server loads code from unless INVESTIGATE_BRIEF_TRUST_REPO_TS=1 is set. By default the doc-source gate sends the names of up to 12 third-party packages the target imports (devDependencies and composer dev packages excluded) to context7.com, anonymously unless CONTEXT7_API_KEY is set; --no-docs disables that network call. Each missing tool degrades its section and is reported under Tools.
 ---
 
 # Structural brief
@@ -48,6 +48,11 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/brief/scripts/brief.mjs" <target-dir> [--max-
   needs a tsserver-based TypeScript install (TypeScript 6 or earlier) in the target repo.
   TypeScript 7 has no `tsserver.js`, so a TypeScript 7 repo shows
   `typescript-language-server: FAILED (…)` with the server's stated cause.
+- The TypeScript pass does not start when the repository, or a working tree around it,
+  tracks files where the server and the TypeScript it runs load code from, or when that
+  TypeScript is old enough to load a plugin from any path. Code the user installed is not
+  tracked, so an installed project keeps the pass. For a project that commits such files on
+  purpose, set `INVESTIGATE_BRIEF_TRUST_REPO_TS=1` to run the pass anyway.
 - Exit non-zero: fix the cause, or mark that module's structure UNRESOLVED. A usage error
   (unknown flag, a second path, a bad `--max-symbols`) also exits 1. Never investigate
   silently without the brief.
@@ -68,6 +73,7 @@ Every tool the brief used reports a status. Read these before trusting any other
 | `unavailable (<note>)`, `UNAVAILABLE (no global fetch)` | Tool could not run. Section is UNRESOLVED. |
 | `not on PATH`, `no .codegraph index` | Tool absent. Section is UNRESOLVED, not empty. |
 | `skipped (--no-lsp)`, `skipped (--no-docs)` | Deliberately not run. |
+| `skipped (… where the server loads code from; set INVESTIGATE_BRIEF_TRUST_REPO_TS=1 to run it)`, `skipped (the TypeScript the server would run (…) loads a plugin from any path …)`, `skipped (could not tell whether the repository tracks code the server loads …)` | The TypeScript pass did not start, because it could have run code the repository supplies. Callers come from the wiring scan only. Run it anyway only for a repository you trust. |
 | `skipped (no PHP scan dirs)` | None of `app`, `config`, `routes`, `database`, `src` exists, and those are the only directories ast-grep scans. The textual wiring scan still ran. |
 | `skipped (no composer.lock read)`, `skipped (no package-lock.json read)`, `skipped (no composer.lock or package-lock.json read)` | No lockfile was read for the target's sources, so its third-party imports are UNRESOLVED. pnpm, yarn, and bun lockfiles are not read. |
 | `…; composer imports UNRESOLVED (no composer.lock read)`, `…; npm imports UNRESOLVED (no package-lock.json read)` | The gate ran for one ecosystem, but the other's lockfile was not read, so that ecosystem's imports are UNRESOLVED. |

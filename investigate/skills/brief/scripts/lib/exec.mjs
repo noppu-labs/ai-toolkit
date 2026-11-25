@@ -13,6 +13,14 @@ export function run(cmd, args, opts = {}) {
   });
 }
 
+// Every git call goes through here: git must not take the working directory
+// itself for a repository. Git older than 2.38 ignores the setting, and newer
+// ones skip it under some paths, so resolveRepo checks the git directory as
+// well.
+export function git(args, opts = {}) {
+  return run("git", ["-c", "safe.bareRepository=explicit", ...args], opts);
+}
+
 export function probe(cmd, env = process.env) {
   const res = run(cmd, ["--version"], { timeout: 5_000, env });
   return !res.error && res.status === 0;

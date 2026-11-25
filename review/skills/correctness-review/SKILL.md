@@ -60,7 +60,7 @@ For every deleted or replaced line, name the invariant it enforced: a check, a d
 
 ### C: callers and callees
 
-For every function, method, or exported symbol the diff changes, find its callers on the head with `git grep -n <name> <head>` and read each call site. Check that each caller still gets what it relies on: argument order and meaning, the shape of the return value, the errors thrown, nullability, side effects. Then read every callee the changed code calls for the first time, or calls differently, and check the call against that callee's contract.
+For every function, method, or exported symbol the diff changes, find its callers on the head with `git grep -n -e <name> <head>` and read each call site. Check that each caller still gets what it relies on: argument order and meaning, the shape of the return value, the errors thrown, nullability, side effects. Then read every callee the changed code calls for the first time, or calls differently, and check the call against that callee's contract.
 
 A name search misses callers reached by a string: a route, an event name, a config map, a container binding. Search for the string as well.
 

@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   writeFileSync,
 } from "node:fs";
@@ -12,11 +13,17 @@ import { join } from "node:path";
 import { Writable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
+import {
+  makeGitDirRepo,
+  makeSpaceRootRepo,
+} from "./fixtures/git-dir-target.ts";
 import { git } from "./fixtures/investigate-git.ts";
 import type { Hit, Sym, TsCallers } from "./fixtures/investigate-types.ts";
 import {
   FAKE_MARKER_PATH,
   MARKER_OPTION_NAME,
+  makeUnsetGitEnv,
+  UNSET_GIT_ENV,
 } from "./fixtures/marker-tool.ts";
 import {
   makeFakeLspPath,
@@ -668,6 +675,138 @@ describe("brief.mjs", () => {
     expect(r.stdout).not.toContain(`## ${MARKER_OPTION_NAME}`);
   });
 
+  it.each([".", ".."] as const)(
+    "refuses a target inside a git directory without running what its config names (worktree = %s)",
+    (worktree) => {
+      const { cwd, marker } = makeGitDirRepo({ worktree });
+
+      for (const target of ["pkg", "pkg/thing.ts", "pkg/..x"]) {
+        const r = runBriefWith(
+          { PATH: FAKE_MARKER_PATH, FAKE_MARKER_FILE: marker },
+          cwd,
+          target,
+          "--no-docs",
+          "--no-lsp",
+        );
+        expect(r.status).toBe(1);
+        expect(r.stdout).toBe("");
+        expect(r.stderr).toMatch(
+          /^brief\.mjs: target is (not inside a git repository|inside a git directory, not a working tree)\n/,
+        );
+      }
+
+      expect(existsSync(marker)).toBe(false);
+    },
+  );
+
+  it.each([".", ".."] as const)(
+    "refuses it itself when git ignores safe.bareRepository (worktree = %s)",
+    (worktree) => {
+      const { cwd, marker } = makeGitDirRepo({ worktree });
+
+      for (const target of ["pkg", "pkg/thing.ts", "pkg/..x"]) {
+        const r = runBriefWith(
+          { ...UNSET_GIT_ENV, FAKE_MARKER_FILE: marker },
+          cwd,
+          target,
+          "--no-docs",
+          "--no-lsp",
+        );
+        expect(r.status).toBe(1);
+        expect(r.stdout).toBe("");
+        expect(r.stderr).toContain(
+          "brief.mjs: target is inside a git directory, not a working tree\n",
+        );
+      }
+
+      expect(existsSync(marker)).toBe(false);
+    },
+  );
+
+  it.each([
+    ["git's own check", { PATH: FAKE_MARKER_PATH }, []],
+    ["a git that ignores safe.bareRepository", UNSET_GIT_ENV, []],
+    [
+      "the real git below a .git/modules path",
+      { PATH: FAKE_MARKER_PATH },
+      [".git", "modules", "vendored"],
+    ],
+  ])(
+    "refuses a git directory whose name ends in a space, with %s",
+    (_label, env, under) => {
+      const { cwd, marker } = makeGitDirRepo({
+        name: "pkg ",
+        hasTrimmedSibling: true,
+        under,
+      });
+
+      for (const target of ["pkg ", "pkg /thing.ts", "pkg /..x"]) {
+        const r = runBriefWith(
+          { ...env, FAKE_MARKER_FILE: marker },
+          cwd,
+          target,
+          "--no-docs",
+          "--no-lsp",
+        );
+        expect(r.status).toBe(1);
+        expect(r.stdout).toBe("");
+        expect(r.stderr).toMatch(
+          /^brief\.mjs: target is (not inside a git repository|inside a git directory, not a working tree)\n/,
+        );
+      }
+
+      expect(existsSync(marker)).toBe(false);
+    },
+  );
+
+  it.each([
+    ["git's own check", { PATH: FAKE_MARKER_PATH }],
+    ["a git that ignores safe.bareRepository", UNSET_GIT_ENV],
+  ])(
+    "briefs a working tree whose root name ends in a space under that name, with %s",
+    (_label, env) => {
+      const { cwd, marker } = makeSpaceRootRepo();
+      const r = runBriefWith(
+        { ...env, FAKE_MARKER_FILE: marker },
+        cwd,
+        "src",
+        "--no-docs",
+        "--no-lsp",
+      );
+
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain("# Structural brief: src (repo: repo )\n");
+      expect(r.stdout).toContain("## ledgerTotal (src/Ledger.ts)");
+      expect(r.stdout).not.toContain("wiring scan FAILED");
+      expect(existsSync(marker)).toBe(false);
+    },
+  );
+
+  it("still briefs the repository's own directories beside one shaped like a git directory", () => {
+    const { cwd, marker } = makeGitDirRepo();
+    mkdirSync(join(cwd, "src"));
+    writeFileSync(
+      join(cwd, "src", "Ledger.ts"),
+      "export function ledgerTotal() { return 1; }\n",
+    );
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "src");
+
+    for (const env of [{ PATH: FAKE_MARKER_PATH }, UNSET_GIT_ENV]) {
+      const r = runBriefWith(
+        { ...env, FAKE_MARKER_FILE: marker },
+        cwd,
+        "src",
+        "--no-docs",
+        "--no-lsp",
+      );
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain("## ledgerTotal (src/Ledger.ts)");
+    }
+
+    expect(existsSync(marker)).toBe(false);
+  });
+
   // root ignores file modes, so the chmod cannot make the file unreadable there.
   it("exits 1 with the reason and no stack trace when a source file is unreadable", {
     skip: process.getuid?.() === 0,
@@ -889,6 +1028,35 @@ describe("brief.mjs with language servers on PATH", () => {
     );
   });
 
+  it("skips the TypeScript server, and says how to run it, when the repository tracks node_modules", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, "node_modules", "typescript"), { recursive: true });
+    writeFileSync(
+      join(cwd, "node_modules", "typescript", "package.json"),
+      "{}\n",
+    );
+    git(cwd, "add", "-f", "node_modules");
+    git(cwd, "commit", "-qm", "node_modules");
+    const log = join(mkdtempSync(join(tmpdir(), "investigate-start-")), "log");
+    const env = { PATH: FAKE_LSP_PATH, FAKE_LSP_START_LOG: log };
+    const skipped = runBriefWith(env, cwd, "src/lib", "--no-docs");
+    expect(skipped.status).toBe(0);
+    expect(skipped.stdout).toContain(
+      "- typescript-language-server: skipped (the repository tracks files in node_modules, where the server loads code from; set INVESTIGATE_BRIEF_TRUST_REPO_TS=1 to run it)",
+    );
+    expect(skipped.stdout).toContain("## formatDate (src/lib/commands.ts)");
+    expect(existsSync(log)).toBe(false);
+
+    const trusted = runBriefWith(
+      { ...env, INVESTIGATE_BRIEF_TRUST_REPO_TS: "1" },
+      cwd,
+      "src/lib",
+      "--no-docs",
+    );
+    expect(trusted.stdout).toContain("- typescript-language-server: ran");
+    expect(existsSync(log)).toBe(true);
+  });
+
   it("sends only the files behind rendered symbols to the server", () => {
     const cwd = makeRepo();
     writeFileSync(join(cwd, "app", "Services", "Zeta.php"), "<?php\n");
@@ -946,6 +1114,53 @@ describe("brief.mjs with gitnexus and codegraph on PATH", () => {
       "- graph: Class at app/Services/Invoice.php:3-3 (epistemic: ?)",
     );
     expect(r.stdout).toContain("    - boot (app/Boot.php)");
+  });
+});
+
+describe("brief.mjs git calls", () => {
+  it("passes safe.bareRepository=explicit to git on every call it makes", () => {
+    const cwd = makeRepo();
+    const root = realpathSync(cwd);
+    const log = join(
+      mkdtempSync(join(tmpdir(), "investigate-git-log-")),
+      "log",
+    );
+    const r = runBriefWith(
+      {
+        ...makeUnsetGitEnv({
+          gitnexus: join(import.meta.dirname, "fixtures", "fake-gitnexus.mjs"),
+        }),
+        FAKE_GIT_LOG: log,
+        FAKE_GITNEXUS_LIST: `${root.split("/").pop()}\n  Path:    ${root}\n  Commit:  ${git(cwd, "rev-parse", "HEAD")}\n  Branch:  main\n`,
+      },
+      cwd,
+      "app/Services",
+      "--no-docs",
+      "--no-lsp",
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("- gitnexus: ran (index current)");
+
+    const calls: string[] = readFileSync(log, "utf8").trim().split("\n");
+
+    // One marker per call site: the two in resolveRepo, the file list, the
+    // two searches per symbol, and the index freshness check.
+    for (const marker of [
+      '"--absolute-git-dir"',
+      '"--show-toplevel"',
+      '"ls-files"',
+      '"-nwF"',
+      '"-nwE"',
+      '"rev-parse","HEAD"',
+    ]) {
+      expect(calls.some((call) => call.includes(marker))).toBe(true);
+    }
+
+    for (const call of calls) {
+      expect(call.startsWith('["-c","safe.bareRepository=explicit",')).toBe(
+        true,
+      );
+    }
   });
 });
 

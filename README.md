@@ -72,7 +72,9 @@ are on `PATH`: `gitnexus` (call graph), `codegraph` (blast radius and inheritanc
 (container and binding patterns), `phpantom_lsp` (PHP types), and `typescript-language-server`
 (verified TypeScript callers). The TypeScript pass needs a tsserver-based TypeScript install
 (TypeScript 6 or earlier) in the target repo; in a TypeScript 7 repo the brief reports
-`typescript-language-server: FAILED (…)` with the server's stated cause. By default it also
+`typescript-language-server: FAILED (…)` with the server's stated cause. The brief skips the
+TypeScript pass when the repository tracks files where the server loads code from;
+`INVESTIGATE_BRIEF_TRUST_REPO_TS=1` runs it anyway. By default it also
 sends the names of up to 12 third-party packages the target imports (devDependencies and
 composer dev packages excluded) to context7.com to find version-matched documentation sources,
 anonymously unless `CONTEXT7_API_KEY` is set; `--no-docs` disables that network call. Every

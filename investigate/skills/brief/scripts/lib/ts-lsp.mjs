@@ -11,6 +11,7 @@ import {
   perFile,
   withClient,
 } from "./lsp-client.mjs";
+import { tsLoadSkipReason } from "./ts-load-check.mjs";
 
 const INIT_TIMEOUT_MS = 60_000;
 // The first request after didOpen waits for the tsserver project load.
@@ -80,8 +81,20 @@ async function fileCallers(client, ctx, file) {
   }
 }
 
+/**
+ * Callers per file, or { skipped } without starting the server when the
+ * repository tracks code the server would load.
+ */
 export function tsLspCallers(ctx, tsFiles, cmd = "typescript-language-server") {
-  return withClient(cmd, ctx, INIT_TIMEOUT_MS, (client) =>
-    perFile(client, tsFiles, (c, file) => fileCallers(c, ctx, file)),
+  const skipped = tsLoadSkipReason(ctx, cmd);
+  if (skipped !== null) return Promise.resolve({ skipped });
+  return withClient(
+    cmd,
+    ctx,
+    INIT_TIMEOUT_MS,
+    (client) =>
+      perFile(client, tsFiles, (c, file) => fileCallers(c, ctx, file)),
+    // The typings installer would fetch packages the repository names.
+    { disableAutomaticTypingAcquisition: true },
   );
 }

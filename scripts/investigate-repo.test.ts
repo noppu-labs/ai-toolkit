@@ -1,11 +1,24 @@
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import {
+  makeGitDirRepo,
+  makeSpaceRootRepo,
+} from "./fixtures/git-dir-target.ts";
 import { git } from "./fixtures/investigate-git.ts";
 import type { Sym } from "./fixtures/investigate-types.ts";
+import { FAKE_MARKER_PATH, UNSET_GIT_ENV } from "./fixtures/marker-tool.ts";
+import { makeFakeGitPath } from "./fixtures/no-tools-path.ts";
 
 type RepoModule = {
   TS_EXT_RE: RegExp;
@@ -17,16 +30,25 @@ type RepoModule = {
     repoRoot: string,
     maxSymbols: number,
   ) => { symbols: Sym[]; truncated: boolean; unnamed: string[] };
-  resolveRepo: (targetArg: string) => {
+  resolveRepo: (
+    targetArg: string,
+    env?: NodeJS.ProcessEnv,
+  ) => {
     target: string;
     repoRoot: string;
     repoName: string;
     relTarget: string;
   };
+  isOutside: (parent: string, child: string) => boolean;
+  isSelfOrAncestor: (dir: string, start: string) => boolean;
 };
 
 type ExecModule = {
   probe: (cmd: string, env?: NodeJS.ProcessEnv) => boolean;
+  git: (
+    args: string[],
+    opts?: { cwd?: string },
+  ) => { status: number | null; stdout: string };
   run: (
     cmd: string,
     args: string[],
@@ -602,6 +624,313 @@ describe("resolveRepo", () => {
     expect(() => repo.resolveRepo(plain)).toThrow(
       /not inside a git repository/,
     );
+  });
+});
+
+// Which of the two refusals fires depends on the git version: 2.38 and newer
+// refuse the directory themselves, and older ones leave it to the script.
+const REFUSED = /not inside a git repository|inside a git directory/;
+
+describe("resolveRepo on a target inside a git directory", () => {
+  it.each([".", ".."] as const)(
+    "refuses the directory, a file in it, and a nested directory (worktree = %s)",
+    (worktree) => {
+      const { sub, marker } = makeGitDirRepo({ worktree });
+      const env = { PATH: FAKE_MARKER_PATH, FAKE_MARKER_FILE: marker };
+
+      for (const target of [sub, join(sub, "thing.ts"), join(sub, "..x")]) {
+        expect(() => repo.resolveRepo(target, env)).toThrow(REFUSED);
+      }
+
+      expect(existsSync(marker)).toBe(false);
+    },
+  );
+
+  it.each([".", ".."] as const)(
+    "refuses them itself when git ignores safe.bareRepository (worktree = %s)",
+    (worktree) => {
+      const { sub, marker } = makeGitDirRepo({ worktree });
+      const env = { ...UNSET_GIT_ENV, FAKE_MARKER_FILE: marker };
+
+      for (const target of [
+        sub,
+        join(sub, "thing.ts"),
+        join(sub, "..x"),
+        join(sub, "..x", "inner.ts"),
+      ]) {
+        expect(() => repo.resolveRepo(target, env)).toThrow(
+          "target is inside a git directory, not a working tree",
+        );
+      }
+
+      expect(existsSync(marker)).toBe(false);
+    },
+  );
+});
+
+const INSIDE_GIT_DIR = "target is inside a git directory, not a working tree";
+
+// One entry per character a reader of git's answer could strip by mistake.
+const TRAILING_WHITESPACE: [string, string][] = [
+  ["a space", "pkg "],
+  ["a tab", "pkg\t"],
+  ["a carriage return", "pkg\r"],
+  ["a newline", "pkg\n"],
+  ["a no-break space", "pkg\u00a0"],
+];
+
+describe("resolveRepo on a git directory whose name ends in whitespace", () => {
+  it.each(TRAILING_WHITESPACE)(
+    "refuses one ending in %s, beside a directory with the trimmed name",
+    (_label, name) => {
+      const { sub, marker } = makeGitDirRepo({ name, hasTrimmedSibling: true });
+      const env = { PATH: FAKE_MARKER_PATH, FAKE_MARKER_FILE: marker };
+
+      for (const target of [sub, join(sub, "thing.ts"), join(sub, "..x")]) {
+        expect(() => repo.resolveRepo(target, env)).toThrow(REFUSED);
+      }
+
+      expect(existsSync(marker)).toBe(false);
+    },
+  );
+
+  it.each(TRAILING_WHITESPACE)(
+    "refuses one ending in %s itself when git ignores safe.bareRepository",
+    (_label, name) => {
+      for (const worktree of [".", ".."] as const) {
+        const { sub, marker } = makeGitDirRepo({
+          worktree,
+          name,
+          hasTrimmedSibling: true,
+        });
+        const env = { ...UNSET_GIT_ENV, FAKE_MARKER_FILE: marker };
+
+        for (const target of [sub, join(sub, "thing.ts"), join(sub, "..x")]) {
+          expect(() => repo.resolveRepo(target, env)).toThrow(INSIDE_GIT_DIR);
+        }
+
+        expect(existsSync(marker)).toBe(false);
+      }
+    },
+  );
+});
+
+// A current git does not apply safe.bareRepository below a path like this
+// one, so here the real git leaves the refusal to the script, as an old git
+// does everywhere. A git from 2.38 on that lacks the exemption refuses first.
+describe("resolveRepo on a checkout below a .git/modules path", () => {
+  it.each([
+    ["pkg", false],
+    ["pkg ", true],
+  ] as const)(
+    "refuses the git directory named '%s' with the real git",
+    (name, hasTrimmedSibling) => {
+      const { sub, marker } = makeGitDirRepo({
+        name,
+        hasTrimmedSibling,
+        under: [".git", "modules", "vendored"],
+      });
+      const env = { PATH: FAKE_MARKER_PATH, FAKE_MARKER_FILE: marker };
+
+      for (const target of [sub, join(sub, "thing.ts"), join(sub, "..x")]) {
+        expect(() => repo.resolveRepo(target, env)).toThrow(REFUSED);
+      }
+
+      expect(existsSync(marker)).toBe(false);
+    },
+  );
+});
+
+describe("resolveRepo on an answer from git that is not a path", () => {
+  it("refuses with a reason when git prints the option back", () => {
+    const cwd = makeRepo();
+    const env = {
+      PATH: makeFakeGitPath(
+        join(import.meta.dirname, "fixtures", "fake-git-echo.mjs"),
+        {},
+      ),
+    };
+
+    expect(() => repo.resolveRepo(join(cwd, "src"), env)).toThrow(
+      "git did not name its git directory (git 2.13 or newer is needed)",
+    );
+  });
+});
+
+// True where a path reaches the same file in any letter case, as on the
+// default macOS and Windows filesystems.
+const IS_CASE_INSENSITIVE_FS: boolean = existsSync(
+  mkdtempSync(join(tmpdir(), "investigate-case-")).toUpperCase(),
+);
+
+describe("resolveRepo on a target spelled in another letter case", () => {
+  // Skipped on a case-sensitive filesystem, where such a path does not exist.
+  it("refuses a git directory reached through a different spelling of its name", {
+    skip: !IS_CASE_INSENSITIVE_FS,
+  }, () => {
+    const { cwd, marker } = makeGitDirRepo();
+    const env = { ...UNSET_GIT_ENV, FAKE_MARKER_FILE: marker };
+
+    for (const target of ["PKG", "PKG/thing.ts", "Pkg/..X"]) {
+      expect(() => repo.resolveRepo(join(cwd, target), env)).toThrow(
+        "target is inside a git directory, not a working tree",
+      );
+    }
+
+    expect(existsSync(marker)).toBe(false);
+  });
+});
+
+describe("resolveRepo on working trees", () => {
+  it.each([
+    ["git's own check", { PATH: FAKE_MARKER_PATH }],
+    ["a git that ignores safe.bareRepository", UNSET_GIT_ENV],
+  ])(
+    "resolves the root, a linked worktree, and a worktree of a bare clone, with %s",
+    (_label, env) => {
+      const cwd = realpathSync(makeRepo());
+      git(cwd, "add", ".");
+      git(cwd, "commit", "-q", "-m", "base");
+      const scratch = realpathSync(
+        mkdtempSync(join(tmpdir(), "investigate-worktrees-")),
+      );
+      const linked = join(scratch, "linked");
+      const bare = join(scratch, "bare.git");
+      const beside = join(scratch, "beside");
+      const within = join(bare, "within");
+      git(cwd, "worktree", "add", "-q", "--detach", linked);
+      git(scratch, "clone", "-q", "--bare", cwd, bare);
+      git(bare, "worktree", "add", "-q", "--detach", beside);
+      git(bare, "worktree", "add", "-q", "--detach", within);
+
+      for (const root of [cwd, linked, beside, within]) {
+        expect(repo.resolveRepo(root, env).repoRoot).toBe(root);
+        expect(repo.resolveRepo(join(root, "src", "lib"), env)).toMatchObject({
+          repoRoot: root,
+          relTarget: "src/lib",
+        });
+        expect(
+          repo.resolveRepo(join(root, "src", "lib", "commands.ts"), env)
+            .repoRoot,
+        ).toBe(root);
+      }
+    },
+  );
+});
+
+describe("resolveRepo on a working tree whose root name ends in a space", () => {
+  it.each([
+    ["git's own check", { PATH: FAKE_MARKER_PATH }],
+    ["a git that ignores safe.bareRepository", UNSET_GIT_ENV],
+  ])("keeps the name as it is, with %s", (_label, env) => {
+    const { cwd } = makeSpaceRootRepo();
+
+    expect(repo.resolveRepo(join(cwd, "src"), env)).toMatchObject({
+      repoRoot: cwd,
+      repoName: "repo ",
+      relTarget: "src",
+    });
+    expect(repo.resolveRepo(cwd, env).repoRoot).toBe(cwd);
+  });
+});
+
+describe("resolveRepo on a directory whose .git file names a bare clone", () => {
+  it("says the target is not inside a repository, since there is no working tree", () => {
+    const cwd = realpathSync(makeRepo());
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-q", "-m", "base");
+    const holder = realpathSync(
+      mkdtempSync(join(tmpdir(), "investigate-bare-holder-")),
+    );
+    git(holder, "clone", "-q", "--bare", cwd, join(holder, ".bare"));
+    writeFileSync(join(holder, ".git"), "gitdir: ./.bare\n");
+
+    for (const env of [{ PATH: FAKE_MARKER_PATH }, UNSET_GIT_ENV]) {
+      expect(() => repo.resolveRepo(holder, env)).toThrow(
+        "target is not inside a git repository",
+      );
+    }
+  });
+});
+
+describe("isSelfOrAncestor", () => {
+  it("is true for the directory itself and for a directory above the start", () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "investigate-id-")));
+    mkdirSync(join(root, "a", "b"), { recursive: true });
+
+    expect(repo.isSelfOrAncestor(root, root)).toBe(true);
+    expect(repo.isSelfOrAncestor(root, join(root, "a"))).toBe(true);
+    expect(repo.isSelfOrAncestor(join(root, "a"), join(root, "a", "b"))).toBe(
+      true,
+    );
+  });
+
+  it("is false for a directory below the start and for one beside it", () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "investigate-id-")));
+    mkdirSync(join(root, "a", "b"), { recursive: true });
+    mkdirSync(join(root, "c"));
+
+    expect(repo.isSelfOrAncestor(join(root, "a", "b"), join(root, "a"))).toBe(
+      false,
+    );
+    expect(repo.isSelfOrAncestor(join(root, "c"), join(root, "a", "b"))).toBe(
+      false,
+    );
+  });
+
+  it("finds a directory reached under another name, which a comparison of names misses", () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "investigate-id-")));
+    mkdirSync(join(root, "stored", "below"), { recursive: true });
+    symlinkSync(join(root, "stored"), join(root, "other"));
+    const start = join(root, "other", "below");
+
+    expect(repo.isOutside(join(root, "stored"), start)).toBe(true);
+    expect(repo.isSelfOrAncestor(join(root, "stored"), start)).toBe(true);
+  });
+});
+
+describe("isOutside", () => {
+  it("is false for the directory itself and for anything below it", () => {
+    expect(repo.isOutside("/a/b", "/a/b")).toBe(false);
+    expect(repo.isOutside("/a/b", "/a/b/c")).toBe(false);
+    expect(repo.isOutside("/a/b", "/a/b/c/d.ts")).toBe(false);
+  });
+
+  it("is false for a child whose name starts with two dots", () => {
+    expect(repo.isOutside("/a/b", "/a/b/..x")).toBe(false);
+    expect(repo.isOutside("/a/b", "/a/b/..x/y")).toBe(false);
+    expect(repo.isOutside("/a/b", "/a/b/...")).toBe(false);
+  });
+
+  it("is true for the parent, an ancestor, and a sibling", () => {
+    expect(repo.isOutside("/a/b", "/a")).toBe(true);
+    expect(repo.isOutside("/a/b", "/")).toBe(true);
+    expect(repo.isOutside("/a/b", "/a/c")).toBe(true);
+    expect(repo.isOutside("/a/b", "/a/bc")).toBe(true);
+    expect(repo.isOutside("/a/b", "/a/..x")).toBe(true);
+  });
+
+  it("agrees with a segment-by-segment comparison for any two paths", () => {
+    const segment = fc.constantFrom("a", "b", "..x", "...", "x..", ".git");
+    const segments = fc.array(segment, { maxLength: 4 });
+
+    fc.assert(
+      fc.property(segments, segments, (parent, child) => {
+        const isBelow: boolean = parent.every((seg, i) => child[i] === seg);
+
+        expect(
+          repo.isOutside(`/${parent.join("/")}`, `/${child.join("/")}`),
+        ).toBe(!isBelow);
+      }),
+    );
+  });
+});
+
+describe("git", () => {
+  it("runs git with safe.bareRepository set to explicit", () => {
+    const res = exec.git(["config", "--get", "safe.bareRepository"]);
+    expect(res.status).toBe(0);
+    expect(res.stdout.trim()).toBe("explicit");
   });
 });
 

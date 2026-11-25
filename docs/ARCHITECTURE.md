@@ -143,10 +143,10 @@ The toolkit executes none of this content. The agent decides what happens in the
 
 `investigate:brief` has the agent run `brief.mjs` on a path. `investigate:deep`, `investigate:spec` and `review:pr-review` run it first too. The script:
 
-1. Resolves the repository with `git rev-parse --show-toplevel` and lists the source files under the target with `git ls-files`. It keeps PHP and JavaScript/TypeScript files and skips symlinks, test files, `vendor/`, `node_modules/` and dot-directories.
+1. Resolves the repository with `git rev-parse`, refuses a target that is inside a git directory, and lists the source files under the target with `git ls-files`. It keeps PHP and JavaScript/TypeScript files and skips symlinks, test files, `vendor/`, `node_modules/` and dot-directories.
 2. Picks up to 15 symbols from those files (`--max-symbols`), in file path order, to describe in detail.
 3. Asks `gitnexus list` whether the repository has a call-graph index and how far behind `HEAD` it is.
-4. Unless `--no-lsp` is given, starts `phpantom_lsp --stdio` for PHP symbols and `typescript-language-server --stdio` for JavaScript/TypeScript symbols, sends them the files behind the symbols, and asks for method signatures and incoming calls.
+4. Unless `--no-lsp` is given, starts `phpantom_lsp --stdio` for PHP symbols and `typescript-language-server --stdio` for JavaScript/TypeScript symbols, sends them the files behind the symbols, and asks for method signatures and incoming calls. Before it starts the TypeScript server it asks `git ls-files` whether the repository, or a working tree around it, tracks files where that server and the TypeScript it runs load code from, and reads the version of that TypeScript. When the repository tracks such files, or the TypeScript is old enough to load a plugin from any path, it skips the TypeScript pass and says why, unless `INVESTIGATE_BRIEF_TRUST_REPO_TS=1` is set.
 5. Runs `ast-grep` over `app`, `config`, `routes`, `database` and `src` for container and binding patterns, when the target has PHP files.
 6. Reads `composer.lock` and `package-lock.json` at the repository root to find the installed version of each package the target imports.
 7. Unless `--no-docs` is given, queries context7.com for up to 12 of those packages and compares each documented version with the installed one. See [Network calls](#network-calls).
@@ -154,7 +154,7 @@ The toolkit executes none of this content. The agent decides what happens in the
 9. For each symbol, runs `git grep` for references and same-named definitions, and `gitnexus context` when gitnexus has the repository in its registry.
 10. Prints the brief as Markdown on standard output. The skill has the agent redirect it to a file in the temp directory and read that.
 
-Each tool is looked up on `PATH`. A missing or failing tool is reported in the brief's Tools section and its part is left out. The run stops only when `git` is missing, or when the target does not exist, is outside a repository or holds no source files.
+Each tool is looked up on `PATH`. A missing or failing tool is reported in the brief's Tools section and its part is left out. The run stops only when `git` is missing or older than 2.13, or when the target does not exist, is outside a repository, is inside a git directory or holds no source files.
 
 ### Reviewing a pull request
 
@@ -316,6 +316,7 @@ The script exits 0 after printing a brief and 1 on a usage error or a failure, w
 | `CONTEXT7_API_KEY` | Sent to context7 as `Authorization: Bearer <key>`. Without it the lookups are anonymous |
 | `INVESTIGATE_BRIEF_C7_URL` | Replaces the context7 search URL. The key, when set, is sent to that URL |
 | `INVESTIGATE_BRIEF_CACHE_DIR` | Replaces the cache directory |
+| `INVESTIGATE_BRIEF_TRUST_REPO_TS` | `1` runs the TypeScript pass on a repository that tracks files where the server loads code from. Any other value leaves the check on |
 | `PATH` | Where every external tool is looked up |
 
 The script passes its whole environment to the tools it starts.
@@ -365,6 +366,8 @@ GET https://context7.com/api/v1/search?query=<name>
 ```
 
 `<name>` is the package name, or the scope alone for a scoped npm package. Nothing else about the repository is sent: no code, no path and no version. The request has an 8-second timeout. From the reply the script keeps the first six results and, of each, the id, title, branch, version list, update date and benchmark score. An HTTP error, a timeout or an unexpected reply marks that package's lookup as failed and the brief is still built.
+
+The script tells `typescript-language-server` to turn off TypeScript's automatic type acquisition, which would otherwise download type packages named by the repository.
 
 The skills also have the agent call `gh` for pull request data and `git fetch` for refs, and the `investigate` skills point the agent at whatever documentation tool its harness has. Those requests are made by the user's own tools with the user's own credentials.
 

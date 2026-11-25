@@ -165,8 +165,15 @@ function failureReason(err, client) {
 /**
  * Runs body over one initialised connection. A failure to start or initialise
  * returns { error }; body reports per-file failures in its own result.
+ * `initializationOptions`, when given, goes into the initialize request.
  */
-export async function withClient(cmd, ctx, initTimeoutMs, body) {
+export async function withClient(
+  cmd,
+  ctx,
+  initTimeoutMs,
+  body,
+  initializationOptions,
+) {
   const client = new LspClient(cmd, ["--stdio"], ctx.repoRoot, ctx.env);
   const rootUri = fileUri(ctx.repoRoot);
   try {
@@ -181,6 +188,9 @@ export async function withClient(cmd, ctx, initTimeoutMs, body) {
           },
         },
         workspaceFolders: [{ uri: rootUri, name: ctx.repoName }],
+        ...(initializationOptions === undefined
+          ? {}
+          : { initializationOptions }),
       },
       initTimeoutMs,
     );

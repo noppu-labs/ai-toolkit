@@ -6,7 +6,7 @@ import {
   statSync,
 } from "node:fs";
 import path from "node:path";
-import { run } from "./exec.mjs";
+import { git } from "./exec.mjs";
 
 export const SOURCE_EXT = new Set([
   ".php",
@@ -45,6 +45,69 @@ const CJS_NAMED_RE =
   /^[^\S\r\n\u2028\u2029]*(?:module\.)?exports\.([A-Za-z_$][\w$]*)\s*=/gm;
 const SKIPPED_DIRS = new Set(["vendor", "node_modules"]);
 
+/** True when `child` is neither `parent` nor below it. Both must be real paths. */
+export function isOutside(parent, child) {
+  const rel = path.relative(parent, child);
+  return (
+    rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)
+  );
+}
+
+/**
+ * True when `dir` is `start` or a directory above it, compared by device and
+ * inode, so two spellings of one directory still match.
+ */
+export function isSelfOrAncestor(dir, start) {
+  const wanted = statSync(dir, { bigint: true });
+  // A filesystem that numbers nothing cannot tell two directories apart.
+  if (wanted.ino === 0n) return false;
+  let current = start;
+  for (;;) {
+    const here = statSync(current, { bigint: true });
+    if (here.dev === wanted.dev && here.ino === wanted.ino) return true;
+    const parent = path.dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
+}
+
+// Git ends a path it prints with one newline. Only that comes off: a
+// directory name may itself end in whitespace, which `trim()` would remove.
+function pathAnswer(res) {
+  return res.stdout.endsWith("\n") ? res.stdout.slice(0, -1) : res.stdout;
+}
+
+// Two comparisons, and either one refuses. By name, through the native
+// realpath on both sides: on macOS it returns each name as stored, where `cwd`
+// keeps the caller's spelling. By device and inode, for a filesystem where
+// git and Node still spell one directory differently.
+function isInGitDir(gitDir, cwd) {
+  return (
+    !isOutside(realpathSync.native(gitDir), realpathSync.native(cwd)) ||
+    isSelfOrAncestor(gitDir, cwd)
+  );
+}
+
+/**
+ * The root of the working tree that holds `cwd`, a real directory, or null
+ * when git finds none. Throws when `cwd` is inside a git directory.
+ */
+export function workingTreeRoot(cwd, env = process.env) {
+  const gitDirRes = git(["rev-parse", "--absolute-git-dir"], { cwd, env });
+  if (gitDirRes.status !== 0) return null;
+  const gitDir = pathAnswer(gitDirRes);
+  // A git that does not know the option prints it back and exits 0.
+  if (!path.isAbsolute(gitDir))
+    throw new Error(
+      "git did not name its git directory (git 2.13 or newer is needed)",
+    );
+  if (isInGitDir(gitDir, cwd))
+    throw new Error("target is inside a git directory, not a working tree");
+  const gitRoot = git(["rev-parse", "--show-toplevel"], { cwd, env });
+  if (gitRoot.status !== 0) return null;
+  return pathAnswer(gitRoot);
+}
+
 export function resolveRepo(targetArg, env = process.env) {
   const resolved = path.resolve(targetArg);
   if (!existsSync(resolved))
@@ -53,10 +116,9 @@ export function resolveRepo(targetArg, env = process.env) {
   // so a relative() between the two forms would climb out of the repo.
   const target = realpathSync(resolved);
   const cwd = statSync(target).isDirectory() ? target : path.dirname(target);
-  const gitRoot = run("git", ["rev-parse", "--show-toplevel"], { cwd, env });
-  if (gitRoot.status !== 0)
+  const repoRoot = workingTreeRoot(cwd, env);
+  if (repoRoot === null)
     throw new Error("target is not inside a git repository");
-  const repoRoot = gitRoot.stdout.trim();
   return {
     target,
     repoRoot,
@@ -103,8 +165,7 @@ function keep(rel, full) {
 // git ls-files, like the wiring scan's git grep: gitignored and generated
 // sources stay out. Untracked files that are not ignored are still listed.
 function listDir(dir, env) {
-  const res = run(
-    "git",
+  const res = git(
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
     { cwd: dir, env },
   );
