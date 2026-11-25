@@ -676,8 +676,22 @@ describe("brief.mjs", () => {
       "<div>{{ $name }}</div>\n",
     );
     writeFileSync(
+      join(
+        cwd,
+        "resources",
+        "views",
+        "components",
+        "user-profile-card.blade.php",
+      ),
+      "<div>{{ $card }}</div>\n",
+    );
+    writeFileSync(
       join(cwd, "app", "Http", "ProfileController.php"),
       '<?php\nreturn view("components.user-profile");\n',
+    );
+    writeFileSync(
+      join(cwd, "app", "Http", "CardController.php"),
+      '<?php\nreturn view("components.user-profile-card");\n',
     );
     writeFileSync(
       join(cwd, "resources", "views", "components", "2024_01_01_old.php"),
@@ -695,9 +709,12 @@ describe("brief.mjs", () => {
     expect(r.stdout).toContain(
       "## user-profile (resources/views/components/user-profile.blade.php)",
     );
-    expect(r.stdout).toContain(
+    const section =
+      r.stdout.split("## user-profile (")[1]?.split("\n## ")[0] ?? "";
+    expect(section).toContain(
       'app/Http/ProfileController.php:2  return view("components.user-profile");',
     );
+    expect(section).not.toContain("CardController");
     expect(r.stdout).toContain(
       "- resources/views/components/2024_01_01_old.php (file name cannot be used as a symbol; no symbol section)",
     );

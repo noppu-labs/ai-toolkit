@@ -264,6 +264,11 @@ function symbolsOf(file, repoRoot) {
   return names.map((name) => ({ name, file: rel, kind: "ts" }));
 }
 
+/** True when `sym` took its name from its file: a PHP file, or a JS/TS file with no usable export. */
+export function nameFromFile(sym) {
+  return sym.kind === "php" || sym.basenameFallback === true;
+}
+
 // A file name is whatever the repository's author typed, and a symbol name
 // becomes a command-line argument, a search pattern and a heading. A file whose
 // name fails FILE_NAME_SYMBOL_RE is returned in `unnamed`, so the brief can say

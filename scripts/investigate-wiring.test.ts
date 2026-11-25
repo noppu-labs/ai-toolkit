@@ -34,9 +34,15 @@ type WiringModule = {
     relTarget: string,
     grepStdout: string,
     astHits: Hit[] | null,
+    fromFileName?: boolean,
   ) => Buckets;
   astGrepScan: (ctx: Ctx) => AstScan;
-  wiringFor: (ctx: Ctx, sym: string, ownFile: string) => Buckets | null;
+  wiringFor: (
+    ctx: Ctx,
+    sym: string,
+    ownFile: string,
+    fromFileName?: boolean,
+  ) => Buckets | null;
   duplicateDefinitions: (ctx: Ctx, sym: string, ownFile: string) => string[];
 };
 
@@ -131,6 +137,17 @@ describe("classifyHit", () => {
   ])("classifies %j as %s", (text, expected) => {
     expect(wiring.classifyHit("Foo", text)).toBe(expected);
   });
+
+  it.each([
+    ["public function __construct(Élan $x) {}", "typehint"],
+    ["Élan::make()", "static"],
+    ["$x = new Élan();", "construction"],
+  ])(
+    "classifies %j as %s for a name that starts with a non-ASCII letter",
+    (text, expected) => {
+      expect(wiring.classifyHit("Élan", text)).toBe(expected);
+    },
+  );
 
   it("classifies a 200 KB line with a container call in linear time", () => {
     const line = `$this->app->bind(${"a".repeat(200_000)}`;
@@ -270,6 +287,69 @@ describe("bucketHits", () => {
         hit("resolve(\\App\\Invoice::class)"),
       ]).container,
     ).toHaveLength(1);
+  });
+});
+
+// The text of every hit bucketHits keeps, given one grep line per text.
+function keptTexts(
+  sym: string,
+  fromFileName: boolean,
+  texts: string[],
+): string[] {
+  const grep = grepOutput(
+    ...texts.map((text, i) => `app/use.php:${i + 1}:${text}`),
+  );
+
+  return Object.values(wiring.bucketHits(sym, "lib", grep, null, fromFileName))
+    .flat()
+    .map((h) => h.text);
+}
+
+describe("bucketHits on names git grep -w cannot bound", () => {
+  it("drops a longer name that starts with a file-name symbol, and keeps the name itself", () => {
+    const kept = [
+      'return view("components.user-profile");',
+      "<x-user-profile />",
+      "<x-user-profile-card /> <x-user-profile />",
+    ];
+    const dropped = ["<x-user-profile-card />", 'view("user-profile-card");'];
+    expect(keptTexts("user-profile", true, [...kept, ...dropped])).toEqual(
+      kept,
+    );
+    expect(
+      keptTexts("button", true, ["<x-button />", "<x-button-group />"]),
+    ).toEqual(["<x-button />"]);
+    expect(keptTexts("café", true, ["new café();", "new caféé();"])).toEqual([
+      "new café();",
+    ]);
+  });
+
+  it("still lists what a dot or a dash before the name cannot tell apart", () => {
+    expect(
+      keptTexts("vite.config", true, [
+        'import config from "./vite.config";',
+        'load("./vite.config.local");',
+      ]),
+    ).toHaveLength(2);
+    expect(
+      keptTexts("user-profile", true, ['view("admin-user-profile");']),
+    ).toHaveLength(1);
+    expect(
+      keptTexts("use-toast", true, ['import { toast } from "./use-toast";']),
+    ).toHaveLength(1);
+  });
+
+  it("keeps an exported name followed by a dash, and drops one that runs on", () => {
+    expect(
+      keptTexts("retries", false, [
+        "n = retries--;",
+        "n = retriesé;",
+        "n = $retries;",
+      ]),
+    ).toEqual(["n = retries--;"]);
+    expect(keptTexts("MAX_ROWS", false, ["const last = MAX_ROWS-1;"])).toEqual([
+      "const last = MAX_ROWS-1;",
+    ]);
   });
 });
 

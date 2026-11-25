@@ -17,6 +17,7 @@ import * as render from "./lib/render.mjs";
 import {
   collectFiles,
   deriveSymbols,
+  nameFromFile,
   resolveRepo,
   TS_EXT_RE,
 } from "./lib/repo.mjs";
@@ -275,7 +276,7 @@ function symbolSection(ctx, sym, state) {
     tsCallers: ownsCallers ? (state.tsLsp?.get(abs) ?? null) : null,
     graph: state.freshness.ok ? graphContext(ctx, sym.name) : null,
     freshnessOk: state.freshness.ok,
-    wiring: wiringFor(ctx, sym.name, sym.file),
+    wiring: wiringFor(ctx, sym.name, sym.file, nameFromFile(sym)),
   });
 }
 
