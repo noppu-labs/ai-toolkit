@@ -98,7 +98,9 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
   that name does not start with a letter, `_` or `$`, or holds anything other than letters,
   digits, `_`, `$`, `.` and `-`. A migration that starts with a date and a name with a space
   are two examples; `user-profile.blade.php` and `vite.config.ts` keep their sections. The
-  brief runs no search for such a file, so its callers are UNRESOLVED.
+  brief runs no search for such a file, so its callers are UNRESOLVED. The brief prints a
+  line break or another control character in a path as an escape such as `\n`, so a path
+  never spans two lines and cannot start a heading.
 - **Third-party surface**: each package the target imports, with its INSTALLED version and
   where to read its source. Use these, never the manifest's caret range: `^3.1.0` is not a
   fact, `3.3.1` is. When no lockfile was read for the target's PHP or JS/TS sources, the

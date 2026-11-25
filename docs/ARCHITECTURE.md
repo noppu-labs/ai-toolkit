@@ -152,7 +152,7 @@ The toolkit executes none of this content. The agent decides what happens in the
 7. Unless `--no-docs` is given, queries context7.com for up to 12 of those packages and compares each documented version with the installed one. See [Network calls](#network-calls).
 8. Runs `codegraph explore` when the repository has a `.codegraph` directory and the target has at least one symbol. It asks `git ls-files` first and skips codegraph when git tracks anything in that directory other than the `.gitignore` codegraph writes there, because such an index came with the repository.
 9. For each symbol, runs `git grep` for references and same-named definitions, and `gitnexus context` when gitnexus has the repository in its registry.
-10. Prints the brief as Markdown on standard output. The skill has the agent redirect it to a file in the temp directory and read that.
+10. Prints the brief as Markdown on standard output, with line breaks and other control characters in paths shown as escapes such as `\n`. The skill has the agent redirect it to a file in the temp directory and read that.
 
 Each tool is looked up on `PATH`. A missing or failing tool is reported in the brief's Tools section and its part is left out. The run stops only when `git` is missing or older than 2.13, or when the target does not exist, is outside a repository, is inside a git directory or holds no source files.
 

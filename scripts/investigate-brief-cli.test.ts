@@ -703,6 +703,46 @@ describe("brief.mjs", () => {
     );
   });
 
+  it("prints a path holding a newline on one line, so it cannot add a heading", () => {
+    const base = mkdtempSync(join(tmpdir(), "investigate-cli-paths-"));
+    const cwd = join(base, "repo\n## ForgedRepo");
+    const forged = "x)\n\n## ForgedHeading (app/Real.php";
+    const files: Record<string, string> = {
+      "app/new\nline.php": "<?php\n",
+      [`app/${forged}/LegitName.php`]: "<?php\nclass LegitName {}\n",
+      "src/y\n## ForgedRef.php": "<?php\nnew LegitName();\n",
+      "lib/z\n## ForgedDupe/LegitName.php": "<?php\nclass LegitName {}\n",
+    };
+    for (const [rel, content] of Object.entries(files)) {
+      mkdirSync(join(cwd, rel, ".."), { recursive: true });
+      writeFileSync(join(cwd, rel), content);
+    }
+    git(cwd, "init", "-q", "-b", "main");
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "paths");
+    const r = runBrief(cwd, "app", "--no-docs", "--no-lsp");
+    expect(r.status).toBe(0);
+    const lines = r.stdout.split("\n");
+    expect(lines[0]).toBe(
+      "# Structural brief: app (repo: repo\\n## ForgedRepo)",
+    );
+    expect(lines).toContain(
+      "- app/new\\nline.php (file name cannot be used as a symbol; no symbol section)",
+    );
+    expect(lines).toContain(
+      "## LegitName (app/x)\\n\\n## ForgedHeading (app/Real.php/LegitName.php)",
+    );
+    expect(lines).toContain(
+      "- ⚠ NAME COLLISION: LegitName is also defined at lib/z\\n## ForgedDupe/LegitName.php:2 — external references below may belong to that class; verify imports before attributing.",
+    );
+    expect(lines).toContain(
+      "    - src/y\\n## ForgedRef.php:2  new LegitName();",
+    );
+    for (const line of lines.filter((l) => l.includes("Forged"))) {
+      expect(line).toContain("\\n");
+    }
+  });
+
   it.each([".", ".."] as const)(
     "refuses a target inside a git directory without running what its config names (worktree = %s)",
     (worktree) => {

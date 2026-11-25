@@ -30,6 +30,16 @@ type RenderModule = {
   ) => string[];
   renderCodegraph: (lines: string[] | null) => string[];
   renderSymbol: (sym: Sym, parts: Parts) => string[];
+  renderHeader: (relTarget: string, repoName: string) => string[];
+  renderTools: (tools: Record<string, string>) => string[];
+  renderIndex: (freshness: { ok: false; note: string }) => string[];
+  renderFiles: (
+    files: string[],
+    repoRoot: string,
+    truncated: boolean,
+    maxSymbols: number,
+    notes: { basenameFiles: Set<string>; unnamedFiles: Set<string> },
+  ) => string[];
 };
 
 const render: RenderModule = (await import(
@@ -258,5 +268,81 @@ describe("renderSymbol", () => {
     expect(lines).toContain("- graph importers (2):");
     expect(lines).toContain("    - app/I1.php");
     expect(lines).toContain("- graph processes: p1, p2, p3, p4, p5");
+  });
+});
+
+describe("paths printed into the brief", () => {
+  const odd = "a\r\n## b\u2028c\u0007d\te";
+  const shown = "a\\r\\n## b\\u2028c\\u0007d\te";
+
+  it("escapes line breaks and other control characters in the header and the Files list", () => {
+    expect(render.renderHeader(odd, odd)[0]).toBe(
+      `# Structural brief: ${shown} (repo: ${shown})`,
+    );
+    expect(
+      render.renderFiles([`/r/${odd}.php`], "/r", false, 15, {
+        basenameFiles: new Set(),
+        unnamedFiles: new Set([`${odd}.php`]),
+      })[1],
+    ).toBe(
+      `- ${shown}.php (file name cannot be used as a symbol; no symbol section)`,
+    );
+  });
+
+  it("escapes them in a tool's status and the index note, which can name the repository", () => {
+    const note = `repo "${odd}" (/r/${odd}) is not in the gitnexus registry`;
+    expect(render.renderTools({ gitnexus: `unavailable (${note})` })).toEqual([
+      "## Tools",
+      "",
+      `- gitnexus: unavailable (repo "${shown}" (/r/${shown}) is not in the gitnexus registry)`,
+      "",
+    ]);
+    expect(render.renderIndex({ ok: false, note })[0]).toBe(
+      `Index: UNAVAILABLE — repo "${shown}" (/r/${shown}) is not in the gitnexus registry. Graph sections omitted; wiring scan still valid.`,
+    );
+  });
+
+  it("escapes them in every path a symbol section prints", () => {
+    const lines = render.renderSymbol(
+      { name: "Invoice", file: `${odd}/Invoice.php`, kind: "php" },
+      {
+        dupes: [`${odd}/Other.php:2`],
+        typeRows: null,
+        tsCallers: {
+          symbol: "Invoice",
+          rows: [{ name: "caller", loc: `${odd}/c.ts:3`, sites: 1 }],
+        },
+        graph: {
+          symbol: {
+            kind: "Class",
+            filePath: `${odd}/Invoice.php`,
+            startLine: 1,
+            endLine: 2,
+          },
+          incoming: {
+            calls: [{ name: "boot", filePath: `${odd}/Boot.php` }],
+            imports: [{ filePath: `${odd}/Imp.php` }],
+          },
+        },
+        freshnessOk: true,
+        wiring: {
+          other: [{ filePath: `${odd}/Use.php`, lineNo: "4", text: "x\ry" }],
+        },
+      } as unknown as Parts,
+    );
+    expect(lines).toEqual([
+      `## Invoice (${shown}/Invoice.php)`,
+      `- ⚠ NAME COLLISION: Invoice is also defined at ${shown}/Other.php:2 — external references below may belong to that class; verify imports before attributing.`,
+      "- verified callers (ts-lsp incomingCalls on Invoice, 1 shown):",
+      `    - caller (${shown}/c.ts:3, 1 call site)`,
+      `- graph: Class at ${shown}/Invoice.php:1-2 (epistemic: ?)`,
+      "- graph callers (1, lower bound):",
+      `    - boot (${shown}/Boot.php)`,
+      "- graph importers (1):",
+      `    - ${shown}/Imp.php`,
+      "- other references (1):",
+      `    - ${shown}/Use.php:4  x\\ry`,
+      "",
+    ]);
   });
 });
