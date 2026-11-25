@@ -87,6 +87,7 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // The characters a name can run on with. git grep's -w knows only ASCII
 // letters, digits and `_`, so it matches `user-profile` inside
 // `user-profile-card` and `café` inside `caféé`.
+// biome-ignore lint/security/noSecrets: a character class, not a credential.
 const NAME_CHAR = "\\p{L}\\p{M}\\p{N}_$";
 const NO_NAME_CHAR_BEFORE = `(?<![${NAME_CHAR}])`;
 
