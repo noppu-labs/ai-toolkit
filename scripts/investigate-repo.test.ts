@@ -505,7 +505,7 @@ describe("deriveSymbols", () => {
     ]);
   });
 
-  it("names no symbol after a file whose name is not an identifier, and lists the file as unnamed", () => {
+  it("names no symbol after a file whose name cannot be one, and lists the file as unnamed", () => {
     const cwd = mkdtempSync(join(tmpdir(), "investigate-unnamed-"));
     const names = [
       "--open-files-in-pager=marker-tool.php",
@@ -516,6 +516,11 @@ describe("deriveSymbols", () => {
       "use-toast.ts",
       "welcome.blade.php",
       "Café.php",
+      "user-profile.blade.php",
+      "vite.config.ts",
+      "my file.php",
+      "[id].tsx",
+      "a;b-c.php",
     ];
     for (const name of names) writeFileSync(join(cwd, name), "<?php\n");
     const derived = repo.deriveSymbols(
@@ -525,16 +530,49 @@ describe("deriveSymbols", () => {
     );
     expect(derived.symbols).toEqual([
       { name: "Invoice", file: "Invoice.php", kind: "php" },
+      {
+        name: "use-toast",
+        file: "use-toast.ts",
+        kind: "ts",
+        basenameFallback: true,
+      },
       { name: "welcome", file: "welcome.blade.php", kind: "php" },
+      { name: "Café", file: "Café.php", kind: "php" },
+      { name: "user-profile", file: "user-profile.blade.php", kind: "php" },
+      {
+        name: "vite.config",
+        file: "vite.config.ts",
+        kind: "ts",
+        basenameFallback: true,
+      },
     ]);
     expect(derived.unnamed).toEqual([
       "--open-files-in-pager=marker-tool.php",
       "2024_01_01_create_users_table.php",
       "-rf.php",
       "--flag=value.ts",
-      "use-toast.ts",
-      "Café.php",
+      "my file.php",
+      "[id].tsx",
+      "a;b-c.php",
     ]);
+  });
+
+  it("composes a non-ASCII name stored decomposed, and keeps the file as stored", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-nfd-"));
+    const stored = "Café".normalize("NFD");
+    expect(
+      repo.deriveSymbols([join(cwd, `${stored}.php`)], cwd, 15).symbols,
+    ).toEqual([
+      { name: "Café".normalize("NFC"), file: `${stored}.php`, kind: "php" },
+    ]);
+  });
+
+  it("gives a name stored both composed and decomposed one symbol", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-nfd-"));
+    const files = ["NFC", "NFD"].map((form) =>
+      join(cwd, `${"Café".normalize(form)}.php`),
+    );
+    expect(repo.deriveSymbols(files, cwd, 15).symbols).toHaveLength(1);
   });
 
   it("lists a short or generic file name as neither a symbol nor unnamed", () => {
@@ -547,7 +585,7 @@ describe("deriveSymbols", () => {
     expect(derived).toEqual({ symbols: [], truncated: false, unnamed: [] });
   });
 
-  it("derives only identifiers, whatever the files are called", () => {
+  it("derives only names that start with a letter, _ or $, whatever the files are called", () => {
     const cwd = mkdtempSync(join(tmpdir(), "investigate-names-"));
     fc.assert(
       fc.property(
@@ -556,6 +594,8 @@ describe("deriveSymbols", () => {
             fc.string({ unit: "binary" }),
             fc.stringMatching(/^-{1,2}[a-z-]{1,12}(=[ -~]{0,12})?$/),
             fc.stringMatching(/^[A-Za-z_$][\w$]{0,12}$/),
+            fc.stringMatching(/^[a-z]{1,6}([.-][a-z0-9]{1,6}){1,3}$/),
+            fc.stringMatching(/^[a-z]{2,6}[=:'"`\\\s][a-z]{1,6}$/),
           ),
           { maxLength: 8 },
         ),
@@ -563,9 +603,31 @@ describe("deriveSymbols", () => {
           const files = names.map((name) => join(cwd, `${name}.php`));
           const { symbols } = repo.deriveSymbols(files, cwd, 15);
           for (const sym of symbols) {
-            expect(sym.name).toMatch(/^[A-Za-z_$][\w$]*$/);
+            expect(sym.name).toMatch(/^[\p{L}_$][\p{L}\p{M}\p{N}_$.-]*$/u);
             expect(sym.name.startsWith("-")).toBe(false);
+            expect(sym.name).not.toMatch(/[\s\p{Cc}]/u);
+            // Independent of the rule's own expression: nothing that could end
+            // a pattern, start an option value, or split a path or a line.
+            expect(sym.name).not.toMatch(/[\p{C}\p{Z}=:'"`\\/]/u);
           }
+        },
+      ),
+    );
+  });
+
+  it("keeps every kebab-case or dotted file name that is long enough", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-kebab-"));
+    fc.assert(
+      fc.property(
+        fc.stringMatching(/^[a-z]{2,6}([.-][a-z0-9]{1,6}){1,3}$/),
+        (name) => {
+          const derived = repo.deriveSymbols(
+            [join(cwd, `${name}.php`)],
+            cwd,
+            15,
+          );
+          expect(derived.symbols.map((s) => s.name)).toEqual([name]);
+          expect(derived.unnamed).toEqual([]);
         },
       ),
     );

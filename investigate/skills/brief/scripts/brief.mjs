@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { defaultCacheDir, TtlCache } from "./lib/cache.mjs";
@@ -7,12 +7,17 @@ import { collectDependencies } from "./lib/deps.mjs";
 import { docSources } from "./lib/docs-gate.mjs";
 import { probe } from "./lib/exec.mjs";
 import { indexFreshness } from "./lib/freshness.mjs";
-import { codegraphOverview, graphContext } from "./lib/graph.mjs";
+import {
+  codegraphIndex,
+  codegraphOverview,
+  graphContext,
+} from "./lib/graph.mjs";
 import { phpantomTypes } from "./lib/phpantom.mjs";
 import * as render from "./lib/render.mjs";
 import {
   collectFiles,
   deriveSymbols,
+  nameFromFile,
   resolveRepo,
   TS_EXT_RE,
 } from "./lib/repo.mjs";
@@ -92,8 +97,7 @@ export function lspStatus(outcome) {
   return outcome.results.size === 0 ? "ran (no results)" : "ran";
 }
 
-export function codegraphStatus({ hasIndex, probeOk, lines }) {
-  if (!hasIndex) return "no .codegraph index";
+export function codegraphStatus({ probeOk, lines }) {
   if (!probeOk) return "not on PATH";
   return lines === null
     ? "FAILED (codegraph explore exited non-zero or timed out)"
@@ -219,18 +223,34 @@ async function runDocs(ctx, deps, opts, tools) {
   return { gate, skippedReason: null };
 }
 
+const CODEGRAPH_SKIPS = {
+  absent: "no .codegraph index",
+  tracked: "skipped (.codegraph is tracked by git)",
+  unknown: "skipped (could not tell whether git tracks .codegraph)",
+};
+
+// With no symbol, `codegraph explore` would search for its fixed phrase alone
+// and print unrelated symbols as the target's module graph.
 function runCodegraph(ctx, symbols, tools) {
+  const index = codegraphIndex(ctx);
+  if (index.state !== "present" || symbols.length === 0) {
+    tools.codegraph = CODEGRAPH_SKIPS[index.state] ?? "not needed (no symbols)";
+    return null;
+  }
   const lines = codegraphOverview(
     ctx,
     symbols.map((s) => s.name),
   );
-  const hasIndex = existsSync(path.join(ctx.repoRoot, ".codegraph"));
-  tools.codegraph = codegraphStatus({
-    hasIndex,
-    probeOk: hasIndex && probe("codegraph", ctx.env),
+  const status = codegraphStatus({
+    probeOk: probe("codegraph", ctx.env),
     lines,
   });
-  return lines;
+  // codegraph walks up to an index above the repository on its own.
+  const above = index.root === ctx.repoRoot ? null : index.root;
+  tools.codegraph = above
+    ? `${status} (index in ${above}, a directory above this repository)`
+    : status;
+  return lines && { lines, above };
 }
 
 function runAstGrep(ctx, tools) {
@@ -261,7 +281,7 @@ function symbolSection(ctx, sym, state) {
     tsCallers: ownsCallers ? (state.tsLsp?.get(abs) ?? null) : null,
     graph: state.freshness.ok ? graphContext(ctx, sym.name) : null,
     freshnessOk: state.freshness.ok,
-    wiring: wiringFor(ctx, sym.name, sym.file),
+    wiring: wiringFor(ctx, sym.name, sym.file, nameFromFile(sym)),
   });
 }
 
@@ -308,11 +328,11 @@ async function buildBrief(opts, io) {
     }),
     ...render.renderDependencies(deps.rows, deps.unread),
     ...render.renderDocSources(docs.gate, docs.skippedReason),
-    ...render.renderCodegraph(cg),
+    ...render.renderCodegraph(cg?.lines ?? null, cg?.above ?? null),
     ...symbols.flatMap((sym) => symbolSection(ctx, sym, state)),
     ...render.renderFooter(),
   ];
-  await writeAll(io.stdout, `${lines.join("\n")}\n`);
+  await writeAll(io.stdout, render.briefText(lines));
 }
 
 // A pipe write can still be queued when it returns, so wait for the flush callback.

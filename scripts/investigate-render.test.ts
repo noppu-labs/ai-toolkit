@@ -1,7 +1,13 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { DepRow, Sym, TsCallers } from "./fixtures/investigate-types.ts";
+import type {
+  DepRow,
+  Hit,
+  Sym,
+  TsCallers,
+} from "./fixtures/investigate-types.ts";
 
 type Gate = {
   perPackage: Array<{
@@ -20,16 +26,27 @@ type Parts = {
   tsCallers: TsCallers | null;
   graph: unknown;
   freshnessOk: boolean;
-  wiring: Record<string, never[]> | null;
+  wiring: Record<string, Hit[]> | null;
 };
 type RenderModule = {
+  briefText: (lines: string[]) => string;
   renderDependencies: (rows: DepRow[], unread: string[]) => string[];
   renderDocSources: (
     gate: Gate | null,
     skippedReason: string | null,
   ) => string[];
-  renderCodegraph: (lines: string[] | null) => string[];
+  renderCodegraph: (lines: string[] | null, above?: string | null) => string[];
   renderSymbol: (sym: Sym, parts: Parts) => string[];
+  renderHeader: (relTarget: string, repoName: string) => string[];
+  renderTools: (tools: Record<string, string>) => string[];
+  renderIndex: (freshness: { ok: false; note: string }) => string[];
+  renderFiles: (
+    files: string[],
+    repoRoot: string,
+    truncated: boolean,
+    maxSymbols: number,
+    notes: { basenameFiles: Set<string>; unnamedFiles: Set<string> },
+  ) => string[];
 };
 
 const render: RenderModule = (await import(
@@ -174,9 +191,23 @@ describe("renderCodegraph", () => {
     expect(render.renderCodegraph(["a"])).toEqual([
       "## Module graph (codegraph — includes inheritance edges the gitnexus PHP graph lacks)",
       "",
-      "a",
+      "    a",
       "",
     ]);
+  });
+
+  it("says when the graph came from an index in a directory above the repository", () => {
+    expect(render.renderCodegraph(["a"], "/work/parent").slice(1, 4)).toEqual([
+      "",
+      "> codegraph read the index in /work/parent, a directory above this repository, so the graph is that project's and can reach past this one.",
+      "",
+    ]);
+  });
+
+  it("indents every line of codegraph's output, so none can start a heading or a list", () => {
+    expect(
+      render.renderCodegraph(["## Forged", "---", "- item", ""]).slice(2),
+    ).toEqual(["    ## Forged", "    ---", "    - item", "", ""]);
   });
 });
 
@@ -258,5 +289,140 @@ describe("renderSymbol", () => {
     expect(lines).toContain("- graph importers (2):");
     expect(lines).toContain("    - app/I1.php");
     expect(lines).toContain("- graph processes: p1, p2, p3, p4, p5");
+  });
+});
+
+// The brief as main writes it: every rendered line passes through briefText.
+function written(lines: string[]): string[] {
+  return render.briefText(lines).split("\n").slice(0, -1);
+}
+
+describe("briefText", () => {
+  const odd = "a\r\n## b\u2028c\u0007d\te\u202ef\u{e0001}g";
+  const shown = "a\\r\\n## b\\u2028c\\u0007d\te\\u202ef\\u{e0001}g";
+
+  it("escapes line breaks, control characters except tab, and format characters in the header and the Files list", () => {
+    expect(written(render.renderHeader(odd, odd))[0]).toBe(
+      `# Structural brief: ${shown} (repo: ${shown})`,
+    );
+    expect(
+      written(
+        render.renderFiles([`/r/${odd}.php`], "/r", false, 15, {
+          basenameFiles: new Set(),
+          unnamedFiles: new Set([`${odd}.php`]),
+        }),
+      )[1],
+    ).toBe(
+      `- ${shown}.php (file name cannot be used as a symbol; no symbol section)`,
+    );
+  });
+
+  it("escapes them in a tool's status and the index note, which can name the repository", () => {
+    const note = `repo "${odd}" (/r/${odd}) is not in the gitnexus registry`;
+    expect(
+      written(render.renderTools({ gitnexus: `unavailable (${note})` })),
+    ).toEqual([
+      "## Tools",
+      "",
+      `- gitnexus: unavailable (repo "${shown}" (/r/${shown}) is not in the gitnexus registry)`,
+      "",
+    ]);
+    expect(written(render.renderIndex({ ok: false, note }))[0]).toBe(
+      `Index: UNAVAILABLE — repo "${shown}" (/r/${shown}) is not in the gitnexus registry. Graph sections omitted; wiring scan still valid.`,
+    );
+  });
+
+  it("escapes them in every path and name a symbol section prints", () => {
+    const parts: Parts = {
+      dupes: [`${odd}/Other.php:2`],
+      typeRows: [{ detail: `find(): ${odd}` }],
+      tsCallers: {
+        symbol: "Invoice",
+        rows: [{ name: `caller${odd}`, loc: `${odd}/c.ts:3`, sites: 1 }],
+      },
+      graph: {
+        symbol: {
+          kind: `Class${odd}`,
+          filePath: `${odd}/Invoice.php`,
+          startLine: 1,
+          endLine: 2,
+        },
+        epistemic: odd,
+        boundaries: [odd],
+        incoming: {
+          calls: [{ name: `boot${odd}`, filePath: `${odd}/Boot.php` }],
+          imports: [{ filePath: `${odd}/Imp.php` }],
+        },
+        processes: [odd],
+      },
+      freshnessOk: true,
+      wiring: {
+        other: [{ filePath: `${odd}/Use.php`, lineNo: "4", text: "x\ry" }],
+      },
+    };
+    expect(
+      written(
+        render.renderSymbol(
+          { name: "Invoice", file: `${odd}/Invoice.php`, kind: "php" },
+          parts,
+        ),
+      ),
+    ).toEqual([
+      `## Invoice (${shown}/Invoice.php)`,
+      `- ⚠ NAME COLLISION: Invoice is also defined at ${shown}/Other.php:2 — external references below may belong to that class; verify imports before attributing.`,
+      "- resolved types (phpantom, 1 methods):",
+      `    - find(): ${shown}`,
+      "- verified callers (ts-lsp incomingCalls on Invoice, 1 shown):",
+      `    - caller${shown} (${shown}/c.ts:3, 1 call site)`,
+      `- graph: Class${shown} at ${shown}/Invoice.php:1-2 (epistemic: ${shown})`,
+      `- graph boundary: ${shown}`,
+      "- graph callers (1, lower bound):",
+      `    - boot${shown} (${shown}/Boot.php)`,
+      "- graph importers (1):",
+      `    - ${shown}/Imp.php`,
+      `- graph processes: ${shown}`,
+      "- other references (1):",
+      `    - ${shown}/Use.php:4  x\\ry`,
+      "",
+    ]);
+  });
+
+  it("escapes a lockfile's package name and version and an import specifier", () => {
+    const lines = written([
+      ...render.renderDependencies(
+        [dep({ name: `acme${odd}`, version: odd, importedAs: [odd] })],
+        [],
+      ),
+      ...render.renderDocSources(
+        {
+          perPackage: [{ row: { name: odd, version: odd }, verdicts: [] }],
+          fetchable: [{ id: "/acme/a", name: odd, version: odd }],
+          anonymous: false,
+        },
+        null,
+      ),
+    ]);
+    expect(lines).toContain(
+      `- **acme${shown}** ${shown} — read at \`vendor/acme/a\``,
+    );
+    expect(lines).toContain(`    - imported as: ${shown}`);
+    expect(lines).toContain(`- **${shown}** ${shown} (installed major: ?)`);
+    expect(lines).toContain(`- \`/acme/a\` — ${shown} ${shown}`);
+  });
+
+  it("writes one line per rendered line, with no control or format character but tab", () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.string({ unit: "binary" }), { minLength: 1 }),
+        (lines) => {
+          const out = written(lines);
+
+          expect(out).toHaveLength(lines.length);
+          for (const line of out) {
+            expect(line).not.toMatch(/[\p{Cf}\u2028\u2029]|[^\P{Cc}\t]/u);
+          }
+        },
+      ),
+    );
   });
 });

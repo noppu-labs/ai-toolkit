@@ -43,6 +43,34 @@ const DOC_SOURCES_HEADING = "## Doc sources (context7 version gate)";
 // High-volume, low-signal categories: counts + file list only.
 const COUNT_ONLY = new Set(["test", "import"]);
 
+// Paths, lockfile strings, source lines and tool output all come from the
+// repository, and any of them can hold a line break that would start a new line
+// of the brief, with a heading after it. Format characters such as U+202E
+// reorder what a terminal shows.
+const CONTROL_RE = /[\p{Cc}\p{Cf}\u2028\u2029]/gu;
+const NAMED_ESCAPES = { "\n": "\\n", "\r": "\\r" };
+
+function escapeControl(c) {
+  if (c === "\t") return c;
+  const code = c.codePointAt(0) ?? 0;
+  const hex = code.toString(16);
+  if (code > 0xffff) return `\\u{${hex}}`;
+  return NAMED_ESCAPES[c] ?? `\\u${hex.padStart(4, "0")}`;
+}
+
+/** `text` with line breaks, other control characters except tab, and format characters shown as escapes, so it prints as one line. */
+function printable(text) {
+  return String(text).replace(CONTROL_RE, escapeControl);
+}
+
+/**
+ * The brief as written: each rendered line through `printable`, so no value
+ * a line holds can add a line or start a heading.
+ */
+export function briefText(lines) {
+  return `${lines.map(printable).join("\n")}\n`;
+}
+
 export function renderHeader(relTarget, repoName) {
   return [
     `# Structural brief: ${relTarget} (repo: ${repoName})`,
@@ -85,7 +113,7 @@ export function renderIndex(freshness) {
 
 function fileNote(rel, notes) {
   if (notes?.unnamedFiles?.has(rel)) {
-    return " (file name is not an identifier; no symbol section)";
+    return " (file name cannot be used as a symbol; no symbol section)";
   }
   return notes?.basenameFiles?.has(rel)
     ? " (no named exports; basename used)"
@@ -257,12 +285,21 @@ export function renderDocSources(gate, skippedReason) {
   ];
 }
 
-export function renderCodegraph(lines) {
+export function renderCodegraph(lines, above = null) {
   if (!lines) return [];
+  const source = above
+    ? [
+        `> codegraph read the index in ${above}, a directory above this repository, so the graph is that project's and can reach past this one.`,
+        "",
+      ]
+    : [];
   return [
     "## Module graph (codegraph — includes inheritance edges the gitnexus PHP graph lacks)",
     "",
-    ...lines,
+    ...source,
+    // Indented past three spaces, a line of codegraph's output cannot start a
+    // heading, a list or a quote.
+    ...lines.map((line) => (line ? `    ${line}` : line)),
     "",
   ];
 }

@@ -36,6 +36,10 @@ const DEFINITION_GLOBS = [
   "*.cts",
 ];
 const GREP_LINE_RE = /^([^:]+):(\d+):(.*)$/;
+// `git grep -z -n` prints each match as path NUL line NUL text LF, with the
+// path as git stores it: not quoted, and whole when it holds a colon or a
+// newline. `-I` keeps out the "Binary file … matches" lines, which have no NUL.
+const GREP_RECORD_RE = /([^\0]*)\0(\d+)\0([^\n]*)\n/g;
 // ast-grep matches the AST, so these hits are multi-line-safe and immune to
 // comments and strings. One scan per pattern across AST_SCAN_DIRS, filtered per symbol afterwards.
 const AST_PATTERNS = [
@@ -70,7 +74,33 @@ export function parseGrepLine(line) {
   return hit && forDisplay(hit);
 }
 
+function grepRecords(stdout) {
+  return [...stdout.matchAll(GREP_RECORD_RE)].map((m) => ({
+    filePath: m[1],
+    lineNo: m[2],
+    text: m[3].trim(),
+  }));
+}
+
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// The characters a name can run on with. git grep's -w knows only ASCII
+// letters, digits and `_`, so it matches `user-profile` inside
+// `user-profile-card` and `café` inside `caféé`.
+// biome-ignore lint/security/noSecrets: a character class, not a credential.
+const NAME_CHAR = "\\p{L}\\p{M}\\p{N}_$";
+const NO_NAME_CHAR_BEFORE = `(?<![${NAME_CHAR}])`;
+
+// A hit counts when some occurrence of the name has no name character before
+// it and none after it. After a name taken from a file name, `-` also counts
+// as one, so `button` does not list `button-group`; after an exported name
+// it does not, so `retries` keeps `retries--`. `.` stays a boundary on both
+// sides (`components.user-profile`, `./vite.config`), and so does `-` before
+// a name (`<x-user-profile />`).
+function boundedName(sym, fromFileName) {
+  const after = fromFileName ? `${NAME_CHAR}-` : NAME_CHAR;
+  return new RegExp(`${NO_NAME_CHAR_BEFORE}${esc(sym)}(?![${after}])`, "u");
+}
 
 const BINDING_CALL_RE = /(->|::)\s*(bind|singleton|scoped|instance)\s*\(/g;
 
@@ -100,9 +130,11 @@ function phpCategory(sym, t) {
   if (new RegExp(`\\bnew\\s+(\\\\?[\\w\\\\]*\\\\)?${s}\\s*\\(`).test(t)) {
     return "construction";
   }
-  if (new RegExp(`\\b${s}\\s+\\$\\w+`).test(t)) return "typehint";
+  if (new RegExp(`${NO_NAME_CHAR_BEFORE}${s}\\s+\\$\\w+`, "u").test(t)) {
+    return "typehint";
+  }
   if (/^use\s+[\w\\]+;/.test(t)) return "import";
-  if (new RegExp(`\\b${s}::`).test(t)) return "static";
+  if (new RegExp(`${NO_NAME_CHAR_BEFORE}${s}::`, "u").test(t)) return "static";
   return null;
 }
 
@@ -140,15 +172,21 @@ function claimAstHits(buckets, sym, relTarget, astHits) {
   return claimed;
 }
 
-export function bucketHits(sym, relTarget, grepStdout, astHits) {
+export function bucketHits(
+  sym,
+  relTarget,
+  grepStdout,
+  astHits,
+  fromFileName = false,
+) {
   const buckets = {};
   const claimed = claimAstHits(buckets, sym, relTarget, astHits);
-  for (const line of grepStdout.split("\n")) {
-    const hit = splitGrepLine(line);
+  const bounded = boundedName(sym, fromFileName);
+  for (const hit of grepRecords(grepStdout)) {
     if (
-      !hit ||
       isInternal(hit.filePath, relTarget) ||
-      claimed.has(`${hit.filePath}:${hit.lineNo}`)
+      claimed.has(`${hit.filePath}:${hit.lineNo}`) ||
+      !bounded.test(hit.text)
     ) {
       continue;
     }
@@ -206,7 +244,7 @@ export function astGrepScan(ctx) {
   return scan;
 }
 
-export function wiringFor(ctx, sym, ownFile) {
+export function wiringFor(ctx, sym, ownFile, fromFileName = false) {
   // git grep: tracked files only, so vendor/ and node_modules/ drop out for free.
   // `-e` marks sym as the pattern, so git never reads it as an option, and `-F`
   // matches it as text: `$` is legal in a JS name and an anchor in a pattern.
@@ -214,6 +252,8 @@ export function wiringFor(ctx, sym, ownFile) {
     [
       "grep",
       "-nwF",
+      "-I",
+      "-z",
       "--no-color",
       "-e",
       sym,
@@ -233,6 +273,7 @@ export function wiringFor(ctx, sym, ownFile) {
     internalScope(ctx.relTarget, ownFile),
     res.stdout ?? "",
     astGrepScan(ctx).hits,
+    fromFileName,
   );
 }
 
@@ -243,6 +284,9 @@ export function duplicateDefinitions(ctx, sym, ownFile) {
     [
       "grep",
       "-nwE",
+      "-I",
+      "-z",
+      "--no-color",
       "-e",
       `(class|interface|trait|enum) ${esc(sym)}`,
       "--",
@@ -251,9 +295,7 @@ export function duplicateDefinitions(ctx, sym, ownFile) {
     { cwd: ctx.repoRoot, timeout: 10_000, env: ctx.env },
   );
   if (res.error || (res.status !== 0 && res.status !== 1)) return [];
-  return (res.stdout ?? "")
-    .split("\n")
-    .filter(Boolean)
-    .map((l) => l.split(":").slice(0, 2).join(":"))
-    .filter((loc) => !loc.startsWith(`${ownFile}:`));
+  return grepRecords(res.stdout ?? "")
+    .filter((hit) => hit.filePath !== ownFile)
+    .map((hit) => `${hit.filePath}:${hit.lineNo}`);
 }

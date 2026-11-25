@@ -51,8 +51,15 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/brief/scripts/brief.mjs" <target-dir> [--max-
 - The TypeScript pass does not start when the repository, or a working tree around it,
   tracks files where the server and the TypeScript it runs load code from, or when that
   TypeScript is old enough to load a plugin from any path. Code the user installed is not
-  tracked, so an installed project keeps the pass. For a project that commits such files on
-  purpose, set `INVESTIGATE_BRIEF_TRUST_REPO_TS=1` to run the pass anyway.
+  tracked, so an installed project keeps the pass. A committed Yarn cache (`.yarn/cache` or
+  `.yarn/unplugged`) counts only next to a Plug'n'Play file (`.pnp.cjs` or `.pnp.js`): with
+  Yarn's node-modules linker nothing loads from it. The check asks git for each place under
+  the name the disk stores, since a case-folding disk also finds it under another spelling. The
+  pass also does not start when such a place, or the `typescript` package inside it down to
+  its `lib` folder, sits in a nested repository, for example a folder a removed submodule
+  left behind, because git does not answer for another repository's files. A linked
+  `typescript` package is not followed for this, so an `npm link` keeps the pass. For a project that commits such files on purpose, set
+  `INVESTIGATE_BRIEF_TRUST_REPO_TS=1` to run the pass anyway.
 - Exit non-zero: fix the cause, or mark that module's structure UNRESOLVED. A usage error
   (unknown flag, a second path, a bad `--max-symbols`) also exits 1. Never investigate
   silently without the brief.
@@ -72,12 +79,14 @@ Every tool the brief used reports a status. Read these before trusting any other
 | `FAILED (...)` | Tool is present but errored. Treat its section as UNRESOLVED, not empty. |
 | `unavailable (<note>)`, `UNAVAILABLE (no global fetch)` | Tool could not run. Section is UNRESOLVED. |
 | `not on PATH`, `no .codegraph index` | Tool absent. Section is UNRESOLVED, not empty. |
+| `ran (index in <dir>, a directory above this repository)` | The repository has no codegraph database of its own, so codegraph read the nearest one above it, as codegraph itself does. The Module graph is that project's and can name code outside this repository. |
 | `skipped (--no-lsp)`, `skipped (--no-docs)` | Deliberately not run. |
-| `skipped (… where the server loads code from; set INVESTIGATE_BRIEF_TRUST_REPO_TS=1 to run it)`, `skipped (the TypeScript the server would run (…) loads a plugin from any path …)`, `skipped (could not tell whether the repository tracks code the server loads …)` | The TypeScript pass did not start, because it could have run code the repository supplies. Callers come from the wiring scan only. Run it anyway only for a repository you trust. |
+| `skipped (… where the server loads code from; set INVESTIGATE_BRIEF_TRUST_REPO_TS=1 to run it)`, `skipped (a nested repository at <dir> holds <place>, where the server loads code from; …)`, `skipped (the TypeScript the server would run (…) loads a plugin from any path …)`, `skipped (could not tell whether the repository tracks code the server loads …)` | The TypeScript pass did not start, because it could have run code the repository supplies. Callers come from the wiring scan only. Run it anyway only for a repository you trust. |
+| `skipped (.codegraph is tracked by git)`, `skipped (could not tell whether git tracks .codegraph)` | codegraph did not run, and the brief has no Module graph section. Either the repository commits files under `.codegraph` other than the `.gitignore` codegraph writes there, so the index came with the repository, or git could not list that folder. |
 | `skipped (no PHP scan dirs)` | None of `app`, `config`, `routes`, `database`, `src` exists, and those are the only directories ast-grep scans. The textual wiring scan still ran. |
 | `skipped (no composer.lock read)`, `skipped (no package-lock.json read)`, `skipped (no composer.lock or package-lock.json read)` | No lockfile was read for the target's sources, so its third-party imports are UNRESOLVED. pnpm, yarn, and bun lockfiles are not read. |
 | `…; composer imports UNRESOLVED (no composer.lock read)`, `…; npm imports UNRESOLVED (no package-lock.json read)` | The gate ran for one ecosystem, but the other's lockfile was not read, so that ecosystem's imports are UNRESOLVED. |
-| `not needed (no PHP files)`, `not needed (no PHP symbols)`, `not needed (no TypeScript/JavaScript symbols)`, `not needed (no third-party imports)`, `not needed (only dev packages imported)` | Nothing for the tool to do. Dev packages are listed under Third-party surface but never sent to context7. |
+| `not needed (no PHP files)`, `not needed (no PHP symbols)`, `not needed (no TypeScript/JavaScript symbols)`, `not needed (no symbols)`, `not needed (no third-party imports)`, `not needed (only dev packages imported)` | Nothing for the tool to do. codegraph reads `not needed (no symbols)` when no file in the target gave a symbol. Dev packages are listed under Third-party surface but never sent to context7. |
 
 For gitnexus, `not on PATH` means the binary is missing; an installed gitnexus whose `list`
 command fails reads `FAILED (...)`. A thin section under a tool marked `not on PATH` is
@@ -92,17 +101,29 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
   wrong map.
 - **Files**: the source files in scope. A note says when symbol detail was capped, and
   `(no named exports; basename used)` marks a JS/TS file with no usable export name, whose symbol is its file name.
-  `(file name is not an identifier; no symbol section)` marks a file that takes its symbol
-  from its file name (a PHP file, or a JS/TS file with no usable export name) when that name
-  is not an identifier, such as `use-toast.ts` or a migration that starts with a date. The
-  brief runs no search for such a file, so its callers are UNRESOLVED.
+  `(file name cannot be used as a symbol; no symbol section)` marks a file that takes its
+  symbol from its file name (a PHP file, or a JS/TS file with no usable export name) when
+  that name does not start with a letter, `_` or `$`, or holds anything other than letters,
+  combining marks, numbers, `_`, `$`, `.` and `-`. A migration that starts with a date and a
+  name with a space are two examples; `user-profile.blade.php` and `vite.config.ts` keep
+  their sections. The brief runs no search for such a file, so its callers are UNRESOLVED.
+  A line counts as a reference only when no letter, mark, number, `_` or `$` sits right
+  before or after the name. For a name taken from a file name, a `-` right after it also
+  rules the line out, including the `-` of `->`: `button` does not list
+  `<x-button-group />`, `Ledger` does not list `$this->Ledger->total()`, and a file named
+  `retries.ts` with no named export does not list `retries--`. A `.` on either side and a `-` before the name still
+  count as boundaries, so `vite.config` also lists `vite.config.local` and `user-profile`
+  also lists `admin-user-profile`. Check such lines by hand.
 - **Third-party surface**: each package the target imports, with its INSTALLED version and
   where to read its source. Use these, never the manifest's caret range: `^3.1.0` is not a
   fact, `3.3.1` is. When no lockfile was read for the target's PHP or JS/TS sources, the
   section opens with an `UNRESOLVED: no <lockfile> was read` line.
 - **Doc sources**: per-package context7 id and a version-alignment verdict (see below).
-- **Module graph**: codegraph blast radius and inheritance edges, when a `.codegraph` index
-  exists.
+- **Module graph**: codegraph blast radius and inheritance edges, when the target has at
+  least one symbol and codegraph has a database to read: the repository's own
+  `.codegraph/codegraph.db`, if git does not track it, or else the nearest directory above
+  the repository that holds one. When the database is above the repository, a line under
+  the heading names that directory. `no .codegraph index` means neither exists.
 - **Per-symbol sections**: for each class or function in scope, resolved method types
   (language server), verified callers, graph callers (a lower bound), textual wiring grouped
   into buckets (container resolution, provider bindings, DI type-hints, other references),
@@ -110,6 +131,15 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
 - **Unresolved by construction**: what no pass here can see, such as interface and
   parent-class callers, string-based dynamic usage, and third-party behaviour. Anything not
   listed in the brief is UNRESOLVED, not absent.
+
+A line break, another control character except tab, or a format character such as U+202E
+in anything the brief quotes (a path, a lockfile string, a source line, a tool's output)
+prints as an escape such as `\n`, and codegraph's lines are indented, so nothing from the
+repository can add a line to the brief or start a section. A value that opens a list item
+can still render as Markdown inside that item, for example as a heading. A backslash
+prints as itself, so `\n` in a
+path can also be a backslash and an `n` in the file's name. Read a printed path; do not
+paste it into a command.
 
 ## Doc-source verdicts
 

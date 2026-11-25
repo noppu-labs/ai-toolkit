@@ -71,11 +71,7 @@ type CliModule = {
     tsLsp: Map<string, { symbol: string }> | null,
     repoRoot: string,
   ) => Map<string, string>;
-  codegraphStatus: (s: {
-    hasIndex: boolean;
-    probeOk: boolean;
-    lines: string[] | null;
-  }) => string;
+  codegraphStatus: (s: { probeOk: boolean; lines: string[] | null }) => string;
   astGrepStatus: (scan: { state: string; error?: string }) => string;
   context7Status: (gate: {
     perPackage: Array<{ error?: string }>;
@@ -412,19 +408,14 @@ describe("callerOwners", () => {
 });
 
 describe("codegraphStatus", () => {
-  it("separates no index, absent binary, failure, and output", () => {
-    expect(
-      cli.codegraphStatus({ hasIndex: false, probeOk: true, lines: null }),
-    ).toBe("no .codegraph index");
-    expect(
-      cli.codegraphStatus({ hasIndex: true, probeOk: false, lines: null }),
-    ).toBe("not on PATH");
-    expect(
-      cli.codegraphStatus({ hasIndex: true, probeOk: true, lines: null }),
-    ).toBe("FAILED (codegraph explore exited non-zero or timed out)");
-    expect(
-      cli.codegraphStatus({ hasIndex: true, probeOk: true, lines: ["x"] }),
-    ).toBe("ran");
+  it("separates absent binary, failure, and output", () => {
+    expect(cli.codegraphStatus({ probeOk: false, lines: null })).toBe(
+      "not on PATH",
+    );
+    expect(cli.codegraphStatus({ probeOk: true, lines: null })).toBe(
+      "FAILED (codegraph explore exited non-zero or timed out)",
+    );
+    expect(cli.codegraphStatus({ probeOk: true, lines: ["x"] })).toBe("ran");
   });
 });
 
@@ -667,12 +658,151 @@ describe("brief.mjs", () => {
     );
     expect(r.status).toBe(0);
     expect(existsSync(marker)).toBe(false);
-    const note = "(file name is not an identifier; no symbol section)";
+    const note = "(file name cannot be used as a symbol; no symbol section)";
     expect(r.stdout).toContain(`- hostile/${MARKER_OPTION_NAME}.php ${note}`);
     expect(r.stdout).toContain(`- hostile/${MARKER_OPTION_NAME}.ts ${note}`);
     expect(r.stdout).toContain("- hostile/Ledger.php\n");
     expect(r.stdout).toContain("## Ledger (hostile/Ledger.php)");
     expect(r.stdout).not.toContain(`## ${MARKER_OPTION_NAME}`);
+  });
+
+  it("builds a section for a kebab-case Blade view and lists the code that renders it", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, "resources", "views", "components"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(cwd, "resources", "views", "components", "user-profile.blade.php"),
+      "<div>{{ $name }}</div>\n",
+    );
+    writeFileSync(
+      join(
+        cwd,
+        "resources",
+        "views",
+        "components",
+        "user-profile-card.blade.php",
+      ),
+      "<div>{{ $card }}</div>\n",
+    );
+    writeFileSync(
+      join(cwd, "app", "Http", "ProfileController.php"),
+      '<?php\nreturn view("components.user-profile");\n',
+    );
+    writeFileSync(
+      join(cwd, "app", "Http", "CardController.php"),
+      '<?php\nreturn view("components.user-profile-card");\n',
+    );
+    writeFileSync(
+      join(cwd, "resources", "views", "components", "2024_01_01_old.php"),
+      "<?php\n",
+    );
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "views");
+    const r = runBrief(
+      cwd,
+      "resources/views/components",
+      "--no-docs",
+      "--no-lsp",
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(
+      "## user-profile (resources/views/components/user-profile.blade.php)",
+    );
+    const section =
+      r.stdout.split("## user-profile (")[1]?.split("\n## ")[0] ?? "";
+    expect(section).toContain(
+      'app/Http/ProfileController.php:2  return view("components.user-profile");',
+    );
+    expect(section).not.toContain("CardController");
+    expect(r.stdout).toContain(
+      "- resources/views/components/2024_01_01_old.php (file name cannot be used as a symbol; no symbol section)",
+    );
+  });
+
+  it("prints a path holding a newline on one line, so it cannot add a heading", () => {
+    const base = mkdtempSync(join(tmpdir(), "investigate-cli-paths-"));
+    const cwd = join(base, "repo\n## ForgedRepo");
+    const forged = "x)\n\n## ForgedHeading (app/Real.php";
+    const files: Record<string, string> = {
+      "app/new\nline.php": "<?php\n",
+      [`app/${forged}/LegitName.php`]: "<?php\nclass LegitName {}\n",
+      "src/y\n## ForgedRef.php": "<?php\nnew LegitName();\n",
+      "lib/z\n## ForgedDupe/LegitName.php": "<?php\nclass LegitName {}\n",
+    };
+    for (const [rel, content] of Object.entries(files)) {
+      mkdirSync(join(cwd, rel, ".."), { recursive: true });
+      writeFileSync(join(cwd, rel), content);
+    }
+    git(cwd, "init", "-q", "-b", "main");
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "paths");
+    const r = runBrief(cwd, "app", "--no-docs", "--no-lsp");
+    expect(r.status).toBe(0);
+    const lines = r.stdout.split("\n");
+    expect(lines[0]).toBe(
+      "# Structural brief: app (repo: repo\\n## ForgedRepo)",
+    );
+    expect(lines).toContain(
+      "- app/new\\nline.php (file name cannot be used as a symbol; no symbol section)",
+    );
+    expect(lines).toContain(
+      "## LegitName (app/x)\\n\\n## ForgedHeading (app/Real.php/LegitName.php)",
+    );
+    expect(lines).toContain(
+      "- ⚠ NAME COLLISION: LegitName is also defined at lib/z\\n## ForgedDupe/LegitName.php:2 — external references below may belong to that class; verify imports before attributing.",
+    );
+    expect(lines).toContain(
+      "    - src/y\\n## ForgedRef.php:2  new LegitName();",
+    );
+    for (const line of lines.filter((l) => l.includes("Forged"))) {
+      expect(line).toContain("\\n");
+    }
+  });
+
+  it("finds composed references to a class whose file name git stores decomposed", () => {
+    const cwd = makeRepo();
+    git(cwd, "config", "core.precomposeUnicode", "false");
+    mkdirSync(join(cwd, "app", "Models"));
+    writeFileSync(
+      join(cwd, "app", "Models", `${"Café".normalize("NFD")}.php`),
+      "<?php\nclass Café {}\n",
+    );
+    writeFileSync(join(cwd, "src", "Menu.php"), "<?php\n$c = new Café();\n");
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "decomposed");
+    const r = runBrief(cwd, "app/Models", "--no-docs", "--no-lsp");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("## Café (app/Models/");
+    expect(r.stdout).toContain("    - src/Menu.php:2  $c = new Café();");
+  });
+
+  it("prints a lockfile version holding a line break on one line, so it cannot add a heading", () => {
+    const cwd = makeRepo();
+    writeFileSync(
+      join(cwd, "src", "lib", "pad.ts"),
+      'import leftPad from "left-pad";\nexport const padded = leftPad("a", 3);\n',
+    );
+    writeFileSync(
+      join(cwd, "package-lock.json"),
+      JSON.stringify({
+        packages: {
+          "": { name: "fixture" },
+          "node_modules/left-pad": {
+            version: "1.3.0\n\n## ForgedFromLockfile (app/Real.php)",
+          },
+        },
+      }),
+    );
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "lockfile");
+    const r = runBrief(cwd, "src/lib", "--no-docs", "--no-lsp");
+    expect(r.status).toBe(0);
+    const lines = r.stdout.split("\n");
+    expect(lines).toContain(
+      "- **left-pad** 1.3.0\\n\\n## ForgedFromLockfile (app/Real.php) — read at `node_modules/left-pad`",
+    );
+    expect(lines.filter((l) => l.startsWith("## Forged"))).toEqual([]);
   });
 
   it.each([".", ".."] as const)(
@@ -1001,6 +1131,24 @@ describe("brief.mjs with language servers on PATH", () => {
     expect(php.stdout).toContain("- resolved types (phpantom, 2 methods):");
   });
 
+  it("prints a caller name holding a line break on one line, so it cannot add a heading", () => {
+    const r = runBriefWith(
+      {
+        PATH: FAKE_LSP_PATH,
+        FAKE_LSP_CALLER_NAME: "evil\n## InjectedFromCallerFileName.ts",
+      },
+      makeRepo(),
+      "src/lib",
+      "--no-docs",
+    );
+    expect(r.status).toBe(0);
+    const lines = r.stdout.split("\n");
+    expect(lines).toContain(
+      "    - evil\\n## InjectedFromCallerFileName.ts (src/pages/Home.tsx:10, 2 call sites)",
+    );
+    expect(lines.filter((l) => l.startsWith("## Injected"))).toEqual([]);
+  });
+
   it("carries the server's initialize error into the FAILED status", () => {
     const cwd = makeRepo();
     const r = runBriefWith(
@@ -1078,7 +1226,7 @@ describe("brief.mjs with gitnexus and codegraph on PATH", () => {
   it("threads the env to both tools and renders the index, module graph, and graph lines", () => {
     const fixtures = join(import.meta.dirname, "fixtures");
     const cwd = makeRepo();
-    mkdirSync(join(cwd, ".codegraph"));
+    addCodegraphDb(cwd);
     const root = realpathSync(cwd);
     const name = root.split("/").pop() ?? "";
     const head = git(cwd, "rev-parse", "HEAD");
@@ -1115,6 +1263,141 @@ describe("brief.mjs with gitnexus and codegraph on PATH", () => {
     );
     expect(r.stdout).toContain("    - boot (app/Boot.php)");
   });
+});
+
+// What `codegraph init` writes: a database, and a .gitignore that keeps
+// everything but itself out of git.
+function addCodegraphDb(dir: string): void {
+  mkdirSync(join(dir, ".codegraph"), { recursive: true });
+  writeFileSync(join(dir, ".codegraph", ".gitignore"), "*\n!.gitignore\n");
+  writeFileSync(join(dir, ".codegraph", "codegraph.db"), "");
+}
+
+function runWithFakeCodegraph(
+  cwd: string,
+  target: string,
+): { status: number | null; stdout: string; argvFile: string } {
+  const argvFile = join(mkdtempSync(join(tmpdir(), "investigate-cg-")), "a");
+  const r = runBriefWith(
+    {
+      PATH: makeFakeToolsPath({
+        codegraph: join(import.meta.dirname, "fixtures", "fake-codegraph.mjs"),
+      }),
+      FAKE_ARGV_FILE: argvFile,
+    },
+    cwd,
+    target,
+    "--no-docs",
+    "--no-lsp",
+  );
+
+  return { status: r.status, stdout: r.stdout, argvFile };
+}
+
+describe("brief.mjs and the codegraph index", () => {
+  it("does not run codegraph when no symbol is left", () => {
+    const cwd = makeRepo();
+    addCodegraphDb(cwd);
+    mkdirSync(join(cwd, "database", "migrations"), { recursive: true });
+    writeFileSync(
+      join(cwd, "database", "migrations", "2024_01_01_create_users_table.php"),
+      "<?php\n",
+    );
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "migration");
+    const r = runWithFakeCodegraph(cwd, "database/migrations");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("- codegraph: not needed (no symbols)");
+    expect(r.stdout).not.toContain("## Module graph");
+    expect(existsSync(r.argvFile)).toBe(false);
+  });
+
+  it("runs codegraph on the repository's own database", () => {
+    const cwd = makeRepo();
+    addCodegraphDb(cwd);
+    const r = runWithFakeCodegraph(cwd, "app/Services");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("- codegraph: ran\n");
+    expect(r.stdout).toContain("## Module graph");
+    expect(r.stdout).not.toContain("above this repository");
+  });
+
+  it("reports no index when git tracks only the index's .gitignore and nothing above has a database", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, ".codegraph"));
+    writeFileSync(join(cwd, ".codegraph", ".gitignore"), "*\n");
+    git(cwd, "add", "-f", ".codegraph/.gitignore");
+    git(cwd, "commit", "-qm", "index ignore file");
+    const r = runWithFakeCodegraph(cwd, "app/Services");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("- codegraph: no .codegraph index");
+    expect(r.stdout).not.toContain("## Module graph");
+    expect(existsSync(r.argvFile)).toBe(false);
+  });
+
+  it.each([
+    ["only the index's .gitignore", true],
+    ["no .codegraph folder", false],
+  ])(
+    "runs codegraph on a directory above, and names it, when the repository has %s",
+    (_, ignoreFile) => {
+      const outer = realpathSync(
+        mkdtempSync(join(tmpdir(), "investigate-cg-parent\n## Forged-")),
+      );
+      addCodegraphDb(outer);
+      const cwd = join(outer, "child");
+      mkdirSync(cwd);
+      git(cwd, "init", "-q", "-b", "main");
+      writeFileSync(join(cwd, "Invoice.php"), "<?php\nclass Invoice {}\n");
+      if (ignoreFile) {
+        mkdirSync(join(cwd, ".codegraph"));
+        writeFileSync(join(cwd, ".codegraph", ".gitignore"), "*\n");
+      }
+      git(cwd, "add", "-f", ".");
+      git(
+        cwd,
+        "-c",
+        "user.email=t@e",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-qm",
+        "x",
+      );
+      const r = runWithFakeCodegraph(cwd, ".");
+      expect(r.status).toBe(0);
+      const shown = outer.replaceAll("\n", "\\n");
+      expect(r.stdout).toContain(
+        `- codegraph: ran (index in ${shown}, a directory above this repository)`,
+      );
+      expect(r.stdout).toContain(
+        `> codegraph read the index in ${shown}, a directory above this repository, so the graph is that project's and can reach past this one.`,
+      );
+      expect(r.stdout).toContain("    line 1");
+      expect(
+        r.stdout.split("\n").filter((l) => l.startsWith("## Forged")),
+      ).toEqual([]);
+    },
+  );
+
+  it.each([".codegraph", ".CodeGraph"])(
+    "does not run codegraph on an index the repository tracks in %s",
+    (dir) => {
+      const cwd = makeRepo();
+      addCodegraphDb(cwd);
+      mkdirSync(join(cwd, dir), { recursive: true });
+      writeFileSync(join(cwd, dir, "codegraph.db"), "not a database\n");
+      git(cwd, "add", "-f", `${dir}/codegraph.db`);
+      git(cwd, "commit", "-qm", "committed index");
+      const r = runWithFakeCodegraph(cwd, "app/Services");
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain(
+        "- codegraph: skipped (.codegraph is tracked by git)",
+      );
+      expect(r.stdout).not.toContain("## Module graph");
+      expect(existsSync(r.argvFile)).toBe(false);
+    },
+  );
 });
 
 describe("brief.mjs git calls", () => {

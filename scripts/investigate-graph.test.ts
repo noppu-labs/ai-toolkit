@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -48,6 +54,10 @@ type GraphModule = {
     ctx: { repoRoot: string; env: NodeJS.ProcessEnv },
     names: string[],
   ) => string[] | null;
+  codegraphIndex: (ctx: { repoRoot: string; env: NodeJS.ProcessEnv }) => {
+    state: "absent" | "present" | "tracked" | "unknown";
+    root?: string;
+  };
 };
 
 const libDir: string = join(
@@ -402,7 +412,17 @@ describe("graphContext", () => {
 });
 
 function readArgv(file: string): string[] {
-  return JSON.parse(readFileSync(file, "utf8")) as string[];
+  const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+  if (
+    !(
+      Array.isArray(parsed) &&
+      parsed.every((a): a is string => typeof a === "string")
+    )
+  ) {
+    throw new Error(`${file} does not hold an argument list`);
+  }
+
+  return parsed;
 }
 
 describe("graphContext on hostile names", () => {
@@ -427,10 +447,101 @@ describe("graphContext on hostile names", () => {
   });
 });
 
+// A repository inside `outer`, so a test can put an index above it.
+function makeIndexRepo(
+  tracked: Record<string, string>,
+  outer: string = realpathSync(
+    mkdtempSync(join(tmpdir(), "investigate-cg-outer-")),
+  ),
+): string {
+  const root = join(outer, "repo");
+  mkdirSync(join(root, ".codegraph"), { recursive: true });
+  git(root, "init", "-q", "-b", "main");
+  for (const [rel, content] of Object.entries(tracked)) {
+    mkdirSync(join(root, rel, ".."), { recursive: true });
+    writeFileSync(join(root, rel), content);
+    git(root, "add", "-f", rel);
+  }
+  return root;
+}
+
+// A directory holding a codegraph database, as `codegraph init` leaves it.
+function makeIndexedDir(): string {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "investigate-cg-idx-")));
+  mkdirSync(join(dir, ".codegraph"));
+  writeFileSync(join(dir, ".codegraph", "codegraph.db"), "");
+  return dir;
+}
+
+describe("codegraphIndex", () => {
+  const env = { PATH: process.env.PATH ?? "" };
+  const ignoreOnly = { ".codegraph/.gitignore": "*\n" };
+
+  it("is present, in the repository, when its own .codegraph holds a database", () => {
+    const root = makeIndexRepo(ignoreOnly);
+    writeFileSync(join(root, ".codegraph", "codegraph.db"), "");
+    expect(graph.codegraphIndex({ repoRoot: root, env })).toEqual({
+      state: "present",
+      root,
+    });
+  });
+
+  it("is absent when neither the repository nor a directory above it holds a database", () => {
+    const outer = realpathSync(
+      mkdtempSync(join(tmpdir(), "investigate-cg-none-")),
+    );
+    // codegraph keeps its own install in ~/.codegraph, with no database in it.
+    mkdirSync(join(outer, ".codegraph"));
+    expect(
+      graph.codegraphIndex({ repoRoot: makeIndexRepo(ignoreOnly, outer), env }),
+    ).toEqual({ state: "absent" });
+    const bare = join(outer, "bare");
+    mkdirSync(bare);
+    expect(graph.codegraphIndex({ repoRoot: bare, env })).toEqual({
+      state: "absent",
+    });
+  });
+
+  it("is present, in the directory above, when only that directory holds a database", () => {
+    const outer = makeIndexedDir();
+    expect(
+      graph.codegraphIndex({ repoRoot: makeIndexRepo(ignoreOnly, outer), env }),
+    ).toEqual({ state: "present", root: outer });
+    const bare = join(outer, "a", "b");
+    mkdirSync(bare, { recursive: true });
+    expect(graph.codegraphIndex({ repoRoot: bare, env })).toEqual({
+      state: "present",
+      root: outer,
+    });
+  });
+
+  it("is tracked when git tracks anything else under .codegraph, in any case", () => {
+    for (const rel of [
+      ".codegraph/codegraph.db",
+      ".codegraph/sub/.gitignore",
+      ".CodeGraph/codegraph.db",
+    ]) {
+      const root = makeIndexRepo({ [rel]: "x\n" }, makeIndexedDir());
+      for (const extra of [{}, { GIT_LITERAL_PATHSPECS: "1" }]) {
+        expect(
+          graph.codegraphIndex({ repoRoot: root, env: { ...env, ...extra } }),
+        ).toEqual({ state: "tracked" });
+      }
+    }
+  });
+
+  it("is unknown when git cannot list the directory", () => {
+    const root = mkdtempSync(join(tmpdir(), "investigate-cg-nogit-"));
+    mkdirSync(join(root, ".codegraph"));
+    expect(graph.codegraphIndex({ repoRoot: root, env })).toEqual({
+      state: "unknown",
+    });
+  });
+});
+
 describe("codegraphOverview", () => {
   it("passes names that look like options after --, as the query", () => {
     const root = mkdtempSync(join(tmpdir(), "investigate-cg-argv-"));
-    mkdirSync(join(root, ".codegraph"));
     const argvFile = join(root, "argv.json");
     graph.codegraphOverview(
       {
@@ -451,17 +562,9 @@ describe("codegraphOverview", () => {
     ]);
   });
 
-  it("returns null when the repo has no .codegraph directory", () => {
-    const root = mkdtempSync(join(tmpdir(), "investigate-cg-"));
-    expect(
-      graph.codegraphOverview({ repoRoot: root, env: process.env }, ["Foo"]),
-    ).toBeNull();
-  });
-
+  // codegraphIndex decides whether to run; codegraph finds the index itself.
   function indexedRoot(): string {
-    const root = mkdtempSync(join(tmpdir(), "investigate-cg-"));
-    mkdirSync(join(root, ".codegraph"));
-    return root;
+    return mkdtempSync(join(tmpdir(), "investigate-cg-"));
   }
 
   it("returns the explore output through the env's PATH", () => {

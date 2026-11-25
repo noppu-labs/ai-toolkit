@@ -34,9 +34,15 @@ type WiringModule = {
     relTarget: string,
     grepStdout: string,
     astHits: Hit[] | null,
+    fromFileName?: boolean,
   ) => Buckets;
   astGrepScan: (ctx: Ctx) => AstScan;
-  wiringFor: (ctx: Ctx, sym: string, ownFile: string) => Buckets | null;
+  wiringFor: (
+    ctx: Ctx,
+    sym: string,
+    ownFile: string,
+    fromFileName?: boolean,
+  ) => Buckets | null;
   duplicateDefinitions: (ctx: Ctx, sym: string, ownFile: string) => string[];
 };
 
@@ -132,6 +138,17 @@ describe("classifyHit", () => {
     expect(wiring.classifyHit("Foo", text)).toBe(expected);
   });
 
+  it.each([
+    ["public function __construct(Élan $x) {}", "typehint"],
+    ["Élan::make()", "static"],
+    ["$x = new Élan();", "construction"],
+  ])(
+    "classifies %j as %s for a name that starts with a non-ASCII letter",
+    (text, expected) => {
+      expect(wiring.classifyHit("Élan", text)).toBe(expected);
+    },
+  );
+
   it("classifies a 200 KB line with a container call in linear time", () => {
     const line = `$this->app->bind(${"a".repeat(200_000)}`;
     const started = Date.now();
@@ -151,14 +168,24 @@ describe("classifyHit", () => {
   });
 });
 
+// `git grep -z` output for lines written as path:line:text.
+function grepOutput(...lines: string[]): string {
+  return lines
+    .map((line) => {
+      const [file, lineNo, ...text] = line.split(":");
+      return `${file}\0${lineNo}\0${text.join(":")}\n`;
+    })
+    .join("");
+}
+
 describe("bucketHits", () => {
   it("drops internal hits, lets ast hits claim lines, and routes test paths to test", () => {
-    const grep = [
+    const grep = grepOutput(
       "app/Services/Invoice.php:2:class Invoice {}",
       "app/Providers/AppServiceProvider.php:2:$this->app->singleton(Invoice::class, fn () => new Invoice());",
       "app/Http/InvoiceController.php:3:public function __construct(Invoice $invoice)",
       "tests/InvoiceTest.php:2:$x = new Invoice();",
-    ].join("\n");
+    );
     const ast: Hit[] = [
       {
         category: "binding",
@@ -176,7 +203,9 @@ describe("bucketHits", () => {
   });
 
   it("lets an ast hit take a line the text classifier would file elsewhere", () => {
-    const grep = "app/Jobs/Run.php:3:$x = new Invoice(); // Invoice::class";
+    const grep = grepOutput(
+      "app/Jobs/Run.php:3:$x = new Invoice(); // Invoice::class",
+    );
     const ast: Hit[] = [
       {
         category: "container",
@@ -209,7 +238,7 @@ describe("bucketHits", () => {
     const b = wiring.bucketHits(
       "Invoice",
       "app/Services",
-      `app/Http/InvoiceController.php:3:${line}`,
+      grepOutput(`app/Http/InvoiceController.php:3:${line}`),
       null,
     );
     expect(b.typehint).toHaveLength(1);
@@ -227,11 +256,11 @@ describe("bucketHits", () => {
   });
 
   it("routes co-located *.test.* and *.spec.* files to test references", () => {
-    const grep = [
+    const grep = grepOutput(
       "src/use.spec.ts:1:import { Invoice } from './Invoice';",
       "src/Invoice.test.tsx:4:render(<Invoice />)",
       "src/page.tsx:2:<Invoice />",
-    ].join("\n");
+    );
     const b = wiring.bucketHits("Invoice", "lib", grep, null);
     expect(b.test?.map((h) => h.filePath)).toEqual([
       "src/use.spec.ts",
@@ -258,6 +287,69 @@ describe("bucketHits", () => {
         hit("resolve(\\App\\Invoice::class)"),
       ]).container,
     ).toHaveLength(1);
+  });
+});
+
+// The text of every hit bucketHits keeps, given one grep line per text.
+function keptTexts(
+  sym: string,
+  fromFileName: boolean,
+  texts: string[],
+): string[] {
+  const grep = grepOutput(
+    ...texts.map((text, i) => `app/use.php:${i + 1}:${text}`),
+  );
+
+  return Object.values(wiring.bucketHits(sym, "lib", grep, null, fromFileName))
+    .flat()
+    .map((h) => h.text);
+}
+
+describe("bucketHits on names git grep -w cannot bound", () => {
+  it("drops a longer name that starts with a file-name symbol, and keeps the name itself", () => {
+    const kept = [
+      'return view("components.user-profile");',
+      "<x-user-profile />",
+      "<x-user-profile-card /> <x-user-profile />",
+    ];
+    const dropped = ["<x-user-profile-card />", 'view("user-profile-card");'];
+    expect(keptTexts("user-profile", true, [...kept, ...dropped])).toEqual(
+      kept,
+    );
+    expect(
+      keptTexts("button", true, ["<x-button />", "<x-button-group />"]),
+    ).toEqual(["<x-button />"]);
+    expect(keptTexts("café", true, ["new café();", "new caféé();"])).toEqual([
+      "new café();",
+    ]);
+  });
+
+  it("still lists what a dot or a dash before the name cannot tell apart", () => {
+    expect(
+      keptTexts("vite.config", true, [
+        'import config from "./vite.config";',
+        'load("./vite.config.local");',
+      ]),
+    ).toHaveLength(2);
+    expect(
+      keptTexts("user-profile", true, ['view("admin-user-profile");']),
+    ).toHaveLength(1);
+    expect(
+      keptTexts("use-toast", true, ['import { toast } from "./use-toast";']),
+    ).toHaveLength(1);
+  });
+
+  it("keeps an exported name followed by a dash, and drops one that runs on", () => {
+    expect(
+      keptTexts("retries", false, [
+        "n = retries--;",
+        "n = retriesé;",
+        "n = $retries;",
+      ]),
+    ).toEqual(["n = retries--;"]);
+    expect(keptTexts("MAX_ROWS", false, ["const last = MAX_ROWS-1;"])).toEqual([
+      "const last = MAX_ROWS-1;",
+    ]);
   });
 });
 
@@ -469,6 +561,62 @@ describe("astGrepScan", () => {
   });
 });
 
+// git quotes a path holding a byte outside ASCII unless it is told not to, so
+// the quoted form never equals the relative path the brief compares it with.
+function makeOddPathRepo(): Ctx {
+  const cwd = mkdtempSync(join(tmpdir(), "investigate-wiring-paths-"));
+  git(cwd, "init", "-q", "-b", "main");
+  mkdirSync(join(cwd, "app", "Modèles"), { recursive: true });
+  writeFileSync(
+    join(cwd, "app", "Modèles", "InvoiceModel.php"),
+    "<?php\nclass InvoiceModel {}\n",
+  );
+  writeFileSync(join(cwd, "app", "use.php"), "<?php\nnew InvoiceModel();\n");
+  writeFileSync(join(cwd, "app", "a:b.php"), "<?php\nnew InvoiceModel();\n");
+  writeFileSync(
+    join(cwd, "app", "new\nline.php"),
+    "<?php\nnew InvoiceModel();\n",
+  );
+  writeFileSync(join(cwd, "app", "bin.php"), "InvoiceModel\0binary\n");
+  git(cwd, "add", ".");
+  git(cwd, "commit", "-q", "-m", "base");
+  return {
+    repoRoot: cwd,
+    relTarget: "app/Modèles",
+    files: [join(cwd, "app", "Modèles", "InvoiceModel.php")],
+    env: { PATH: NO_TOOLS_PATH },
+  };
+}
+
+describe("git grep output read by path", () => {
+  const own = "app/Modèles/InvoiceModel.php";
+
+  it("knows a non-ASCII path as the symbol's own file", () => {
+    const ctx = makeOddPathRepo();
+    expect(wiring.duplicateDefinitions(ctx, "InvoiceModel", own)).toEqual([]);
+    const listed = Object.values(
+      wiring.wiringFor(ctx, "InvoiceModel", own) ?? {},
+    )
+      .flat()
+      .map((h) => h.filePath);
+    expect(listed).not.toContain(own);
+  });
+
+  it("reads a path holding a colon or a newline whole, and skips binary files", () => {
+    const listed = Object.values(
+      wiring.wiringFor(makeOddPathRepo(), "InvoiceModel", own) ?? {},
+    )
+      .flat()
+      .map((h) => `${h.filePath}:${h.lineNo}`)
+      .sort();
+    expect(listed).toEqual([
+      "app/a:b.php:2",
+      "app/new\nline.php:2",
+      "app/use.php:2",
+    ]);
+  });
+});
+
 describe("duplicateDefinitions", () => {
   it("lists other definitions of the same class name, excluding the own file", () => {
     const ctx = makeRepo();
@@ -476,4 +624,24 @@ describe("duplicateDefinitions", () => {
       wiring.duplicateDefinitions(ctx, "Invoice", "app/Services/Invoice.php"),
     ).toEqual(["app/Http/InvoiceController.php:4"]);
   });
+
+  it.each(["color.ui", "color.grep"])(
+    "still finds them when the user's git config sets %s=always",
+    (key) => {
+      const ctx = makeRepo();
+      const env = {
+        ...ctx.env,
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: key,
+        GIT_CONFIG_VALUE_0: "always",
+      };
+      expect(
+        wiring.duplicateDefinitions(
+          { ...ctx, env },
+          "Invoice",
+          "app/Services/Invoice.php",
+        ),
+      ).toEqual(["app/Http/InvoiceController.php:4"]);
+    },
+  );
 });

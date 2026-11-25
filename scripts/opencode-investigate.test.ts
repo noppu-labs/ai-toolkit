@@ -76,6 +76,21 @@ describe("investigate OpenCode plugin", () => {
     }
   });
 
+  it("passes every name to git grep after -e, so git reads it as the pattern", async () => {
+    const skills: Skill.Info[] = await loadInvestigateSkills();
+    const content = (id: string): string =>
+      skills.find((skill: Skill.Info): boolean => skill.id === id)?.content ??
+      "";
+
+    expect(content("investigate-deep")).toContain("`git grep -lw -e <term>`");
+    expect(content("investigate-spec")).toContain(
+      "`git grep -lw -e <ClassName>`",
+    );
+    for (const skill of skills) {
+      expect(skill.content).not.toMatch(/git grep(?: -\w+)* (?<!-e )</);
+    }
+  });
+
   it("points the brief at the real script path", async () => {
     const skills: Skill.Info[] = await loadInvestigateSkills();
     const brief: Skill.Info | undefined = skills.find(

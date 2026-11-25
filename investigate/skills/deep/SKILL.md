@@ -18,8 +18,9 @@ that mode.
 Resolve the argument to at most four module directories before anything else.
 
 - **Path that exists** → that directory. A file's dirname is fine.
-- **Free text** → locate the module with `git grep -lw <term>`, `codegraph explore`, or
-  `gitnexus query` when available. Ask the user only if the result is genuinely
+- **Free text** → locate the module with `git grep -lw -e <term>`, `codegraph explore`, or
+  `gitnexus query` when available. The term goes after `-e`, so git never reads it as
+  an option. Ask the user only if the result is genuinely
   ambiguous.
 - More than four candidates: prefer the modules the subject centres on and say which
   you dropped.

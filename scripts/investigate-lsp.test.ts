@@ -21,6 +21,7 @@ import {
   isCaseInsensitiveTmp,
   makeTempDir,
   makeTsRepo,
+  tmpFolds,
   writeFiles,
 } from "./fixtures/ts-load-repo.ts";
 
@@ -54,6 +55,17 @@ type TsModule = {
   >;
 };
 
+type DirFs = {
+  readdirSync: (dir: string) => string[];
+  lstatSync: (
+    file: string,
+    opts: { bigint: true },
+  ) => { dev: bigint; ino: bigint };
+};
+type LoadCheckModule = {
+  storedName: (parent: string, name: string, fs?: DirFs) => string;
+};
+
 const libDir: string = join(
   import.meta.dirname,
   "..",
@@ -78,6 +90,9 @@ const php: PhpModule = (await import(
 const ts: TsModule = (await import(
   pathToFileURL(join(libDir, "ts-lsp.mjs")).href
 )) as TsModule;
+const loadCheck: LoadCheckModule = (await import(
+  pathToFileURL(join(libDir, "ts-load-check.mjs")).href
+)) as LoadCheckModule;
 
 function frame(obj: unknown): Buffer {
   const s = JSON.stringify(obj);
@@ -268,6 +283,8 @@ describe("tsLspCallers", () => {
 const TRUST_VAR = "INVESTIGATE_BRIEF_TRUST_REPO_TS";
 const OPT_IN = `set ${TRUST_VAR}=1 to run it`;
 const CASE_INSENSITIVE: boolean = isCaseInsensitiveTmp();
+// APFS folds U+017F (long s) into s; git's icase and toLowerCase do not.
+const FOLDS_LONG_S: boolean = tmpFolds(".v\u017fcode", ".vscode");
 
 // The developer's own trust setting must not leak into these runs.
 function baseEnv(): NodeJS.ProcessEnv {
@@ -306,6 +323,12 @@ function skippedFor(location: string, where = "the repository"): unknown {
   };
 }
 
+function nestedSkip(nested: string, location: string): unknown {
+  return {
+    skipped: `a nested repository at ${nested} holds ${location}, where the server loads code from; ${OPT_IN}`,
+  };
+}
+
 describe("tsLspCallers in a repository that tracks code the server loads", () => {
   it.each([
     ["node_modules/typescript/lib/tsserver.js", "node_modules"],
@@ -316,8 +339,6 @@ describe("tsLspCallers in a repository that tracks code the server loads", () =>
     [".pnp.js", ".pnp.js"],
     [".pnp.loader.mjs", ".pnp.loader.mjs"],
     [".pnp.data.json", ".pnp.data.json"],
-    [".yarn/cache/typescript.zip", ".yarn/cache"],
-    [".yarn/unplugged/typescript/package.json", ".yarn/unplugged"],
   ])("does not start the server when %s is tracked", async (rel, location) => {
     const root = makeTsRepo();
     commitFiles(root, { [rel]: "x\n" });
@@ -325,6 +346,35 @@ describe("tsLspCallers in a repository that tracks code the server loads", () =>
     expect(run.started).toBe(false);
     expect(run.out).toEqual(skippedFor(location));
   });
+
+  it.each([
+    [".yarn/cache/typescript.zip", ".yarn/cache", ".pnp.cjs"],
+    [".yarn/cache/typescript.zip", ".yarn/cache", ".pnp.js"],
+    [".yarn/unplugged/typescript/package.json", ".yarn/unplugged", ".pnp.cjs"],
+  ])(
+    "does not start the server when %s is tracked beside a Plug'n'Play file (%s, %s)",
+    async (rel, location, pnp) => {
+      const root = makeTsRepo();
+      commitFiles(root, { [rel]: "x\n" });
+      writeFiles(root, { [pnp]: "\n" });
+      const run = await runTsPass(root);
+      expect(run.started).toBe(false);
+      expect(run.out).toEqual(skippedFor(location));
+    },
+  );
+
+  it.each([
+    ".yarn/cache/typescript.zip",
+    ".yarn/unplugged/typescript/package.json",
+  ])(
+    "starts the server when %s is tracked and no Plug'n'Play file loads from it",
+    async (rel) => {
+      const root = makeTsRepo();
+      commitFiles(root, { [rel]: "x\n" });
+      const run = await runTsPass(root);
+      expect(run.started).toBe(true);
+    },
+  );
 
   it("does not start it when only a package beside an installed TypeScript is tracked", async () => {
     const root = makeTsRepo();
@@ -425,6 +475,163 @@ describe("tsLspCallers in a repository that tracks code the server loads", () =>
     const run = await runTsPass(root);
     expect(run.started).toBe(false);
     expect(run.out).toEqual(skippedFor(".yarn/sdks"));
+  });
+
+  // Skipped where the filesystem does not fold long s into s: there the server
+  // would not find the folder.
+  it("does not start it when a tracked link stored as .v\u017fcode points out of the repository", {
+    skip: !FOLDS_LONG_S,
+  }, async () => {
+    const outside = makeTempDir("investigate-outside-");
+    writeFiles(outside, { "pnpify/typescript/package.json": "{}\n" });
+    const root = makeTsRepo();
+    commitLink(root, ".v\u017fcode", outside);
+    const run = await runTsPass(root);
+    expect(run.started).toBe(false);
+    expect(run.out).toEqual(skippedFor(".vscode/pnpify"));
+  });
+
+  // Skipped where the filesystem does not fold long s into s.
+  it("does not start it when a tracked link stored as node_module\u017f points out of the repository", {
+    skip: !FOLDS_LONG_S,
+  }, async () => {
+    const outside = makeTempDir("investigate-outside-");
+    writeFiles(outside, { "typescript/package.json": "{}\n" });
+    const root = makeTsRepo();
+    commitLink(root, "node_module\u017f", outside);
+    const run = await runTsPass(root);
+    expect(run.started).toBe(false);
+    expect(run.out).toEqual(skippedFor("node_modules"));
+  });
+
+  // Skipped on a case-sensitive filesystem. A clone writes .YARN first, so the
+  // tracked .yarn/sdks lands inside it: only a case-blind query finds it.
+  it("does not start it when the index spells a lookup folder in another case than the disk", {
+    skip: !CASE_INSENSITIVE,
+  }, async () => {
+    const src = makeTempDir("investigate-case-src-");
+    git(src, "init", "-q", "-b", "main");
+    const blob = git(src, "hash-object", "-w", "--stdin");
+    git(
+      src,
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      `100644,${blob},.YARN/README`,
+      "--cacheinfo",
+      `100644,${blob},.yarn/sdks/typescript/package.json`,
+      "--cacheinfo",
+      `100644,${blob},src/formatDate.ts`,
+    );
+    git(src, "commit", "-qm", "two spellings");
+    const root = join(makeTempDir("investigate-case-clone-"), "r");
+    git(src, "clone", "-q", src, root);
+    const run = await runTsPass(root);
+    expect(run.started).toBe(false);
+    expect(run.out).toEqual(skippedFor(".yarn/sdks"));
+  });
+
+  it("does not start it when a lookup folder sits in a nested repository the repository does not track", async () => {
+    const root = makeTsRepo();
+    const nested = join(root, ".yarn");
+    mkdirSync(nested);
+    git(nested, "init", "-q", "-b", "main");
+    commitFiles(nested, { "sdks/typescript/package.json": "{}\n" });
+    const run = await runTsPass(root);
+    expect(run.started).toBe(false);
+    expect(run.out).toEqual(nestedSkip(".yarn", ".yarn/sdks"));
+  });
+
+  it("does not start it when node_modules is itself a repository", async () => {
+    const root = makeTsRepo();
+    const nested = join(root, "node_modules");
+    mkdirSync(nested);
+    git(nested, "init", "-q", "-b", "main");
+    commitFiles(nested, { "typescript/package.json": "{}\n" });
+    const run = await runTsPass(root);
+    expect(run.started).toBe(false);
+    expect(run.out).toEqual(nestedSkip("node_modules", "node_modules"));
+    const trusted = await runTsPass(root, { [TRUST_VAR]: "1" });
+    expect(trusted.started).toBe(true);
+  });
+
+  it("does not start it when a removed submodule leaves a lookup folder on disk", async () => {
+    const sub = makeTempDir("investigate-sub-");
+    git(sub, "init", "-q", "-b", "main");
+    commitFiles(sub, { "sdks/typescript/package.json": "{}\n" });
+    const root = makeTsRepo();
+    commitSubmodule(root, ".yarn", sub);
+    git(root, "rm", "-q", "--cached", ".yarn");
+    git(root, "rm", "-q", ".gitmodules");
+    git(root, "commit", "-qm", "drop the submodule");
+    expect(existsSync(join(root, ".yarn", "sdks"))).toBe(true);
+    const run = await runTsPass(root);
+    expect(run.started).toBe(false);
+    expect(run.out).toEqual(nestedSkip(".yarn", ".yarn/sdks"));
+  });
+
+  // A TypeScript package the repository once tracked as a submodule at `rel`,
+  // removed in a later commit: git leaves the folder and its .git file.
+  function leaveRemovedTsSubmodule(root: string, rel: string): void {
+    const sub = makeTempDir("investigate-sub-");
+    git(sub, "init", "-q", "-b", "main");
+    commitFiles(sub, {
+      "package.json": '{"name":"typescript","version":"9.9.9"}\n',
+      "lib/tsserver.js": "\n",
+    });
+    git(
+      root,
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      "-q",
+      "-f",
+      sub,
+      rel,
+    );
+    git(root, "commit", "-qm", "submodule");
+    git(root, "rm", "-q", "--cached", rel);
+    git(root, "rm", "-q", ".gitmodules");
+    git(root, "commit", "-qm", "drop the submodule");
+  }
+
+  it.each([
+    ["node_modules/typescript", "node_modules"],
+    [".yarn/sdks/typescript", ".yarn/sdks"],
+  ])(
+    "does not start it when a removed submodule leaves %s on disk",
+    async (rel, location) => {
+      const root = makeTsRepo();
+      leaveRemovedTsSubmodule(root, rel);
+      expect(existsSync(join(root, rel, ".git"))).toBe(true);
+      const run = await runTsPass(root);
+      expect(run.started).toBe(false);
+      expect(run.out).toEqual(nestedSkip(rel, location));
+    },
+  );
+
+  it("starts it when node_modules/typescript is a link to a TypeScript checkout with its own .git", async () => {
+    const checkout = makeTempDir("investigate-ts-checkout-");
+    git(checkout, "init", "-q", "-b", "main");
+    commitFiles(checkout, {
+      "package.json": '{"name":"typescript","version":"9.9.9"}\n',
+      "lib/tsserver.js": "\n",
+    });
+    const root = makeTsRepo();
+    mkdirSync(join(root, "node_modules"));
+    symlinkSync(checkout, join(root, "node_modules", "typescript"));
+    const run = await runTsPass(root);
+    expect(run.started).toBe(true);
+  });
+
+  it("treats a .git link that points nowhere as a nested repository", async () => {
+    const root = makeTsRepo();
+    writeFiles(root, { ".yarn/sdks/typescript/package.json": "{}\n" });
+    symlinkSync(join(root, "missing"), join(root, ".yarn", ".git"));
+    const run = await runTsPass(root);
+    expect(run.started).toBe(false);
+    expect(run.out).toEqual(nestedSkip(".yarn", ".yarn/sdks"));
   });
 
   it("still finds a tracked file when the environment turns pathspec magic off", async () => {
@@ -555,28 +762,82 @@ describe("tsLspCallers in a repository that tracks code the server loads", () =>
   });
 });
 
+describe("storedName", () => {
+  it("returns a name the directory stores as it is", () => {
+    const dir = makeTempDir("investigate-stored-");
+    mkdirSync(join(dir, "node_modules"));
+    symlinkSync("node_modules", join(dir, ".yarn"));
+    expect(loadCheck.storedName(dir, "node_modules")).toBe("node_modules");
+    expect(loadCheck.storedName(dir, ".yarn")).toBe(".yarn");
+  });
+
+  // The listing and identities a folding filesystem gives: the asked name
+  // reaches the entry stored under another spelling.
+  function foldingFs(ids: Record<string, bigint>): DirFs {
+    return {
+      readdirSync: () => Object.keys(ids).filter((p) => p !== "node_modules"),
+      lstatSync: (file: string) => ({
+        dev: 1n,
+        ino: ids[file.slice("/r/".length)] ?? 99n,
+      }),
+    };
+  }
+
+  it("finds the entry a folded name reaches by its device and inode", () => {
+    const fs = foldingFs({
+      src: 3n,
+      "node_module\u017f": 7n,
+      node_modules: 7n,
+    });
+    expect(loadCheck.storedName("/r", "node_modules", fs)).toBe(
+      "node_module\u017f",
+    );
+  });
+
+  it("throws when no stored entry has that identity, so the check fails closed", () => {
+    const fs = foldingFs({ src: 3n, node_modules: 7n });
+    expect(() => loadCheck.storedName("/r", "node_modules", fs)).toThrow(
+      /node_modules/,
+    );
+  });
+
+  it("throws on a filesystem that numbers nothing, where any entry would match", () => {
+    const fs = foldingFs({
+      src: 0n,
+      node_moduleſ: 0n,
+      node_modules: 0n,
+    });
+    expect(() => loadCheck.storedName("/r", "node_modules", fs)).toThrow(
+      /node_modules/,
+    );
+  });
+});
+
 // A server install with its own TypeScript beside it, reached through a link
-// on PATH as npm leaves a global install.
+// on PATH in npm's global layout: `<prefix>/bin/<name>` links into
+// `<prefix>/lib/node_modules`, so TypeScript resolves only from the link's
+// real location, never from the folder the link sits in.
 function makeServerInstall(tsVersion: string): string {
-  const install = makeTempDir("investigate-server-");
-  writeFiles(install, {
-    "lib/cli.mjs": readFileSync(fake, "utf8"),
-    "node_modules/typescript/package.json": JSON.stringify({
+  const prefix = makeTempDir("investigate-server-");
+  const cli = "lib/node_modules/typescript-language-server/lib/cli.mjs";
+  writeFiles(prefix, {
+    [cli]: readFileSync(fake, "utf8"),
+    "lib/node_modules/typescript/package.json": JSON.stringify({
       name: "typescript",
       version: tsVersion,
       main: "lib/typescript.js",
     }),
-    "node_modules/typescript/lib/typescript.js": "\n",
-    "node_modules/typescript/lib/tsserver.js": "\n",
+    "lib/node_modules/typescript/lib/typescript.js": "\n",
+    "lib/node_modules/typescript/lib/tsserver.js": "\n",
   });
-  chmodSync(join(install, "lib", "cli.mjs"), 0o755);
-  mkdirSync(join(install, "bin"));
+  chmodSync(join(prefix, cli), 0o755);
+  mkdirSync(join(prefix, "bin"));
   symlinkSync(
-    join(install, "lib", "cli.mjs"),
-    join(install, "bin", "typescript-language-server"),
+    join(prefix, cli),
+    join(prefix, "bin", "typescript-language-server"),
   );
 
-  return join(install, "bin", "typescript-language-server");
+  return join(prefix, "bin", "typescript-language-server");
 }
 
 function writeWorkspaceTs(root: string, version: string): void {
