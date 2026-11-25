@@ -769,6 +769,20 @@ describe("install-hints.mjs", () => {
       );
     });
 
+    it("skips a symlinked .env.example and falls back to .env.dist", () => {
+      const result = hints({ ".env.dist": "A=1\n" }, undefined, {
+        ".env.example": "/etc/passwd",
+      });
+
+      expect(result.envExample).toBe(".env.dist");
+      expect(result.skipped).toEqual([
+        { path: ".env.example", reason: "symlink" },
+      ]);
+      expect(
+        hints({}, undefined, { ".env.example": "x" }).envExample,
+      ).toBeNull();
+    });
+
     it("lists the target of a symlinked README when it is tracked itself", () => {
       const result = hints({ "AGENTS.md": "## Setup\n" }, undefined, {
         "README.md": "AGENTS.md",

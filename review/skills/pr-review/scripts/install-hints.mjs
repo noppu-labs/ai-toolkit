@@ -452,7 +452,11 @@ function findTools(lockfiles, entryPoints) {
 }
 
 function findEnvExample(src) {
-  return [".env.example", ".env.dist"].find((file) => src.has(file)) ?? null;
+  return (
+    [".env.example", ".env.dist"].find(
+      (file) => src.has(file) && src.admit(file),
+    ) ?? null
+  );
 }
 
 function collectHints(git, sha) {
