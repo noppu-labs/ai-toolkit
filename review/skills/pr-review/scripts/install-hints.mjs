@@ -451,10 +451,10 @@ function findTools(lockfiles, entryPoints) {
   }));
 }
 
-// A tracked `.env`, even a symlink, would take the copy `cp <example> .env`
+// A tracked `.env` in any case, even a symlink, would take the copy `cp <example> .env`
 // makes: through a symlink that writes to a file outside the tree.
 function findEnvExample(src) {
-  if (src.has(".env")) {
+  if (src.paths().some((path) => path.toLowerCase() === ".env")) {
     return null;
   }
 

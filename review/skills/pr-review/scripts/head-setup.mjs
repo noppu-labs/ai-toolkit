@@ -60,16 +60,16 @@ const SAFE_GIT = [
   "submodule.recurse=false",
 ];
 const SESSION_PATHSPECS = [
-  ".claude",
-  ".mcp.json",
-  ":(glob)**/.claude/**",
-  ":(glob)**/.mcp.json",
-  ":(glob)**/CLAUDE.md",
-  ":(glob)**/CLAUDE.local.md",
-  ":(glob)**/AGENTS.md",
-  ":(glob)**/opencode.json",
-  ":(glob)**/opencode.jsonc",
-  ":(glob)**/.opencode/**",
+  ":(icase).claude",
+  ":(icase).mcp.json",
+  ":(glob,icase)**/.claude/**",
+  ":(glob,icase)**/.mcp.json",
+  ":(glob,icase)**/opencode.json",
+  ":(glob,icase)**/opencode.jsonc",
+  ":(glob,icase)**/.opencode/**",
+  ":(glob,icase)**/CLAUDE.md",
+  ":(glob,icase)**/CLAUDE.local.md",
+  ":(glob,icase)**/AGENTS.md",
 ];
 const OPERATION_MARKERS = [
   "MERGE_HEAD",
@@ -229,6 +229,16 @@ function statusPaths(ctx, ignoreSubmodules) {
     .split("\0")
     .filter((record) => record !== "")
     .map((record) => showPath(record.slice(3)));
+}
+
+// A required clean filter that fails makes `git status` itself fail, so the
+// callers that must not lose the id ask for a result instead of an exception.
+function tryStatusPaths(ctx, ignoreSubmodules) {
+  try {
+    return { paths: statusPaths(ctx, ignoreSubmodules) };
+  } catch (error) {
+    return { failed: showPath(String(error?.message ?? error)) };
+  }
 }
 
 function operationInProgress(ctx) {
@@ -587,6 +597,7 @@ function keepCommitsCommand(ctx, entry, sha) {
     "-C",
     ctx.top,
     "branch",
+    "-f",
     `pr-review-kept-${sha.slice(0, 12)}`,
     sha,
   ]);
@@ -644,24 +655,39 @@ function enterCheckout(ctx, sha, entries) {
   };
 }
 
-function describeDiscard(ctx, entry) {
-  return `Run ${switchBackCommand(ctx, entry, true)}: it discards the listed tracked paths and leaves untracked ones.`;
-}
+const DISCARD_NOTE =
+  "The command discards every change to tracked files made since, the listed ones included, and leaves untracked ones.";
 
 // A switch that exits non-zero can still have written files first. Only a
-// clean tree means nothing changed and the record can go.
-function refuseFailedSwitch(ctx, entry, stderr) {
-  const left = statusPaths(ctx, true);
+// clean tree means nothing changed and the record can go. The paths and the
+// command are fields of their own: `detail` repeats text git printed, which
+// can carry text from the PR.
+function refuseIncomplete(ctx, entry, reason, lead, dirtyPaths) {
+  refuse(
+    reason,
+    `${lead}; the record is kept. Keep the id ${entry.id} and print the paths. ${DISCARD_NOTE}`,
+    {
+      id: entry.id,
+      dirtyPaths,
+      command: switchBackCommand(ctx, entry, true),
+    },
+  );
+}
 
-  if (left.length === 0) {
+function refuseFailedSwitch(ctx, entry, stderr) {
+  const status = tryStatusPaths(ctx, false);
+
+  if (status.failed === undefined && status.paths.length === 0) {
     dropEntry(ctx, entry.id);
-    refuse("switch-failed", stderr);
+    refuse("switch-failed", showPath(stderr));
   }
 
-  refuse(
+  refuseIncomplete(
+    ctx,
+    entry,
     "switch-incomplete",
-    `${stderr}; the switch changed the tree before it failed and the record is kept. Keep the id ${entry.id} and print the paths. ${describeDiscard(ctx, entry)}`,
-    { id: entry.id, dirtyPaths: left },
+    `${showPath(stderr)}; the switch may have changed the tree before it failed`,
+    status.paths ?? [],
   );
 }
 
@@ -677,7 +703,19 @@ function switchToHead(ctx, entry) {
     refuseFailedSwitch(ctx, entry, result.stderr.trim());
   }
 
-  const dirty = statusPaths(ctx, true);
+  const status = tryStatusPaths(ctx, true);
+
+  if (status.failed !== undefined) {
+    refuseIncomplete(
+      ctx,
+      entry,
+      "switch-incomplete",
+      `git status failed after the switch (${status.failed})`,
+      [],
+    );
+  }
+
+  const dirty = status.paths;
 
   if (dirty.length === 0) {
     return;
@@ -686,10 +724,12 @@ function switchToHead(ctx, entry) {
   const back = changeTree(ctx, switchBackArgs(entry));
 
   if (back.status !== 0) {
-    refuse(
+    refuseIncomplete(
+      ctx,
+      entry,
       "switch-back-failed",
-      `the head left the tree changed and switching back failed (${back.stderr.trim()}); the record is kept. Keep the id ${entry.id} and print the paths. ${describeDiscard(ctx, entry)}`,
-      { id: entry.id, dirtyPaths: dirty },
+      `the head left the tree changed and switching back failed (${showPath(back.stderr.trim())})`,
+      dirty,
     );
   }
 
@@ -808,7 +848,7 @@ function enterWorktree(ctx, sha, entries, requested) {
   ]);
 
   if (result.status !== 0) {
-    abandonScratch(ctx, scratch.entry, result.stderr.trim());
+    abandonScratch(ctx, scratch.entry, showPath(result.stderr.trim()));
   }
 
   return {
@@ -876,7 +916,7 @@ function enterClone(ctx, sha, entries, requested) {
   const result = cloneInto(ctx, scratch.entry);
 
   if (result.status !== 0) {
-    abandonScratch(ctx, scratch.entry, result.stderr.trim());
+    abandonScratch(ctx, scratch.entry, showPath(result.stderr.trim()));
   }
 
   return {
@@ -948,7 +988,30 @@ function isBackAt(ctx, entry) {
     : branch === entry.branch;
 }
 
+// A decline for a status that could not run: the tree may hold the head's
+// files, so the command that discards tracked changes is the one to print.
+function declineStatus(ctx, entry, failed) {
+  return declineCheckout(
+    ctx,
+    entry,
+    "status-failed",
+    `git status failed (${failed}); the tree may hold files of the head. ${DISCARD_NOTE}`,
+    { command: switchBackCommand(ctx, entry, true) },
+  );
+}
+
 function restoreCheckout(ctx, entry) {
+  const indexLock = join(ctx.gitDir, "index.lock");
+
+  if (existsSync(indexLock)) {
+    return {
+      declined: {
+        reason: "busy",
+        detail: `${indexLock} exists, so a git may still be switching this tree; run restore again when it ends, or delete the file if no git is running`,
+      },
+    };
+  }
+
   if (isBackAt(ctx, entry)) {
     return restoreBack(ctx, entry);
   }
@@ -971,17 +1034,19 @@ function restoreCheckout(ctx, entry) {
     );
   }
 
-  const dirty = statusPaths(ctx, true);
+  const status = tryStatusPaths(ctx, true);
 
-  if (dirty.length > 0) {
+  if (status.failed !== undefined) {
+    return declineStatus(ctx, entry, status.failed);
+  }
+
+  if (status.paths.length > 0) {
     return declineCheckout(
       ctx,
       entry,
       "dirty",
-      "the working tree has changes",
-      {
-        dirtyPaths: dirty,
-      },
+      `the working tree has changes. If the listed paths are not yours, run ${switchBackCommand(ctx, entry, true)} instead of the command. ${DISCARD_NOTE}`,
+      { dirtyPaths: status.paths },
     );
   }
 
@@ -997,24 +1062,49 @@ function restoreCheckout(ctx, entry) {
   const back = changeTree(ctx, switchBackArgs(entry));
 
   if (back.status !== 0) {
-    return declineCheckout(ctx, entry, "switch-failed", back.stderr.trim());
+    return declineAfterFailedBack(ctx, entry, back.stderr.trim());
   }
 
   return { restored: {}, lockfiles: lockfilesSince(ctx, entry) };
 }
 
+// A switch back that fails may still have written files; then only the
+// discard form can work.
+function declineAfterFailedBack(ctx, entry, stderr) {
+  const status = tryStatusPaths(ctx, true);
+
+  if (status.failed === undefined && status.paths.length === 0) {
+    return declineCheckout(ctx, entry, "switch-failed", showPath(stderr));
+  }
+
+  return declineCheckout(
+    ctx,
+    entry,
+    "switch-incomplete",
+    `${showPath(stderr)}; the switch back changed the tree before it failed. ${DISCARD_NOTE}`,
+    {
+      dirtyPaths: status.paths ?? [],
+      command: switchBackCommand(ctx, entry, true),
+    },
+  );
+}
+
 // HEAD is where the run started, but a switch that was cut short, or an edit
 // made since, can leave the tree changed. Only a clean tree drops the record.
 function restoreBack(ctx, entry) {
-  const dirty = statusPaths(ctx, true);
+  const status = tryStatusPaths(ctx, true);
 
-  if (dirty.length > 0) {
+  if (status.failed !== undefined) {
+    return declineStatus(ctx, entry, status.failed);
+  }
+
+  if (status.paths.length > 0) {
     return {
       declined: {
         reason: "back-but-dirty",
         detail:
-          "HEAD is back where the run started, but the working tree has changes, so the record is kept. If you switched back yourself and these changes are yours, run `head-setup.mjs forget`.",
-        dirtyPaths: dirty,
+          "HEAD is back where the run started, but the working tree has changes, so the record is kept. If you switched back yourself and these changes are yours, run `head-setup.mjs forget`: it clears every recorded setup, so restore the others first (a worktree it clears stays registered with git).",
+        dirtyPaths: status.paths,
       },
     };
   }
@@ -1045,11 +1135,13 @@ function listedWorktrees(ctx) {
   return paths;
 }
 
+// macOS keeps a name as it was made but git lists it composed, so two spellings
+// of one path compare equal only once both are normalised.
 function realOrSame(path) {
   try {
-    return realpathSync(path);
+    return realpathSync(path).normalize("NFC");
   } catch {
-    return path;
+    return path.normalize("NFC");
   }
 }
 
@@ -1088,9 +1180,52 @@ function restoreUnlisted(entry) {
   return {
     declined: {
       reason: "not-a-worktree",
-      detail: `${entry.path} is not a worktree of this repository`,
+      detail: `${entry.path} is not a worktree of this repository${FORGET_HINT}`,
     },
   };
+}
+
+const FORGET_HINT =
+  "; if the entry is not wanted, `head-setup.mjs forget` drops every record (restore the others first)";
+
+// The reason of the lock git put on a worktree, or null. A run killed inside
+// `worktree add` leaves it locked as `initializing`, which `--force` alone
+// does not remove.
+function lockReason(ctx, path) {
+  const target = realOrSame(path);
+  let current = null;
+
+  for (const line of ctx.git
+    .text(["worktree", "list", "--porcelain"])
+    .split("\n")) {
+    if (line.startsWith("worktree ")) {
+      current = realOrSame(line.slice("worktree ".length));
+    } else if (current === target && line.startsWith("locked")) {
+      return line.slice("locked".length).trim();
+    }
+  }
+
+  return null;
+}
+
+function removeWorktree(ctx, entry) {
+  const result = changeTree(ctx, ["worktree", "remove", "--force", entry.path]);
+
+  if (
+    result.status === 0 ||
+    lockReason(ctx, entry.path) !== "initializing" ||
+    describeCloneProblem(entry) !== null
+  ) {
+    return result;
+  }
+
+  return changeTree(ctx, [
+    "worktree",
+    "remove",
+    "--force",
+    "--force",
+    entry.path,
+  ]);
 }
 
 function restoreWorktree(ctx, entry) {
@@ -1104,14 +1239,19 @@ function restoreWorktree(ctx, entry) {
   const problem = describeParentProblem(entry);
 
   if (problem !== null) {
-    return { declined: { reason: "not-ours", detail: problem } };
+    return {
+      declined: { reason: "not-ours", detail: `${problem}${FORGET_HINT}` },
+    };
   }
 
-  const result = changeTree(ctx, ["worktree", "remove", "--force", entry.path]);
+  const result = removeWorktree(ctx, entry);
 
   if (result.status !== 0) {
     return {
-      declined: { reason: "remove-failed", detail: result.stderr.trim() },
+      declined: {
+        reason: "remove-failed",
+        detail: showPath(result.stderr.trim()),
+      },
     };
   }
 
@@ -1170,7 +1310,9 @@ function restoreClone(_ctx, entry) {
   const problem = describeCloneProblem(entry);
 
   if (problem !== null) {
-    return { declined: { reason: "not-ours", detail: problem } };
+    return {
+      declined: { reason: "not-ours", detail: `${problem}${FORGET_HINT}` },
+    };
   }
 
   removeScratch(entry);
@@ -1199,7 +1341,10 @@ function restoreEntry(ctx, entry) {
     return RESTORERS.get(entry.kind)(ctx, entry);
   } catch (error) {
     return {
-      declined: { reason: "error", detail: String(error?.message ?? error) },
+      declined: {
+        reason: "error",
+        detail: `${showPath(String(error?.message ?? error))}${FORGET_HINT}`,
+      },
     };
   }
 }
@@ -1274,7 +1419,7 @@ function readLockPid(file) {
   try {
     const text = readFileSync(file, "utf8").trim();
 
-    return /^[0-9]+$/.test(text) ? Number(text) : null;
+    return /^[1-9][0-9]*$/.test(text) ? Number(text) : null;
   } catch {
     return null;
   }
@@ -1282,7 +1427,10 @@ function readLockPid(file) {
 
 // The pid is written to a temporary file that is then linked into place, so
 // the lock never exists without it and a reader cannot mistake a lock that is
-// still being made for an unreadable one.
+// still being made for an unreadable one. A filesystem without hard links
+// gets an exclusive create instead.
+const NO_LINK_CODES = ["ENOTSUP", "EOPNOTSUPP", "EPERM", "ENOSYS"];
+
 function createLock(file) {
   const temp = `${file}.${process.pid}.tmp`;
 
@@ -1296,9 +1444,27 @@ function createLock(file) {
       return false;
     }
 
+    if (NO_LINK_CODES.includes(error.code)) {
+      return createLockWithoutLink(file);
+    }
+
     throw error;
   } finally {
     rmSync(temp, { force: true });
+  }
+}
+
+function createLockWithoutLink(file) {
+  try {
+    writeFileSync(file, String(process.pid), { flag: "wx" });
+
+    return true;
+  } catch (error) {
+    if (error.code === "EEXIST") {
+      return false;
+    }
+
+    throw error;
   }
 }
 
@@ -1308,6 +1474,12 @@ function takeLock(ctx) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (createLock(file)) {
       return file;
+    }
+
+    // A lock its holder released since the failed create is not stale: take
+    // it by creating it again, never by removing whatever is there now.
+    if (!existsSync(file)) {
+      continue;
     }
 
     const pid = readLockPid(file);

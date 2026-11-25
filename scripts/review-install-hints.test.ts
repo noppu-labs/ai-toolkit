@@ -791,6 +791,23 @@ describe("install-hints.mjs", () => {
       ).toBeNull();
     });
 
+    it("offers no example when the tracked .env differs only in case", () => {
+      expect(
+        hints({ ".env.example": "A=1\n" }, undefined, {
+          ".ENV": "/etc/passwd",
+        }).envExample,
+      ).toBeNull();
+      expect(
+        hints({ ".Env": "A=1\n", ".env.example": "A=1\n" }).envExample,
+      ).toBeNull();
+    });
+
+    it("keeps an example next to a nested .env", () => {
+      expect(
+        hints({ "app/.env": "A=1\n", ".env.example": "A=1\n" }).envExample,
+      ).toBe(".env.example");
+    });
+
     it("lists the target of a symlinked README when it is tracked itself", () => {
       const result = hints({ "AGENTS.md": "## Setup\n" }, undefined, {
         "README.md": "AGENTS.md",

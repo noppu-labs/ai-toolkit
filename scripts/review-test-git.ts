@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 
 export const realGit: string = spawnSync("sh", ["-c", "command -v git"], {
   encoding: "utf8",
@@ -15,7 +15,6 @@ export type GitResult = {
 
 export type Sandbox = {
   root: string;
-  next: (label: string) => string;
   makeDir: (label: string) => string;
   env: (extra?: Record<string, string>) => Record<string, string>;
   assertInside: (cwd: string) => void;
@@ -62,7 +61,6 @@ function isInside(root: string, path: string): boolean {
 // touch the repository the tests run from.
 export function makeSandbox(prefix: string): Sandbox {
   const root: string = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
-  let counter = 0;
 
   const assertInside = (cwd: string): void => {
     let real: string;
@@ -84,7 +82,7 @@ export function makeSandbox(prefix: string): Sandbox {
     const result = spawnSync(realGit, args, {
       cwd,
       encoding: "utf8",
-      env: makeGitEnv(),
+      env: makeGitEnv({ GIT_CEILING_DIRECTORIES: dirname(root) }),
     });
 
     return {
@@ -96,13 +94,9 @@ export function makeSandbox(prefix: string): Sandbox {
 
   return {
     root,
-    next: (label: string): string => {
-      counter += 1;
-
-      return join(root, `${label}-${counter}`);
-    },
     makeDir: (label: string): string => mkdtempSync(join(root, `${label}-`)),
-    env: makeGitEnv,
+    env: (extra: Record<string, string> = {}): Record<string, string> =>
+      makeGitEnv({ GIT_CEILING_DIRECTORIES: dirname(root), ...extra }),
     assertInside,
     tryGit,
     git: (cwd: string, ...args: string[]): string => {
