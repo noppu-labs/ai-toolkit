@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InstallHints",
+  "description": "Evidence about how to install a repository at one commit, as printed by scripts/install-hints.mjs. It reports what the tree contains and decides nothing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "headSha",
+    "lockfiles",
+    "entryPoints",
+    "installHooks",
+    "runtimes",
+    "tools",
+    "envExample"
+  ],
+  "properties": {
+    "headSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "lockfiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "manager", "likelyCommand"],
+        "properties": {
+          "path": { "type": "string" },
+          "manager": {
+            "type": "string",
+            "enum": [
+              "composer",
+              "npm",
+              "pnpm",
+              "yarn",
+              "bun",
+              "uv",
+              "poetry",
+              "bundler",
+              "go"
+            ]
+          },
+          "likelyCommand": { "type": "string" }
+        }
+      }
+    },
+    "entryPoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "kind", "names"],
+        "properties": {
+          "path": { "type": "string" },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "make",
+              "just",
+              "task",
+              "script-file",
+              "composer-script",
+              "npm-script",
+              "docs-section"
+            ]
+          },
+          "names": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "installHooks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "name", "command"],
+        "properties": {
+          "path": { "type": "string" },
+          "name": { "type": "string" },
+          "command": { "type": "string" }
+        }
+      }
+    },
+    "runtimes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "tool", "version"],
+        "properties": {
+          "path": { "type": "string" },
+          "tool": { "type": "string" },
+          "version": { "type": "string" }
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "onPath"],
+        "properties": {
+          "name": { "type": "string" },
+          "onPath": { "type": "boolean" }
+        }
+      }
+    },
+    "envExample": { "type": ["string", "null"] }
+  }
+}
