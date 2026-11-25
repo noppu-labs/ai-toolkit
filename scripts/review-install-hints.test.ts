@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { makeSandbox, realGit as realGitPath } from "./review-test-git.ts";
+import { makeSandbox, realGit } from "./review-test-git.ts";
 
 const reviewDir = join(
   import.meta.dirname,
@@ -46,7 +46,6 @@ const SCHEMA_KEYWORDS = new Set([
 const SCHEMA_ANNOTATIONS = new Set(["$schema", "title", "description"]);
 
 const sandbox = makeSandbox("review-install-hints-");
-const realGit = realGitPath;
 
 afterAll(() => {
   sandbox.dispose();
@@ -778,6 +777,17 @@ describe("install-hints.mjs", () => {
       ]);
       expect(
         hints({}, undefined, { ".env.example": "x" }).envExample,
+      ).toBeNull();
+    });
+
+    it("offers no example when the tree tracks .env, as a file or as a symlink", () => {
+      expect(
+        hints({ ".env": "A=1\n", ".env.example": "A=1\n" }).envExample,
+      ).toBeNull();
+      expect(
+        hints({ ".env.example": "A=1\n" }, undefined, {
+          ".env": "/etc/passwd",
+        }).envExample,
       ).toBeNull();
     });
 
