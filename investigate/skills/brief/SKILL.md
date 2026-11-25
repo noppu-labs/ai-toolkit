@@ -74,10 +74,11 @@ Every tool the brief used reports a status. Read these before trusting any other
 | `not on PATH`, `no .codegraph index` | Tool absent. Section is UNRESOLVED, not empty. |
 | `skipped (--no-lsp)`, `skipped (--no-docs)` | Deliberately not run. |
 | `skipped (… where the server loads code from; set INVESTIGATE_BRIEF_TRUST_REPO_TS=1 to run it)`, `skipped (the TypeScript the server would run (…) loads a plugin from any path …)`, `skipped (could not tell whether the repository tracks code the server loads …)` | The TypeScript pass did not start, because it could have run code the repository supplies. Callers come from the wiring scan only. Run it anyway only for a repository you trust. |
+| `skipped (.codegraph is tracked by git)`, `skipped (could not tell whether git tracks .codegraph)` | codegraph did not run. The repository commits files under `.codegraph` other than the `.gitignore` codegraph writes there, so the index came with the repository and not from the user's own run, or git could not list that folder. No Module graph section. |
 | `skipped (no PHP scan dirs)` | None of `app`, `config`, `routes`, `database`, `src` exists, and those are the only directories ast-grep scans. The textual wiring scan still ran. |
 | `skipped (no composer.lock read)`, `skipped (no package-lock.json read)`, `skipped (no composer.lock or package-lock.json read)` | No lockfile was read for the target's sources, so its third-party imports are UNRESOLVED. pnpm, yarn, and bun lockfiles are not read. |
 | `…; composer imports UNRESOLVED (no composer.lock read)`, `…; npm imports UNRESOLVED (no package-lock.json read)` | The gate ran for one ecosystem, but the other's lockfile was not read, so that ecosystem's imports are UNRESOLVED. |
-| `not needed (no PHP files)`, `not needed (no PHP symbols)`, `not needed (no TypeScript/JavaScript symbols)`, `not needed (no third-party imports)`, `not needed (only dev packages imported)` | Nothing for the tool to do. Dev packages are listed under Third-party surface but never sent to context7. |
+| `not needed (no PHP files)`, `not needed (no PHP symbols)`, `not needed (no TypeScript/JavaScript symbols)`, `not needed (no symbols)`, `not needed (no third-party imports)`, `not needed (only dev packages imported)` | Nothing for the tool to do. codegraph reads `not needed (no symbols)` when no file in the target gave a symbol. Dev packages are listed under Third-party surface but never sent to context7. |
 
 For gitnexus, `not on PATH` means the binary is missing; an installed gitnexus whose `list`
 command fails reads `FAILED (...)`. A thin section under a tool marked `not on PATH` is
@@ -104,7 +105,7 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
   section opens with an `UNRESOLVED: no <lockfile> was read` line.
 - **Doc sources**: per-package context7 id and a version-alignment verdict (see below).
 - **Module graph**: codegraph blast radius and inheritance edges, when a `.codegraph` index
-  exists.
+  exists that git does not track and the target has at least one symbol.
 - **Per-symbol sections**: for each class or function in scope, resolved method types
   (language server), verified callers, graph callers (a lower bound), textual wiring grouped
   into buckets (container resolution, provider bindings, DI type-hints, other references),

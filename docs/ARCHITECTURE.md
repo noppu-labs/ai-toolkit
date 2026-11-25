@@ -150,7 +150,7 @@ The toolkit executes none of this content. The agent decides what happens in the
 5. Runs `ast-grep` over `app`, `config`, `routes`, `database` and `src` for container and binding patterns, when the target has PHP files.
 6. Reads `composer.lock` and `package-lock.json` at the repository root to find the installed version of each package the target imports.
 7. Unless `--no-docs` is given, queries context7.com for up to 12 of those packages and compares each documented version with the installed one. See [Network calls](#network-calls).
-8. Runs `codegraph explore` when the repository has a `.codegraph` directory.
+8. Runs `codegraph explore` when the repository has a `.codegraph` directory and the target has at least one symbol. It asks `git ls-files` first and skips codegraph when git tracks anything in that directory other than the `.gitignore` codegraph writes there, because such an index came with the repository.
 9. For each symbol, runs `git grep` for references and same-named definitions, and `gitnexus context` when gitnexus has the repository in its registry.
 10. Prints the brief as Markdown on standard output. The skill has the agent redirect it to a file in the temp directory and read that.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { defaultCacheDir, TtlCache } from "./lib/cache.mjs";
@@ -7,7 +7,11 @@ import { collectDependencies } from "./lib/deps.mjs";
 import { docSources } from "./lib/docs-gate.mjs";
 import { probe } from "./lib/exec.mjs";
 import { indexFreshness } from "./lib/freshness.mjs";
-import { codegraphOverview, graphContext } from "./lib/graph.mjs";
+import {
+  codegraphIndex,
+  codegraphOverview,
+  graphContext,
+} from "./lib/graph.mjs";
 import { phpantomTypes } from "./lib/phpantom.mjs";
 import * as render from "./lib/render.mjs";
 import {
@@ -92,8 +96,7 @@ export function lspStatus(outcome) {
   return outcome.results.size === 0 ? "ran (no results)" : "ran";
 }
 
-export function codegraphStatus({ hasIndex, probeOk, lines }) {
-  if (!hasIndex) return "no .codegraph index";
+export function codegraphStatus({ probeOk, lines }) {
   if (!probeOk) return "not on PATH";
   return lines === null
     ? "FAILED (codegraph explore exited non-zero or timed out)"
@@ -219,15 +222,26 @@ async function runDocs(ctx, deps, opts, tools) {
   return { gate, skippedReason: null };
 }
 
+const CODEGRAPH_SKIPS = {
+  absent: "no .codegraph index",
+  tracked: "skipped (.codegraph is tracked by git)",
+  unknown: "skipped (could not tell whether git tracks .codegraph)",
+};
+
+// With no symbol, `codegraph explore` would search for its fixed phrase alone
+// and print unrelated symbols as the target's module graph.
 function runCodegraph(ctx, symbols, tools) {
+  const index = codegraphIndex(ctx);
+  if (index !== "present" || symbols.length === 0) {
+    tools.codegraph = CODEGRAPH_SKIPS[index] ?? "not needed (no symbols)";
+    return null;
+  }
   const lines = codegraphOverview(
     ctx,
     symbols.map((s) => s.name),
   );
-  const hasIndex = existsSync(path.join(ctx.repoRoot, ".codegraph"));
   tools.codegraph = codegraphStatus({
-    hasIndex,
-    probeOk: hasIndex && probe("codegraph", ctx.env),
+    probeOk: probe("codegraph", ctx.env),
     lines,
   });
   return lines;

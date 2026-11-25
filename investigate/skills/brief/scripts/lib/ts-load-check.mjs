@@ -1,6 +1,6 @@
 import { existsSync, lstatSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
-import { git } from "./exec.mjs";
+import { git, withoutPathspecVars } from "./exec.mjs";
 import { workingTreeRoot } from "./repo.mjs";
 import { refusesPluginPaths, serverTypeScript } from "./ts-version.mjs";
 
@@ -20,14 +20,6 @@ export const LOAD_LOCATIONS = [
   ".pnp.data.json",
   ".yarn/cache",
   ".yarn/unplugged",
-];
-
-// The user's environment must not turn the pathspec magic below off or on.
-const PATHSPEC_VARS = [
-  "GIT_LITERAL_PATHSPECS",
-  "GIT_GLOB_PATHSPECS",
-  "GIT_NOGLOB_PATHSPECS",
-  "GIT_ICASE_PATHSPECS",
 ];
 
 const REASON_CAP = 240;
@@ -63,11 +55,9 @@ function entryParents(root, rel) {
  */
 function firstTracked(root, rels, env) {
   const asked = new Set(rels.flatMap((r) => [r, ...entryParents(root, r)]));
-  const cleanEnv = { ...env };
-  for (const name of PATHSPEC_VARS) delete cleanEnv[name];
   const res = git(
     ["ls-files", "-z", "--", ...[...asked].map((r) => `:(icase,literal)${r}`)],
-    { cwd: root, env: cleanEnv },
+    { cwd: root, env: withoutPathspecVars(env) },
   );
   if (res.error || res.status !== 0) {
     throw new Error(

@@ -48,6 +48,10 @@ type GraphModule = {
     ctx: { repoRoot: string; env: NodeJS.ProcessEnv },
     names: string[],
   ) => string[] | null;
+  codegraphIndex: (ctx: {
+    repoRoot: string;
+    env: NodeJS.ProcessEnv;
+  }) => "absent" | "present" | "tracked" | "unknown";
 };
 
 const libDir: string = join(
@@ -424,6 +428,56 @@ describe("graphContext on hostile names", () => {
       "--",
       "--repo=elsewhere",
     ]);
+  });
+});
+
+function makeIndexRepo(tracked: Record<string, string>): string {
+  const root = mkdtempSync(join(tmpdir(), "investigate-cg-index-"));
+  git(root, "init", "-q", "-b", "main");
+  mkdirSync(join(root, ".codegraph"));
+  for (const [rel, content] of Object.entries(tracked)) {
+    mkdirSync(join(root, rel, ".."), { recursive: true });
+    writeFileSync(join(root, rel), content);
+    git(root, "add", "-f", rel);
+  }
+  return root;
+}
+
+describe("codegraphIndex", () => {
+  const env = { PATH: process.env.PATH ?? "" };
+
+  it("is absent without a .codegraph directory", () => {
+    const root = mkdtempSync(join(tmpdir(), "investigate-cg-none-"));
+    expect(graph.codegraphIndex({ repoRoot: root, env })).toBe("absent");
+  });
+
+  it("is present when git tracks nothing under .codegraph but its .gitignore", () => {
+    expect(graph.codegraphIndex({ repoRoot: makeIndexRepo({}), env })).toBe(
+      "present",
+    );
+    const root = makeIndexRepo({ ".codegraph/.gitignore": "*\n" });
+    expect(graph.codegraphIndex({ repoRoot: root, env })).toBe("present");
+  });
+
+  it("is tracked when git tracks anything else under .codegraph, in any case", () => {
+    for (const rel of [
+      ".codegraph/codegraph.db",
+      ".codegraph/sub/.gitignore",
+      ".CodeGraph/codegraph.db",
+    ]) {
+      const root = makeIndexRepo({ [rel]: "x\n" });
+      for (const extra of [{}, { GIT_LITERAL_PATHSPECS: "1" }]) {
+        expect(
+          graph.codegraphIndex({ repoRoot: root, env: { ...env, ...extra } }),
+        ).toBe("tracked");
+      }
+    }
+  });
+
+  it("is unknown when git cannot list the directory", () => {
+    const root = mkdtempSync(join(tmpdir(), "investigate-cg-nogit-"));
+    mkdirSync(join(root, ".codegraph"));
+    expect(graph.codegraphIndex({ repoRoot: root, env })).toBe("unknown");
   });
 });
 

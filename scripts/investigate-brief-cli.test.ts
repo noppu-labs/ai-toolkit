@@ -71,11 +71,7 @@ type CliModule = {
     tsLsp: Map<string, { symbol: string }> | null,
     repoRoot: string,
   ) => Map<string, string>;
-  codegraphStatus: (s: {
-    hasIndex: boolean;
-    probeOk: boolean;
-    lines: string[] | null;
-  }) => string;
+  codegraphStatus: (s: { probeOk: boolean; lines: string[] | null }) => string;
   astGrepStatus: (scan: { state: string; error?: string }) => string;
   context7Status: (gate: {
     perPackage: Array<{ error?: string }>;
@@ -412,19 +408,14 @@ describe("callerOwners", () => {
 });
 
 describe("codegraphStatus", () => {
-  it("separates no index, absent binary, failure, and output", () => {
-    expect(
-      cli.codegraphStatus({ hasIndex: false, probeOk: true, lines: null }),
-    ).toBe("no .codegraph index");
-    expect(
-      cli.codegraphStatus({ hasIndex: true, probeOk: false, lines: null }),
-    ).toBe("not on PATH");
-    expect(
-      cli.codegraphStatus({ hasIndex: true, probeOk: true, lines: null }),
-    ).toBe("FAILED (codegraph explore exited non-zero or timed out)");
-    expect(
-      cli.codegraphStatus({ hasIndex: true, probeOk: true, lines: ["x"] }),
-    ).toBe("ran");
+  it("separates absent binary, failure, and output", () => {
+    expect(cli.codegraphStatus({ probeOk: false, lines: null })).toBe(
+      "not on PATH",
+    );
+    expect(cli.codegraphStatus({ probeOk: true, lines: null })).toBe(
+      "FAILED (codegraph explore exited non-zero or timed out)",
+    );
+    expect(cli.codegraphStatus({ probeOk: true, lines: ["x"] })).toBe("ran");
   });
 });
 
@@ -1152,6 +1143,75 @@ describe("brief.mjs with gitnexus and codegraph on PATH", () => {
     );
     expect(r.stdout).toContain("    - boot (app/Boot.php)");
   });
+});
+
+function runWithFakeCodegraph(
+  cwd: string,
+  target: string,
+): { stdout: string; argvFile: string } {
+  const argvFile = join(mkdtempSync(join(tmpdir(), "investigate-cg-")), "a");
+  const r = runBriefWith(
+    {
+      PATH: makeFakeToolsPath({
+        codegraph: join(import.meta.dirname, "fixtures", "fake-codegraph.mjs"),
+      }),
+      FAKE_ARGV_FILE: argvFile,
+    },
+    cwd,
+    target,
+    "--no-docs",
+    "--no-lsp",
+  );
+  expect(r.status).toBe(0);
+
+  return { stdout: r.stdout, argvFile };
+}
+
+describe("brief.mjs and the codegraph index", () => {
+  it("does not run codegraph when no symbol is left", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, ".codegraph"));
+    mkdirSync(join(cwd, "database", "migrations"), { recursive: true });
+    writeFileSync(
+      join(cwd, "database", "migrations", "2024_01_01_create_users_table.php"),
+      "<?php\n",
+    );
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "migration");
+    const r = runWithFakeCodegraph(cwd, "database/migrations");
+    expect(r.stdout).toContain("- codegraph: not needed (no symbols)");
+    expect(r.stdout).not.toContain("## Module graph");
+    expect(existsSync(r.argvFile)).toBe(false);
+  });
+
+  it("runs codegraph when git tracks only the index's own .gitignore", () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, ".codegraph"));
+    writeFileSync(join(cwd, ".codegraph", ".gitignore"), "*\n");
+    git(cwd, "add", "-f", ".codegraph/.gitignore");
+    git(cwd, "commit", "-qm", "index ignore file");
+    const r = runWithFakeCodegraph(cwd, "app/Services");
+    expect(r.stdout).toContain("- codegraph: ran");
+    expect(r.stdout).toContain("## Module graph");
+  });
+
+  it.each([".codegraph", ".CodeGraph"])(
+    "does not run codegraph on an index the repository tracks in %s",
+    (dir) => {
+      const cwd = makeRepo();
+      mkdirSync(join(cwd, ".codegraph"));
+      mkdirSync(join(cwd, dir), { recursive: true });
+      writeFileSync(join(cwd, dir, "codegraph.db"), "not a database\n");
+      git(cwd, "add", "-f", `${dir}/codegraph.db`);
+      git(cwd, "commit", "-qm", "committed index");
+      const r = runWithFakeCodegraph(cwd, "app/Services");
+      expect(r.stdout).toContain(
+        "- codegraph: skipped (.codegraph is tracked by git)",
+      );
+      expect(r.stdout).not.toContain("## Module graph");
+      expect(existsSync(r.argvFile)).toBe(false);
+    },
+  );
 });
 
 describe("brief.mjs git calls", () => {

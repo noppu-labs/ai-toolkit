@@ -1,8 +1,10 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { run } from "./exec.mjs";
+import { git, run, withoutPathspecVars } from "./exec.mjs";
 
 const CODEGRAPH_CAP = 80;
+const INDEX_DIR = ".codegraph";
+const INDEX_IGNORE_FILE = `${INDEX_DIR}/.gitignore`;
 
 const isObject = (v) =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -52,6 +54,28 @@ export function graphContext(ctx, symbolName) {
   );
   if (res.error || res.status !== 0) return null;
   return parseGraphContext(res.stdout);
+}
+
+/**
+ * Whether the repository has a codegraph index the brief may read: "absent",
+ * "present", "tracked" when git tracks anything under `.codegraph` but the
+ * `.gitignore` codegraph writes there (the repository supplies its own index),
+ * or "unknown" when git cannot say.
+ */
+export function codegraphIndex(ctx) {
+  if (!existsSync(path.join(ctx.repoRoot, INDEX_DIR))) return "absent";
+  // icase: on a filesystem that folds case, `.CodeGraph` is the same folder.
+  const res = git(["ls-files", "-z", "--", `:(icase,literal)${INDEX_DIR}`], {
+    cwd: ctx.repoRoot,
+    env: withoutPathspecVars(ctx.env),
+  });
+  if (res.error || res.status !== 0) return "unknown";
+  const tracked = res.stdout
+    .split("\0")
+    .filter(Boolean)
+    .some((entry) => entry.toLowerCase() !== INDEX_IGNORE_FILE);
+
+  return tracked ? "tracked" : "present";
 }
 
 export function codegraphOverview(ctx, symNames) {
