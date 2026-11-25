@@ -66,12 +66,16 @@ function entryParents(root, rel) {
  * with the same device and inode, by lstat so a link is not followed. Throws
  * when none matches, so the caller fails closed.
  */
-export function storedName(parent, name, fs = { readdirSync, lstatSync }) {
-  const names = fs.readdirSync(parent);
+export function storedName(
+  parent,
+  name,
+  { readdirSync: readdir = readdirSync, lstatSync: lstat = lstatSync } = {},
+) {
+  const names = readdir(parent);
   if (names.includes(name)) return name;
-  const want = fs.lstatSync(path.join(parent, name), { bigint: true });
+  const want = lstat(path.join(parent, name), { bigint: true });
   const found = names.find((n) => {
-    const st = fs.lstatSync(path.join(parent, n), { bigint: true });
+    const st = lstat(path.join(parent, n), { bigint: true });
     return st.dev === want.dev && st.ino === want.ino;
   });
   if (found === undefined || want.ino === 0n) {

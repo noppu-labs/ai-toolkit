@@ -305,6 +305,89 @@ function keptTexts(
     .map((h) => h.text);
 }
 
+// `file:line` of every hit bucketHits keeps for `Foo`, sorted.
+function keptRecords(grep: string): string[] {
+  return Object.values(wiring.bucketHits("Foo", "lib", grep, null))
+    .flat()
+    .map((h) => `${h.filePath}:${h.lineNo}`)
+    .sort();
+}
+
+describe("bucketHits on git grep -z records", () => {
+  const record = (file: string, lineNo: string, text: string): string =>
+    `${file}\0${lineNo}\0${text}\n`;
+  const noLineBreak = fc
+    .string({ unit: "binary" })
+    .map((s) => s.replaceAll("\n", ""));
+
+  it("reads every whole record, whatever its path and text hold", () => {
+    const path = fc
+      .string({ unit: "binary" })
+      .map((s) => `app/${s.replaceAll("\0", "")}`);
+    const lineNo = fc.stringMatching(/^\d{1,6}$/);
+    const text = fc
+      .tuple(noLineBreak, noLineBreak)
+      .map(([before, after]) => `${before} Foo ${after}`);
+    fc.assert(
+      fc.property(
+        fc.array(fc.tuple(path, lineNo, text), { maxLength: 8 }),
+        (records) => {
+          const grep = records.map(([f, n, t]) => record(f, n, t)).join("");
+          const kept = Object.values(
+            wiring.bucketHits("Foo", "lib", grep, null),
+          ).flat();
+
+          expect(
+            kept.map((h) => [h.filePath, h.lineNo, h.text].join("\0")).sort(),
+          ).toEqual(
+            records
+              .map(([f, n, t]) => [f, n, t.trim().slice(0, 160)].join("\0"))
+              .sort(),
+          );
+        },
+      ),
+    );
+  });
+
+  it("keeps the records before a cut-off tail and nothing of the tail", () => {
+    const whole = record("app/a.php", "1", "new Foo();");
+    const cuts = [
+      "app/b.ph",
+      "app/b.php\0",
+      "app/b.php\x001",
+      "app/b.php\x0012\0",
+      "app/b.php\x0012\0new Foo();",
+    ];
+    for (const tail of cuts) {
+      expect(keptRecords(whole + tail)).toEqual(["app/a.php:1"]);
+    }
+  });
+
+  it("stops at a record whose line number is not a number", () => {
+    const grep = [
+      record("app/a.php", "1", "new Foo();"),
+      record("app/b.php", "x", "new Foo();"),
+      record("app/c.php", "3", "new Foo();"),
+    ].join("");
+    expect(keptRecords(grep)).toEqual(["app/a.php:1"]);
+    expect(keptRecords(record("app/b.php", "", "new Foo();"))).toEqual([]);
+  });
+
+  // Each start position used to rescan to the end of the input, so the time
+  // grew with the square of its length: many seconds at this size.
+  it.each([
+    ["no NUL and no line break", "a".repeat(200_000)],
+    [
+      "a last record cut off after its line number",
+      `p\x001\0${"a".repeat(200_000)}`,
+    ],
+  ])("reads input with %s in linear time", (_, grep) => {
+    const started = Date.now();
+    expect(keptRecords(grep)).toEqual([]);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+});
+
 describe("bucketHits on names git grep -w cannot bound", () => {
   it("drops a longer name that starts with a file-name symbol, and keeps the name itself", () => {
     const kept = [
