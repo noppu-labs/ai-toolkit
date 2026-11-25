@@ -760,6 +760,23 @@ describe("brief.mjs", () => {
     }
   });
 
+  it("finds composed references to a class whose file name git stores decomposed", () => {
+    const cwd = makeRepo();
+    git(cwd, "config", "core.precomposeUnicode", "false");
+    mkdirSync(join(cwd, "app", "Models"));
+    writeFileSync(
+      join(cwd, "app", "Models", `${"Café".normalize("NFD")}.php`),
+      "<?php\nclass Café {}\n",
+    );
+    writeFileSync(join(cwd, "src", "Menu.php"), "<?php\n$c = new Café();\n");
+    git(cwd, "add", ".");
+    git(cwd, "commit", "-qm", "decomposed");
+    const r = runBrief(cwd, "app/Models", "--no-docs", "--no-lsp");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("## Café (app/Models/");
+    expect(r.stdout).toContain("    - src/Menu.php:2  $c = new Café();");
+  });
+
   it("prints a lockfile version holding a line break on one line, so it cannot add a heading", () => {
     const cwd = makeRepo();
     writeFileSync(

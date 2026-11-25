@@ -557,14 +557,22 @@ describe("deriveSymbols", () => {
     ]);
   });
 
-  it("keeps a non-ASCII name stored decomposed, as macOS stores it", () => {
+  it("composes a non-ASCII name stored decomposed, and keeps the file as stored", () => {
     const cwd = mkdtempSync(join(tmpdir(), "investigate-nfd-"));
-    const name = "Café".normalize("NFD");
+    const stored = "Café".normalize("NFD");
     expect(
-      repo
-        .deriveSymbols([join(cwd, `${name}.php`)], cwd, 15)
-        .symbols.map((s) => s.name),
-    ).toEqual([name]);
+      repo.deriveSymbols([join(cwd, `${stored}.php`)], cwd, 15).symbols,
+    ).toEqual([
+      { name: "Café".normalize("NFC"), file: `${stored}.php`, kind: "php" },
+    ]);
+  });
+
+  it("gives a name stored both composed and decomposed one symbol", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "investigate-nfd-"));
+    const files = ["NFC", "NFD"].map((form) =>
+      join(cwd, `${"Café".normalize(form)}.php`),
+    );
+    expect(repo.deriveSymbols(files, cwd, 15).symbols).toHaveLength(1);
   });
 
   it("lists a short or generic file name as neither a symbol nor unnamed", () => {

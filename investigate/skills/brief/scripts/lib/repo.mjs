@@ -27,9 +27,10 @@ const TEST_FILE_RE = /\.(test|spec|stories)\.(?:[cm]?[jt]s|[jt]sx)$/;
 const MIN_NAME_LENGTH = 4;
 const IDENT_RE = /^[A-Za-z_$][\w$]*$/;
 // A symbol taken from a file name: a letter, `_` or `$` first, so it can never
-// read as an option, then letters, combining marks (macOS stores `é` as `e`
-// and a mark), digits, `_`, `$`, `.` and `-`. That keeps `user-profile` and
-// `vite.config`, and leaves out a dated migration, spaces and punctuation.
+// read as an option, then letters, combining marks (an accent that has no
+// composed form keeps its mark), numbers, `_`, `$`, `.` and `-`. That keeps
+// `user-profile` and `vite.config`, and leaves out a dated migration, spaces
+// and punctuation.
 const FILE_NAME_SYMBOL_RE = /^[\p{L}_$][\p{L}\p{M}\p{N}_$.-]*$/u;
 // `[^\S\r\n\u2028\u2029]` is `\s` minus line terminators, shared by EXPORT_RE,
 // EXPORT_LIST_RE, DEFAULT_IDENT_RE, CJS_DEFAULT_RE and CJS_NAMED_RE: `^\s*`
@@ -272,13 +273,16 @@ export function nameFromFile(sym) {
 // A file name is whatever the repository's author typed, and a symbol name
 // becomes a command-line argument, a search pattern and a heading. A file whose
 // name fails FILE_NAME_SYMBOL_RE is returned in `unnamed`, so the brief can say
-// it has no section.
+// it has no section. The name is composed (NFC), the form source code is
+// written in, since git and macOS can hand back a file name decomposed; the
+// file keeps the spelling git printed.
 export function deriveSymbols(files, repoRoot, maxSymbols) {
   const seen = new Set();
   const all = [];
   const unnamed = [];
   for (const file of files) {
-    for (const sym of symbolsOf(file, repoRoot)) {
+    for (const found of symbolsOf(file, repoRoot)) {
+      const sym = { ...found, name: found.name.normalize("NFC") };
       if (!FILE_NAME_SYMBOL_RE.test(sym.name)) {
         unnamed.push(sym.file);
         continue;
