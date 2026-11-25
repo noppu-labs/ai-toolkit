@@ -22,6 +22,11 @@ export const LOAD_LOCATIONS = [
   ".yarn/unplugged",
 ];
 
+// Yarn loads packages from its cache and unplugged folders only through a
+// Plug'n'Play file beside them. With the node-modules linker there is none.
+const PNP_ONLY = new Set([".yarn/cache", ".yarn/unplugged"]);
+const PNP_FILES = [".pnp.cjs", ".pnp.js"];
+
 const REASON_CAP = 240;
 
 const toPosix = (rel) => rel.split(path.sep).join("/");
@@ -153,8 +158,10 @@ const oneLine = (text, cap) => String(text).replace(/\s+/g, " ").slice(0, cap);
 // code it tracks; null when it does not.
 function trackedReason(ctx) {
   for (const dir of [ctx.repoRoot, ...ancestorsOf(ctx.repoRoot)]) {
-    const present = LOAD_LOCATIONS.filter((loc) =>
-      existsSync(path.join(dir, loc)),
+    const hasPnp = PNP_FILES.some((f) => existsSync(path.join(dir, f)));
+    const present = LOAD_LOCATIONS.filter(
+      (loc) =>
+        (hasPnp || !PNP_ONLY.has(loc)) && existsSync(path.join(dir, loc)),
     );
     if (present.length === 0) continue;
     const inRepo = dir === ctx.repoRoot;

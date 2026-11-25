@@ -316,8 +316,6 @@ describe("tsLspCallers in a repository that tracks code the server loads", () =>
     [".pnp.js", ".pnp.js"],
     [".pnp.loader.mjs", ".pnp.loader.mjs"],
     [".pnp.data.json", ".pnp.data.json"],
-    [".yarn/cache/typescript.zip", ".yarn/cache"],
-    [".yarn/unplugged/typescript/package.json", ".yarn/unplugged"],
   ])("does not start the server when %s is tracked", async (rel, location) => {
     const root = makeTsRepo();
     commitFiles(root, { [rel]: "x\n" });
@@ -325,6 +323,35 @@ describe("tsLspCallers in a repository that tracks code the server loads", () =>
     expect(run.started).toBe(false);
     expect(run.out).toEqual(skippedFor(location));
   });
+
+  it.each([
+    [".yarn/cache/typescript.zip", ".yarn/cache", ".pnp.cjs"],
+    [".yarn/cache/typescript.zip", ".yarn/cache", ".pnp.js"],
+    [".yarn/unplugged/typescript/package.json", ".yarn/unplugged", ".pnp.cjs"],
+  ])(
+    "does not start the server when %s is tracked beside a Plug'n'Play file (%s, %s)",
+    async (rel, location, pnp) => {
+      const root = makeTsRepo();
+      commitFiles(root, { [rel]: "x\n" });
+      writeFiles(root, { [pnp]: "\n" });
+      const run = await runTsPass(root);
+      expect(run.started).toBe(false);
+      expect(run.out).toEqual(skippedFor(location));
+    },
+  );
+
+  it.each([
+    ".yarn/cache/typescript.zip",
+    ".yarn/unplugged/typescript/package.json",
+  ])(
+    "starts the server when %s is tracked and no Plug'n'Play file loads from it",
+    async (rel) => {
+      const root = makeTsRepo();
+      commitFiles(root, { [rel]: "x\n" });
+      const run = await runTsPass(root);
+      expect(run.started).toBe(true);
+    },
+  );
 
   it("does not start it when only a package beside an installed TypeScript is tracked", async () => {
     const root = makeTsRepo();

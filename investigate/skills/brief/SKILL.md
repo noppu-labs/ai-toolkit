@@ -51,7 +51,9 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/brief/scripts/brief.mjs" <target-dir> [--max-
 - The TypeScript pass does not start when the repository, or a working tree around it,
   tracks files where the server and the TypeScript it runs load code from, or when that
   TypeScript is old enough to load a plugin from any path. Code the user installed is not
-  tracked, so an installed project keeps the pass. For a project that commits such files on
+  tracked, so an installed project keeps the pass. A committed Yarn cache (`.yarn/cache` or
+  `.yarn/unplugged`) counts only next to a Plug'n'Play file (`.pnp.cjs` or `.pnp.js`): with
+  Yarn's node-modules linker nothing loads from it. For a project that commits such files on
   purpose, set `INVESTIGATE_BRIEF_TRUST_REPO_TS=1` to run the pass anyway.
 - Exit non-zero: fix the cause, or mark that module's structure UNRESOLVED. A usage error
   (unknown flag, a second path, a bad `--max-symbols`) also exits 1. Never investigate
