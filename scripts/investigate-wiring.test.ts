@@ -544,4 +544,24 @@ describe("duplicateDefinitions", () => {
       wiring.duplicateDefinitions(ctx, "Invoice", "app/Services/Invoice.php"),
     ).toEqual(["app/Http/InvoiceController.php:4"]);
   });
+
+  it.each(["color.ui", "color.grep"])(
+    "still finds them when the user's git config sets %s=always",
+    (key) => {
+      const ctx = makeRepo();
+      const env = {
+        ...ctx.env,
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: key,
+        GIT_CONFIG_VALUE_0: "always",
+      };
+      expect(
+        wiring.duplicateDefinitions(
+          { ...ctx, env },
+          "Invoice",
+          "app/Services/Invoice.php",
+        ),
+      ).toEqual(["app/Http/InvoiceController.php:4"]);
+    },
+  );
 });

@@ -257,6 +257,7 @@ export function duplicateDefinitions(ctx, sym, ownFile) {
       "-nwE",
       "-I",
       "-z",
+      "--no-color",
       "-e",
       `(class|interface|trait|enum) ${esc(sym)}`,
       "--",
