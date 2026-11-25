@@ -595,6 +595,7 @@ describe("deriveSymbols", () => {
             fc.stringMatching(/^-{1,2}[a-z-]{1,12}(=[ -~]{0,12})?$/),
             fc.stringMatching(/^[A-Za-z_$][\w$]{0,12}$/),
             fc.stringMatching(/^[a-z]{1,6}([.-][a-z0-9]{1,6}){1,3}$/),
+            fc.stringMatching(/^[a-z]{2,6}[=:'"`\\\s][a-z]{1,6}$/),
           ),
           { maxLength: 8 },
         ),
@@ -605,6 +606,9 @@ describe("deriveSymbols", () => {
             expect(sym.name).toMatch(/^[\p{L}_$][\p{L}\p{M}\p{N}_$.-]*$/u);
             expect(sym.name.startsWith("-")).toBe(false);
             expect(sym.name).not.toMatch(/[\s\p{Cc}]/u);
+            // Independent of the rule's own expression: nothing that could end
+            // a pattern, start an option value, or split a path or a line.
+            expect(sym.name).not.toMatch(/[\p{C}\p{Z}=:'"`\\/]/u);
           }
         },
       ),
