@@ -62,7 +62,7 @@ In an interactive session, when the working tree is not at a PR's head, `pr-revi
 - A scratch worktree with the install run in it, one per PR in a stack. The tests and checkers of the stages then run against the head, not the tree you started in. The worktree is removed when the review ends.
 - Continue as is.
 
-The install runs code from the PR: lockfile commands, and any install hooks the PR defines such as `postinstall` or `post-install-cmd`. The question shows the install command and those hooks before you answer, and a typed answer such as "without scripts" runs the install with `--ignore-scripts` or `--no-scripts`. Every install command goes through the usual permission prompt.
+The install runs code from the PR: lockfile commands, and any install hooks the PR defines such as `postinstall` or `post-install-cmd`. The question shows the install command and those hooks before you answer, and a typed answer such as "without scripts" runs the install with `--ignore-scripts` or `--no-scripts`. Answering the question grants nothing: the commands then run as ordinary Bash calls, one at a time, so your permission mode and allow rules decide whether each one prompts.
 
 The question never appears in `claude -p`, which has no permission host to answer it, or in `opencode run`. Those runs behave as before, and a caller that prepares its own checkout keeps doing so.
 
