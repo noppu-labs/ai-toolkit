@@ -55,9 +55,10 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/brief/scripts/brief.mjs" <target-dir> [--max-
   `.yarn/unplugged`) counts only next to a Plug'n'Play file (`.pnp.cjs` or `.pnp.js`): with
   Yarn's node-modules linker nothing loads from it. The check asks git for each place under
   the name the disk stores, since a case-folding disk also finds it under another spelling. The
-  pass also does not start when such a place sits in a nested repository, for example a
-  folder a removed submodule left behind, because git does not answer for another
-  repository's files. For a project that commits such files on purpose, set
+  pass also does not start when such a place, or the `typescript` package inside it down to
+  its `lib` folder, sits in a nested repository, for example a folder a removed submodule
+  left behind, because git does not answer for another repository's files. A linked
+  `typescript` package is not followed for this, so an `npm link` keeps the pass. For a project that commits such files on purpose, set
   `INVESTIGATE_BRIEF_TRUST_REPO_TS=1` to run the pass anyway.
 - Exit non-zero: fix the cause, or mark that module's structure UNRESOLVED. A usage error
   (unknown flag, a second path, a bad `--max-symbols`) also exits 1. Never investigate
@@ -108,7 +109,8 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
   their sections. The brief runs no search for such a file, so its callers are UNRESOLVED.
   A line counts as a reference only when no letter, mark, number, `_` or `$` sits right
   before or after the name. For a name taken from a file name, a `-` right after it also
-  rules the line out: `button` does not list `<x-button-group />`, and a file named
+  rules the line out, including the `-` of `->`: `button` does not list
+  `<x-button-group />`, `Ledger` does not list `$this->Ledger->total()`, and a file named
   `retries.ts` with no named export does not list `retries--`. A `.` on either side and a `-` before the name still
   count as boundaries, so `vite.config` also lists `vite.config.local` and `user-profile`
   also lists `admin-user-profile`. Check such lines by hand.
@@ -133,7 +135,9 @@ available, run `gitnexus analyze` from the project root and rerun the brief.
 A line break, another control character except tab, or a format character such as U+202E
 in anything the brief quotes (a path, a lockfile string, a source line, a tool's output)
 prints as an escape such as `\n`, and codegraph's lines are indented, so nothing from the
-repository can add a line or start a heading. A backslash prints as itself, so `\n` in a
+repository can add a line to the brief or start a section. A value that opens a list item
+can still render as Markdown inside that item, for example as a heading. A backslash
+prints as itself, so `\n` in a
 path can also be a backslash and an `n` in the file's name. Read a printed path; do not
 paste it into a command.
 
