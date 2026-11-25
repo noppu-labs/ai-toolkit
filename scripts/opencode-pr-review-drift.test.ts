@@ -137,6 +137,12 @@ function linesOf(text: string, skip: readonly string[]): string[] {
 // differently.
 const STEP_ONE_OWN_LINES: readonly string[] = ["It prints one line"];
 
+// The head-setup section tells Claude Code how its `code-review` pass is
+// affected, and OpenCode has no such pass.
+const STEP_ONE_CLAUDE_ONLY_LINES: readonly string[] = [
+  "On Claude Code, the `code-review` first pass",
+];
+
 // OpenCode has no `code-review` pass and no workflow path, and its roll-up
 // also notes a fallback brief.
 const STEP_FOUR_OWN_LINES: readonly string[] = [
@@ -144,6 +150,9 @@ const STEP_FOUR_OWN_LINES: readonly string[] = [
   "- `## Not available in this run` names every skill",
   "On the workflow path the script",
 ];
+
+const STACK_TOP_CODE_REVIEW_CLAUSE: string =
+  "type checkers, and code-review pass saw the top of the stack";
 
 const CODE_REVIEW_MISMATCH_CLAUSE: string =
   " When the first pass was `code-review`, the line goes on: `The code-review pass gets a PR number and no instruction to read at the head, so its findings may come from the working tree.`";
@@ -155,8 +164,14 @@ function applyStepFourSwaps(source: string): string {
     "",
   );
 
-  return swapOnce(
+  const withoutCodeReview: string = swapOnce(
     withoutClause,
+    STACK_TOP_CODE_REVIEW_CLAUSE,
+    "and type checkers saw the top of the stack",
+  );
+
+  return swapOnce(
+    withoutCodeReview,
     "`review:pr-comments` shows it once (step 5)",
     "`pr-comments` shows it once (step 5)",
   );
@@ -189,8 +204,13 @@ describe("OpenCode pr-review override", () => {
   });
 
   it("keeps step 1 in step with the Claude skill, bar the size script's output", () => {
-    expect(linesOf(stepOf(override, 1), STEP_ONE_OWN_LINES)).toEqual(
-      linesOf(stepOf(claude, 1), STEP_ONE_OWN_LINES),
+    const skip: readonly string[] = [
+      ...STEP_ONE_OWN_LINES,
+      ...STEP_ONE_CLAUDE_ONLY_LINES,
+    ];
+
+    expect(linesOf(stepOf(override, 1), skip)).toEqual(
+      linesOf(stepOf(claude, 1), skip),
     );
   });
 
@@ -203,6 +223,7 @@ describe("OpenCode pr-review override", () => {
   it("leaves out of the step comparisons only lines each copy has", () => {
     for (const [number, prefixes, sources] of [
       [1, STEP_ONE_OWN_LINES, [claude, override]],
+      [1, STEP_ONE_CLAUDE_ONLY_LINES, [claude]],
       [4, STEP_FOUR_OWN_LINES.slice(0, 2), [claude, override]],
       [4, STEP_FOUR_OWN_LINES.slice(2), [claude]],
     ] as const) {
@@ -299,4 +320,63 @@ describe("OpenCode pr-review override", () => {
   it("has frontmatter that names the skill pr-review", () => {
     expect(parseSkillFile(override).name).toBe("pr-review");
   });
+});
+
+const HEAD_SETUP_COPIES: ReadonlyArray<readonly [string, string]> = [
+  ["claude", claude],
+  ["override", override],
+];
+
+describe("head setup", () => {
+  for (const [name, source] of HEAD_SETUP_COPIES) {
+    describe(name, () => {
+      it("states the gate and the clean-tree rule", () => {
+        for (const sentence of [
+          "Ask only when a tool that puts a question to the user is listed: `AskUserQuestion` on Claude Code, `question` on OpenCode.",
+          "When neither is listed, or the question is cancelled or gets no answer, skip this section and go on as if the user chose to continue as is.",
+          "Offer a check-out option only when `git status --porcelain` prints nothing.",
+        ]) {
+          expect(source).toContain(sentence);
+        }
+      });
+
+      it("names every option label", () => {
+        for (const label of [
+          "Check out the PR here",
+          "Scratch worktree with install",
+          "Check out the top of the stack here",
+          "One scratch worktree per PR",
+          "Continue as is",
+        ]) {
+          expect(source).toContain(`\`${label}\``);
+        }
+      });
+
+      it("runs the hints script from the plugin root", () => {
+        expect(source).toContain(
+          "node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/install-hints.mjs <HEAD_SHA>",
+        );
+      });
+
+      it("has one cleanup section that the stop paths point to", () => {
+        expect(source.split("\n## Cleanup on every exit\n")).toHaveLength(2);
+        expect(
+          source.split("Cleanup on every exit").length - 1,
+        ).toBeGreaterThanOrEqual(3);
+      });
+
+      it("keeps the setup section inside step 1", () => {
+        const setup: number = source.indexOf("\n### Set up the head\n");
+
+        expect(setup).toBeGreaterThan(source.indexOf("\n## Step 1"));
+        expect(setup).toBeLessThan(source.indexOf("\n## Step 2"));
+      });
+
+      it("puts the cleanup section before the style section", () => {
+        expect(source.indexOf("\n## Cleanup on every exit\n")).toBeLessThan(
+          source.indexOf("\n## Style\n"),
+        );
+      });
+    });
+  }
 });
