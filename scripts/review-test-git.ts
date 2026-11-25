@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative, isAbsolute } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 
 export const realGit: string = spawnSync("sh", ["-c", "command -v git"], {
   encoding: "utf8",
@@ -96,16 +96,16 @@ export function makeSandbox(prefix: string): Sandbox {
 
   return {
     root,
-    next: (label) => {
+    next: (label: string): string => {
       counter += 1;
 
       return join(root, `${label}-${counter}`);
     },
-    makeDir: (label) => mkdtempSync(join(root, `${label}-`)),
+    makeDir: (label: string): string => mkdtempSync(join(root, `${label}-`)),
     env: makeGitEnv,
     assertInside,
     tryGit,
-    git: (cwd, ...args) => {
+    git: (cwd: string, ...args: string[]): string => {
       const result = tryGit(cwd, ...args);
 
       if (result.status !== 0) {
@@ -114,7 +114,7 @@ export function makeSandbox(prefix: string): Sandbox {
 
       return result.stdout.trim();
     },
-    dispose: () => {
+    dispose: (): void => {
       rmSync(root, { recursive: true, force: true });
     },
   };

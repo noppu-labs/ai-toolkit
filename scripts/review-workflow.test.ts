@@ -353,6 +353,7 @@ function expectedCounts(
 
 // biome-ignore lint/security/noSecrets: a commit SHA fixture, not a secret
 const HEAD_SHA: string = "59867ee01a72ef9bd06c524fa9650d4cdc74b9ac";
+const BASE_SHA: string = "b".repeat(40);
 
 function makePr(overrides: Partial<Pr> = {}): Pr {
   return {
@@ -783,29 +784,21 @@ function isBaseline(value: unknown): value is Baseline {
   );
 }
 
-// What the script produced at 8fa20f6 for EXAMPLE_PR and EXAMPLE_FIXTURES,
-// kept as a file so the comparison does not read the head's own templates.
+// What origin/main's script produced for EXAMPLE_PR and EXAMPLE_FIXTURES, kept
+// as a file so the comparison does not read this branch's own templates.
 function readBaseline(): Baseline {
   const parsed: unknown = JSON.parse(
     readFileSync(
-      join(import.meta.dirname, "fixtures", "pr-review-workflow-8fa20f6.json"),
+      join(import.meta.dirname, "fixtures", "pr-review-workflow-main.json"),
       "utf8",
     ),
   );
 
   if (!isBaseline(parsed)) {
-    throw new Error("the 8fa20f6 baseline has an unexpected shape");
+    throw new Error("the main baseline has an unexpected shape");
   }
 
   return parsed;
-}
-
-function swapOnce(source: string, from: string, to: string): string {
-  if (source.split(from).length !== 2) {
-    throw new Error(`declared swap source not found once: ${from}`);
-  }
-
-  return source.replace(from, () => to);
 }
 
 function filledCheckoutBlock(pr: Pr): string {
@@ -848,21 +841,10 @@ describe("checkout", () => {
     }
   });
 
-  it("leaves the prompts, schemas and report of 8fa20f6 unchanged without checkout and setup, bar the step 2 sentence", async () => {
+  it("leaves the prompts, schemas and report of main unchanged without checkout and setup", async () => {
     const baseline = readBaseline();
     const run = await runScript([EXAMPLE_PR], EXAMPLE_FIXTURES);
-    const expected = baseline.prompts.map((entry) =>
-      entry.label === "brief:117"
-        ? {
-            ...entry,
-            prompt: swapOnce(
-              entry.prompt,
-              "When step 1 set up a worktree for this PR, run it there in place",
-              "When a `## Checkout of the head` block names a directory for this PR, run it there in place",
-            ),
-          }
-        : entry,
-    );
+    const expected = baseline.prompts;
 
     expect(run.prompts).toEqual(expected);
     expect(run.result.report).toBe(baseline.report);
@@ -1082,6 +1064,26 @@ describe("args", () => {
       /args\[0\]\.setup\.kind must be worktree or clone when checkout is set/,
     ],
     [
+      [
+        {
+          ...makePr(),
+          checkout: "/tmp/pr-review-117",
+          setup: { kind: "clone", note: "x" },
+        },
+      ],
+      /args\[0\]\.base must be a full 40-character SHA when setup\.kind is clone/,
+    ],
+    [
+      [
+        {
+          ...makePr({ base: "a".repeat(39) }),
+          checkout: "/tmp/pr-review-117",
+          setup: { kind: "clone", note: "x" },
+        },
+      ],
+      /args\[0\]\.base must be a full 40-character SHA/,
+    ],
+    [
       [{ ...makePr(), instructions: "be strict" }],
       /args\[0\]\.instructions must be an object/,
     ],
@@ -1124,12 +1126,32 @@ function argsExamples(): unknown[][] {
 
   return blocks.map((block) => {
     const parsed: unknown = JSON.parse(
-      block.replaceAll("<HEAD_SHA>", HEAD_SHA),
+      block
+        .replaceAll("<HEAD_SHA>", HEAD_SHA)
+        .replaceAll("<BASE_SHA>", BASE_SHA),
     );
 
     return Array.isArray(parsed) ? parsed : [parsed];
   });
 }
+
+describe("a clone's base", () => {
+  it.each([
+    ["clone", BASE_SHA, true],
+    ["worktree", "origin/main", true],
+    ["checkout", "origin/main", false],
+    ["none", "origin/main", false],
+  ])("accepts %s with base %s", async (kind, base, hasCheckout) => {
+    const pr = makePr({
+      base,
+      ...(hasCheckout ? { checkout: "/tmp/pr-review-117" } : {}),
+      setup: { kind, note: "x" },
+    });
+    const run = await runScript([pr], cleanFixtures(pr));
+
+    expect(reviewedHeads(run.result.report)).toEqual([HEAD_SHA]);
+  });
+});
 
 describe("args examples in SKILL.md", () => {
   it("has the plain example, the one with instructions, and the one with checkout", () => {

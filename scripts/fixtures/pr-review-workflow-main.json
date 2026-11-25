@@ -11,7 +11,10 @@
           },
           "source": {
             "type": "string",
-            "enum": ["investigate", "fallback"]
+            "enum": [
+              "investigate",
+              "fallback"
+            ]
           },
           "skipped": {
             "type": "array",
@@ -25,13 +28,20 @@
                   "type": "string"
                 }
               },
-              "required": ["tool", "reason"]
+              "required": [
+                "tool",
+                "reason"
+              ]
             }
           }
         },
-        "required": ["brief", "source", "skipped"]
+        "required": [
+          "brief",
+          "source",
+          "skipped"
+        ]
       },
-      "prompt": "Build the structural brief for PR #117 \"fix(review): dash comments\" (https://github.com/noppu-labs/ai-toolkit/pull/117). Base ref origin/main, head ref 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac. Only what the branch adds is in scope: git diff origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac, three dots. Do not review the change; the brief is the input every reviewer of this PR gets.\n\nOne brief per PR, plain text, pasted whole into every subagent prompt for that PR.\n\nIf the `investigate:brief` skill is available (the `investigate` plugin from this marketplace), invoke the `investigate:brief` skill to get its script path under `${CLAUDE_PLUGIN_ROOT}`, and build the brief from the script's output plus part of the lighter brief below. Paste the outputs concatenated as the brief.\n\n1. Run the script in a checkout at `59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`, since it reads the working tree. When step 1 set up a worktree for this PR, run it there in place, and create and remove no worktree. When the current checkout is already there and clean (`git rev-parse HEAD` equals `git rev-parse 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac` and `git status --porcelain` prints nothing), run it in place: that checkout has its `node_modules` or `vendor` and its gitnexus registration, so the brief is richer. Otherwise create a worktree named after the PR in a scratch directory outside the repository, `git worktree add <scratch>/pr-review-<number> 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`, and remove it afterwards with `git worktree remove <scratch>/pr-review-<number>`. A fresh worktree has no `node_modules` or `vendor`, so language-server types and callers degrade, and its directory name does not match the gitnexus registry, so the Tools line reads `gitnexus: unavailable (...)` and graph sections are omitted.\n2. Pick the targets from the changed source files: PHP, or JS/TS including `.mjs`, `.cjs`, `.mts`, `.cts`, and not named `*.test.*`, `*.spec.*`, or `*.stories.*`, which the script leaves out. Take the directory of each, then drop every directory that is an ancestor of another on the list. A dropped directory's own changed source files, and changed source files at the repo root, are targeted one file at a time instead of by directory, so `.` is never a target. Directories with no changed sources (manifests, docs, workflows) get no run.\n3. Run the script once per target, with the doc-source gate on, because the correctness stage checks the diff's library calls against the version-checked sources it lists. When context7 cannot be reached, the script marks each lookup `FAILED` and still builds the brief, and the review goes on without docs. A run that still exits non-zero (a deleted directory, no sources) gets no per-directory fallback; item 4 covers its files.\n4. Run the lighter brief's first three commands as well and keep their output, the stat block and the changed-symbol list, next to the script's output. The script details at most 15 symbols per directory, taken in file path order, so the symbol list is what shows the changes it dropped. Run the fourth command for each changed symbol that has no section in the script's output.\n\nWhen the script's output lists no symbols and `git diff --stat` shows most of the changed lines are in `.py` files, build the brief from the commands below instead, and record under `## Not available in this run` that the structural brief came from the fallback commands.\n\nIf it is not, build a lighter one from these commands:\n\n```sh\ngit diff --stat origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac\ngit diff -U0 origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac | grep -E '^@@'\ngit diff origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac | grep -E '^\\+(export )?(async )?(function|class|const|interface|type) |^\\+[[:space:]]*(public|protected|private) function'\ngit diff origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac -- '*.py' | grep -E '^\\+[[:space:]]*(async )?def [A-Za-z_]|^\\+[[:space:]]*class [A-Za-z_]'\ngit grep -nw -e <symbol> 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac\n```\n\n`origin/main` and `59867ee01a72ef9bd06c524fa9650d4cdc74b9ac` are the two refs resolved in step 1, the same slots step 3 fills. `<symbol>` is an identifier, passed after `-e` so that git reads it as the pattern: skip a name that is not an identifier, and never paste one that starts with a dash.\n\nThe first gives the shape of the change. The next three give the added or changed functions, classes, and methods, from the hunk headers and from the added lines. The last runs once per changed symbol and gives its callers on the head ref, which is what tells a stage whether a signature change has call sites the PR missed.\n\nEvery anchor in the third and fourth commands carries a `+`, so it matches added lines and not the context lines around them. Dropping the `+` inverts the result: every unchanged declaration in the hunk matches and every added one does not, and the per-symbol `git grep` then has nothing to run on.\n\nThe fourth command is for Python. A Python method is indented under its class, so its anchors allow leading whitespace before `def` and `class`. It reads only `*.py` files, as a separate command, because those indented anchors otherwise match markdown prose and nested TypeScript classes. For a Python symbol, run the caller command as `git grep -nw -e <symbol> 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac -- '*.py'`. The word match finds a call, a decorator argument, and a reference passed as a value, such as `Depends(get_db)` or `callbacks=[handler]`, and the pathspec keeps a same-named symbol in another language out of the list. Search for the bare name, never a dotted module path: a Python project without a package layout imports a sibling module by bare name and may load a hyphenated script file by path.\n\nAn empty caller list for a Python symbol is not evidence of dead code when the symbol is a function a decorator registers (a web route, a CLI command, a pytest fixture), a method a framework calls by name (a pydantic validator, a `__dunder__` method), or a module imported for what it does at import time. None of them has a textual caller. List such a symbol in the brief as `callers unresolved`, not with an empty caller list.\n\nThree dots, so only what the branch adds is in scope.\n\nThe commands run here produce the brief. Their output goes into the brief, not into a reading pass by the orchestrator. Keep each brief to roughly a page: the stat block, the symbol list, and the caller list.\n\nReturn the brief through the structured output, not as text: the whole brief as `brief`; `source` set to `investigate` when the brief was built from the `investigate:brief` script's output and to `fallback` when it came only from the lighter brief's commands; and under `skipped` every skill, tool, or check you could not use, each with the `tool` it names and the `reason`, or an empty list. Anything the instructions above say to record under `## Not available in this run`, such as a brief built from the fallback commands after the script's output listed no symbols, also goes under `skipped`, with the `tool` it concerns and the `reason`."
+      "prompt": "Build the structural brief for PR #117 \"fix(review): dash comments\" (https://github.com/noppu-labs/ai-toolkit/pull/117). Base ref origin/main, head ref 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac. Only what the branch adds is in scope: git diff origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac, three dots. Do not review the change; the brief is the input every reviewer of this PR gets.\n\nOne brief per PR, plain text, pasted whole into every subagent prompt for that PR.\n\nIf the `investigate:brief` skill is available (the `investigate` plugin from this marketplace), invoke the `investigate:brief` skill to get its script path under `${CLAUDE_PLUGIN_ROOT}`, and build the brief from the script's output plus part of the lighter brief below. Paste the outputs concatenated as the brief.\n\n1. Run the script in a checkout at `59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`, since it reads the working tree. When the current checkout is already there and clean (`git rev-parse HEAD` equals `git rev-parse 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac` and `git status --porcelain` prints nothing), run it in place: that checkout has its `node_modules` or `vendor` and its gitnexus registration, so the brief is richer. Otherwise create a worktree named after the PR in a scratch directory outside the repository, `git worktree add <scratch>/pr-review-<number> 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`, and remove it afterwards with `git worktree remove <scratch>/pr-review-<number>`. A fresh worktree has no `node_modules` or `vendor`, so language-server types and callers degrade, and its directory name does not match the gitnexus registry, so the Tools line reads `gitnexus: unavailable (...)` and graph sections are omitted.\n2. Pick the targets from the changed source files: PHP, or JS/TS including `.mjs`, `.cjs`, `.mts`, `.cts`, and not named `*.test.*`, `*.spec.*`, or `*.stories.*`, which the script leaves out. Take the directory of each, then drop every directory that is an ancestor of another on the list. A dropped directory's own changed source files, and changed source files at the repo root, are targeted one file at a time instead of by directory, so `.` is never a target. Directories with no changed sources (manifests, docs, workflows) get no run.\n3. Run the script once per target, with the doc-source gate on, because the correctness stage checks the diff's library calls against the version-checked sources it lists. When context7 cannot be reached, the script marks each lookup `FAILED` and still builds the brief, and the review goes on without docs. A run that still exits non-zero (a deleted directory, no sources) gets no per-directory fallback; item 4 covers its files.\n4. Run the lighter brief's first three commands as well and keep their output, the stat block and the changed-symbol list, next to the script's output. The script details at most 15 symbols per directory, taken in file path order, so the symbol list is what shows the changes it dropped. Run the fourth command for each changed symbol that has no section in the script's output.\n\nWhen the script's output lists no symbols and `git diff --stat` shows most of the changed lines are in `.py` files, build the brief from the commands below instead, and record under `## Not available in this run` that the structural brief came from the fallback commands.\n\nIf it is not, build a lighter one from these commands:\n\n```sh\ngit diff --stat origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac\ngit diff -U0 origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac | grep -E '^@@'\ngit diff origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac | grep -E '^\\+(export )?(async )?(function|class|const|interface|type) |^\\+[[:space:]]*(public|protected|private) function'\ngit diff origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac -- '*.py' | grep -E '^\\+[[:space:]]*(async )?def [A-Za-z_]|^\\+[[:space:]]*class [A-Za-z_]'\ngit grep -nw -e <symbol> 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac\n```\n\n`origin/main` and `59867ee01a72ef9bd06c524fa9650d4cdc74b9ac` are the two refs resolved in step 1, the same slots step 3 fills. `<symbol>` is an identifier, passed after `-e` so that git reads it as the pattern: skip a name that is not an identifier, and never paste one that starts with a dash.\n\nThe first gives the shape of the change. The next three give the added or changed functions, classes, and methods, from the hunk headers and from the added lines. The last runs once per changed symbol and gives its callers on the head ref, which is what tells a stage whether a signature change has call sites the PR missed.\n\nEvery anchor in the third and fourth commands carries a `+`, so it matches added lines and not the context lines around them. Dropping the `+` inverts the result: every unchanged declaration in the hunk matches and every added one does not, and the per-symbol `git grep` then has nothing to run on.\n\nThe fourth command is for Python. A Python method is indented under its class, so its anchors allow leading whitespace before `def` and `class`. It reads only `*.py` files, as a separate command, because those indented anchors otherwise match markdown prose and nested TypeScript classes. For a Python symbol, run the caller command as `git grep -nw -e <symbol> 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac -- '*.py'`. The word match finds a call, a decorator argument, and a reference passed as a value, such as `Depends(get_db)` or `callbacks=[handler]`, and the pathspec keeps a same-named symbol in another language out of the list. Search for the bare name, never a dotted module path: a Python project without a package layout imports a sibling module by bare name and may load a hyphenated script file by path.\n\nAn empty caller list for a Python symbol is not evidence of dead code when the symbol is a function a decorator registers (a web route, a CLI command, a pytest fixture), a method a framework calls by name (a pydantic validator, a `__dunder__` method), or a module imported for what it does at import time. None of them has a textual caller. List such a symbol in the brief as `callers unresolved`, not with an empty caller list.\n\nThree dots, so only what the branch adds is in scope.\n\nThe commands run here produce the brief. Their output goes into the brief, not into a reading pass by the orchestrator. Keep each brief to roughly a page: the stat block, the symbol list, and the caller list.\n\nReturn the brief through the structured output, not as text: the whole brief as `brief`; `source` set to `investigate` when the brief was built from the `investigate:brief` script's output and to `fallback` when it came only from the lighter brief's commands; and under `skipped` every skill, tool, or check you could not use, each with the `tool` it names and the `reason`, or an empty list. Anything the instructions above say to record under `## Not available in this run`, such as a brief built from the fallback commands after the script's output listed no symbols, also goes under `skipped`, with the `tool` it concerns and the `reason`."
     },
     {
       "label": "correctness:117",
@@ -55,7 +65,11 @@
                   "type": "string"
                 }
               },
-              "required": ["path", "line", "text"]
+              "required": [
+                "path",
+                "line",
+                "text"
+              ]
             }
           },
           "validated": {
@@ -76,11 +90,18 @@
                   "type": "string"
                 }
               },
-              "required": ["tool", "reason"]
+              "required": [
+                "tool",
+                "reason"
+              ]
             }
           }
         },
-        "required": ["findings", "validated", "skipped"]
+        "required": [
+          "findings",
+          "validated",
+          "skipped"
+        ]
       },
       "prompt": "Review PR \"fix(review): dash comments\" (https://github.com/noppu-labs/ai-toolkit/pull/117) for correctness. Base ref origin/main, head ref 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac.\nOnly what the branch adds is in scope: git diff origin/main...59867ee01a72ef9bd06c524fa9650d4cdc74b9ac, three dots.\n\nRead files as they are at the head. When the working tree is not a clean checkout\nof `59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`, read them with `git show 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac:<path>` and search them with\n`git grep <pattern> 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`.\n\nStructural brief:\nBRIEF TEXT\n\nReview by hand: read the diff and the changed files, and look for behaviour changes,\nerror handling, boundary conditions, and missing tests. Validate any claim you can by\nrunning the project's tests or linters; record what you ran.\n\nFor a Python project, run `pytest`, `ruff check`, and the configured type checker\n(mypy, pyright, pyrefly, or ty), resolving each command the way step 0 of\n`review:comment-audit` does. When pytest runs with `filterwarnings = [\"error\"]`, a\nnew deprecation warning fails the suite, so a passing run is also evidence that the\nbranch adds no warning. Look in particular for a mutable default argument; a bare\n`except:` or an `except Exception: pass`; a coroutine called without `await`; `is`\ncompared with a literal; a collection mutated inside the loop that iterates it; a\n`datetime.now()` without a timezone where the stored value has one; an f-string or\n`%` interpolation inside a SQL or shell call; blocking I/O inside an `async def`\nthat belongs in `asyncio.to_thread` or an async client; and a module-level\nenvironment read that raises at import time and so leaves the module untestable.\nThese are leads, not rules: each finding still ends with its outcome.\n\nFor a function or method the diff adds or renames, check that its name agrees with\nwhat it does, as the reading rules of `review:correctness-review` describe: a method that\nreturns a boolean and changes nothing but reads as a command\n(`skipNotification()` for `shouldSkipNotification()`), or a question or getter name\non a method that changes state. Leave names a framework or interface fixes alone. Such\na finding proposes the new name and ends with harmless.\n\nWhen the diff calls a third-party library or works around one, check the call\nagainst that library's docs. Take the source from the brief's doc sources: one whose\nverdict starts with USE, or the pinned id when it starts with PIN; any other verdict\nmeans no usable docs. Ask context7's `query-docs` how the documented API does the\nsame thing, and report code that works through a roundabout or undocumented path\nwhere the docs give a direct one, citing the doc. When the brief lists no usable\nsource, or context7 is unavailable or a query fails, read the installed package under\n`node_modules/` or `vendor/` instead, or skip the check and list it under\n`## Skipped`. Missing docs never stop the review.\n\nEnd every finding with its outcome, one of: crash, wrong data shown, wrong data\npersisted, harmless, question. Harmless means no crash, no wrong data shown or\npersisted, and an effect that clears on retry or reload. Question means the diff\ncould not settle the claim and you are asking the author. The outcome separates a\nbug from a harmless edge case or a question, and a finding without one is graded as\na bug. A finding about structure rather than behaviour (dead code, duplication,\nlayering, a convention) ends with harmless.\n\nSkills that run in a background subagent, `code-review` among them, deliver their\nresult to the session that spawned you, not to you. The orchestrator runs\n`code-review` itself as a separate pass, so your findings are your own reading of\nthe diff.\n\nReturn exactly these three sections and nothing else:\n\n## Findings\nOne entry per finding, each starting with `path:line` on the HEAD side, then the\nclaim in one or two sentences, then the outcome. No finding without a `path:line`.\n\n## Validated\nEvery check you ran, with the command and its result.\n\n## Skipped\nEvery skill, tool, or check you could not use, with the reason.\n\nReturn the three sections through the structured output, not as text: each `## Findings` entry as one `findings` item, with its `path` and `line` on the HEAD side and the rest of the entry as `text`; each `## Validated` line as one `validated` item; and each `## Skipped` entry as one `skipped` item, with the `tool` it names and the `reason`. `text` is the entry without its leading `path:line`."
     },
@@ -106,7 +127,11 @@
                   "type": "string"
                 }
               },
-              "required": ["path", "line", "text"]
+              "required": [
+                "path",
+                "line",
+                "text"
+              ]
             }
           },
           "validated": {
@@ -127,11 +152,18 @@
                   "type": "string"
                 }
               },
-              "required": ["tool", "reason"]
+              "required": [
+                "tool",
+                "reason"
+              ]
             }
           }
         },
-        "required": ["findings", "validated", "skipped"]
+        "required": [
+          "findings",
+          "validated",
+          "skipped"
+        ]
       },
       "prompt": "Review PR \"fix(review): dash comments\" (https://github.com/noppu-labs/ai-toolkit/pull/117) for type safety. Base ref origin/main, head ref 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac.\n\nRead files as they are at the head. When the working tree is not a clean checkout\nof `59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`, read them with `git show 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac:<path>` and search them with\n`git grep <pattern> 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`.\n\nStructural brief:\nBRIEF TEXT\n\nInvoke `review:type-safety-review base=origin/main head=59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`. That skill returns its\nreport as its response and writes no file. Relay its findings in the shape below,\nkeeping each finding's rule id (`PHP-1` to `PHP-6`, `TS-1` to `TS-4`, `PY-1` to\n`PY-5`), its verbatim quote, and its proposed shape.\n\nThat skill inherits comment-audit's `base=`/`head=` detection and its ask. Both are\nalready given above, so if it asks for anything else, you have no one to ask: record\nthe miss under `## Skipped` and carry on with the rest of the review rather than\nstopping.\n\nReturn exactly these three sections and nothing else:\n\n## Findings\nOne entry per finding, each starting with `path:line` on the HEAD side, then the\nrule id, the quote, the reason, and the proposed shape.\n\n## Validated\nEvery check you ran, with the command and its result.\n\n## Skipped\nEvery skill, tool, or check you could not use, with the reason. Include the paths\nthe skill reported as skipped for being generated or vendored, and any rule it did\nnot apply, with the reason.\n\nReturn the three sections through the structured output, not as text: each `## Findings` entry as one `findings` item, with its `path` and `line` on the HEAD side and the rest of the entry as `text`; each `## Validated` line as one `validated` item; and each `## Skipped` entry as one `skipped` item, with the `tool` it names and the `reason`. `text` is the entry without its leading `path:line`."
     },
@@ -157,7 +189,11 @@
                   "type": "string"
                 }
               },
-              "required": ["path", "line", "text"]
+              "required": [
+                "path",
+                "line",
+                "text"
+              ]
             }
           },
           "validated": {
@@ -178,11 +214,18 @@
                   "type": "string"
                 }
               },
-              "required": ["tool", "reason"]
+              "required": [
+                "tool",
+                "reason"
+              ]
             }
           }
         },
-        "required": ["findings", "validated", "skipped"]
+        "required": [
+          "findings",
+          "validated",
+          "skipped"
+        ]
       },
       "prompt": "Review PR \"fix(review): dash comments\" (https://github.com/noppu-labs/ai-toolkit/pull/117) for comments and documentation. Base ref origin/main,\nhead ref 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac.\n\nRead files as they are at the head. When the working tree is not a clean checkout\nof `59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`, read them with `git show 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac:<path>` and search them with\n`git grep <pattern> 59867ee01a72ef9bd06c524fa9650d4cdc74b9ac`.\n\nStructural brief:\nBRIEF TEXT\n\nInvoke `review:comment-audit base=origin/main head=59867ee01a72ef9bd06c524fa9650d4cdc74b9ac` in report mode. Never pass\n`--apply`: this run reports and changes nothing. That skill writes its report to a\nfile. Read that file and return its summary and findings in the shape below.\n\nThat skill's step 0 asks for `readme=` when a MOVE verdict needs one, and for a\n`base=` it cannot resolve. You have no one to ask. Both are already given above\nexcept `readme=`, so if it asks for that, record the miss under `## Skipped`, take\nthe proposed text it writes without a path, and carry on with the rest of the\naudit rather than stopping.\n\nReturn exactly these three sections and nothing else:\n\n## Findings\nThe audit report lists findings as `**L123, VERDICT**` under a `### path` heading;\nprefix each one you relay with the path from its file heading, so it reads\n`path:line`. One entry per finding, each starting with `path:line` on the HEAD side,\nthen the verdict (DELETE, TRIM, MOVE, KEEP, UNSURE, WRONG), the verbatim comment,\nand the rewrite or pointer where the verdict has one. For a DELETE or TRIM, also give\nthe comment's first and last HEAD line as `L<start>-L<end>`: the start is the audit's\n`L123`, and the end is the start plus the comment's line count at HEAD minus one, so\na three-line comment at `L123` is `L123-L125` and the span the rewrite replaces is\nexplicit. KEEP verdicts may be one line each.\n\n## Validated\nEvery check you ran, with the command and its result. Include the report file path\nand the comment line count the audit opened with.\n\n## Skipped\nEvery skill, tool, or check you could not use, with the reason.\n\nReturn the three sections through the structured output, not as text: each `## Findings` entry as one `findings` item, with its `path` and `line` on the HEAD side and the rest of the entry as `text`; each `## Validated` line as one `validated` item; and each `## Skipped` entry as one `skipped` item, with the `tool` it names and the `reason`. `text` is the entry without its leading `path:line`."
     }
