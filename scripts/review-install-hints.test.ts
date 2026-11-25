@@ -2,15 +2,14 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
+import { makeSandbox, realGit as realGitPath } from "./review-test-git.ts";
 
 const reviewDir = join(
   import.meta.dirname,
@@ -46,18 +45,15 @@ const SCHEMA_KEYWORDS = new Set([
 ]);
 const SCHEMA_ANNOTATIONS = new Set(["$schema", "title", "description"]);
 
-const realGit = spawnSync("sh", ["-c", "command -v git"], {
-  encoding: "utf8",
-}).stdout.trim();
+const sandbox = makeSandbox("review-install-hints-");
+const realGit = realGitPath;
+
+afterAll(() => {
+  sandbox.dispose();
+});
 
 function git(cwd: string, ...args: string[]): string {
-  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
-
-  if (result.status !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
-  }
-
-  return result.stdout.trim();
+  return sandbox.git(cwd, ...args);
 }
 
 function write(cwd: string, path: string, content: string): void {
@@ -85,7 +81,7 @@ function makeRepo(
   files: Files = {},
   links: Files = {},
 ): { cwd: string; sha: string } {
-  const cwd = mkdtempSync(join(tmpdir(), "review-install-hints-"));
+  const cwd = sandbox.makeDir("repo");
 
   git(cwd, "init", "-q", "-b", "main");
   git(cwd, "config", "user.email", "t@example.com");
@@ -98,7 +94,7 @@ function makeRepo(
 }
 
 function makeBin(executables: string[] = []): string {
-  const bin = mkdtempSync(join(tmpdir(), "review-install-hints-bin-"));
+  const bin = sandbox.makeDir("bin");
 
   symlinkSync(realGit, join(bin, "git"));
 
@@ -112,6 +108,8 @@ function makeBin(executables: string[] = []): string {
 
 function run(cwd: string, sha?: string, bin: string = makeBin()): RunResult {
   const args = sha === undefined ? [script] : [script, sha];
+  sandbox.assertInside(cwd);
+
   const result = spawnSync(process.execPath, args, {
     cwd,
     encoding: "utf8",
@@ -1086,7 +1084,7 @@ describe("install-hints.mjs", () => {
 
     it("exits 1 with a message when git is not on PATH", () => {
       const { cwd, sha } = makeRepo();
-      const result = run(cwd, sha, mkdtempSync(join(tmpdir(), "no-git-")));
+      const result = run(cwd, sha, sandbox.makeDir("no-git"));
 
       expect(result.status).toBe(1);
       expect(result.stdout).toBe("");

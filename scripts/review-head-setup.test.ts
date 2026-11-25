@@ -12,9 +12,9 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { makeSandbox, realGit as realGitPath } from "./review-test-git.ts";
 
 const script = join(
   import.meta.dirname,
@@ -32,12 +32,10 @@ type Fixture = { dir: string; base: string; head: string };
 type Outcome = { status: number | null; json: Json; stderr: string };
 type CommitOptions = { links?: Files; executable?: string[] };
 
-const sandbox = realpathSync(mkdtempSync(join(tmpdir(), "review-head-setup-")));
+const sandboxRoot = makeSandbox("review-head-setup-");
+const sandbox = sandboxRoot.root;
 let scratch = join(sandbox, "scratch");
-const gitEnv = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
-const realGit = spawnSync("sh", ["-c", "command -v git"], {
-  encoding: "utf8",
-}).stdout.trim();
+const realGit = realGitPath;
 let counter = 0;
 
 beforeEach(() => {
@@ -46,7 +44,7 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  rmSync(sandbox, { recursive: true, force: true });
+  sandboxRoot.dispose();
 });
 
 function nextPath(label: string): string {
@@ -59,27 +57,11 @@ function tryGit(
   cwd: string,
   ...args: string[]
 ): { status: number | null; stdout: string; stderr: string } {
-  const result = spawnSync(realGit, args, {
-    cwd,
-    encoding: "utf8",
-    env: { ...process.env, ...gitEnv },
-  });
-
-  return {
-    status: result.status,
-    stdout: result.stdout,
-    stderr: result.stderr,
-  };
+  return sandboxRoot.tryGit(cwd, ...args);
 }
 
 function git(cwd: string, ...args: string[]): string {
-  const result = tryGit(cwd, ...args);
-
-  if (result.status !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
-  }
-
-  return result.stdout.trim();
+  return sandboxRoot.git(cwd, ...args);
 }
 
 function write(cwd: string, path: string, content: string): void {
@@ -177,14 +159,12 @@ function run(
   bin: string = makeBin(),
   env: Record<string, string> = {},
 ): Outcome {
-  if (!cwd.startsWith(sandbox)) {
-    throw new Error(`refusing to run against ${cwd}`);
-  }
+  sandboxRoot.assertInside(cwd);
 
   const result = spawnSync(process.execPath, [script, ...args], {
     cwd,
     encoding: "utf8",
-    env: { PATH: bin, TMPDIR: scratch, ...gitEnv, ...env },
+    env: sandboxRoot.env({ PATH: bin, TMPDIR: scratch, ...env }),
   });
   const parsed: unknown = JSON.parse(result.stdout);
 
@@ -199,11 +179,18 @@ function switchCommand(dir: string, name: string): string {
   return `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C ${dir} switch --no-overwrite-ignore ${name}`;
 }
 
-function runShell(command: string): void {
+function runShell(command: string, cwd: string): void {
+  sandboxRoot.assertInside(cwd);
   spawnSync("sh", ["-c", command], {
+    cwd,
     encoding: "utf8",
-    env: { ...process.env, ...gitEnv },
+    env: sandboxRoot.env(),
   });
+}
+
+function runPrinted(command: string, dir: string): void {
+  expect(command).toContain(` -C ${dir} `);
+  runShell(command, dir);
 }
 
 function listAt(json: Json, key: string): Json[] {
@@ -971,7 +958,7 @@ describe("head-setup.mjs", () => {
 
       expect(declined).toMatchObject([{ reason: "switch-failed" }]);
 
-      runShell(String(declined[0]?.command));
+      runPrinted(String(declined[0]?.command), dir);
 
       expect(readFileSync(join(dir, "keep.env"), "utf8")).toBe("mine\n");
       expect(headOf(dir)).toBe(head);
@@ -985,7 +972,7 @@ describe("head-setup.mjs", () => {
       const mine = commit(dir, { "mine.txt": "m\n" });
       const declined = listAt(run(dir, ["restore"]).json, "declined");
 
-      runShell(String(declined[0]?.command));
+      runPrinted(String(declined[0]?.command), dir);
 
       const kept = `pr-review-kept-${mine.slice(0, 12)}`;
 
