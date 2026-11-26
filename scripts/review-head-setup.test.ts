@@ -13,7 +13,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { makeSandbox, realGit } from "./review-test-git.ts";
 
@@ -508,6 +508,21 @@ describe("head-setup.mjs", () => {
 
       expect(lockfiles).toMatchObject([{ path: "pnpm-lock.yaml" }]);
       expect(lockfiles).toHaveLength(1);
+    });
+
+    it("lists a tracked .opencode symlink and a nested .claude symlink", () => {
+      const { dir, head } = makeFixture(
+        {},
+        { "other.txt": "1\n" },
+        {
+          links: { ".opencode": "elsewhere", "app/.claude": "elsewhere" },
+        },
+      );
+
+      expect(
+        headsOf({ status: 0, json: plan(dir, head), stderr: "" })[0]
+          ?.sessionConfig,
+      ).toEqual([".opencode", "app/.claude"]);
     });
 
     it("finds nested session config even when the pathspec environment is set", () => {
@@ -1210,6 +1225,77 @@ describe("head-setup.mjs", () => {
         "https://example.com/org/repo.git",
       );
       expect(existsSync(join(path, "b.txt"))).toBe(true);
+    });
+
+    it("refuses a shallow source before creating anything", () => {
+      const { dir } = makeSource();
+      const shallow = nextPath("shallow");
+
+      git(dir, "config", "protocol.file.allow", "always");
+      git(dir, "clone", "-q", "--depth", "1", `file://${dir}`, shallow);
+
+      const outcome = enter(shallow, "clone", headOf(shallow));
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({ reason: "shallow-source" });
+      expect(existsSync(recordPath(shallow))).toBe(false);
+      expect(
+        scratchEntries().filter((name) => name.startsWith("pr-review-")),
+      ).toEqual([]);
+    });
+
+    it("refuses a partial source cloned with a filter", () => {
+      const { dir } = makeSource();
+      const partial = nextPath("partial");
+
+      git(dir, "config", "uploadpack.allowFilter", "true");
+      git(
+        dir,
+        "clone",
+        "-q",
+        "--filter=blob:none",
+        "--no-checkout",
+        `file://${dir}`,
+        partial,
+      );
+
+      const outcome = enter(partial, "clone", headOf(partial));
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({ reason: "partial-source" });
+      expect(
+        scratchEntries().filter((name) => name.startsWith("pr-review-")),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ["remote.origin.promisor", "true"],
+      ["extensions.partialClone", "origin"],
+    ])("refuses a source with %s set", (key, value) => {
+      const { dir, head } = makeSource();
+
+      git(dir, "config", key, value);
+
+      const outcome = enter(dir, "clone", head);
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({ reason: "partial-source" });
+    });
+
+    it.each([
+      ["a file the switch left missing", "/bin/rm -f b.txt"],
+      ["an untracked file the switch left", "/usr/bin/touch stray.txt"],
+    ])("removes the clone and refuses when it holds %s", (_label, damage) => {
+      const { dir, head } = makeSource();
+      const wrapper = `#!/bin/sh\nREAL_GIT "$@"\nrc=$?\ncase "$*" in\n*" switch "*) ${damage};;\nesac\nexit $rc\n`;
+      const outcome = run(dir, ["enter", "clone", head], makeBin(wrapper));
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({ reason: "setup-failed" });
+      expect(String(outcome.json.detail)).toContain("incomplete");
+      expect(
+        scratchEntries().filter((name) => name.startsWith("pr-review-")),
+      ).toEqual([]);
+      expect(existsSync(recordPath(dir))).toBe(false);
     });
 
     it("leaves the source repository's config and hooks alone when an install writes .git", () => {
@@ -2498,6 +2584,28 @@ describe("head-setup.mjs", () => {
         scratchEntries().filter((name) => name.startsWith("pr-review-")),
       ).toEqual([]);
       expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("never runs a git from a PATH entry inside the repository", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const marker = nextPath("planted");
+      const planted = join(dir, "bin");
+
+      mkdirSync(planted);
+      writeFileSync(
+        join(planted, "git"),
+        `#!/bin/sh\ntouch "${marker}"\nexit 1\n`,
+      );
+      chmodSync(join(planted, "git"), 0o755);
+
+      const outcome = run(
+        dir,
+        ["plan", head],
+        `${planted}${delimiter}${makeBin()}`,
+      );
+
+      expect(outcome.status).toBe(0);
+      expect(existsSync(marker)).toBe(false);
     });
 
     it("keeps the clone's switch free of hooks and submodule recursion", () => {

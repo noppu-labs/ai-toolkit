@@ -69,10 +69,12 @@ const TRACKED_CHANGES = { ignoreSubmodules: true, untracked: false };
 const SESSION_PATHSPECS = [
   ":(icase).claude",
   ":(icase).mcp.json",
+  ":(glob,icase)**/.claude",
   ":(glob,icase)**/.claude/**",
   ":(glob,icase)**/.mcp.json",
   ":(glob,icase)**/opencode.json",
   ":(glob,icase)**/opencode.jsonc",
+  ":(glob,icase)**/.opencode",
   ":(glob,icase)**/.opencode/**",
   ":(glob,icase)**/CLAUDE.md",
   ":(glob,icase)**/CLAUDE.local.md",
@@ -948,10 +950,70 @@ function cloneInto(ctx, entry) {
     inside.run(["remote", "set-url", "origin", url]);
   }
 
-  return switched;
+  return switched.status === 0 ? requireCompleteClone(inside) : switched;
+}
+
+// A clone of a source that lacks objects can switch without error and leave
+// files missing; a full status with untracked files catches that.
+function requireCompleteClone(inside) {
+  const status = tryStatusPaths({ git: inside }, ALL_CHANGES);
+
+  if (status.failed === undefined && status.paths.length === 0) {
+    return { status: 0, stderr: "" };
+  }
+
+  const detail =
+    status.failed ?? `${status.paths.length} paths differ from the head`;
+
+  return {
+    status: 1,
+    stderr: `the clone is incomplete after the switch: ${detail}`,
+  };
+}
+
+function isTrue(value) {
+  return ["true", "yes", "on", "1"].includes(value.trim().toLowerCase());
+}
+
+function hasPromisorRemote(ctx) {
+  const remotes = ctx.git.run([
+    "config",
+    "--get-regexp",
+    "^remote\\..*\\.promisor$",
+  ]);
+  const flagged = remotes.stdout
+    .split("\n")
+    .some((line) => isTrue(line.slice(line.lastIndexOf(" ") + 1)));
+
+  return (
+    flagged ||
+    ctx.git.run(["config", "--get", "extensions.partialClone"]).status === 0
+  );
+}
+
+// `--shared` borrows the source's objects, so a source that lacks some would
+// give a clone that cannot hold the head.
+function requireFullSource(ctx) {
+  const shallow = ctx.git.run(["rev-parse", "--is-shallow-repository"]);
+
+  if (shallow.status === 0 && shallow.stdout.trim() === "true") {
+    refuse(
+      "shallow-source",
+      "the repository is a shallow clone; run `git fetch --unshallow` or use a worktree",
+    );
+  }
+
+  if (hasPromisorRemote(ctx)) {
+    refuse(
+      "partial-source",
+      "the repository is a partial clone; fetch its missing objects or use a worktree",
+    );
+  }
 }
 
 function enterClone(ctx, sha, entries, requested) {
+  requireFullSource(ctx);
+
   const scratch = makeScratch(
     entries,
     "clone",
@@ -1476,12 +1538,13 @@ function readLockPid(file) {
   }
 }
 
+// Codes for a filesystem that cannot make hard links.
+const NO_LINK_CODES = ["ENOTSUP", "EOPNOTSUPP", "EPERM", "ENOSYS"];
+
 // The pid is written to a temporary file that is then linked into place, so
 // the lock never exists without it and a reader cannot mistake a lock that is
 // still being made for an unreadable one. A filesystem without hard links
 // gets an exclusive create instead.
-const NO_LINK_CODES = ["ENOTSUP", "EOPNOTSUPP", "EPERM", "ENOSYS"];
-
 function createLock(file) {
   const temp = `${file}.${process.pid}.tmp`;
 
