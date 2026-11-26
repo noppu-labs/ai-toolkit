@@ -73,7 +73,7 @@ Ask only when a tool that puts a question to the user is listed: `AskUserQuestio
 
 When a question can be asked and no prompt named a setup or said not to ask or not to modify the checkout, run the plan first, even when no PR's `<HEAD_SHA>` differs from the working tree's commit, and ask the leftover-record question when it reports a record. After that, and after the comparison a restore redoes, every run skips the rest of this section when no PR differs.
 
-Unless the setup is continue as is, run the plan once for every PR before asking or acting, and the hints script for each PR whose `<HEAD_SHA>` differs from the working tree's commit. The plan takes the heads in merge order and treats the last one as the check-out target:
+Unless the setup is continue as is, have run the plan for every PR before asking or acting, and the hints script for each PR whose `<HEAD_SHA>` differs from the working tree's commit. The plan takes the heads in merge order and treats the last one as the check-out target:
 
 ```sh
 node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs plan <HEAD_SHA>...
@@ -126,7 +126,7 @@ Check out:
 - Run `node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs enter checkout <HEAD_SHA>`, with the last PR's `<HEAD_SHA>` for the stack option. Run one `enter` at a time, and never beside a `restore`: the script takes a lock and refuses with `busy` while another run holds it.
 - `ok: false` means continue as is, with its reason recorded. When it also prints an `id` (`switch-incomplete` and `switch-back-failed`), the switch changed the tree before it failed and the record is kept: keep that id and print its `dirtyPaths` and its `command`, and restore it in cleanup like any other.
 - Otherwise keep the `id` and `headSha` it prints. Install only for the chosen lockfiles the plan reports `changed` or with `dependencies: "missing"`: no project entry point and no `.env` copy in the user's checkout.
-- After the install, run `git -C '<top>' status --porcelain --untracked-files=no --ignore-submodules=all` (`<top>` is `git rev-parse --show-toplevel`); when it prints anything, run `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C '<top>' reset --hard <headSha>` and say in the report that the install changed tracked files.
+- After the install, run `git -C '<top>' status --porcelain --untracked-files=no --ignore-submodules=all` (`<top>` is `git rev-parse --show-toplevel`); when it prints anything, run `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C '<top>' reset --hard <headSha>` and name in the report the tracked files the install changed.
 - No PR gets a `checkout`, since the working tree is now the head. In a stack, the lower PRs keep reading through git.
 
 Worktree and clone, for each PR whose `<HEAD_SHA>` differs from the working tree's commit:

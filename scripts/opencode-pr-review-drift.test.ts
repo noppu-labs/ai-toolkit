@@ -420,6 +420,7 @@ const GATE_SENTENCES: readonly string[] = [
 const RECORD_FIRST_SENTENCES: readonly string[] = [
   "When a question can be asked and no prompt named a setup or said not to ask or not to modify the checkout, run the plan first, even when no PR's `<HEAD_SHA>` differs from the working tree's commit, and ask the leftover-record question when it reports a record.",
   "After that, and after the comparison a restore redoes, every run skips the rest of this section when no PR differs.",
+  "Unless the setup is continue as is, have run the plan for every PR before asking or acting,",
 ];
 
 // COR-13: an `enter` killed before it printed its id.
@@ -431,7 +432,7 @@ const ENTER_NO_JSON_RULE: string =
 const CHECKOUT_INSTALL_SENTENCES: readonly string[] = [
   "Otherwise keep the `id` and `headSha` it prints.",
   "After the install, run `git -C '<top>' status --porcelain --untracked-files=no --ignore-submodules=all` (`<top>` is `git rev-parse --show-toplevel`);",
-  "when it prints anything, run `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C '<top>' reset --hard <headSha>` and say in the report that the install changed tracked files.",
+  "when it prints anything, run `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C '<top>' reset --hard <headSha>` and name in the report the tracked files the install changed.",
 ];
 
 const SAFETY_SENTENCES: readonly string[] = [
