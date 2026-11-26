@@ -3267,7 +3267,16 @@ describe("head-setup.mjs", () => {
     function caseInsensitive(): boolean {
       const probe = makeRepo();
 
-      return git(probe, "config", "--get", "core.ignorecase") === "true";
+      return (
+        git(
+          probe,
+          "config",
+          "--type=bool",
+          "--default=false",
+          "--get",
+          "core.ignorecase",
+        ) === "true"
+      );
     }
 
     it("never drops the record of a head whose names differ only in case while the tree is changed", (context) => {
