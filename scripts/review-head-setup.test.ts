@@ -1313,7 +1313,7 @@ describe("head-setup.mjs", () => {
       const outcome = run(dir, ["enter", "clone", head], makeBin(wrapper));
       expect(outcome.status).toBe(1);
       expect(outcome.json).toMatchObject({ reason: "setup-failed" });
-      expect(String(outcome.json.detail)).toContain("incomplete");
+      expect(String(outcome.json.detail)).toContain("differs from the head");
       expect(
         scratchEntries().filter((name) => name.startsWith("pr-review-")),
       ).toEqual([]);
