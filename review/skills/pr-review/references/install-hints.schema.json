@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InstallHints",
+  "description": "Evidence about how to install a repository at one commit, as printed by scripts/install-hints.mjs. It reports what the tree contains and decides nothing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "headSha",
+    "lockfiles",
+    "entryPoints",
+    "installHooks",
+    "runtimes",
+    "tools",
+    "envExample",
+    "skipped"
+  ],
+  "properties": {
+    "headSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "lockfiles": {
+      "description": "Recognised lockfiles only; a lockfile of another package manager is not listed.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "manager", "likelyCommand"],
+        "properties": {
+          "path": { "type": "string" },
+          "manager": {
+            "type": "string",
+            "enum": [
+              "composer",
+              "npm",
+              "pnpm",
+              "yarn",
+              "bun",
+              "uv",
+              "poetry",
+              "bundler",
+              "go"
+            ]
+          },
+          "likelyCommand": { "type": "string" }
+        }
+      }
+    },
+    "entryPoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "kind", "names"],
+        "properties": {
+          "path": { "type": "string" },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "make",
+              "just",
+              "task",
+              "script-file",
+              "composer-script",
+              "npm-script",
+              "docs-section"
+            ]
+          },
+          "names": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "installHooks": {
+      "description": "Install hooks found in the readable manifests. Not a complete list: dependency scripts, tool configuration, binding.gyp and any file in skipped may run more.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "name", "command"],
+        "properties": {
+          "path": { "type": "string" },
+          "name": { "type": "string" },
+          "command": { "type": "string" }
+        }
+      }
+    },
+    "runtimes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "tool", "version"],
+        "properties": {
+          "path": { "type": "string" },
+          "tool": { "type": "string" },
+          "version": { "type": "string" }
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "onPath"],
+        "properties": {
+          "name": { "type": "string" },
+          "onPath": { "type": "boolean" }
+        }
+      }
+    },
+    "envExample": {
+      "description": "The tracked .env.example or .env.dist, or null when there is none, it is a symlink, or the tree tracks .env (the copy to .env would overwrite it).",
+      "type": ["string", "null"]
+    },
+    "skipped": {
+      "description": "Files the script would otherwise have read or listed, with the reason it did not: a symlink or submodule is never read, a lockfile whose directory tracks node_modules, vendor, .venv or .pnp.cjs as a symlink is left out of lockfiles and the symlink's path is listed, an unreadable file or a package.json or composer.json that is not a JSON object cannot be used, and a path with a character outside A-Z a-z 0-9 . _ / @ + space - or a segment starting with - is kept out of lockfiles, entryPoints and runtimes.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "symlink",
+              "submodule",
+              "unreadable",
+              "invalid-json",
+              "unsafe-path",
+              "symlinked-install-dir"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

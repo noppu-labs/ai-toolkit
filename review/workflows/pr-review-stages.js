@@ -219,6 +219,12 @@ const BRIEF_SCHEMA = {
   required: ["brief", "source", "skipped"],
 };
 
+// With `checkout`, the brief also reports the commit the directory is on.
+const BRIEF_SCHEMA_WITH_CHECKOUT_HEAD = {
+  ...BRIEF_SCHEMA,
+  properties: { ...BRIEF_SCHEMA.properties, checkoutHead: { type: "string" } },
+};
+
 const STAGE_SCHEMA = {
   type: "object",
   properties: {
@@ -252,10 +258,19 @@ const PASS_LABEL = "hand review only";
 // every PR, whether or not its stages reported.
 const REVIEWED_HEAD = "Reviewed head:";
 
+const CHECKOUT_TEMPLATE = `## Checkout of the head
+
+The head is checked out at \`<CHECKOUT>\`, where tracked files match \`<HEAD>\`. The
+orchestrator ran the project's install there, and it may have failed; a failure
+from a missing dependency goes under \`## Skipped\`, not findings. Work there: read
+and search files in that directory, run tests, linters, and type checkers from it,
+and build the brief there in place instead of creating a worktree. Read files
+there directly rather than through \`git show\` or \`git grep\`.`;
+
 // One pass over the template, so a slot value that itself contains a slot
 // token (a brief quoting `git diff <BASE>...<HEAD>`, a title) is left alone.
 function fill(template, slots) {
-  return template.replace(/<(BRIEF|BASE|HEAD|PR_TITLE|PR_URL)>/g, (token, slot) =>
+  return template.replace(/<(BRIEF|BASE|HEAD|PR_TITLE|PR_URL|CHECKOUT)>/g, (token, slot) =>
     slot in slots ? slots[slot] : token,
   );
 }
@@ -288,8 +303,38 @@ function validateInstructions(value, at) {
   return instructions;
 }
 
+const SETUP_KEYS = ["kind", "note"];
+
+const SETUP_KINDS = ["checkout", "worktree", "clone", "none"];
+
+function validateSetup(value, checkout, at) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${at} must be an object with kind and note`);
+  }
+  for (const key of Object.keys(value)) {
+    if (!SETUP_KEYS.includes(key)) {
+      throw new Error(`${at}.${key} is not a known key; the keys are ${SETUP_KEYS.join(", ")}`);
+    }
+  }
+  if (!SETUP_KINDS.includes(value.kind)) {
+    throw new Error(`${at}.kind must be one of ${SETUP_KINDS.join(", ")}`);
+  }
+  if (!isNonEmptyString(value.note)) {
+    throw new Error(`${at}.note must be a non-empty string`);
+  }
+  if (checkout !== undefined && value.kind !== "worktree" && value.kind !== "clone") {
+    throw new Error(`${at}.kind must be worktree or clone when checkout is set`);
+  }
+  return { kind: value.kind, note: value.note.trim() };
+}
+
 // A ref name or a shortened SHA would not compare with a caller's `git rev-parse HEAD`.
 const FULL_SHA = /^[0-9a-f]{40}$/;
+
+const ABSOLUTE_PATH = /^(?:\/|[A-Za-z]:[\\/])/;
 
 function validatePr(item, index) {
   const at = `args[${index}]`;
@@ -308,6 +353,13 @@ function validatePr(item, index) {
     throw new Error(`${at}.headSha must be the full 40-character SHA that git rev-parse prints for head`);
   }
   const instructions = validateInstructions(item.instructions, `${at}.instructions`);
+  if (item.checkout !== undefined && !(typeof item.checkout === "string" && ABSOLUTE_PATH.test(item.checkout))) {
+    throw new Error(`${at}.checkout must be an absolute path`);
+  }
+  const setup = validateSetup(item.setup, item.checkout, `${at}.setup`);
+  if (setup?.kind === "clone" && !FULL_SHA.test(item.base)) {
+    throw new Error(`${at}.base must be a full 40-character SHA when setup.kind is clone, since origin/<branch> inside a clone is the user's local branch`);
+  }
   return {
     number: item.number,
     title: item.title,
@@ -316,6 +368,8 @@ function validatePr(item, index) {
     headSha: item.headSha,
     url: item.url,
     instructions,
+    checkout: item.checkout,
+    setup,
   };
 }
 
@@ -324,7 +378,7 @@ function validateArgs(input) {
     throw new Error("args arrived as a string; pass the PR list as a JSON array value, not a JSON-encoded string");
   }
   if (!Array.isArray(input) || input.length === 0) {
-    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, headSha, url, instructions? }, ...]");
+    throw new Error("args must be a non-empty array of PRs in merge order: [{ number, title, base, head, headSha, url, instructions?, checkout?, setup? }, ...]");
   }
   const prs = input.map((pr, index) => validatePr(pr, index));
   const numbers = new Set();
@@ -351,13 +405,32 @@ function instructionsBlock(pr, key) {
   return parts.length === 0 ? "" : `${INSTRUCTIONS_HEADING}\n\n${parts.join("\n\n")}\n\n`;
 }
 
+// Ends in its own blank line, like instructionsBlock.
+function checkoutBlock(pr) {
+  if (pr.checkout === undefined) {
+    return "";
+  }
+  return `${fill(CHECKOUT_TEMPLATE, { CHECKOUT: pr.checkout, HEAD: pr.headSha })}\n\n`;
+}
+
+function quoteShell(text) {
+  return `'${text.replaceAll("'", "'\\''")}'`;
+}
+
+function checkoutHeadRequest(pr) {
+  if (pr.checkout === undefined) {
+    return "";
+  }
+  return ` Also run \`git -C ${quoteShell(pr.checkout)} rev-parse HEAD\` before anything else and return its output as \`checkoutHead\`.`;
+}
+
 // `<HEAD>` is filled with `headSha`, never `head`: `refs/pr-review/<n>` is
 // shared by every worktree of the clone, so a second review of the same PR
 // can move it while this run's agents are still reading.
 function briefPrompt(pr) {
   const header = `Build the structural brief for PR #${pr.number} "${pr.title}" (${pr.url}). Base ref ${pr.base}, head ref ${pr.headSha}. Only what the branch adds is in scope: git diff ${pr.base}...${pr.headSha}, three dots. Do not review the change; the brief is the input every reviewer of this PR gets.`;
   const body = fill(STEP2_TEMPLATE, { BASE: pr.base, HEAD: pr.headSha });
-  return `${header}\n\n${body}\n\n${instructionsBlock(pr, "brief")}${BRIEF_TRAILER}`;
+  return `${header}\n\n${body}\n\n${checkoutBlock(pr)}${instructionsBlock(pr, "brief")}${BRIEF_TRAILER}${checkoutHeadRequest(pr)}`;
 }
 
 function stagePrompt(stage, pr, brief) {
@@ -368,7 +441,7 @@ function stagePrompt(stage, pr, brief) {
     PR_TITLE: pr.title,
     PR_URL: pr.url,
   });
-  return `${body}\n\n${instructionsBlock(pr, stage.key)}${STAGE_TRAILER}`;
+  return `${body}\n\n${checkoutBlock(pr)}${instructionsBlock(pr, stage.key)}${STAGE_TRAILER}`;
 }
 
 async function runBrief(pr) {
@@ -377,7 +450,7 @@ async function runBrief(pr) {
     output = await agent(briefPrompt(pr), {
       label: `brief:${pr.number}`,
       phase: "Brief",
-      schema: BRIEF_SCHEMA,
+      schema: pr.checkout === undefined ? BRIEF_SCHEMA : BRIEF_SCHEMA_WITH_CHECKOUT_HEAD,
     });
   } catch (error) {
     // Schema retries exhausted or the budget ceiling: the stages still run,
@@ -508,6 +581,9 @@ function renderPr(pr, item) {
 
 function collectMisses(pr, item) {
   const misses = { tools: [], lines: [] };
+  if (pr.setup !== undefined) {
+    misses.lines.push(`PR ${pr.number}: head setup: ${pr.setup.kind}. ${pr.setup.note.split("\n").join("\n  ")}`);
+  }
   if (!item) {
     misses.lines.push(`PR ${pr.number}: the pipeline stopped before consolidation, so no stage reported`);
     return misses;
@@ -519,6 +595,12 @@ function collectMisses(pr, item) {
   }
   if (!item.brief || item.brief.brief.trim() === "") {
     misses.lines.push(`structural brief for PR ${pr.number}: the brief subagent returned nothing, so the stages ran without one`);
+  }
+  if (pr.checkout !== undefined) {
+    const found = item.brief && typeof item.brief.checkoutHead === "string" ? item.brief.checkoutHead.trim() : "";
+    if (found !== pr.headSha) {
+      misses.lines.push(`PR ${pr.number}: the checkout ${pr.checkout} was reported at ${found === "" ? "no commit" : found}, not at the reviewed head ${pr.headSha}`);
+    }
   }
   STAGES.forEach((stage, index) => {
     const output = item.outputs[index];
@@ -586,6 +668,9 @@ const prs = validateArgs(args);
 log(`Reviewing ${prs.length} PR${prs.length === 1 ? "" : "s"}: ${prs.map((pr) => pr.number).join(", ")}`);
 for (const pr of prs) {
   log(`PR ${pr.number}: reviewing ${pr.headSha} (head ${pr.head})`);
+  if (pr.checkout !== undefined) {
+    log(`PR ${pr.number}: working in ${pr.checkout}`);
+  }
 }
 const items = await pipeline(prs, runBrief, runStages);
 phase("Consolidate");
