@@ -36,6 +36,7 @@ import {
   join,
   relative,
   resolve,
+  sep,
 } from "node:path";
 import { findExecutable } from "./lib/exec.mjs";
 import { makeGit } from "./lib/git.mjs";
@@ -188,7 +189,12 @@ function showPath(path) {
 function isInside(root, path) {
   const offset = relative(root, path);
 
-  return offset !== "" && !offset.startsWith("..") && !isAbsolute(offset);
+  return (
+    offset !== "" &&
+    offset !== ".." &&
+    !offset.startsWith(`..${sep}`) &&
+    !isAbsolute(offset)
+  );
 }
 
 function currentHead(ctx) {
@@ -309,6 +315,10 @@ function describeCheckoutProblem(entry) {
     return `entry ${entry.id} has an unusable branch name`;
   }
 
+  if (entry.incomplete !== undefined && entry.incomplete !== true) {
+    return `entry ${entry.id} has an unusable incomplete mark`;
+  }
+
   return null;
 }
 
@@ -416,6 +426,21 @@ function saveRecord(ctx, entries) {
     refuse(
       "record-write-failed",
       `the record cannot be written: ${error.message}`,
+    );
+  }
+}
+
+// A later restore reads the mark to print the discard command: the entry's
+// changes came from the head, not from the person.
+function markIncomplete(ctx, id) {
+  const loaded = loadRecord(ctx);
+
+  if (loaded.problem === undefined) {
+    saveRecord(
+      ctx,
+      loaded.entries.map((entry) =>
+        entry.id === id ? { ...entry, incomplete: true } : entry,
+      ),
     );
   }
 }
@@ -696,6 +721,7 @@ const DISCARD_NOTE =
 // command are fields of their own: `detail` repeats text git printed, which
 // can carry text from the PR.
 function refuseIncomplete(ctx, entry, reason, lead, dirtyPaths) {
+  markIncomplete(ctx, entry.id);
   refuse(
     reason,
     `${lead}; the record is kept. Keep the id ${entry.id} and print the paths. ${DISCARD_NOTE}`,
@@ -1169,10 +1195,11 @@ function restoreCheckout(ctx, entry) {
     );
   }
 
+  const before = untrackedPaths(ctx);
   const back = changeTree(ctx, switchBackArgs(entry));
 
   if (back.status !== 0) {
-    return declineAfterFailedBack(ctx, entry, back.stderr.trim());
+    return declineAfterFailedBack(ctx, entry, back.stderr.trim(), before);
   }
 
   return {
@@ -1182,12 +1209,26 @@ function restoreCheckout(ctx, entry) {
 }
 
 // A switch back that fails may still have written files; then only the
-// discard form can work.
-function declineAfterFailedBack(ctx, entry, stderr) {
+// discard form can work. A status that shows only the untracked files that were
+// there before means git wrote nothing: it refused over those files, and the
+// discard form refuses too.
+function declineAfterFailedBack(ctx, entry, stderr, untrackedBefore) {
   const status = tryStatusPaths(ctx, ALL_CHANGES_NO_SUBMODULES);
 
   if (status.failed === undefined && status.paths.length === 0) {
     return declineCheckout(ctx, entry, "switch-failed", showPath(stderr));
+  }
+
+  if (
+    status.failed === undefined &&
+    status.paths.every((path) => untrackedBefore.includes(path))
+  ) {
+    return {
+      declined: {
+        reason: "switch-failed",
+        detail: `${showPath(stderr)}; untracked files are in the way: ${pathsInTheWay(ctx, entry, untrackedBefore).join(", ")}. Move them aside, then run restore again.`,
+      },
+    };
   }
 
   return declineCheckout(
@@ -1202,6 +1243,30 @@ function declineAfterFailedBack(ctx, entry, stderr) {
   );
 }
 
+// The untracked paths the user's branch tracks too, or all of them when that
+// cannot be told.
+function pathsInTheWay(ctx, entry, untracked) {
+  const target =
+    entry.branch === null ? entry.fromSha : `refs/heads/${entry.branch}`;
+  const listing = ctx.git.run(["ls-tree", "-r", "-z", "--name-only", target]);
+
+  if (listing.status !== 0) {
+    return untracked;
+  }
+
+  const tracked = listing.stdout
+    .split("\0")
+    .filter((path) => path !== "")
+    .map(showPath);
+  const shared = untracked.filter((path) =>
+    path.endsWith("/")
+      ? tracked.some((name) => name.startsWith(path))
+      : tracked.includes(path),
+  );
+
+  return shared.length > 0 ? shared : untracked;
+}
+
 // HEAD is where the run started, but a switch that was cut short, or an edit
 // made since, can leave the tree changed. Only a clean tree drops the record.
 function restoreBack(ctx, entry) {
@@ -1209,6 +1274,19 @@ function restoreBack(ctx, entry) {
 
   if (status.failed !== undefined) {
     return declineStatus(ctx, entry, status.failed);
+  }
+
+  if (status.paths.length > 0 && entry.incomplete === true) {
+    return declineCheckout(
+      ctx,
+      entry,
+      "back-but-dirty",
+      `HEAD is back where the run started, but the head left the tree changed and the record is kept. ${DISCARD_NOTE}`,
+      {
+        dirtyPaths: status.paths,
+        command: switchBackCommand(ctx, entry, true),
+      },
+    );
   }
 
   if (status.paths.length > 0) {

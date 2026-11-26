@@ -1177,6 +1177,23 @@ describe("install-hints.mjs", () => {
       expect(() => readFileSync(marker)).toThrow();
     });
 
+    it("never runs a git from an absolute entry inside the repository whose name starts with two dots", () => {
+      const { cwd, sha } = makeRepo();
+      const marker = join(cwd, "marker");
+
+      write(cwd, "..bin/git", fakeScript(marker));
+      chmodSync(join(cwd, "..bin", "git"), 0o755);
+
+      const result = run(
+        cwd,
+        sha,
+        `${join(cwd, "..bin")}${delimiter}${makeBin()}`,
+      );
+
+      expect(result.status).toBe(0);
+      expect(() => readFileSync(marker)).toThrow();
+    });
+
     it("exits 1 with a message when git is not on PATH", () => {
       const { cwd, sha } = makeRepo();
       const result = run(cwd, sha, sandbox.makeDir("no-git"));

@@ -5,7 +5,7 @@ import {
   realpathSync,
   statSync,
 } from "node:fs";
-import { delimiter, dirname, isAbsolute, join, relative } from "node:path";
+import { delimiter, dirname, isAbsolute, join, relative, sep } from "node:path";
 
 const EXECUTABLE_SUFFIXES =
   process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
@@ -49,7 +49,10 @@ function findRepositoryRoot() {
 function isInside(root, path) {
   const offset = relative(root, path);
 
-  return offset === "" || (!offset.startsWith("..") && !isAbsolute(offset));
+  return (
+    offset === "" ||
+    (offset !== ".." && !offset.startsWith(`..${sep}`) && !isAbsolute(offset))
+  );
 }
 
 function isInsideRepository(root, dir) {

@@ -1944,7 +1944,7 @@ describe("head-setup.mjs", () => {
       expect(branchOf(dir)).toBe("main");
     });
 
-    it("lets restore decline with the paths, name forget and keep the record", () => {
+    it("lets restore decline with the paths and the discard command and keep the record", () => {
       const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
 
       run(dir, ["enter", "checkout", head], makeBin(partWay));
@@ -1956,8 +1956,8 @@ describe("head-setup.mjs", () => {
       expect(declined).toMatchObject([
         { reason: "back-but-dirty", dirtyPaths: ["notes.txt"] },
       ]);
-      expect(declined[0]).not.toHaveProperty("command");
-      expect(String(declined[0]?.detail)).toContain("forget");
+      expect(declined[0]?.command).toBe(switchCommand(dir, "main", true));
+      expect(String(declined[0]?.detail)).toContain("discards every change");
       expect(readRecord(dir).entries).toHaveLength(1);
       expect(run(dir, ["forget"]).json).toMatchObject({ forgotten: true });
     });
@@ -3304,6 +3304,124 @@ describe("head-setup.mjs", () => {
       expect(
         clean ? readFileSync(join(dir, "README.md"), "utf8") : "mine\n",
       ).toBe("mine\n");
+    });
+  });
+
+  describe("round 4: untracked files in the way and marked entries", () => {
+    function makeDeletingHead(): Fixture {
+      const dir = makeRepo({ "gen.js": "generated\n" });
+      const baseSha = git(dir, "rev-parse", "HEAD");
+
+      git(dir, "switch", "-q", "-c", "pr-gen");
+      git(dir, "rm", "-q", "gen.js");
+      git(dir, "commit", "-q", "-m", "delete gen.js");
+
+      const head = git(dir, "rev-parse", "HEAD");
+
+      git(dir, "switch", "-q", "main");
+
+      return { dir, base: baseSha, head };
+    }
+
+    it("declines switch-failed, names the untracked paths and prints no command when git refuses the switch back over them", () => {
+      const { dir, head } = makeDeletingHead();
+
+      expect(enter(dir, "checkout", head).status).toBe(0);
+      expect(existsSync(join(dir, "gen.js"))).toBe(false);
+      write(dir, "gen.js", "regenerated\n");
+
+      const outcome = run(dir, ["restore"]);
+      const declined = listAt(outcome.json, "declined");
+
+      expect(outcome.status).toBe(1);
+      expect(declined).toMatchObject([{ reason: "switch-failed" }]);
+      expect(declined[0]).not.toHaveProperty("command");
+      expect(String(declined[0]?.detail)).toContain("gen.js");
+      expect(String(declined[0]?.detail)).toContain("move");
+      expect(headOf(dir)).toBe(head);
+      expect(readRecord(dir).entries).toHaveLength(1);
+
+      renameSync(join(dir, "gen.js"), join(dir, "gen.js.aside"));
+
+      const again = run(dir, ["restore"]);
+
+      expect(again.status).toBe(0);
+      expect(listAt(again.json, "restored")).toHaveLength(1);
+      expect(branchOf(dir)).toBe("main");
+      expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("still reports switch-incomplete when the failed switch back changed something new", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+      write(dir, "old.txt", "x\n");
+
+      const wrapper = `#!/bin/sh\ncase "$*" in\n*"switch --no-guess --no-overwrite-ignore main"*) echo dirt > junk.txt; echo "fatal: boom" >&2; exit 128;;\nesac\nexec REAL_GIT "$@"\n`;
+      const declined = listAt(
+        run(dir, ["restore"], makeBin(wrapper)).json,
+        "declined",
+      );
+
+      expect(declined).toMatchObject([{ reason: "switch-incomplete" }]);
+      expect(declined[0]?.command).toBe(switchCommand(dir, "main", true));
+    });
+
+    const partWay = `#!/bin/sh\ncase "$*" in\n*"switch --detach --no-overwrite-ignore"*) echo dirt >> notes.txt; echo "fatal: smudge failed" >&2; exit 128;;\nesac\nexec REAL_GIT "$@"\n`;
+
+    it("marks an entry the refusal kept and keeps the record readable for plan, restore and forget", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      run(dir, ["enter", "checkout", head], makeBin(partWay));
+
+      expect(readRecord(dir).entries[0]).toMatchObject({ incomplete: true });
+      expect(plan(dir, head)).toMatchObject({
+        record: { entries: [{ incomplete: true }] },
+      });
+      expect(run(dir, ["restore"]).json).toHaveProperty("declined");
+      expect(run(dir, ["forget"]).json).toMatchObject({ forgotten: true });
+    });
+
+    it("prints the discard command for a marked entry that is back but dirty, and that command lets a second restore succeed", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      run(dir, ["enter", "checkout", head], makeBin(partWay));
+
+      const declined = listAt(run(dir, ["restore"]).json, "declined");
+
+      expect(declined).toMatchObject([
+        { reason: "back-but-dirty", dirtyPaths: ["notes.txt"] },
+      ]);
+      expect(declined[0]?.command).toBe(switchCommand(dir, "main", true));
+
+      const command = String(declined[0]?.command);
+      const ran = spawnSync("sh", ["-c", command], {
+        cwd: dir,
+        encoding: "utf8",
+        env: sandboxRoot.env(),
+      });
+
+      expect(ran.status).toBe(0);
+
+      const after = run(dir, ["restore"]);
+
+      expect(after.status).toBe(0);
+      expect(listAt(after.json, "restored")).toMatchObject([
+        { alreadyBack: true },
+      ]);
+      expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("prints no command for an entry nobody marked", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+      git(dir, "switch", "-q", "main");
+      write(dir, "notes.txt", "edited\n");
+
+      const declined = listAt(run(dir, ["restore"]).json, "declined");
+
+      expect(declined[0]).not.toHaveProperty("command");
     });
   });
 });
