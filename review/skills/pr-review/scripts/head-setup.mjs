@@ -989,12 +989,11 @@ function requireCompleteClone(inside) {
   }
 
   const detail =
-    status.failed ?? `${status.paths.length} paths differ from the head`;
+    status.failed === undefined
+      ? `the clone differs from the head after the switch (${status.paths.length} paths)`
+      : `git status failed in the clone after the switch (${status.failed})`;
 
-  return {
-    status: 1,
-    stderr: `the clone is incomplete after the switch: ${detail}`,
-  };
+  return { status: 1, stderr: detail };
 }
 
 function isTrue(value) {

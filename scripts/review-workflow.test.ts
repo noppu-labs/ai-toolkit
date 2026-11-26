@@ -779,7 +779,8 @@ function isPrompt(value: unknown): value is Prompt {
     isRecord(value) &&
     typeof value.label === "string" &&
     typeof value.phase === "string" &&
-    typeof value.prompt === "string"
+    typeof value.prompt === "string" &&
+    "schema" in value
   );
 }
 
