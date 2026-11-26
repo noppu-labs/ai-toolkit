@@ -86,4 +86,4 @@ Requirements: Claude Code 2.1.248 or later with dynamic workflows enabled. The w
 
 Permissions: an interactive session asks before the first run and offers "don't ask again for `pr-review-stages`" per project; auto mode asks on the first launch only; `claude -p` and the Agent SDK never prompt and need the allow rule `Workflow(review:pr-review-stages)`.
 
-The stage prompts and the brief instructions live in `skills/pr-review/SKILL.md`; the script carries verbatim copies, and `scripts/review-workflow.test.ts` in this repository fails when they differ. To change step 2 or a stage prompt, edit SKILL.md first, then copy the new text into the script's template constant, escaping backslashes, backticks, and `${`.
+The stage prompts and the brief instructions live in `skills/pr-review/SKILL.md`; the script carries verbatim copies, and `scripts/review-workflow/prompts.test.ts` in this repository fails when they differ. To change step 2 or a stage prompt, edit SKILL.md first, then copy the new text into the script's template constant, escaping backslashes, backticks, and `${`.
