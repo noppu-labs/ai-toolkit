@@ -2,10 +2,9 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
+import { resolveExecutable } from "./resolve-executable.ts";
 
-export const realGit: string = spawnSync("sh", ["-c", "command -v git"], {
-  encoding: "utf8",
-}).stdout.trim();
+export const realGit: string = resolveExecutable("git");
 
 export type GitResult = {
   status: number | null;
