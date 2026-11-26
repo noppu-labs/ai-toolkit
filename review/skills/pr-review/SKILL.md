@@ -71,7 +71,7 @@ Ask only when a tool that puts a question to the user is listed: `AskUserQuestio
 - When the prompt names no setup, one that says not to ask, or not to modify the checkout, means continue as is, gets no setup line, and asks nothing, the leftover-record question included. Describing the checkout (it is at the PR head, it is disposable) is not naming a setup, and neither is "install it if missing" and similar.
 - When no setup is named and no question can be asked, or the question is cancelled or gets no answer, go on as if the user chose to continue as is.
 
-When a question can be asked and no prompt named a setup or said not to ask or not to modify the checkout, run the plan first, even when no PR's `<HEAD_SHA>` differs from the working tree's commit, and ask the leftover-record question when it reports a record. Only then skip the rest of this section when no PR differs.
+When a question can be asked and no prompt named a setup or said not to ask or not to modify the checkout, run the plan first, even when no PR's `<HEAD_SHA>` differs from the working tree's commit, and ask the leftover-record question when it reports a record. Every run then skips the rest of this section when no PR differs.
 
 Unless the setup is continue as is, run the plan once for every PR before asking or acting, and the hints script for each PR whose `<HEAD_SHA>` differs from the working tree's commit. The plan takes the heads in merge order and treats the last one as the check-out target:
 

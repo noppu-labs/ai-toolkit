@@ -419,7 +419,7 @@ const GATE_SENTENCES: readonly string[] = [
 // the workflow's prompts stay as they were.
 const RECORD_FIRST_SENTENCES: readonly string[] = [
   "When a question can be asked and no prompt named a setup or said not to ask or not to modify the checkout, run the plan first, even when no PR's `<HEAD_SHA>` differs from the working tree's commit, and ask the leftover-record question when it reports a record.",
-  "Only then skip the rest of this section when no PR differs.",
+  "Every run then skips the rest of this section when no PR differs.",
 ];
 
 // COR-13: an `enter` killed before it printed its id.
