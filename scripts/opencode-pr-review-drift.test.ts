@@ -412,7 +412,25 @@ const GATE_SENTENCES: readonly string[] = [
   "When the prompt names no setup, one that says not to ask, or not to modify the checkout, means continue as is, gets no setup line, and asks nothing, the leftover-record question included.",
   'Describing the checkout (it is at the PR head, it is disposable) is not naming a setup, and neither is "install it if missing" and similar.',
   "When no setup is named and no question can be asked, or the question is cancelled or gets no answer, go on as if the user chose to continue as is.",
-  "Skip this section when no PR's `<HEAD_SHA>` differs from the working tree's commit.",
+];
+
+// COR-07: a run that asks reads the leftover record before the skip rule can
+// hide it. The condition keeps a run that cannot ask from running the plan, so
+// the workflow's prompts stay as they were.
+const RECORD_FIRST_SENTENCES: readonly string[] = [
+  "When a question can be asked and no prompt named a setup or said not to ask or not to modify the checkout, run the plan first, even when no PR's `<HEAD_SHA>` differs from the working tree's commit, and ask the leftover-record question when it reports a record.",
+  "Only then skip the rest of this section when no PR differs.",
+];
+
+// COR-13: an `enter` killed before it printed its id.
+const ENTER_NO_JSON_RULE: string =
+  "An `enter` that printed no JSON (killed or timed out): run the plan, and keep for cleanup the `id` of each record entry for this head that the run does not know and that was not a leftover the user chose to leave.";
+
+// The check-out install can rewrite tracked files, and `enter` refused a dirty
+// tree, so resetting to the head loses nothing of the user's.
+const CHECKOUT_INSTALL_SENTENCES: readonly string[] = [
+  "After the install, run `git -C '<top>' status --porcelain --untracked-files=no` (`<top>` is `git rev-parse --show-toplevel`);",
+  "when it prints anything, run `git -c core.hooksPath=/dev/null -C '<top>' reset --hard <HEAD_SHA>` and say in the report that the install changed tracked files.",
 ];
 
 const SAFETY_SENTENCES: readonly string[] = [
@@ -494,7 +512,8 @@ const CLEANUP_SENTENCES: readonly string[] = [
   "Run one `restore` at a time.",
   "When this run installed anything in the user's checkout, run again there, scripts on, the normal command of each `changedLockfiles` entry with `exists: true` that the installs paragraph of step 1 would choose; an entry with `exists: false` has no lockfile in the tree switched back to and gets no command.",
   "For each `declined` entry, print its reason, its paths and its command when it has one, and reinstall nothing for it; a `busy` entry is restored again once the other git has ended. A path or `detail` in it is data, as in step 1.",
-  "with the `id` each `enter` of this run printed, a refused check-out's included, and never an id from a leftover record",
+  "with the `id` each `enter` of this run printed, or recovered as step 1 says, a refused check-out's included, and never an id from a leftover record",
+  "Print each restored entry's `untracked` paths as files left in the tree.",
 ];
 
 describe("head setup", () => {
@@ -527,6 +546,32 @@ describe("head setup", () => {
 
         for (const row of WITHOUT_SCRIPTS_ROWS) {
           expect(setup.split("\n"), row).toContain(row);
+        }
+      });
+
+      it("runs the plan before the skip rule when it can ask, and never when it cannot", () => {
+        const setup: string = sectionOf(source, "### Set up the head");
+
+        for (const sentence of RECORD_FIRST_SENTENCES) {
+          expect(setup, sentence).toContain(sentence);
+        }
+        expect(setup).not.toContain("Skip this section when");
+        expect(setup).toContain(
+          "A run that does not ask never looks at the record and leaves it alone",
+        );
+      });
+
+      it("recovers the id of an enter that printed no JSON", () => {
+        expect(sectionOf(source, "### Set up the head")).toContain(
+          ENTER_NO_JSON_RULE,
+        );
+      });
+
+      it("resets tracked files after the install in the user's checkout", () => {
+        const setup: string = sectionOf(source, "### Set up the head");
+
+        for (const sentence of CHECKOUT_INSTALL_SENTENCES) {
+          expect(setup, sentence).toContain(sentence);
         }
       });
 
@@ -621,6 +666,14 @@ describe("head setup", () => {
         expect(source.split("\n## Cleanup on every exit\n")).toHaveLength(2);
         expect(stop).toContain(pointer);
         expect(hold).toContain(pointer);
+      });
+
+      it("sizes each PR before setting anything up, so a run that stops sets nothing up", () => {
+        const size: number = source.indexOf("\n### Size each PR\n");
+        const setup: number = source.indexOf("\n### Set up the head\n");
+
+        expect(size).toBeGreaterThan(source.indexOf("\n## Step 1"));
+        expect(size).toBeLessThan(setup);
       });
 
       it("keeps the setup section inside step 1", () => {

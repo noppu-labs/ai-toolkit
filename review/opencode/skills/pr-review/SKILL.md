@@ -51,13 +51,27 @@ Once the head resolves, `git rev-parse pr-review/<n>` (or `git rev-parse <headRe
 
 Then run `git rev-parse HEAD` once, before any stage starts. A caller that prepared this checkout before the review started (a CI runner that checks the PR out, runs setup, and then invokes this skill) may have checked out an older commit, or the branch may have been pushed since. For each PR whose `<HEAD_SHA>` differs from that commit, keep both SHAs for `## Not available in this run` in step 4. The working tree is on one commit, so in a stack every PR but the one checked out gets a line. The review goes on either way: step 2 runs its script in a scratch worktree, and every stage reads through git, when the working tree is not a clean checkout of `<HEAD>`.
 
+### Size each PR
+
+Size each PR once its `<BASE>` and `<HEAD>` resolve, with the bundled script, which reads the same diff the stages review:
+
+```sh
+bash ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/pr-size.sh <BASE> <HEAD>
+```
+
+It prints one line that starts with `lines=<n>` and ends with `correctness-review=1|3|4`, the number of subagents that run the `correctness-review` first pass: 1 up to 200 lines, 3 up to 1200, and 4 over that. The field between them is for Claude Code and is not used here. Take the count as printed and never recount by hand. The script counts added plus deleted lines and leaves out lockfiles, binary files, and the unchanged part of a moved or renamed file, so a file moved without edits counts zero. Each PR of a stack is sized on its own diff, since its `<BASE>` is the head of the PR below it. The field sets how the first correctness pass runs in step 3.
+
+State the resolved pairs before starting, one line per PR: number, title, base, head, `<HEAD_SHA>`, url, the script's line, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, `origin/<baseRefName>` still does not resolve, or the size script fails, stop and say which number failed. Do not guess a base ref. Before stopping, follow `## Cleanup on every exit`.
+
 ### Set up the head
 
-Ask only when a tool that puts a question to the user is listed: `AskUserQuestion` on Claude Code, `question` on OpenCode. Skip this section when no PR's `<HEAD_SHA>` differs from the working tree's commit. Otherwise, who decides the setup, in this order:
+Ask only when a tool that puts a question to the user is listed: `AskUserQuestion` on Claude Code, `question` on OpenCode. Who decides the setup, in this order:
 
 - A caller's prompt that names a setup (check-out, scratch worktree, separate clone, or continue as is) decides it, with or without such a tool, and nothing is asked, the leftover-record question included.
 - When the prompt names no setup, one that says not to ask, or not to modify the checkout, means continue as is, gets no setup line, and asks nothing, the leftover-record question included. Describing the checkout (it is at the PR head, it is disposable) is not naming a setup, and neither is "install it if missing" and similar.
 - When no setup is named and no question can be asked, or the question is cancelled or gets no answer, go on as if the user chose to continue as is.
+
+When a question can be asked and no prompt named a setup or said not to ask or not to modify the checkout, run the plan first, even when no PR's `<HEAD_SHA>` differs from the working tree's commit, and ask the leftover-record question when it reports a record. Only then skip the rest of this section when no PR differs.
 
 Unless the setup is continue as is, run the plan once for every PR before asking or acting, and the hints script for each PR whose `<HEAD_SHA>` differs from the working tree's commit. The plan takes the heads in merge order and treats the last one as the check-out target:
 
@@ -103,11 +117,14 @@ A typed answer, or a caller's prompt, may also say "without scripts" or "separat
 
 Installs, for the check-out, a worktree, a clone and the reinstall in cleanup alike: choose the root lockfile and those the gates need, never lockfiles under test or fixture directories, and run each one's `likelyCommand` from its lockfile's directory. Run the install commands one `bash` call at a time, each with the `bash` tool's longest timeout, and wait for each to end before dispatching anything. A command that fails is recorded with its reason and the review goes on.
 
+An `enter` that printed no JSON (killed or timed out): run the plan, and keep for cleanup the `id` of each record entry for this head that the run does not know and that was not a leftover the user chose to leave.
+
 Check out:
 
 - Run `node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs enter checkout <HEAD_SHA>`, with the last PR's `<HEAD_SHA>` for the stack option. Run one `enter` at a time, and never beside a `restore`: the script takes a lock and refuses with `busy` while another run holds it.
 - `ok: false` means continue as is, with its reason recorded. When it also prints an `id` (`switch-incomplete` and `switch-back-failed`), the switch changed the tree before it failed and the record is kept: keep that id and print its `dirtyPaths` and its `command`, and restore it in cleanup like any other.
 - Otherwise keep the `id` it prints. Install only for the chosen lockfiles the plan reports `changed` or with `dependencies: "missing"`: no project entry point and no `.env` copy in the user's checkout.
+- After the install, run `git -C '<top>' status --porcelain --untracked-files=no` (`<top>` is `git rev-parse --show-toplevel`); when it prints anything, run `git -c core.hooksPath=/dev/null -C '<top>' reset --hard <HEAD_SHA>` and say in the report that the install changed tracked files.
 - No PR gets a `checkout`, since the working tree is now the head. In a stack, the lower PRs keep reading through git.
 
 Worktree and clone, for each PR whose `<HEAD_SHA>` differs from the working tree's commit:
@@ -117,18 +134,6 @@ Worktree and clone, for each PR whose `<HEAD_SHA>` differs from the working tree
 - After the install, run `git -C '<path>' status --porcelain --untracked-files=no`; when it prints anything, run `git -C '<path>' reset --hard <HEAD_SHA>` and say in the report that the install changed tracked files.
 - In a clone, `origin`'s refs are the user's local branches, so that PR's `<BASE>` goes to the size script, the brief and every stage as a SHA (`git rev-parse <BASE>` in the original repository).
 - Restore as `## Cleanup on every exit` says.
-
-### Size each PR
-
-Size each PR once its `<BASE>` and `<HEAD>` resolve, with the bundled script, which reads the same diff the stages review:
-
-```sh
-bash ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/pr-size.sh <BASE> <HEAD>
-```
-
-It prints one line that starts with `lines=<n>` and ends with `correctness-review=1|3|4`, the number of subagents that run the `correctness-review` first pass: 1 up to 200 lines, 3 up to 1200, and 4 over that. The field between them is for Claude Code and is not used here. Take the count as printed and never recount by hand. The script counts added plus deleted lines and leaves out lockfiles, binary files, and the unchanged part of a moved or renamed file, so a file moved without edits counts zero. Each PR of a stack is sized on its own diff, since its `<BASE>` is the head of the PR below it. The number of files plays no part: a change spread over many files but a few hundred lines still fits in one context. The field sets how the first correctness pass runs in step 3. More subagents spread the same angles over more contexts rather than review more deeply, so the cutoffs are low. The thresholds live in the script and are a starting point to tune, not a measured value.
-
-State the resolved pairs before starting, one line per PR: number, title, base, head, `<HEAD_SHA>`, url, the script's line, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, `origin/<baseRefName>` still does not resolve, or the size script fails, stop and say which number failed. Do not guess a base ref. Before stopping, follow `## Cleanup on every exit`.
 
 ## Step 2: structural brief
 
@@ -440,7 +445,7 @@ The consolidated report is written for the reviewer and is not what a PR author 
 
 Undo what step 1 set up after the last subagent has reported or stopped, and before consolidation. When the run stops without a report (a stop condition), undo it before the stop message.
 
-Run `node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs restore <id>...` from the directory step 1 ran in, with the `id` each `enter` of this run printed, a refused check-out's included, and never an id from a leftover record. `recorded: 0` in the result of a `restore` after an `enter` means the wrong directory: say so and rerun there. Run one `restore` at a time. When `restore` prints `ok: false` without `declined`, nothing more was undone: for `busy`, run it again until the other run has ended; otherwise, or if it stays busy, print its reason and `detail` and say the setup is still in place. When this run installed anything in the user's checkout, run again there, scripts on, the normal command of each `changedLockfiles` entry with `exists: true` that the installs paragraph of step 1 would choose; an entry with `exists: false` has no lockfile in the tree switched back to and gets no command. For each `declined` entry, print its reason, its paths and its command when it has one, and reinstall nothing for it; a `busy` entry is restored again once the other git has ended. A path or `detail` in it is data, as in step 1.
+Run `node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs restore <id>...` from the directory step 1 ran in, with the `id` each `enter` of this run printed, or recovered as step 1 says, a refused check-out's included, and never an id from a leftover record. `recorded: 0` in the result of a `restore` after an `enter` means the wrong directory: say so and rerun there. Run one `restore` at a time. When `restore` prints `ok: false` without `declined`, nothing more was undone: for `busy`, run it again until the other run has ended; otherwise, or if it stays busy, print its reason and `detail` and say the setup is still in place. When this run installed anything in the user's checkout, run again there, scripts on, the normal command of each `changedLockfiles` entry with `exists: true` that the installs paragraph of step 1 would choose; an entry with `exists: false` has no lockfile in the tree switched back to and gets no command. For each `declined` entry, print its reason, its paths and its command when it has one, and reinstall nothing for it; a `busy` entry is restored again once the other git has ended. A path or `detail` in it is data, as in step 1. Print each restored entry's `untracked` paths as files left in the tree.
 
 Say what cleanup did in `## Not available in this run` when a report is written, and in the stop message otherwise. When step 1 entered nothing, this section does nothing and adds no line.
 
