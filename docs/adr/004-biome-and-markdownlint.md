@@ -43,9 +43,10 @@ One exclusion, which is not an override: `review/workflows/` holds Claude Code w
 scripts. The runtime executes a workflow script as the body of a function (its result is
 a top-level `return`, and an extra `export` is a syntax error), so Biome cannot parse it
 at all, and no rule could be relaxed to admit it. The folder is excluded from Biome through
-`files.includes`, and `scripts/review-workflow/prompts.test.ts` compiles every script there
-through a function wrapper like the runtime's, and runs `pr-review-stages.js` through it
-with fake runtime globals, which is the parse and behaviour check. See ADR-009.
+`files.includes`, and `scripts/review-workflow/script.test.ts` compiles every script there
+through a function wrapper like the runtime's, and the tests in `scripts/review-workflow/`
+run `pr-review-stages.js` through it with fake runtime globals, which is the parse and
+behaviour check. See ADR-009.
 
 ## Consequences
 
