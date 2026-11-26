@@ -13,7 +13,7 @@ import {
   registerSandbox,
   run,
   sandbox,
-  scratch,
+  scratchDir,
   scratchEntries,
   write,
   writeRecord,
@@ -31,7 +31,7 @@ describe("head-setup.mjs", () => {
       expect(entered.status).toBe(0);
       expect(entered.json).toMatchObject({ kind: "worktree", headSha: head });
       expect(path).toMatch(/pr-review-[^/]+\/head$/);
-      expect(path.startsWith(scratch)).toBe(true);
+      expect(path.startsWith(scratchDir())).toBe(true);
       expect(headOf(path)).toBe(head);
       expect(git(dir, "worktree", "list", "--porcelain")).toContain(path);
 

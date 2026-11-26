@@ -17,7 +17,7 @@ import {
   registerSandbox,
   run,
   sandboxRoot,
-  scratch,
+  scratchDir,
   scratchEntries,
   script,
 } from "./helpers.ts";
@@ -42,7 +42,7 @@ describe("head-setup.mjs", () => {
       return new Promise((resolveRun, reject) => {
         const child = spawn(process.execPath, [script, ...args], {
           cwd,
-          env: sandboxRoot.env({ PATH: bin, TMPDIR: scratch }),
+          env: sandboxRoot.env({ PATH: bin, TMPDIR: scratchDir() }),
         });
         let out = "";
 

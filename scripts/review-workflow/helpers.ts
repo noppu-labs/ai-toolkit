@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { runInNewContext } from "node:vm";
 import fc from "fast-check";
 
 export type Instructions = Partial<Record<InstructionKey, string>>;
@@ -185,7 +186,7 @@ export function readMetaOf(text: string): Meta {
     throw new Error("meta literal not found at the top of the script");
   }
 
-  const parsed: unknown = new Function(`return (${match[1]});`)();
+  const parsed: unknown = runInNewContext(`(${match[1]})`);
 
   if (!isMeta(parsed)) {
     throw new Error("meta literal has an unexpected shape");

@@ -10,7 +10,10 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { afterAll, beforeEach } from "vitest";
+import { resolveExecutable } from "../resolve-executable.ts";
 import { makeSandbox, realGit, type Sandbox } from "../review-test-git.ts";
+
+const shell = resolveExecutable("sh");
 
 export const script = join(
   import.meta.dirname,
@@ -29,18 +32,15 @@ export type Fixture = { dir: string; base: string; head: string };
 export type Outcome = { status: number | null; json: Json; stderr: string };
 type CommitOptions = { links?: Files; executable?: string[] };
 
-export let sandboxRoot: Sandbox;
-export let sandbox: string;
-export let scratch: string;
+// Vitest loads this module once per test file, so each file gets its own
+// sandbox.
+export const sandboxRoot: Sandbox = makeSandbox("review-head-setup-");
+export const sandbox: string = sandboxRoot.root;
+let scratch = join(sandbox, "scratch");
 let counter = 0;
 
-// Each test file calls this once at module level. The exported bindings are
-// live, so a test body reads the current sandbox and scratch directory.
+// Each test file calls this once at module level.
 export function registerSandbox(): void {
-  sandboxRoot = makeSandbox("review-head-setup-");
-  sandbox = sandboxRoot.root;
-  scratch = join(sandbox, "scratch");
-
   beforeEach(() => {
     scratch = nextPath("scratch");
     mkdirSync(scratch);
@@ -49,6 +49,10 @@ export function registerSandbox(): void {
   afterAll(() => {
     sandboxRoot.dispose();
   });
+}
+
+export function scratchDir(): string {
+  return scratch;
 }
 
 export function nextPath(label: string): string {
@@ -196,7 +200,7 @@ export function switchCommand(
 
 function runShell(command: string, cwd: string): void {
   sandboxRoot.assertInside(cwd);
-  spawnSync("sh", ["-c", command], {
+  spawnSync(shell, ["-c", command], {
     cwd,
     encoding: "utf8",
     env: sandboxRoot.env(),

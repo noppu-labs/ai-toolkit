@@ -49,13 +49,12 @@ const SCHEMA_KEYWORDS = new Set([
 ]);
 const SCHEMA_ANNOTATIONS = new Set(["$schema", "title", "description"]);
 
-export let sandbox: Sandbox;
+// Vitest loads this module once per test file, so each file gets its own
+// sandbox.
+export const sandbox: Sandbox = makeSandbox("review-install-hints-");
 
-// Each test file calls this once at module level. The exported binding is
-// live, so a test body reads the current sandbox.
+// Each test file calls this once at module level.
 export function registerSandbox(): void {
-  sandbox = makeSandbox("review-install-hints-");
-
   afterAll(() => {
     sandbox.dispose();
   });
