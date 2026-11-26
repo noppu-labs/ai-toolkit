@@ -398,9 +398,9 @@ describe("install-hints.mjs", () => {
     rmSync(join(cwd, "composer.lock"));
     commitFiles(cwd, { "package-lock.json": "{}\n" });
 
-    const result = run(cwd, sha);
+    const result = hintsFor(cwd, sha);
 
-    expect(JSON.parse(result.stdout).lockfiles).toEqual([
+    expect(result.lockfiles).toEqual([
       {
         path: "composer.lock",
         manager: "composer",

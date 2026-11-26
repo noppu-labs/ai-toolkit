@@ -770,17 +770,36 @@ describe("instructions", () => {
 
 type Baseline = { prompts: Prompt[]; report: string; counts: Counts[] };
 
-function isBaseline(value: unknown): value is Baseline {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
-  const record = value as Record<string, unknown>;
-
+function isPrompt(value: unknown): value is Prompt {
   return (
-    Array.isArray(record.prompts) &&
-    typeof record.report === "string" &&
-    Array.isArray(record.counts)
+    isRecord(value) &&
+    typeof value.label === "string" &&
+    typeof value.phase === "string" &&
+    typeof value.prompt === "string"
+  );
+}
+
+function isCounts(value: unknown): value is Counts {
+  return (
+    isRecord(value) &&
+    Object.values(value).every(
+      (count) => typeof count === "number" || count === null,
+    )
+  );
+}
+
+function isBaseline(value: unknown): value is Baseline {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.prompts) &&
+    value.prompts.every(isPrompt) &&
+    typeof value.report === "string" &&
+    Array.isArray(value.counts) &&
+    value.counts.every(isCounts)
   );
 }
 
