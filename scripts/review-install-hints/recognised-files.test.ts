@@ -144,4 +144,13 @@ describe("install-hints.mjs", () => {
       );
     });
   });
+
+  describe("example env file", () => {
+    it("prefers .env.example over .env.dist", () => {
+      expect(hints({ ".env.dist": "A=1\n" }).envExample).toBe(".env.dist");
+      expect(
+        hints({ ".env.dist": "A=1\n", ".env.example": "A=1\n" }).envExample,
+      ).toBe(".env.example");
+    });
+  });
 });

@@ -29,13 +29,6 @@ describe("install-hints.mjs", () => {
     ]);
   });
 
-  it("prefers .env.example over .env.dist", () => {
-    expect(hints({ ".env.dist": "A=1\n" }).envExample).toBe(".env.dist");
-    expect(
-      hints({ ".env.dist": "A=1\n", ".env.example": "A=1\n" }).envExample,
-    ).toBe(".env.example");
-  });
-
   it("reports which implied tools are on PATH", () => {
     const result = hints(
       { "composer.lock": "{}\n", "pnpm-lock.yaml": "x\n" },

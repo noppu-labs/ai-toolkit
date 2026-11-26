@@ -31,7 +31,7 @@ const ignoreWrapper = (extra: string): string =>
   `#!/bin/sh\ncase "$*" in\n${extra}esac\nexec REAL_GIT "$@"\n`;
 
 describe("head-setup.mjs", () => {
-  describe("a switch that fails part-way", () => {
+  describe("a switch to the head that fails", () => {
     const partWay = `#!/bin/sh\ncase "$*" in\n*"switch --detach --no-overwrite-ignore"*) echo dirt >> notes.txt; echo "fatal: smudge failed" >&2; exit 128;;\nesac\nexec REAL_GIT "$@"\n`;
 
     function flagWrapper(switchBody: string, flag: string): string {
