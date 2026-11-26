@@ -551,6 +551,33 @@ describe("install-hints.mjs", () => {
     ]);
   });
 
+  it("reports the plugin, package and dependencies events as hooks, not entry points", () => {
+    const result = hints({
+      "package.json": JSON.stringify({ scripts: { dependencies: "d" } }),
+      "composer.json": JSON.stringify({
+        scripts: {
+          command: "c",
+          "pre-package-update": "a",
+          "post-package-update": "b",
+          "pre-package-uninstall": "e",
+          "post-package-uninstall": "f",
+          "post-file-download": "g",
+        },
+      }),
+    });
+
+    expect(result.entryPoints).toEqual([]);
+    expect(result.installHooks).toEqual([
+      { path: "composer.json", name: "command", command: "c" },
+      { path: "composer.json", name: "post-file-download", command: "g" },
+      { path: "composer.json", name: "post-package-uninstall", command: "f" },
+      { path: "composer.json", name: "post-package-update", command: "b" },
+      { path: "composer.json", name: "pre-package-uninstall", command: "e" },
+      { path: "composer.json", name: "pre-package-update", command: "a" },
+      { path: "package.json", name: "dependencies", command: "d" },
+    ]);
+  });
+
   it("lists init headings in docs", () => {
     const result = hints({ "README.md": "# T\n## Init the project\n" });
 
@@ -766,6 +793,46 @@ describe("install-hints.mjs", () => {
       );
     });
 
+    const installDirCases: [string, string, string, string][] = [
+      ["npm", "package-lock.json", "node_modules", ""],
+      ["composer", "composer.lock", "vendor", "app/"],
+      ["uv", "uv.lock", ".venv", ""],
+      ["yarn", "yarn.lock", ".pnp.cjs", "web/"],
+    ];
+
+    it.each(installDirCases)(
+      "leaves a %s lockfile out when its directory tracks %s as a symlink",
+      (_manager, lockfile, name, dir) => {
+        const result = hints({ [`${dir}${lockfile}`]: "x\n" }, undefined, {
+          [`${dir}${name}`]: "/tmp/elsewhere",
+        });
+
+        expect(result.lockfiles).toEqual([]);
+        expect(result.skipped).toEqual([
+          { path: `${dir}${name}`, reason: "symlinked-install-dir" },
+        ]);
+      },
+    );
+
+    it("keeps a lockfile whose sibling directory has an install directory symlink", () => {
+      const result = hints(
+        { "a/package-lock.json": "{}\n", "b/package-lock.json": "{}\n" },
+        undefined,
+        { "b/node_modules": "/tmp/elsewhere" },
+      );
+
+      expect(result.lockfiles).toEqual([
+        {
+          path: "a/package-lock.json",
+          manager: "npm",
+          likelyCommand: "npm ci",
+        },
+      ]);
+      expect(result.skipped).toEqual([
+        { path: "b/node_modules", reason: "symlinked-install-dir" },
+      ]);
+    });
+
     it("skips a symlinked .env.example and falls back to .env.dist", () => {
       const result = hints({ ".env.dist": "A=1\n" }, undefined, {
         ".env.example": "/etc/passwd",
@@ -907,6 +974,7 @@ describe("install-hints.mjs", () => {
         "unreadable",
         "invalid-json",
         "unsafe-path",
+        "symlinked-install-dir",
       ]);
     });
   });

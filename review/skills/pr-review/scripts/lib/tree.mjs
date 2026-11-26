@@ -60,6 +60,7 @@ export function makeSource(git, sha, entries) {
   return {
     has: (path) => entries.has(path),
     blob: (path) => entries.get(path)?.blob ?? null,
+    mode: (path) => entries.get(path)?.mode ?? null,
     paths: () => [...entries.keys()],
     admit,
     read,

@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import { isSafePath, isVendored } from "./paths.mjs";
+import { dirOf, isSafePath, isVendored, pathIn } from "./paths.mjs";
 
 export const LOCKFILES = new Map([
   ["composer.lock", { manager: "composer", command: "composer install" }],
@@ -17,6 +17,23 @@ export const LOCKFILES = new Map([
   ["go.sum", { manager: "go", command: "go mod download" }],
 ]);
 
+const INSTALL_DIRS = ["node_modules", "vendor", ".venv", ".pnp.cjs"];
+
+// An install writes into these entries, so a tracked symlink there would send the
+// install outside the tree.
+function symlinkedInstallDir(src, path) {
+  const dir = dirOf(path);
+  const link = INSTALL_DIRS.map((name) => pathIn(dir, name)).find(
+    (candidate) => src.mode(candidate) === "120000",
+  );
+
+  if (link !== undefined) {
+    src.skip(link, "symlinked-install-dir");
+  }
+
+  return link !== undefined;
+}
+
 export function recognisedLockfile(src, path) {
   const entry = LOCKFILES.get(posix.basename(path));
 
@@ -30,5 +47,11 @@ export function recognisedLockfile(src, path) {
     src.skip(path, "unsafe-path");
   }
 
-  return src.admit(path) && safe ? entry : null;
+  const admitted = src.admit(path);
+
+  if (!safe || !admitted || symlinkedInstallDir(src, path)) {
+    return null;
+  }
+
+  return entry;
 }

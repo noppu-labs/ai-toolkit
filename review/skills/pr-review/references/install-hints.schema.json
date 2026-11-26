@@ -111,7 +111,7 @@
       "type": ["string", "null"]
     },
     "skipped": {
-      "description": "Files the script would otherwise have read or listed, with the reason it did not: a symlink or submodule is never read, an unreadable file or a package.json or composer.json that is not a JSON object cannot be used, and a path with a character outside A-Z a-z 0-9 . _ / @ + space - or a segment starting with - is kept out of lockfiles, entryPoints and runtimes.",
+      "description": "Files the script would otherwise have read or listed, with the reason it did not: a symlink or submodule is never read, a lockfile whose directory tracks node_modules, vendor, .venv or .pnp.cjs as a symlink is left out of lockfiles and the symlink's path is listed, an unreadable file or a package.json or composer.json that is not a JSON object cannot be used, and a path with a character outside A-Z a-z 0-9 . _ / @ + space - or a segment starting with - is kept out of lockfiles, entryPoints and runtimes.",
       "type": "array",
       "items": {
         "type": "object",
@@ -126,7 +126,8 @@
               "submodule",
               "unreadable",
               "invalid-json",
-              "unsafe-path"
+              "unsafe-path",
+              "symlinked-install-dir"
             ]
           }
         }

@@ -424,6 +424,28 @@ describe("head-setup.mjs", () => {
       },
     );
 
+    it("never offers a lockfile whose directory tracks an install directory as a symlink", () => {
+      const { dir, head } = makeFixture(
+        { "web/package-lock.json": "1\n", "api/composer.lock": "1\n" },
+        { "web/package-lock.json": "2\n", "api/composer.lock": "2\n" },
+        { links: { "web/node_modules": "/tmp/elsewhere" } },
+      );
+      const lockfiles = headsOf({
+        status: 0,
+        json: plan(dir, head),
+        stderr: "",
+      })[0]?.lockfiles;
+
+      expect(lockfiles).toEqual([
+        {
+          path: "api/composer.lock",
+          manager: "composer",
+          changed: true,
+          dependencies: "missing",
+        },
+      ]);
+    });
+
     it.each([
       ["bundler", "Gemfile.lock"],
       ["go", "go.sum"],
