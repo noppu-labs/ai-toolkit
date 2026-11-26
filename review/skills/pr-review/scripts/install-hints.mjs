@@ -33,6 +33,7 @@ const NPM_HOOKS = [
   "prepare",
   "postprepare",
   "prepublish",
+  "dependencies",
   "pnpm:devPreinstall",
 ];
 const COMPOSER_HOOKS = [
@@ -46,6 +47,12 @@ const COMPOSER_HOOKS = [
   "pre-operations-exec",
   "pre-package-install",
   "post-package-install",
+  "command",
+  "pre-package-update",
+  "post-package-update",
+  "pre-package-uninstall",
+  "post-package-uninstall",
+  "post-file-download",
 ];
 
 const MANAGER_BINARIES = { bundler: "bundle" };
