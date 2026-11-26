@@ -818,7 +818,7 @@ describe("head-setup.mjs", () => {
     const dirtyingWrapper = (back: string): string =>
       `#!/bin/sh\ncase "$*" in\n*"switch --detach --no-overwrite-ignore"*) REAL_GIT "$@"; code=$?; echo dirt >> notes.txt; exit $code;;\n${back}esac\nexec REAL_GIT "$@"\n`;
 
-    it("switches back at once when the head leaves the tree changed", () => {
+    it("switches back at once when the head leaves the tree changed, and keeps the record while the change stays", () => {
       const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
       const outcome = run(
         dir,
@@ -828,11 +828,13 @@ describe("head-setup.mjs", () => {
 
       expect(outcome.status).toBe(1);
       expect(outcome.json).toMatchObject({
-        reason: "dirty-after-switch",
+        reason: "switch-incomplete",
+        id: readRecord(dir).entries[0]?.id,
         dirtyPaths: ["notes.txt"],
+        command: switchCommand(dir, "main", true),
       });
       expect(branchOf(dir)).toBe("main");
-      expect(existsSync(recordPath(dir))).toBe(false);
+      expect(readRecord(dir).entries).toHaveLength(1);
     });
 
     it("keeps the record and says so when it cannot switch back", () => {
@@ -1854,27 +1856,20 @@ describe("head-setup.mjs", () => {
   });
 
   describe("restore when the tree is already back", () => {
-    it("declines back-but-dirty while the tree has changes, tracked or not", () => {
+    it("declines back-but-dirty while a tracked file has changes", () => {
       const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
 
       enter(dir, "checkout", head);
       git(dir, "switch", "-q", "main");
-      write(dir, "mine.txt", "x\n");
+      write(dir, "notes.txt", "edited\n");
 
       const outcome = run(dir, ["restore"]);
 
       expect(outcome.status).toBe(1);
       expect(listAt(outcome.json, "declined")).toMatchObject([
-        { reason: "back-but-dirty", dirtyPaths: ["mine.txt"] },
-      ]);
-      expect(readRecord(dir).entries).toHaveLength(1);
-
-      rmSync(join(dir, "mine.txt"));
-      write(dir, "notes.txt", "edited\n");
-
-      expect(listAt(run(dir, ["restore"]).json, "declined")).toMatchObject([
         { reason: "back-but-dirty", dirtyPaths: ["notes.txt"] },
       ]);
+      expect(readRecord(dir).entries).toHaveLength(1);
     });
 
     it("still drops the entry once the tree is clean", () => {
@@ -1882,9 +1877,9 @@ describe("head-setup.mjs", () => {
 
       enter(dir, "checkout", head);
       git(dir, "switch", "-q", "main");
-      write(dir, "mine.txt", "x\n");
+      write(dir, "notes.txt", "edited\n");
       run(dir, ["restore"]);
-      rmSync(join(dir, "mine.txt"));
+      git(dir, "checkout", "--", "notes.txt");
 
       expect(listAt(run(dir, ["restore"]).json, "restored")).toMatchObject([
         { alreadyBack: true },
@@ -2994,6 +2989,191 @@ describe("head-setup.mjs", () => {
       for (const part of command.split(" && ")) {
         expect(part).toMatch(/^git (.* )?-C \S+ /);
       }
+    });
+  });
+  describe("round 4: what counts as a changed tree", () => {
+    const ignoreWrapper = (extra: string): string =>
+      `#!/bin/sh\ncase "$*" in\n${extra}esac\nexec REAL_GIT "$@"\n`;
+
+    it("does not refuse a check-out because the head's .gitignore stops ignoring a user file", () => {
+      const { dir, head } = makeFixture(
+        { ".gitignore": "coverage/\n" },
+        { ".gitignore": "" },
+      );
+
+      write(dir, "coverage/report.txt", "r\n");
+
+      const outcome = enter(dir, "checkout", head);
+
+      expect(outcome.status).toBe(0);
+      expect(outcome.json).toMatchObject({ ok: true, kind: "checkout" });
+      expect(headOf(dir)).toBe(head);
+      expect(readRecord(dir).entries).toHaveLength(1);
+    });
+
+    it("does not decline a restore because an install wrote an untracked file, and lists it", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+      write(dir, "z-install.log", "l\n");
+      write(dir, "a dir/out.txt", "o\n");
+
+      const outcome = run(dir, ["restore"]);
+
+      expect(outcome.status).toBe(0);
+      expect(listAt(outcome.json, "restored")).toMatchObject([
+        { untracked: ["a dir/", "z-install.log"] },
+      ]);
+      expect(branchOf(dir)).toBe("main");
+      expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("still declines a restore on a tracked change", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+      write(dir, "notes.txt", "edited\n");
+
+      const outcome = run(dir, ["restore"]);
+
+      expect(outcome.status).toBe(1);
+      expect(listAt(outcome.json, "declined")).toMatchObject([
+        { reason: "dirty", dirtyPaths: ["notes.txt"] },
+      ]);
+      expect(headOf(dir)).toBe(head);
+    });
+
+    it("lists the untracked paths of a tree that is already back", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+      git(dir, "switch", "-q", "main");
+      write(dir, "mine.txt", "x\n");
+
+      const outcome = run(dir, ["restore"]);
+
+      expect(outcome.status).toBe(0);
+      expect(listAt(outcome.json, "restored")).toMatchObject([
+        { alreadyBack: true, untracked: ["mine.txt"] },
+      ]);
+      expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("sees the files of a failed switch although status.showUntrackedFiles is no", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      git(dir, "config", "status.showUntrackedFiles", "no");
+
+      const wrapper = ignoreWrapper(
+        '*"switch --detach --no-overwrite-ignore"*) echo dirt > junk.txt; echo "fatal: smudge failed" >&2; exit 128;;\n',
+      );
+      const outcome = run(dir, ["enter", "checkout", head], makeBin(wrapper));
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({
+        reason: "switch-incomplete",
+        id: readRecord(dir).entries[0]?.id,
+        dirtyPaths: ["junk.txt"],
+      });
+    });
+
+    it("sees the files of a failed restore although status.showUntrackedFiles is no", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+      git(dir, "config", "status.showUntrackedFiles", "no");
+
+      const wrapper = ignoreWrapper(
+        '*"switch --no-guess --no-overwrite-ignore main"*) echo dirt > junk.txt; echo "fatal: boom" >&2; exit 128;;\n',
+      );
+      const outcome = run(dir, ["restore"], makeBin(wrapper));
+      const declined = listAt(outcome.json, "declined");
+
+      expect(declined).toMatchObject([
+        { reason: "switch-incomplete", dirtyPaths: ["junk.txt"] },
+      ]);
+      expect(readRecord(dir).entries).toHaveLength(1);
+    });
+
+    const dirtyHead = `*"switch --detach --no-overwrite-ignore"*) REAL_GIT "$@"; c=$?; echo dirt >> notes.txt; exit $c;;\n`;
+
+    it("drops the record when the tree is clean after the switch back", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const back = `*"switch --no-guess --no-overwrite-ignore main"*) REAL_GIT "$@" --discard-changes; exit $?;;\n`;
+      const outcome = run(
+        dir,
+        ["enter", "checkout", head],
+        makeBin(ignoreWrapper(dirtyHead + back)),
+      );
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({
+        reason: "dirty-after-switch",
+        dirtyPaths: ["notes.txt"],
+      });
+      expect(branchOf(dir)).toBe("main");
+      expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("keeps the record when the switch back exits 0 and leaves the tree dirty", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const back = `*"switch --no-guess --no-overwrite-ignore main"*) REAL_GIT "$@" --discard-changes; c=$?; echo stray > stray.txt; exit $c;;\n`;
+      const outcome = run(
+        dir,
+        ["enter", "checkout", head],
+        makeBin(ignoreWrapper(dirtyHead + back)),
+      );
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({
+        reason: "switch-incomplete",
+        id: readRecord(dir).entries[0]?.id,
+        dirtyPaths: ["stray.txt"],
+        command: switchCommand(dir, "main", true),
+      });
+      expect(String(outcome.json.detail)).toContain("discards every change");
+    });
+
+    function caseInsensitive(): boolean {
+      const probe = makeRepo();
+
+      return git(probe, "config", "--get", "core.ignorecase") === "true";
+    }
+
+    it("never drops the record of a head whose names differ only in case while the tree is changed", (context) => {
+      if (!caseInsensitive()) {
+        context.skip();
+      }
+
+      const dir = makeRepo({ "README.md": "mine\n" });
+      const base = git(dir, "rev-parse", "HEAD");
+      const listing = git(dir, "ls-tree", base);
+      const lowered = spawnSync(realGit, ["hash-object", "-w", "--stdin"], {
+        cwd: dir,
+        input: "head\n",
+        encoding: "utf8",
+        env: sandboxRoot.env(),
+      }).stdout.trim();
+
+      const tree = spawnSync(realGit, ["mktree"], {
+        cwd: dir,
+        input: `${listing}\n100644 blob ${lowered}\treadme.md\n`,
+        encoding: "utf8",
+        env: sandboxRoot.env(),
+      }).stdout.trim();
+      const head = git(dir, "commit-tree", tree, "-p", base, "-m", "case");
+      const outcome = enter(dir, "checkout", head);
+
+      const recorded = existsSync(recordPath(dir));
+      const clean = git(dir, "status", "--porcelain") === "";
+
+      expect(recorded || clean).toBe(true);
+      expect(recorded ? outcome.json.reason : "switch-incomplete").toBe(
+        "switch-incomplete",
+      );
+      expect(
+        clean ? readFileSync(join(dir, "README.md"), "utf8") : "mine\n",
+      ).toBe("mine\n");
     });
   });
 });

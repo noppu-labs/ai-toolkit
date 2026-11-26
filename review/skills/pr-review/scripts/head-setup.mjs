@@ -59,6 +59,13 @@ const SAFE_GIT = [
   "-c",
   "submodule.recurse=false",
 ];
+// Which paths count as a change. Before a switch and after one that failed,
+// every path does. After a switch that worked, an untracked file can only come
+// from a `.gitignore` that differs between the two commits, so only tracked
+// changes are damage.
+const ALL_CHANGES = { ignoreSubmodules: false, untracked: true };
+const ALL_CHANGES_NO_SUBMODULES = { ignoreSubmodules: true, untracked: true };
+const TRACKED_CHANGES = { ignoreSubmodules: true, untracked: false };
 const SESSION_PATHSPECS = [
   ":(icase).claude",
   ":(icase).mcp.json",
@@ -217,8 +224,16 @@ function requireCommit(ctx, sha) {
   }
 }
 
-function statusPaths(ctx, ignoreSubmodules) {
-  const args = ["status", "--porcelain", "-z", "--no-renames"];
+// The untracked setting is always passed: the user's
+// `status.showUntrackedFiles` must not decide what counts as a change.
+function statusRecords(ctx, { ignoreSubmodules, untracked }) {
+  const args = [
+    "status",
+    "--porcelain",
+    "-z",
+    "--no-renames",
+    `--untracked-files=${untracked ? "normal" : "no"}`,
+  ];
 
   if (ignoreSubmodules) {
     args.push("--ignore-submodules=all");
@@ -227,15 +242,31 @@ function statusPaths(ctx, ignoreSubmodules) {
   return ctx.git
     .text(args)
     .split("\0")
-    .filter((record) => record !== "")
-    .map((record) => showPath(record.slice(3)));
+    .filter((record) => record !== "");
+}
+
+function statusPaths(ctx, options) {
+  return statusRecords(ctx, options).map((record) => showPath(record.slice(3)));
+}
+
+// What a restore leaves in the tree: untracked paths are not damage, but the
+// person is told they stay.
+function untrackedPaths(ctx) {
+  try {
+    return statusRecords(ctx, ALL_CHANGES_NO_SUBMODULES)
+      .filter((record) => record.startsWith("?? "))
+      .map((record) => showPath(record.slice(3)))
+      .sort(compare);
+  } catch {
+    return [];
+  }
 }
 
 // A required clean filter that fails makes `git status` itself fail, so the
 // callers that must not lose the id ask for a result instead of an exception.
-function tryStatusPaths(ctx, ignoreSubmodules) {
+function tryStatusPaths(ctx, options) {
   try {
-    return { paths: statusPaths(ctx, ignoreSubmodules) };
+    return { paths: statusPaths(ctx, options) };
   } catch (error) {
     return { failed: showPath(String(error?.message ?? error)) };
   }
@@ -521,7 +552,7 @@ function runPlan(ctx, shas) {
   const treeSha = currentHead(ctx);
   const current = listLockfiles(ctx.git, treeSha);
   const loaded = loadRecord(ctx);
-  const clean = statusPaths(ctx, false).length === 0;
+  const clean = statusPaths(ctx, ALL_CHANGES).length === 0;
 
   return {
     ok: true,
@@ -623,7 +654,7 @@ function enterCheckout(ctx, sha, entries) {
     refuse("operation-in-progress", `${operation} exists in the git directory`);
   }
 
-  const dirty = statusPaths(ctx, false);
+  const dirty = statusPaths(ctx, ALL_CHANGES);
 
   if (dirty.length > 0) {
     refuse("dirty", "the working tree has changes", { dirtyPaths: dirty });
@@ -675,7 +706,7 @@ function refuseIncomplete(ctx, entry, reason, lead, dirtyPaths) {
 }
 
 function refuseFailedSwitch(ctx, entry, stderr) {
-  const status = tryStatusPaths(ctx, false);
+  const status = tryStatusPaths(ctx, ALL_CHANGES);
 
   if (status.failed === undefined && status.paths.length === 0) {
     dropEntry(ctx, entry.id);
@@ -703,7 +734,7 @@ function switchToHead(ctx, entry) {
     refuseFailedSwitch(ctx, entry, result.stderr.trim());
   }
 
-  const status = tryStatusPaths(ctx, true);
+  const status = tryStatusPaths(ctx, TRACKED_CHANGES);
 
   if (status.failed !== undefined) {
     refuseIncomplete(
@@ -730,6 +761,23 @@ function switchToHead(ctx, entry) {
       "switch-back-failed",
       `the head left the tree changed and switching back failed (${showPath(back.stderr.trim())})`,
       dirty,
+    );
+  }
+
+  // A switch back that exits 0 can still leave files behind: on a
+  // case-insensitive filesystem a head with `README.md` and `readme.md` makes
+  // it unlink the user's file. Only a clean tree lets the record go.
+  const after = tryStatusPaths(ctx, ALL_CHANGES);
+
+  if (after.failed !== undefined || after.paths.length > 0) {
+    refuseIncomplete(
+      ctx,
+      entry,
+      "switch-incomplete",
+      after.failed === undefined
+        ? "the head left the tree changed and the switch back left it changed too"
+        : `the head left the tree changed and git status failed after the switch back (${after.failed})`,
+      after.paths ?? [],
     );
   }
 
@@ -1034,7 +1082,7 @@ function restoreCheckout(ctx, entry) {
     );
   }
 
-  const status = tryStatusPaths(ctx, true);
+  const status = tryStatusPaths(ctx, TRACKED_CHANGES);
 
   if (status.failed !== undefined) {
     return declineStatus(ctx, entry, status.failed);
@@ -1065,13 +1113,16 @@ function restoreCheckout(ctx, entry) {
     return declineAfterFailedBack(ctx, entry, back.stderr.trim());
   }
 
-  return { restored: {}, lockfiles: lockfilesSince(ctx, entry) };
+  return {
+    restored: { untracked: untrackedPaths(ctx) },
+    lockfiles: lockfilesSince(ctx, entry),
+  };
 }
 
 // A switch back that fails may still have written files; then only the
 // discard form can work.
 function declineAfterFailedBack(ctx, entry, stderr) {
-  const status = tryStatusPaths(ctx, true);
+  const status = tryStatusPaths(ctx, ALL_CHANGES_NO_SUBMODULES);
 
   if (status.failed === undefined && status.paths.length === 0) {
     return declineCheckout(ctx, entry, "switch-failed", showPath(stderr));
@@ -1092,7 +1143,7 @@ function declineAfterFailedBack(ctx, entry, stderr) {
 // HEAD is where the run started, but a switch that was cut short, or an edit
 // made since, can leave the tree changed. Only a clean tree drops the record.
 function restoreBack(ctx, entry) {
-  const status = tryStatusPaths(ctx, true);
+  const status = tryStatusPaths(ctx, TRACKED_CHANGES);
 
   if (status.failed !== undefined) {
     return declineStatus(ctx, entry, status.failed);
@@ -1110,7 +1161,7 @@ function restoreBack(ctx, entry) {
   }
 
   return {
-    restored: { alreadyBack: true },
+    restored: { alreadyBack: true, untracked: untrackedPaths(ctx) },
     lockfiles: lockfilesSince(ctx, entry),
   };
 }
