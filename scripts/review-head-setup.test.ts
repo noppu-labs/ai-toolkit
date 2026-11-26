@@ -3338,6 +3338,7 @@ describe("head-setup.mjs", () => {
       expect(declined[0]).not.toHaveProperty("command");
       expect(String(declined[0]?.detail)).toContain("gen.js");
       expect(String(declined[0]?.detail)).toContain("move");
+      expect(declined[0]).toMatchObject({ dirtyPaths: ["gen.js"] });
       expect(headOf(dir)).toBe(head);
       expect(readRecord(dir).entries).toHaveLength(1);
 
@@ -3410,6 +3411,70 @@ describe("head-setup.mjs", () => {
         { alreadyBack: true },
       ]);
       expect(existsSync(recordPath(dir))).toBe(false);
+    });
+
+    it("still refuses with the id, the paths and the command when the mark cannot be saved", (context) => {
+      if (process.getuid?.() === 0) {
+        context.skip();
+      }
+
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+      const gitDir = gitDirOf(dir);
+      const closing = `#!/bin/sh\ncase "$*" in\n*"switch --detach --no-overwrite-ignore"*) echo dirt >> notes.txt; /bin/chmod 555 "${gitDir}"; echo "fatal: smudge failed" >&2; exit 128;;\nesac\nexec REAL_GIT "$@"\n`;
+      let outcome: Outcome;
+
+      try {
+        outcome = run(dir, ["enter", "checkout", head], makeBin(closing));
+      } finally {
+        chmodSync(gitDir, 0o755);
+      }
+
+      expect(outcome.status).toBe(1);
+      expect(outcome.json).toMatchObject({
+        reason: "switch-incomplete",
+        dirtyPaths: ["notes.txt"],
+        command: switchCommand(dir, "main", true),
+      });
+      expect(outcome.json.id).toBe(readRecord(dir).entries[0]?.id);
+      expect(readRecord(dir).entries[0]).not.toHaveProperty("incomplete");
+    });
+
+    it("gives the plain switch-failed decline when the switch back fails for a reason unrelated to the untracked files", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+      git(dir, "worktree", "add", "-q", nextPath("holder"), "main");
+      write(dir, "other.txt", "o\n");
+
+      const outcome = run(dir, ["restore"]);
+      const declined = listAt(outcome.json, "declined");
+
+      expect(declined).toMatchObject([{ reason: "switch-failed" }]);
+      expect(declined[0]?.command).toBe(switchCommand(dir, "main"));
+      expect(declined[0]).not.toHaveProperty("dirtyPaths");
+      expect(String(declined[0]?.detail)).not.toContain("in the way");
+      expect(readRecord(dir).entries).toHaveLength(1);
+    });
+
+    it("reports switch-incomplete when a failed switch back writes into a directory that was already untracked", () => {
+      const { dir, head } = makeFixture({}, { "b.txt": "b\n" });
+
+      enter(dir, "checkout", head);
+      write(dir, "build/old.txt", "o\n");
+
+      const wrapper = `#!/bin/sh\ncase "$*" in\n*"switch --no-guess --no-overwrite-ignore main"*) echo n > build/new.txt; echo "fatal: boom" >&2; exit 128;;\nesac\nexec REAL_GIT "$@"\n`;
+      const declined = listAt(
+        run(dir, ["restore"], makeBin(wrapper)).json,
+        "declined",
+      );
+
+      expect(declined).toMatchObject([
+        {
+          reason: "switch-incomplete",
+          dirtyPaths: ["build/new.txt", "build/old.txt"],
+        },
+      ]);
+      expect(declined[0]?.command).toBe(switchCommand(dir, "main", true));
     });
 
     it("prints no command for an entry nobody marked", () => {

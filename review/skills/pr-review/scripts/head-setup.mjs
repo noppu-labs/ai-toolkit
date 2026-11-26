@@ -65,6 +65,7 @@ const SAFE_GIT = [
 // from a `.gitignore` that differs between the two commits, so only tracked
 // changes are damage.
 const ALL_CHANGES = { ignoreSubmodules: false, untracked: true };
+const EVERY_FILE_NO_SUBMODULES = { ignoreSubmodules: true, untracked: "all" };
 const ALL_CHANGES_NO_SUBMODULES = { ignoreSubmodules: true, untracked: true };
 const TRACKED_CHANGES = { ignoreSubmodules: true, untracked: false };
 const SESSION_PATHSPECS = [
@@ -240,7 +241,7 @@ function statusRecords(ctx, { ignoreSubmodules, untracked }) {
     "--porcelain",
     "-z",
     "--no-renames",
-    `--untracked-files=${untracked ? "normal" : "no"}`,
+    `--untracked-files=${untracked === "all" ? "all" : untracked ? "normal" : "no"}`,
   ];
 
   if (ignoreSubmodules) {
@@ -265,6 +266,18 @@ function untrackedPaths(ctx) {
       .filter((record) => record.startsWith("?? "))
       .map((record) => showPath(record.slice(3)))
       .sort(compare);
+  } catch {
+    return [];
+  }
+}
+
+// Every untracked file, not directories, so a file written into a directory
+// that was already untracked still shows as new.
+function untrackedFiles(ctx) {
+  try {
+    return statusRecords(ctx, EVERY_FILE_NO_SUBMODULES)
+      .filter((record) => record.startsWith("?? "))
+      .map((record) => showPath(record.slice(3)));
   } catch {
     return [];
   }
@@ -432,16 +445,22 @@ function saveRecord(ctx, entries) {
 
 // A later restore reads the mark to print the discard command: the entry's
 // changes came from the head, not from the person.
+// Best effort: a failed write leaves the entry unmarked, and the refusal that
+// follows must still carry the id, the paths and the command.
 function markIncomplete(ctx, id) {
-  const loaded = loadRecord(ctx);
+  try {
+    const loaded = loadRecord(ctx);
 
-  if (loaded.problem === undefined) {
-    saveRecord(
-      ctx,
-      loaded.entries.map((entry) =>
-        entry.id === id ? { ...entry, incomplete: true } : entry,
-      ),
-    );
+    if (loaded.problem === undefined) {
+      saveRecord(
+        ctx,
+        loaded.entries.map((entry) =>
+          entry.id === id ? { ...entry, incomplete: true } : entry,
+        ),
+      );
+    }
+  } catch {
+    // The entry stays recorded without the mark.
   }
 }
 
@@ -1194,7 +1213,7 @@ function restoreCheckout(ctx, entry) {
     );
   }
 
-  const before = untrackedPaths(ctx);
+  const before = untrackedFiles(ctx);
   const back = changeTree(ctx, switchBackArgs(entry));
 
   if (back.status !== 0) {
@@ -1212,22 +1231,23 @@ function restoreCheckout(ctx, entry) {
 // there before means git wrote nothing: it refused over those files, and the
 // discard form refuses too.
 function declineAfterFailedBack(ctx, entry, stderr, untrackedBefore) {
-  const status = tryStatusPaths(ctx, ALL_CHANGES_NO_SUBMODULES);
-
-  if (status.failed === undefined && status.paths.length === 0) {
-    return declineCheckout(ctx, entry, "switch-failed", showPath(stderr));
-  }
-
-  if (
+  const status = tryStatusPaths(ctx, EVERY_FILE_NO_SUBMODULES);
+  const nothingNew =
     status.failed === undefined &&
-    status.paths.every((path) => untrackedBefore.includes(path))
-  ) {
-    return {
-      declined: {
-        reason: "switch-failed",
-        detail: `${showPath(stderr)}; untracked files are in the way: ${pathsInTheWay(ctx, entry, untrackedBefore).join(", ")}. Move them aside, then run restore again.`,
-      },
-    };
+    status.paths.every((path) => untrackedBefore.includes(path));
+
+  if (nothingNew) {
+    const inTheWay = pathsInTheWay(ctx, entry, untrackedBefore);
+
+    return inTheWay.length === 0
+      ? declineCheckout(ctx, entry, "switch-failed", showPath(stderr))
+      : {
+          declined: {
+            reason: "switch-failed",
+            detail: `${showPath(stderr)}; untracked files are in the way. Move them aside, then run restore again.`,
+            dirtyPaths: inTheWay,
+          },
+        };
   }
 
   return declineCheckout(
@@ -1242,28 +1262,25 @@ function declineAfterFailedBack(ctx, entry, stderr, untrackedBefore) {
   );
 }
 
-// The untracked paths the user's branch tracks too, or all of them when that
-// cannot be told.
+// The untracked files the user's branch tracks too: what git refuses to
+// overwrite. Empty when there are none or when that cannot be told.
 function pathsInTheWay(ctx, entry, untracked) {
   const target =
     entry.branch === null ? entry.fromSha : `refs/heads/${entry.branch}`;
   const listing = ctx.git.run(["ls-tree", "-r", "-z", "--name-only", target]);
 
   if (listing.status !== 0) {
-    return untracked;
+    return [];
   }
 
-  const tracked = listing.stdout
-    .split("\0")
-    .filter((path) => path !== "")
-    .map(showPath);
-  const shared = untracked.filter((path) =>
-    path.endsWith("/")
-      ? tracked.some((name) => name.startsWith(path))
-      : tracked.includes(path),
+  const tracked = new Set(
+    listing.stdout
+      .split("\0")
+      .filter((path) => path !== "")
+      .map(showPath),
   );
 
-  return shared.length > 0 ? shared : untracked;
+  return untracked.filter((path) => tracked.has(path));
 }
 
 // HEAD is where the run started, but a switch that was cut short, or an edit
