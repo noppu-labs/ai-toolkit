@@ -415,22 +415,23 @@ const GATE_SENTENCES: readonly string[] = [
 ];
 
 // COR-07: a run that asks reads the leftover record before the skip rule can
-// hide it. The condition keeps a run that cannot ask from running the plan, so
-// the workflow's prompts stay as they were.
+// hide it. The condition keeps a run that cannot ask from running the plan for
+// the record, so the workflow's prompts stay as they were.
 const RECORD_FIRST_SENTENCES: readonly string[] = [
   "When a question can be asked and no prompt named a setup or said not to ask or not to modify the checkout, run the plan first, even when no PR's `<HEAD_SHA>` differs from the working tree's commit, and ask the leftover-record question when it reports a record.",
-  "Every run then skips the rest of this section when no PR differs.",
+  "After that, and after the comparison a restore redoes, every run skips the rest of this section when no PR differs.",
 ];
 
 // COR-13: an `enter` killed before it printed its id.
 const ENTER_NO_JSON_RULE: string =
-  "An `enter` that printed no JSON (killed or timed out): run the plan, and keep for cleanup the `id` of each record entry for this head that the run does not know and that was not a leftover the user chose to leave.";
+  "An `enter` that printed no JSON (killed or timed out): run the plan, and keep for cleanup the `id` of each record entry for this head that the plan run before the `enter` did not list.";
 
 // The check-out install can rewrite tracked files, and `enter` refused a dirty
 // tree, so resetting to the head loses nothing of the user's.
 const CHECKOUT_INSTALL_SENTENCES: readonly string[] = [
-  "After the install, run `git -C '<top>' status --porcelain --untracked-files=no` (`<top>` is `git rev-parse --show-toplevel`);",
-  "when it prints anything, run `git -c core.hooksPath=/dev/null -C '<top>' reset --hard <HEAD_SHA>` and say in the report that the install changed tracked files.",
+  "Otherwise keep the `id` and `headSha` it prints.",
+  "After the install, run `git -C '<top>' status --porcelain --untracked-files=no --ignore-submodules=all` (`<top>` is `git rev-parse --show-toplevel`);",
+  "when it prints anything, run `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C '<top>' reset --hard <headSha>` and say in the report that the install changed tracked files.",
 ];
 
 const SAFETY_SENTENCES: readonly string[] = [
@@ -471,7 +472,7 @@ const SAFETY_SENTENCES: readonly string[] = [
   "git -C '<path>' status --porcelain --untracked-files=no",
   "git -C '<path>' reset --hard <HEAD_SHA>",
   "say in the report that the install changed tracked files",
-  "that PR's `<BASE>` goes to the size script, the brief and every stage as a SHA (`git rev-parse <BASE>` in the original repository).",
+  "that PR's `<BASE>` goes to the brief and every stage as a SHA (`git rev-parse <BASE>` in the original repository).",
 ];
 
 const WITHOUT_SCRIPTS_ROWS: readonly string[] = [
@@ -582,6 +583,7 @@ describe("head setup", () => {
         expect(setup).not.toContain("pr-size.sh");
         expect(size).toContain("pr-size.sh");
         expect(size).toContain("State the resolved pairs before starting");
+        expect(size).not.toContain("Before stopping, follow");
       });
 
       it("appends the checkout block after the first-pass template and each stage template", () => {
@@ -650,10 +652,6 @@ describe("head setup", () => {
 
       it("has one cleanup section that the stop paths point to", () => {
         const pointer: string = "`## Cleanup on every exit`";
-        const stop: string =
-          stepOf(source, 1)
-            .split("\n")
-            .find((line) => line.startsWith("State the resolved pairs")) ?? "";
         const stepThree: string = stepOf(source, 3);
         const holdMarker: string =
           name === "claude"
@@ -664,7 +662,6 @@ describe("head setup", () => {
           "";
 
         expect(source.split("\n## Cleanup on every exit\n")).toHaveLength(2);
-        expect(stop).toContain(pointer);
         expect(hold).toContain(pointer);
       });
 

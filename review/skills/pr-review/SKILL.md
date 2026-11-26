@@ -61,7 +61,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/pr-size.sh <BASE> <HEAD>
 
 It prints one line, `lines=<n> code-review=high|xhigh|max correctness-review=1|3|4`. `code-review=` is the level for the `code-review` first pass: `high` up to 300 lines, `xhigh` up to 3000, and `max` over that. `correctness-review=` is how many subagents run the `correctness-review` first pass when `code-review` is not listed: 1 up to 200 lines, 3 up to 1200, and 4 over that. Take both as printed and never recount by hand. The script counts added plus deleted lines and leaves out lockfiles, binary files, and the unchanged part of a moved or renamed file, so a file moved without edits counts zero. Each PR of a stack is sized on its own diff, since its `<BASE>` is the head of the PR below it. The number of files plays no part: a change spread over many files but a few hundred lines still fits in one context. The fields set how the first correctness pass runs in step 3. Their cutoffs differ because a higher `code-review` level adds finder and verifier subagents, while more `correctness-review` subagents only spread the same angles over more contexts. The thresholds live in the script and are a starting point to tune, not a measured value.
 
-State the resolved pairs before starting, one line per PR: number, title, base, head, `<HEAD_SHA>`, url, the script's line, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, `origin/<baseRefName>` still does not resolve, or the size script fails, stop and say which number failed. Do not guess a base ref. Before stopping, follow `## Cleanup on every exit`.
+State the resolved pairs before starting, one line per PR: number, title, base, head, `<HEAD_SHA>`, url, the script's line, and `head from SHA fallback` when the SHA fallback was used. If `gh` is unavailable, a number does not resolve to a PR, `origin` is not the repository `gh` resolves against, the SHA fallback fetch fails, `origin/<baseRefName>` still does not resolve, or the size script fails, stop and say which number failed. Do not guess a base ref.
 
 ### Set up the head
 
@@ -71,7 +71,7 @@ Ask only when a tool that puts a question to the user is listed: `AskUserQuestio
 - When the prompt names no setup, one that says not to ask, or not to modify the checkout, means continue as is, gets no setup line, and asks nothing, the leftover-record question included. Describing the checkout (it is at the PR head, it is disposable) is not naming a setup, and neither is "install it if missing" and similar.
 - When no setup is named and no question can be asked, or the question is cancelled or gets no answer, go on as if the user chose to continue as is.
 
-When a question can be asked and no prompt named a setup or said not to ask or not to modify the checkout, run the plan first, even when no PR's `<HEAD_SHA>` differs from the working tree's commit, and ask the leftover-record question when it reports a record. Every run then skips the rest of this section when no PR differs.
+When a question can be asked and no prompt named a setup or said not to ask or not to modify the checkout, run the plan first, even when no PR's `<HEAD_SHA>` differs from the working tree's commit, and ask the leftover-record question when it reports a record. After that, and after the comparison a restore redoes, every run skips the rest of this section when no PR differs.
 
 Unless the setup is continue as is, run the plan once for every PR before asking or acting, and the hints script for each PR whose `<HEAD_SHA>` differs from the working tree's commit. The plan takes the heads in merge order and treats the last one as the check-out target:
 
@@ -119,14 +119,14 @@ A typed answer, or a caller's prompt, may also say "without scripts" or "separat
 
 Installs, for the check-out, a worktree, a clone and the reinstall in cleanup alike: choose the root lockfile and those the gates need, never lockfiles under test or fixture directories, and run each one's `likelyCommand` from its lockfile's directory. Run the install commands one Bash call at a time, each with the Bash tool's longest timeout, and wait for each to end before dispatching anything. A command that fails is recorded with its reason and the review goes on.
 
-An `enter` that printed no JSON (killed or timed out): run the plan, and keep for cleanup the `id` of each record entry for this head that the run does not know and that was not a leftover the user chose to leave.
+An `enter` that printed no JSON (killed or timed out): run the plan, and keep for cleanup the `id` of each record entry for this head that the plan run before the `enter` did not list.
 
 Check out:
 
 - Run `node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs enter checkout <HEAD_SHA>`, with the last PR's `<HEAD_SHA>` for the stack option. Run one `enter` at a time, and never beside a `restore`: the script takes a lock and refuses with `busy` while another run holds it.
 - `ok: false` means continue as is, with its reason recorded. When it also prints an `id` (`switch-incomplete` and `switch-back-failed`), the switch changed the tree before it failed and the record is kept: keep that id and print its `dirtyPaths` and its `command`, and restore it in cleanup like any other.
-- Otherwise keep the `id` it prints. Install only for the chosen lockfiles the plan reports `changed` or with `dependencies: "missing"`: no project entry point and no `.env` copy in the user's checkout.
-- After the install, run `git -C '<top>' status --porcelain --untracked-files=no` (`<top>` is `git rev-parse --show-toplevel`); when it prints anything, run `git -c core.hooksPath=/dev/null -C '<top>' reset --hard <HEAD_SHA>` and say in the report that the install changed tracked files.
+- Otherwise keep the `id` and `headSha` it prints. Install only for the chosen lockfiles the plan reports `changed` or with `dependencies: "missing"`: no project entry point and no `.env` copy in the user's checkout.
+- After the install, run `git -C '<top>' status --porcelain --untracked-files=no --ignore-submodules=all` (`<top>` is `git rev-parse --show-toplevel`); when it prints anything, run `git -c core.hooksPath=/dev/null -c submodule.recurse=false -C '<top>' reset --hard <headSha>` and say in the report that the install changed tracked files.
 - No PR gets a `checkout`, since the working tree is now the head. In a stack, the lower PRs keep reading through git.
 
 Worktree and clone, for each PR whose `<HEAD_SHA>` differs from the working tree's commit:
@@ -134,7 +134,7 @@ Worktree and clone, for each PR whose `<HEAD_SHA>` differs from the working tree
 - Run `node ${CLAUDE_PLUGIN_ROOT}/skills/pr-review/scripts/head-setup.mjs enter worktree <HEAD_SHA> --scratch '<dir>'` (`clone` for a separate clone), one at a time, with `<dir>` the session's scratch directory when there is one and `--scratch` left out when there is not. Its `path` is that PR's `checkout` in step 3. Keep its `id`. By hand, build the brief of step 2 in that directory.
 - Then install there: the project's own entry point when it covers the lockfile commands, otherwise the chosen lockfiles' commands, and copy `envExample` to `.env` when it is not null and the gates likely need it. A PR already at the working tree's commit stays in place with no worktree. When `enter` fails, that PR gets no `checkout`: record why.
 - After the install, run `git -C '<path>' status --porcelain --untracked-files=no`; when it prints anything, run `git -C '<path>' reset --hard <HEAD_SHA>` and say in the report that the install changed tracked files.
-- In a clone, `origin`'s refs are the user's local branches, so that PR's `<BASE>` goes to the size script, the brief and every stage as a SHA (`git rev-parse <BASE>` in the original repository). On the workflow path it is that PR's `base`.
+- In a clone, `origin`'s refs are the user's local branches, so that PR's `<BASE>` goes to the brief and every stage as a SHA (`git rev-parse <BASE>` in the original repository). On the workflow path it is that PR's `base`.
 - Restore as `## Cleanup on every exit` says.
 
 ## Step 2: structural brief
