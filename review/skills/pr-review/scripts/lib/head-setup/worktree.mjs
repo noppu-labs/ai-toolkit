@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import { join } from "node:path";
-import { changeTree } from "./checkout-enter.mjs";
 import { MARKER_FILE } from "./constants.mjs";
+import { changeTree } from "./context.mjs";
 import { showPath } from "./display.mjs";
 import { FORGET_HINT } from "./printed-commands.mjs";
 import {

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { ALL_CHANGES, SAFE_GIT, TRACKED_CHANGES } from "./constants.mjs";
-import { refuse } from "./context.mjs";
+import { ALL_CHANGES, TRACKED_CHANGES } from "./constants.mjs";
+import { changeTree, refuse } from "./context.mjs";
 import { showPath } from "./display.mjs";
 import {
   DISCARD_NOTE,
@@ -16,10 +16,6 @@ import {
   statusPaths,
   tryStatusPaths,
 } from "./status.mjs";
-
-export function changeTree(ctx, args) {
-  return ctx.session.run([...SAFE_GIT, ...args]);
-}
 
 export function enterCheckout(ctx, sha, entries) {
   if (entries.some(isCheckoutEntry)) {

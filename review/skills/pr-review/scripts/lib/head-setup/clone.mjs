@@ -1,9 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { makeGit } from "../git.mjs";
-import { changeTree } from "./checkout-enter.mjs";
 import { ALL_CHANGES, SAFE_GIT } from "./constants.mjs";
-import { refuse } from "./context.mjs";
+import { changeTree, refuse } from "./context.mjs";
 import { showPath } from "./display.mjs";
 import { FORGET_HINT } from "./printed-commands.mjs";
 import {

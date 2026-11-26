@@ -1,5 +1,6 @@
 import { findExecutable } from "../exec.mjs";
 import { makeGit } from "../git.mjs";
+import { SAFE_GIT } from "./constants.mjs";
 
 export class Refusal extends Error {
   constructor(reason, detail, extra = {}) {
@@ -11,6 +12,10 @@ export class Refusal extends Error {
 
 export function refuse(reason, detail, extra) {
   throw new Refusal(reason, detail, extra);
+}
+
+export function changeTree(ctx, args) {
+  return ctx.session.run([...SAFE_GIT, ...args]);
 }
 
 export function makeContext() {

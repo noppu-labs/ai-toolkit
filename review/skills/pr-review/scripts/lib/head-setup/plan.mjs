@@ -1,9 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { recognisedLockfile } from "../lockfiles.mjs";
 import { dirOf } from "../paths.mjs";
 import { compare, sortBy } from "../sort.mjs";
-import { listTree, makeSource } from "../tree.mjs";
 import {
   ALL_CHANGES,
   DEPENDENCY_NAMES,
@@ -11,6 +9,7 @@ import {
 } from "./constants.mjs";
 import { refuse } from "./context.mjs";
 import { showPath } from "./display.mjs";
+import { listLockfiles } from "./lockfile-changes.mjs";
 import { describeRecord, isCheckoutEntry } from "./record.mjs";
 import { loadRecord } from "./record-store.mjs";
 import {
@@ -20,22 +19,6 @@ import {
   requireCommit,
   statusPaths,
 } from "./status.mjs";
-
-export function listLockfiles(git, sha) {
-  const entries = listTree(git, sha);
-  const src = makeSource(git, sha, entries);
-  const found = new Map();
-
-  for (const path of src.paths()) {
-    const entry = recognisedLockfile(src, path);
-
-    if (entry !== null) {
-      found.set(path, { manager: entry.manager, blob: src.blob(path) });
-    }
-  }
-
-  return found;
-}
 
 function dependenciesOf(ctx, path, manager) {
   const names = DEPENDENCY_NAMES.get(manager);
@@ -49,24 +32,6 @@ function dependenciesOf(ctx, path, manager) {
   return names.some((name) => existsSync(join(dir, name)))
     ? "present"
     : "missing";
-}
-
-export function changedLockfiles(before, after) {
-  const changed = [];
-
-  for (const path of new Set([...before.keys(), ...after.keys()])) {
-    const now = after.get(path);
-
-    if (before.get(path)?.blob !== now?.blob) {
-      changed.push({
-        path,
-        manager: (now ?? before.get(path)).manager,
-        exists: now !== undefined,
-      });
-    }
-  }
-
-  return sortBy(changed, "path");
 }
 
 function planLockfiles(ctx, current, sha) {

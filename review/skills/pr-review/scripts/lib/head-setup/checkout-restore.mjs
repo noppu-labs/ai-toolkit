@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { changeTree } from "./checkout-enter.mjs";
 import { EVERY_FILE_NO_SUBMODULES, TRACKED_CHANGES } from "./constants.mjs";
+import { changeTree } from "./context.mjs";
 import { showPath } from "./display.mjs";
-import { changedLockfiles, listLockfiles } from "./plan.mjs";
+import { changedLockfiles, listLockfiles } from "./lockfile-changes.mjs";
 import {
   branchExists,
   DISCARD_NOTE,
