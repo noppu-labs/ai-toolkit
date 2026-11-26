@@ -1,6 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { runInNewContext } from "node:vm";
 import fc from "fast-check";
 
 export type Instructions = Partial<Record<InstructionKey, string>>;
@@ -49,12 +48,6 @@ export type Run = {
   prompts: Prompt[];
   logs: string[];
   phases: string[];
-};
-
-export type Meta = {
-  name: string;
-  description: string;
-  phases: Array<{ title: string; detail?: string }>;
 };
 
 export type Stage = (
@@ -165,42 +158,8 @@ export function compileSource(text: string): ScriptBody {
   );
 }
 
-export function isMeta(value: unknown): value is Meta {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const record = value as Record<string, unknown>;
-
-  return (
-    typeof record.name === "string" &&
-    typeof record.description === "string" &&
-    Array.isArray(record.phases)
-  );
-}
-
-export function readMetaOf(text: string): Meta {
-  const match = /^export const meta = (\{[\s\S]*?\n\});/.exec(text);
-
-  if (match?.[1] === undefined) {
-    throw new Error("meta literal not found at the top of the script");
-  }
-
-  const parsed: unknown = runInNewContext(`(${match[1]})`);
-
-  if (!isMeta(parsed)) {
-    throw new Error("meta literal has an unexpected shape");
-  }
-
-  return parsed;
-}
-
 export function compile(): ScriptBody {
   return compileSource(source);
-}
-
-export function readMeta(): Meta {
-  return readMetaOf(source);
 }
 
 export async function runItem(

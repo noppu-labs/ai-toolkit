@@ -6,12 +6,51 @@ import {
   countOccurrences,
   EXAMPLE_FIXTURES,
   EXAMPLE_PR,
-  readMeta,
-  readMetaOf,
   runScript,
+  source,
   WORKFLOW_SCRIPTS,
   workflowsDir,
 } from "./helpers.ts";
+
+type Meta = {
+  name: string;
+  description: string;
+  phases: Array<{ title: string; detail?: string }>;
+};
+
+function isMeta(value: unknown): value is Meta {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.name === "string" &&
+    typeof record.description === "string" &&
+    Array.isArray(record.phases)
+  );
+}
+
+function readMetaOf(text: string): Meta {
+  const match = /^export const meta = (\{[\s\S]*?\n\});/.exec(text);
+
+  if (match?.[1] === undefined) {
+    throw new Error("meta literal not found at the top of the script");
+  }
+
+  const parsed: unknown = new Function(`return (${match[1]});`)();
+
+  if (!isMeta(parsed)) {
+    throw new Error("meta literal has an unexpected shape");
+  }
+
+  return parsed;
+}
+
+function readMeta(): Meta {
+  return readMetaOf(source);
+}
 
 describe("meta", () => {
   it("names the workflow differently from the pr-review skill", () => {
