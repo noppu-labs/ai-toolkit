@@ -21,7 +21,7 @@
     "@biomejs/biome": "2.6.8",
     "@opencode/plugin": "2.3.2",
     "@types/node": "^26.6.6",
-    "@vitest/coverage-v8": "^5.1.0",
+    "@vitest/coverage-v8": "^5.1.1",
     "fast-check": "^4.10.3",
     "markdownlint-cli2": "^0.24.2",
     "tsx": "^4.23.15",
