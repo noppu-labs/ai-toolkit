@@ -17,7 +17,8 @@ export const meta = {
 
 // The four templates below are copied from review/skills/pr-review/SKILL.md:
 // the body of "## Step 2: structural brief" and the three fenced stage
-// prompts of step 3. scripts/review-workflow.test.ts fails when they drift.
+// prompts of step 3. scripts/review-workflow/prompts.test.ts fails when they
+// drift.
 
 const STEP2_TEMPLATE = `One brief per PR, plain text, pasted whole into every subagent prompt for that PR.
 
